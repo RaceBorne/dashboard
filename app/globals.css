@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 4%;
+  --foreground: 0 0% 93%;
+  --card: 0 0% 8%;
+  --card-foreground: 0 0% 93%;
+  --popover: 0 0% 7%;
+  --popover-foreground: 0 0% 93%;
+  --primary: 0 80% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 93%;
+  --muted: 0 0% 10%;
+  --muted-foreground: 0 0% 64%;
+  --accent: 0 0% 12%;
+  --accent-foreground: 0 0% 93%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 14%;
+  --input: 0 0% 14%;
+  --ring: 0 80% 55%;
+  --radius: 0.75rem;
+}
+
+* {
+  @apply border-border;
+}
+
+html,
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.35);
+  color: hsl(var(--foreground));
+}
+
+/* Subtle scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 18%);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(0 0% 26%);
+}
+
+/* Fine grid background for the briefing hero */
+.evari-grid {
+  background-image:
+    linear-gradient(hsl(0 0% 12%) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 12%) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+
+/* Subtle red glow used very sparingly */
+.evari-accent-glow {
+  box-shadow: 0 0 0 1px hsl(0 80% 55% / 0.4), 0 8px 32px -8px hsl(0 80% 55% / 0.35);
+}
+
+/* Markdown / MessageResponse base styles */
+.prose-evari {
+  @apply text-evari-text;
+}
+.prose-evari h1 {
+  @apply text-2xl font-medium tracking-tight mt-6 mb-3;
+}
+.prose-evari h2 {
+  @apply text-xl font-medium tracking-tight mt-6 mb-3;
+}
+.prose-evari h3 {
+  @apply text-base font-medium uppercase tracking-wider text-evari-dim mt-5 mb-2;
+}
+.prose-evari p {
+  @apply mb-3 leading-relaxed;
+}
+.prose-evari ul {
+  @apply list-disc pl-5 mb-3 space-y-1;
+}
+.prose-evari ol {
+  @apply list-decimal pl-5 mb-3 space-y-1;
+}
+.prose-evari li {
+  @apply leading-relaxed;
+}
+.prose-evari a {
+  @apply text-evari-gold underline-offset-4 hover:underline;
+}
+.prose-evari strong {
+  @apply text-evari-text font-medium;
+}
+.prose-evari blockquote {
+  @apply border-l-2 border-evari-edge pl-4 my-3 text-evari-dim italic;
+}
+.prose-evari code {
+  @apply font-mono text-[0.85em] bg-evari-edge/60 px-1.5 py-0.5 rounded;
+}
+.prose-evari pre {
+  @apply font-mono text-sm bg-evari-edge/60 p-3 rounded-md my-3 overflow-x-auto;
+}
+.prose-evari hr {
+  @apply border-evari-edge my-6;
+}

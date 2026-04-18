@@ -1,0 +1,230 @@
+import type { AuditFinding, KeywordRow, PageRecord } from '@/lib/types';
+
+const isoHoursAgo = (h: number) => {
+  const d = new Date();
+  d.setHours(d.getHours() - h);
+  return d.toISOString();
+};
+
+export const MOCK_AUDIT_FINDINGS: AuditFinding[] = [
+  // Real finding noted in the plan: evari.cc/sitemap.xml returning 500.
+  {
+    id: 'audit_sitemap_500',
+    title: 'sitemap.xml returns HTTP 500',
+    description:
+      'Crawl: GET https://evari.cc/sitemap.xml returns a 500 Internal Server Error. Search Console reports the sitemap as unreadable. Without a working sitemap Google relies entirely on internal linking to discover new product, journal, and configurator pages.',
+    severity: 'critical',
+    category: 'crawlability',
+    affectedUrls: ['https://evari.cc/sitemap.xml'],
+    detectedAt: isoHoursAgo(2),
+    autoFixAvailable: false,
+    recommendation:
+      'Re-publish a clean Shopify sitemap. If the storefront has a custom sitemap proxy/edge function, inspect logs for the 500 cause. As a temporary mitigation, submit hand-written sitemap_products.xml and sitemap_blogs.xml fragments to GSC.',
+  },
+  {
+    id: 'audit_meta_descriptions',
+    title: '17 product/collection pages missing meta description',
+    description:
+      'Shopify defaults the meta description to the first 160 characters of body copy on these pages, often producing generic snippets. Hand-written descriptions written in the Evari voice tend to lift CTR by 8-14%.',
+    severity: 'warning',
+    category: 'metadata',
+    affectedUrls: [
+      '/products/evari-tour',
+      '/products/evari-commuter',
+      '/collections/all',
+      '/collections/accessories',
+      '/pages/finance',
+    ],
+    detectedAt: isoHoursAgo(8),
+    autoFixAvailable: true,
+    recommendation:
+      'Generate Evari-voice meta descriptions for all 17 pages and apply via Shopify Admin API. Each description ≤160 chars, mentions the product line, and ends on a quiet, confident note (no exclamation marks).',
+  },
+  {
+    id: 'audit_image_alts',
+    title: '212 product images without descriptive alt text',
+    description:
+      'Most product imagery uses filename-only alt text (e.g. "DSC_4821.jpg"). Beyond the accessibility cost, these images lose all chance of ranking in Google Images for terms like "carbon e-touring bike" — a high-intent visual surface for Evari.',
+    severity: 'warning',
+    category: 'images',
+    affectedUrls: ['/products/evari-tour', '/products/evari-commuter'],
+    detectedAt: isoHoursAgo(8),
+    autoFixAvailable: true,
+    recommendation:
+      'Auto-generate descriptive alt text via Claude using product context (model, finish, year), then write back to Shopify. Skip lifestyle imagery for human review.',
+  },
+  {
+    id: 'audit_h1',
+    title: 'Homepage H1 missing primary brand keyword',
+    description:
+      'The current homepage H1 is "Made for the journey." — beautiful copy, but Google has no signal that this site sells carbon e-touring bikes. Add a quiet supporting H2 that sets the topical context.',
+    severity: 'warning',
+    category: 'on_page',
+    affectedUrls: ['/'],
+    detectedAt: isoHoursAgo(8),
+    autoFixAvailable: false,
+    recommendation:
+      'Keep the H1. Add an H2 below in the existing subhead style: "Carbon e-touring bicycles, hand-finished in the UK." Test for two weeks against the control via GSC + GA4.',
+  },
+  {
+    id: 'audit_lcp',
+    title: 'LCP on /products/evari-tour: 3.8s (mobile)',
+    description:
+      'The hero image on the Tour PDP loads at 1.4 MB unoptimised. PageSpeed Insights reports a mobile LCP of 3.8s — outside the "Good" threshold of 2.5s. This page receives 1,840 sessions/month and converts at 2.8%.',
+    severity: 'critical',
+    category: 'performance',
+    affectedUrls: ['/products/evari-tour'],
+    detectedAt: isoHoursAgo(2),
+    autoFixAvailable: true,
+    recommendation:
+      'Re-export the hero image as a 1600px wide AVIF (under 220 KB), set fetchpriority="high" and preload. Estimated LCP after fix: 1.6s.',
+  },
+  {
+    id: 'audit_internal_links',
+    title: 'Configurator page is 4 clicks from the homepage',
+    description:
+      'The configurator — your highest-intent surface — is buried under product → variant → "build yours" CTA. Conversion would benefit from a homepage entry point.',
+    severity: 'info',
+    category: 'links',
+    affectedUrls: ['/pages/configurator'],
+    detectedAt: isoHoursAgo(20),
+    autoFixAvailable: false,
+    recommendation: 'Add a "Configure your Evari" entry in primary navigation and the homepage hero secondary CTA.',
+  },
+  {
+    id: 'audit_schema',
+    title: 'Product schema missing on /products/evari-commuter',
+    description:
+      'The Tour PDP has Product + Offer JSON-LD; the Commuter PDP does not. Without it the Commuter is ineligible for rich product results in Google.',
+    severity: 'warning',
+    category: 'structured_data',
+    affectedUrls: ['/products/evari-commuter'],
+    detectedAt: isoHoursAgo(20),
+    autoFixAvailable: true,
+    recommendation: 'Apply the same product schema template used on the Tour PDP via Shopify theme inject.',
+  },
+  {
+    id: 'audit_robots',
+    title: 'robots.txt healthy',
+    description: 'No issues detected. /admin and /checkout correctly disallowed; sitemap reference present.',
+    severity: 'pass',
+    category: 'crawlability',
+    affectedUrls: ['/robots.txt'],
+    detectedAt: isoHoursAgo(2),
+    autoFixAvailable: false,
+    recommendation: '',
+  },
+  {
+    id: 'audit_canonical',
+    title: 'Canonicals correctly set across the catalogue',
+    description: 'All product, collection, and blog pages declare self-referential canonicals. No conflict detected.',
+    severity: 'pass',
+    category: 'metadata',
+    affectedUrls: [],
+    detectedAt: isoHoursAgo(20),
+    autoFixAvailable: false,
+    recommendation: '',
+  },
+];
+
+export const MOCK_KEYWORDS: KeywordRow[] = [
+  { id: 'k1', query: 'carbon e-touring bike uk', impressions: 1820, clicks: 162, ctr: 0.089, position: 4.2, positionDelta7d: -0.6, url: '/products/evari-tour', intent: 'commercial', priority: 'high' },
+  { id: 'k2', query: 'evari', impressions: 980, clicks: 612, ctr: 0.625, position: 1.1, positionDelta7d: 0, url: '/', intent: 'navigational', priority: 'high' },
+  { id: 'k3', query: 'bosch cx touring bike', impressions: 3120, clicks: 184, ctr: 0.059, position: 6.8, positionDelta7d: 0.4, url: '/products/evari-tour', intent: 'commercial', priority: 'high' },
+  { id: 'k4', query: 'best e bike for pyrenees', impressions: 740, clicks: 42, ctr: 0.057, position: 7.2, positionDelta7d: -1.2, url: '/blogs/journal/why-bosch-cx', intent: 'informational', priority: 'high' },
+  { id: 'k5', query: 'carbon ebike commuter', impressions: 2200, clicks: 88, ctr: 0.040, position: 9.4, positionDelta7d: 0.2, url: '/products/evari-commuter', intent: 'commercial', priority: 'high' },
+  { id: 'k6', query: 'kustomflow paint', impressions: 410, clicks: 86, ctr: 0.210, position: 2.4, positionDelta7d: -0.1, url: '/blogs/journal/kustomflow-paint-shop', intent: 'informational', priority: 'medium' },
+  { id: 'k7', query: 'singer style bike', impressions: 320, clicks: 14, ctr: 0.044, position: 18.2, positionDelta7d: 1.4, url: '/blogs/journal/quiet-confidence', intent: 'informational', priority: 'low' },
+  { id: 'k8', query: 'evari tour review', impressions: 280, clicks: 92, ctr: 0.329, position: 1.8, positionDelta7d: 0, url: '/products/evari-tour', intent: 'commercial', priority: 'high' },
+  { id: 'k9', query: 'high end electric touring bicycle', impressions: 540, clicks: 22, ctr: 0.041, position: 11.6, positionDelta7d: -2.1, url: '/products/evari-tour', intent: 'commercial', priority: 'medium' },
+  { id: 'k10', query: 'bicycle finance uk', impressions: 1680, clicks: 18, ctr: 0.011, position: 24.8, positionDelta7d: 0.6, url: '/pages/finance', intent: 'transactional', priority: 'medium' },
+  { id: 'k11', query: 'cycle to work scheme limit ebike', impressions: 920, clicks: 24, ctr: 0.026, position: 14.6, positionDelta7d: -0.4, url: '/pages/finance', intent: 'informational', priority: 'medium' },
+  { id: 'k12', query: 'evari commuter range', impressions: 180, clicks: 56, ctr: 0.311, position: 1.2, positionDelta7d: 0, url: '/products/evari-commuter', intent: 'informational', priority: 'high' },
+];
+
+export const MOCK_PAGES: PageRecord[] = [
+  {
+    id: 'p_home',
+    path: '/',
+    title: 'Made for the journey — Evari',
+    metaTitle: 'Made for the journey — Evari',
+    metaDescription: 'Carbon e-touring and commuter bicycles, hand-finished in the United Kingdom.',
+    type: 'home',
+    lastEditedAt: isoHoursAgo(48),
+    wordCount: 312,
+    organicSessions30d: 2840,
+    conversions30d: 64,
+    primaryKeyword: 'evari',
+    issues: ['warning'],
+  },
+  {
+    id: 'p_tour',
+    path: '/products/evari-tour',
+    title: 'Evari Tour',
+    metaTitle: 'Evari Tour — carbon e-touring bicycle',
+    metaDescription: 'The Evari Tour. Bosch Performance Line CX, full carbon, 80 kg payload.',
+    type: 'product',
+    shopifyId: 'gid://shopify/Product/8211123',
+    lastEditedAt: isoHoursAgo(72),
+    wordCount: 920,
+    organicSessions30d: 1840,
+    conversions30d: 51,
+    primaryKeyword: 'carbon e-touring bike uk',
+    issues: ['critical', 'warning'],
+  },
+  {
+    id: 'p_commuter',
+    path: '/products/evari-commuter',
+    title: 'Evari Commuter',
+    metaDescription: undefined,
+    type: 'product',
+    shopifyId: 'gid://shopify/Product/8211124',
+    lastEditedAt: isoHoursAgo(120),
+    wordCount: 712,
+    organicSessions30d: 980,
+    conversions30d: 22,
+    primaryKeyword: 'carbon ebike commuter',
+    issues: ['warning', 'warning'],
+  },
+  {
+    id: 'p_craft',
+    path: '/pages/craft',
+    title: 'The Craft',
+    metaTitle: 'The Craft — how an Evari is built',
+    metaDescription: 'Carbon laid in Asia. Painted at Kustomflow. Built in our Surrey workshop.',
+    type: 'page',
+    lastEditedAt: isoHoursAgo(220),
+    wordCount: 1840,
+    organicSessions30d: 612,
+    conversions30d: 8,
+    primaryKeyword: 'carbon bicycle manufacture',
+    issues: [],
+  },
+  {
+    id: 'p_kustomflow',
+    path: '/blogs/journal/kustomflow-paint-shop',
+    title: 'Inside the Kustomflow paint shop',
+    metaTitle: 'Inside the Kustomflow paint shop — Evari Journal',
+    metaDescription: 'Eighteen hours, one frame. The paint process behind every Evari.',
+    type: 'blog',
+    lastEditedAt: isoHoursAgo(680),
+    wordCount: 2240,
+    organicSessions30d: 320,
+    conversions30d: 4,
+    primaryKeyword: 'kustomflow paint',
+    issues: [],
+  },
+  {
+    id: 'p_finance',
+    path: '/pages/finance',
+    title: 'Finance and Cycle to Work',
+    metaDescription: undefined,
+    type: 'page',
+    lastEditedAt: isoHoursAgo(720),
+    wordCount: 480,
+    organicSessions30d: 188,
+    conversions30d: 14,
+    primaryKeyword: 'bicycle finance uk',
+    issues: ['warning'],
+  },
+];
