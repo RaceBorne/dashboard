@@ -2,6 +2,11 @@ import { TopBar } from '@/components/sidebar/TopBar';
 import { WireframeDiagram } from '@/components/wireframe/WireframeDiagram';
 import { WIREFRAME_NODES } from '@/lib/wireframe';
 
+// Force dynamic rendering so env var changes take effect on the next page
+// load — no rebuild required. Otherwise Next would static-prerender this
+// page at build time with whatever env vars existed then.
+export const dynamic = 'force-dynamic';
+
 /**
  * Wireframe — a live architecture diagram showing how every service in the
  * Evari stack connects, and what each costs. Boxes flip from grey to green
