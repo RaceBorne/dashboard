@@ -8,19 +8,105 @@ import { WIREFRAME_NODES } from '@/lib/wireframe';
 export const dynamic = 'force-dynamic';
 
 /**
+ * Fetch the most recent commit on main from GitHub. Optional GITHUB_TOKEN
+ * lets us read private repos; without it, only public repos return data.
+ * Result is cached for 60s to avoid hammering the API on every page hit.
+ *
+ * Returns ISO timestamp + short SHA + author + message, or null if the
+ * lookup fails for any reason (no token, network issue, rate limit).
+ */
+async function fetchLastCommit(): Promise<{
+  isoTime: string;
+  sha: string;
+  author: string;
+  message: string;
+} | null> {
+  const repo = 'RaceBorne/dashboard';
+  const url = `https://api.github.com/repos/${repo}/commits/main`;
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+  try {
+    const res = await fetch(url, {
+      headers,
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return null;
+    const data: {
+      sha: string;
+      commit: {
+        author: { name: string; date: string };
+        message: string;
+      };
+    } = await res.json();
+    return {
+      isoTime: data.commit.author.date,
+      sha: data.sha.slice(0, 7),
+      author: data.commit.author.name,
+      message: data.commit.message.split('\n')[0],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Compact "5m ago / 2h ago / 3d ago" — the kind of thing you'd see in a
+ *  GitHub feed. Falls back to the date once we get past a week. */
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return 'recently';
+  const diffMs = Date.now() - then;
+  const sec = Math.max(1, Math.round(diffMs / 1000));
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.round(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
+/**
  * Wireframe — a live architecture diagram showing how every service in the
  * Evari stack connects, and what each costs. Boxes flip from grey to green
  * when the matching env vars are present. Primarily aimed at Craig + his
  * partner so they can see the full system at a glance, and dig into the
  * bidirectional flows on click.
  */
-export default function WireframePage() {
+export default async function WireframePage() {
   // Which env vars exist (used for green/grey dots)
   const allEnvVars = new Set<string>();
   for (const n of WIREFRAME_NODES) for (const v of n.envVars) allEnvVars.add(v);
   const envPresent = new Set<string>();
   for (const v of allEnvVars) {
     if (process.env[v] && process.env[v]!.length > 0) envPresent.add(v);
+  }
+
+  // Per-node live signals — currently just GitHub's "last backed up" but
+  // structured as a map so we can add Supabase last-migration, Vercel
+  // last-deploy, Shopify last-sync, etc. without changing the component
+  // contract again.
+  const lastCommit = await fetchLastCommit();
+  const nodeMeta: Record<string, { caption: string; tooltip?: string }> = {};
+  if (lastCommit) {
+    nodeMeta.github = {
+      caption: `Saved ${formatRelative(lastCommit.isoTime)}`,
+      tooltip: `${lastCommit.sha} · ${lastCommit.author}\n${lastCommit.message}`,
+    };
+  } else {
+    nodeMeta.github = {
+      caption: 'Backup status unavailable',
+      tooltip:
+        'GitHub commit lookup failed. Add a GITHUB_TOKEN env var so the wireframe can read commit history from the private repo.',
+    };
   }
 
   // Non-secret identifier values (username, store domain, email) passed
@@ -42,7 +128,11 @@ export default function WireframePage() {
     <>
       <TopBar title="Wireframe" subtitle="system architecture — live" />
       <div className="px-6 py-6 space-y-8">
-        <WireframeDiagram envPresent={envPresent} identifierValues={identifierValues} />
+        <WireframeDiagram
+          envPresent={envPresent}
+          identifierValues={identifierValues}
+          nodeMeta={nodeMeta}
+        />
 
         {/* Order-of-work guidance */}
         <div className="rounded-xl bg-evari-surface px-5 py-4">

@@ -43,6 +43,12 @@ interface Props {
   envPresent: Set<string>;
   /** Non-secret identifier values (e.g. SHOPIFY_STORE_DOMAIN, GMAIL_USER_EMAIL) */
   identifierValues: Record<string, string>;
+  /**
+   * Per-node live captions — surfaced as a small italic line inside the box.
+   * Used today for GitHub's "Saved 5m ago" backup status; designed to extend
+   * to Supabase last-migration / Vercel last-deploy / Shopify last-sync.
+   */
+  nodeMeta?: Record<string, { caption: string; tooltip?: string }>;
 }
 
 // Zoom clamps
@@ -887,7 +893,11 @@ function resolveAccount(
   };
 }
 
-export function WireframeDiagram({ envPresent: initialEnv, identifierValues }: Props) {
+export function WireframeDiagram({
+  envPresent: initialEnv,
+  identifierValues,
+  nodeMeta,
+}: Props) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [view, setView] = useState<View>(IDENTITY);
@@ -1522,11 +1532,14 @@ export function WireframeDiagram({ envPresent: initialEnv, identifierValues }: P
                 >
                   <div
                     className={cn(
-                      'absolute text-[10px] uppercase tracking-[0.18em] pointer-events-none font-medium transition-colors',
-                      // Bright green when all required members are wired up
-                      // — the primary colour-blind-friendly "cluster live"
-                      // signal. Gold highlight fades when just hovered.
-                      allLive ? 'text-evari-success' : 'text-evari-dimmer',
+                      'absolute inline-flex items-center pointer-events-none text-[10px] uppercase tracking-[0.18em] font-medium px-2.5 py-1 rounded-full transition-all duration-200',
+                      // When every required member is connected, the title
+                      // becomes a bright green "lit-up" lozenge — the most
+                      // visible colour-blind-friendly "cluster live" signal.
+                      // Otherwise it's a pale, transparent caption.
+                      allLive
+                        ? 'bg-evari-success text-evari-ink shadow-[0_0_12px_rgba(126,168,88,0.55)]'
+                        : 'text-evari-dimmer',
                     )}
                     style={{
                       left: `${(20 / clusterWidthVb) * 100}%`,
@@ -1534,7 +1547,6 @@ export function WireframeDiagram({ envPresent: initialEnv, identifierValues }: P
                     }}
                   >
                     {meta.label}
-                    {allLive && <span className="ml-2 text-evari-success">●</span>}
                   </div>
                 </div>
               </div>
@@ -1827,19 +1839,39 @@ export function WireframeDiagram({ envPresent: initialEnv, identifierValues }: P
                       </div>
                       <div
                         className={cn(
-                          'text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 rounded shrink-0',
-                          tier.accent,
-                          'text-evari-dim',
+                          'text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 rounded shrink-0 transition-colors duration-200',
+                          // The tier badge does double-duty as the per-box
+                          // "live" signal: bright green when this box's env
+                          // vars are all present, otherwise the muted gold
+                          // category accent. This is the colour-blind-
+                          // friendly per-box equivalent of the cluster's
+                          // green outline + green title-pill.
+                          connected
+                            ? 'bg-evari-success text-evari-ink shadow-[0_0_8px_rgba(126,168,88,0.45)]'
+                            : cn(tier.accent, 'text-evari-dim'),
                         )}
+                        title={
+                          connected
+                            ? `${tier.label} — connected`
+                            : `${tier.label} — not yet connected`
+                        }
                       >
                         {tier.label}
                       </div>
                     </div>
 
-                    {/* Role */}
+                    {/* Role + optional live caption (e.g. GitHub "Saved 5m ago"). */}
                     <div className="text-[10px] text-evari-dim leading-tight line-clamp-1">
                       {n.role}
                     </div>
+                    {nodeMeta?.[n.id]?.caption && (
+                      <div
+                        className="text-[9px] text-evari-success leading-tight truncate"
+                        title={nodeMeta[n.id].tooltip}
+                      >
+                        {nodeMeta[n.id].caption}
+                      </div>
+                    )}
 
                     {/* Bottom row: username lozenge (left) + cost (right) */}
                     <div className="flex items-end justify-between gap-2 mt-auto">
