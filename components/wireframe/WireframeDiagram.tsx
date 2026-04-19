@@ -44,11 +44,13 @@ interface Props {
   /** Non-secret identifier values (e.g. SHOPIFY_STORE_DOMAIN, GMAIL_USER_EMAIL) */
   identifierValues: Record<string, string>;
   /**
-   * Per-node live captions — surfaced as a small italic line inside the box.
-   * Used today for GitHub's "Saved 5m ago" backup status; designed to extend
-   * to Supabase last-migration / Vercel last-deploy / Shopify last-sync.
+   * Per-node live status — when present (and the box is connected), this
+   * replaces the static role description inside the box. Currently feeds
+   * GitHub ("Saved 5m ago"), Vercel ("Deployed 5m ago"), and Supabase
+   * ("Database healthy"); the same hook is ready for Shopify last-sync,
+   * GA4 sessions today, etc.
    */
-  nodeMeta?: Record<string, { caption: string; tooltip?: string }>;
+  nodeMeta?: Record<string, { liveStatus: string; tooltip?: string }>;
 }
 
 // Zoom clamps
@@ -1860,18 +1862,24 @@ export function WireframeDiagram({
                       </div>
                     </div>
 
-                    {/* Role + optional live caption (e.g. GitHub "Saved 5m ago"). */}
-                    <div className="text-[10px] text-evari-dim leading-tight line-clamp-1">
-                      {n.role}
-                    </div>
-                    {nodeMeta?.[n.id]?.caption && (
-                      <div
-                        className="text-[9px] text-evari-success leading-tight truncate"
-                        title={nodeMeta[n.id].tooltip}
-                      >
-                        {nodeMeta[n.id].caption}
-                      </div>
-                    )}
+                    {/* Role line — swaps to a live status string the moment
+                        the box is connected AND has a probe-derived
+                        nodeMeta (e.g. GitHub "Saved 5m ago", Supabase
+                        "Database healthy"). Falls back to the static role. */}
+                    {(() => {
+                      const live = connected ? nodeMeta?.[n.id]?.liveStatus : undefined;
+                      return (
+                        <div
+                          className={cn(
+                            'text-[10px] leading-tight line-clamp-1',
+                            live ? 'text-evari-success font-medium' : 'text-evari-dim',
+                          )}
+                          title={live ? nodeMeta?.[n.id]?.tooltip : undefined}
+                        >
+                          {live ?? n.role}
+                        </div>
+                      );
+                    })()}
 
                     {/* Bottom row: username lozenge (left) + cost (right) */}
                     <div className="flex items-end justify-between gap-2 mt-auto">

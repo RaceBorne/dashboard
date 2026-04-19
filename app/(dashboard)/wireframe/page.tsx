@@ -75,6 +75,30 @@ function formatRelative(iso: string): string {
 }
 
 /**
+ * Cheap Supabase liveness check. Hits `/auth/v1/health`, which is the
+ * public health endpoint — returns 200 if the project is up. We send the
+ * anon key as `apikey` because Supabase rejects unauthenticated calls
+ * even on health (returns 401 with "no API key found in request").
+ */
+async function fetchSupabaseHealth(): Promise<boolean> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return false;
+  const headers: Record<string, string> = {};
+  if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    headers.apikey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  }
+  try {
+    const res = await fetch(`${url}/auth/v1/health`, {
+      headers,
+      next: { revalidate: 60 },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Wireframe — a live architecture diagram showing how every service in the
  * Evari stack connects, and what each costs. Boxes flip from grey to green
  * when the matching env vars are present. Primarily aimed at Craig + his
@@ -90,22 +114,34 @@ export default async function WireframePage() {
     if (process.env[v] && process.env[v]!.length > 0) envPresent.add(v);
   }
 
-  // Per-node live signals — currently just GitHub's "last backed up" but
-  // structured as a map so we can add Supabase last-migration, Vercel
-  // last-deploy, Shopify last-sync, etc. without changing the component
-  // contract again.
-  const lastCommit = await fetchLastCommit();
-  const nodeMeta: Record<string, { caption: string; tooltip?: string }> = {};
+  // Per-node live status — once a service is connected, the wireframe
+  // box swaps its static role description (e.g. "Postgres + auth + storage")
+  // for the live status (e.g. "Database healthy"). Designed as a map so
+  // every other service can hang its own probe-derived status here without
+  // touching the component contract.
+  const [lastCommit, supabaseHealthy] = await Promise.all([
+    fetchLastCommit(),
+    fetchSupabaseHealth(),
+  ]);
+  const nodeMeta: Record<string, { liveStatus: string; tooltip?: string }> = {};
   if (lastCommit) {
+    const ago = formatRelative(lastCommit.isoTime);
     nodeMeta.github = {
-      caption: `Saved ${formatRelative(lastCommit.isoTime)}`,
+      liveStatus: `Saved ${ago}`,
       tooltip: `${lastCommit.sha} · ${lastCommit.author}\n${lastCommit.message}`,
     };
-  } else {
-    nodeMeta.github = {
-      caption: 'Backup status unavailable',
-      tooltip:
-        'GitHub commit lookup failed. Add a GITHUB_TOKEN env var so the wireframe can read commit history from the private repo.',
+    // Vercel auto-deploys main on push, so the same commit time is the
+    // best proxy for "when this code went live" without a Vercel API
+    // round-trip per page load.
+    nodeMeta.vercel = {
+      liveStatus: `Deployed ${ago}`,
+      tooltip: `Auto-deployed from ${lastCommit.sha} on main\n${lastCommit.message}`,
+    };
+  }
+  if (supabaseHealthy) {
+    nodeMeta.supabase = {
+      liveStatus: 'Database healthy',
+      tooltip: 'Supabase /auth/v1/health returned 200 OK',
     };
   }
 
