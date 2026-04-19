@@ -348,7 +348,11 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     cluster: 'core',
     x: 720,
     y: 290,
-    envVars: ['DATABASE_URL'],
+    // Detect Supabase via the public project URL (no password required).
+    // DATABASE_URL is only needed once we wire actual server-side Postgres
+    // queries — for now the dashboard runs on mock data. Public URL is a
+    // safer + simpler "Supabase is provisioned" signal.
+    envVars: ['NEXT_PUBLIC_SUPABASE_URL'],
     account: {
       label: 'Project',
       identifierStatic: 'evari',
