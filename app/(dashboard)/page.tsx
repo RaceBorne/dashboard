@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { TopBar } from '@/components/sidebar/TopBar';
-import { MetricTile } from '@/components/briefing/MetricTile';
+import { EditorialHeadline } from '@/components/briefing/EditorialHeadline';
+import { HeyEvariButton } from '@/components/assistant/HeyEvariButton';
 import { BriefingCard } from '@/components/briefing/BriefingCard';
 import { AnomalyList } from '@/components/briefing/AnomalyList';
 import { MiniTrafficChart } from '@/components/briefing/MiniTrafficChart';
@@ -24,11 +25,12 @@ export default function BriefingPage() {
       <TopBar title="Morning briefing" subtitle="today" />
 
       <div className="p-6 space-y-6 max-w-[1400px]">
-        {/* Metric strip */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {briefing.metrics.map((m) => (
-            <MetricTile key={m.label} metric={m} />
-          ))}
+        {/* Editorial headline + Hey Evari button on the same row */}
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex-1 min-w-0">
+            <EditorialHeadline briefing={briefing} />
+          </div>
+          <HeyEvariButton />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -65,12 +67,12 @@ export default function BriefingPage() {
                 </Link>
               </CardHeader>
               <CardContent>
-                <ul className="divide-y divide-evari-edge -mx-2">
+                <ul className="space-y-1">
                   {hotLeads.map((l) => (
-                    <li key={l.id}>
+                    <li key={l.id} className="bg-evari-surface/70 rounded-md">
                       <Link
                         href={`/leads/${l.id}`}
-                        className="flex items-center gap-4 px-2 py-3 hover:bg-evari-carbon rounded-md transition-colors"
+                        className="flex items-center gap-4 px-3 py-2.5 hover:bg-evari-surface rounded-md transition-colors"
                       >
                         <div className="h-8 w-8 rounded-full bg-evari-edge flex items-center justify-center text-xs text-evari-dim font-medium uppercase shrink-0">
                           {l.fullName

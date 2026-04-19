@@ -51,6 +51,8 @@ export function socialPostPrompt(args: {
     linkedin: 'Up to 220 words. Two short paragraphs. End with a quiet question or a link.',
     instagram: '90-140 words. One hook line, then 2-3 short sentences. End with 3-5 lowercase hashtags.',
     tiktok: 'A 25-45 word caption to overlay on a short video. Punchy, almost a haiku. End with 3-5 lowercase hashtags.',
+    shopify_blog: '400-900 words. Long-form article body with H2/H3 sub-headings. Finish with a concrete call to action.',
+    newsletter: '200-400 words. Subject line on line one (no prefix). Then a greeting, 2-3 short paragraphs, a single link / CTA, sign-off from Craig.',
   };
 
   return `Draft a single ${args.platform} post for Evari about: ${args.topic}.

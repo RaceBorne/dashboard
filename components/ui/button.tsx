@@ -3,21 +3,25 @@ import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
+// Global rule: every Button renders in UPPERCASE with slightly wider tracking
+// for legibility. Icon-only buttons (size="icon") opt out via class override.
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium uppercase tracking-[0.06em] ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
         default:
-          'bg-evari-text text-evari-ink hover:bg-white border border-evari-text/10',
+          'bg-evari-surfaceSoft text-evari-text hover:bg-evari-mute',
         primary:
-          'bg-primary text-primary-foreground hover:bg-primary/90 border border-primary/40',
+          'bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90',
+        gold:
+          'bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90',
         outline:
-          'border border-evari-edge bg-transparent hover:bg-evari-surface text-evari-text',
+          'bg-evari-surfaceSoft text-evari-text hover:bg-evari-mute',
         ghost:
-          'bg-transparent hover:bg-evari-surface text-evari-dim hover:text-evari-text',
+          'bg-transparent text-evari-dim hover:bg-evari-surface hover:text-evari-text',
         destructive:
-          'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+          'bg-evari-danger/90 text-white hover:bg-evari-danger',
         link:
           'text-evari-gold underline-offset-4 hover:underline px-0 py-0 h-auto',
       },

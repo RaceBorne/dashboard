@@ -12,7 +12,7 @@ interface TopBarProps {
 export function TopBar({ title, subtitle, rightSlot }: TopBarProps) {
   const today = new Date();
   return (
-    <header className="sticky top-0 z-30 border-b border-evari-edge bg-evari-ink/85 backdrop-blur supports-[backdrop-filter]:bg-evari-ink/65">
+    <header className="sticky top-0 z-30 bg-evari-ink/85 backdrop-blur supports-[backdrop-filter]:bg-evari-ink/65">
       <div className="flex h-14 items-center gap-4 px-6">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">

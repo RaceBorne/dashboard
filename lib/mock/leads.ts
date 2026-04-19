@@ -430,6 +430,173 @@ export const MOCK_LEADS: Lead[] = [
       },
     ],
   },
+
+  // Medical / rehab partner lead
+  {
+    id: 'lead_013',
+    fullName: 'Dr Sarah Mitchell',
+    email: 's.mitchell@aurorasportsmed.co.uk',
+    phone: '+44 7700 900811',
+    location: 'Cheltenham, UK',
+    source: 'medical_partner',
+    sourceCategory: 'medical',
+    sourceDetail: 'Aurora Sports Medicine — knee-op specialist clinic',
+    stage: 'discovery',
+    intent: 'leisure',
+    productInterest: 'Evari Tour rehab programme (fleet of 3)',
+    estimatedValue: 22500,
+    firstSeenAt: isoDaysAgo(4),
+    lastTouchAt: isoDaysAgo(0, 8),
+    nextActionAt: isoDaysAgo(-3),
+    ownerName: 'Craig',
+    tags: ['rehab', 'fleet', 'partner-opportunity'],
+    notes:
+      'Orthopaedic consultant. Wants to prescribe ebike rehab for ACL / meniscus post-op patients. Potential partnership: 3 demo bikes at her clinic + referral scheme.',
+    activity: [
+      {
+        id: 'a1',
+        type: 'lead_created',
+        at: isoDaysAgo(4),
+        summary: 'Contact form (/rehab) — interested in partnership',
+      },
+      {
+        id: 'a2',
+        type: 'call',
+        at: isoDaysAgo(3),
+        summary: 'Discovery call — 30 min. Wants to pilot with 10 patients.',
+      },
+    ],
+  },
+
+  // Bike shop / dealer referral
+  {
+    id: 'lead_014',
+    fullName: 'Tom Whitfield',
+    email: 'tom@whitfieldcyclery.com',
+    phone: '+44 7700 900456',
+    location: 'Oxford, UK',
+    source: 'dealer_referral',
+    sourceCategory: 'dealer',
+    sourceDetail: 'Whitfield Cyclery, Oxford — independent shop',
+    stage: 'new',
+    intent: 'touring',
+    productInterest: 'Dealer demo unit — Evari Tour',
+    estimatedValue: 7200,
+    firstSeenAt: isoDaysAgo(1),
+    lastTouchAt: isoDaysAgo(1),
+    ownerName: 'Craig',
+    tags: ['dealer', 'demo-unit'],
+    notes:
+      'Owner of an indie bike shop in Oxford. Wants to carry one demo bike for customer test rides. Dealer margin discussion needed.',
+    activity: [
+      {
+        id: 'a1',
+        type: 'lead_created',
+        at: isoDaysAgo(1),
+        summary: 'Email enquiry — dealer interest',
+      },
+    ],
+  },
+
+  // Event lead
+  {
+    id: 'lead_015',
+    fullName: 'Maya Reed',
+    email: 'maya.reed@fastmail.com',
+    phone: '+44 7700 900778',
+    location: 'Bristol, UK',
+    source: 'event',
+    sourceCategory: 'event',
+    sourceDetail: 'Eroica Britannia demo stand — Saturday',
+    stage: 'contacted',
+    intent: 'touring',
+    productInterest: 'Evari Tour — steel frame',
+    estimatedValue: 6800,
+    firstSeenAt: isoDaysAgo(2),
+    lastTouchAt: isoDaysAgo(1),
+    ownerName: 'Craig',
+    tags: ['event', 'eroica', 'test-rode'],
+    notes: 'Rode the demo bike at Eroica. Loved the steel frame. Based in Bristol, keen for a fitting session.',
+    activity: [
+      {
+        id: 'a1',
+        type: 'lead_created',
+        at: isoDaysAgo(2),
+        summary: 'Signed up at Eroica Britannia demo stand',
+      },
+      {
+        id: 'a2',
+        type: 'email_sent',
+        at: isoDaysAgo(1),
+        summary: 'Follow-up: thanks for riding, here are the build options',
+      },
+    ],
+  },
+
+  // Paid search lead
+  {
+    id: 'lead_016',
+    fullName: 'Rachel Oduya',
+    email: 'rachel.oduya@gmail.com',
+    location: 'Manchester, UK',
+    source: 'paid_search',
+    sourceCategory: 'paid',
+    sourceDetail: 'Google Ads — "commuter ebike uk" keyword',
+    stage: 'new',
+    intent: 'commute',
+    productInterest: 'Evari Commute',
+    estimatedValue: 4200,
+    firstSeenAt: isoDaysAgo(0, 5),
+    lastTouchAt: isoDaysAgo(0, 5),
+    ownerName: 'Craig',
+    tags: ['commute', 'paid'],
+    utm: { source: 'google', medium: 'cpc', campaign: 'commute-mcr' },
+    notes: 'Clicked through from a Google Ads commuter campaign. Filled contact form.',
+    activity: [
+      {
+        id: 'a1',
+        type: 'lead_created',
+        at: isoDaysAgo(0, 5),
+        summary: 'Contact form — paid search (£4.80 CPC)',
+      },
+    ],
+  },
+
+  // Press lead
+  {
+    id: 'lead_017',
+    fullName: 'Hugo Blackwood',
+    email: 'hugo.blackwood@road.cc',
+    phone: '+44 7700 900922',
+    location: 'London, UK',
+    source: 'press',
+    sourceCategory: 'press',
+    sourceDetail: 'road.cc — commissioning editor',
+    stage: 'discovery',
+    intent: 'touring',
+    productInterest: 'Review loan — Evari Tour',
+    estimatedValue: 0,
+    firstSeenAt: isoDaysAgo(5),
+    lastTouchAt: isoDaysAgo(2),
+    ownerName: 'Craig',
+    tags: ['press', 'review-loan', 'backlink-opportunity'],
+    notes:
+      'Wants to commission a long-term review. 6-week loan. Would deliver a feature + 2 social posts + a follow-up at 3 months. Valuable backlink.',
+    activity: [
+      {
+        id: 'a1',
+        type: 'lead_created',
+        at: isoDaysAgo(5),
+        summary: 'Email — review proposal',
+      },
+      {
+        id: 'a2',
+        type: 'call',
+        at: isoDaysAgo(2),
+        summary: 'Brief call — agreed in principle, waiting on contract',
+      },
+    ],
+  },
 ];
 
 export function getMockLead(id: string): Lead | undefined {

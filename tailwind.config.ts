@@ -15,19 +15,27 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // Evari brand palette
+        // Evari palette — all values driven by CSS variables so light/dark
+        // theme switching is free via [data-theme] on <html>.
         evari: {
-          ink: '#0A0A0A',         // base background
-          carbon: '#111111',      // panel
-          surface: '#161616',     // card
-          edge: '#1F1F1F',        // borders
-          mute: '#2A2A2A',        // dividers
-          text: '#EDEDED',
-          dim: '#A3A3A3',
-          dimmer: '#6B6B6B',
-          accent: '#E63946',      // Evari signature red, restrained use
-          accentSoft: '#7C1D24',
-          gold: '#C7A552',
+          ink: 'rgb(var(--evari-ink) / <alpha-value>)',
+          carbon: 'rgb(var(--evari-carbon) / <alpha-value>)',
+          surface: 'rgb(var(--evari-surface) / <alpha-value>)',
+          surfaceSoft: 'rgb(var(--evari-surface-soft) / <alpha-value>)',
+          edge: 'rgb(var(--evari-edge) / <alpha-value>)',
+          mute: 'rgb(var(--evari-mute) / <alpha-value>)',
+          lozenge: 'rgb(var(--evari-lozenge) / <alpha-value>)',
+          text: 'rgb(var(--evari-text) / <alpha-value>)',
+          dim: 'rgb(var(--evari-dim) / <alpha-value>)',
+          dimmer: 'rgb(var(--evari-dimmer) / <alpha-value>)',
+          accent: 'rgb(var(--evari-accent) / <alpha-value>)',
+          accentSoft: 'rgb(var(--evari-accent-soft) / <alpha-value>)',
+          gold: 'rgb(var(--evari-gold) / <alpha-value>)',
+          goldInk: 'rgb(var(--evari-gold-ink) / <alpha-value>)',
+          success: 'rgb(var(--evari-success) / <alpha-value>)',
+          warn: 'rgb(var(--evari-warn) / <alpha-value>)',
+          danger: 'rgb(var(--evari-danger) / <alpha-value>)',
+          crimson: 'rgb(var(--evari-crimson) / <alpha-value>)',
         },
         border: 'hsl(0 0% 14%)',
         input: 'hsl(0 0% 14%)',

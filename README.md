@@ -12,6 +12,7 @@ system prompt so anything generated speaks in Craig's voice.
 | Page              | Path                  | Status                                          |
 | ----------------- | --------------------- | ----------------------------------------------- |
 | Briefing          | `/`                   | Mock data + AI briefing card                    |
+| To-do             | `/tasks`              | Task folders + grouped-by-date list, inline add  |
 | Leads             | `/leads`              | Mock pipeline list + lead detail at `/leads/:id` |
 | Conversations     | `/conversations`      | 3-pane email viewer with AI reply suggest      |
 | Traffic           | `/traffic`            | GA4 mock — sessions chart, sources, landings   |

@@ -2,20 +2,22 @@ import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
+// Global rule: badges are always solid fills, never translucent tints. Text
+// colour follows the auto-contrast principle used for the accent system.
 const badgeVariants = cva(
-  'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+  'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors',
   {
     variants: {
       variant: {
-        default: 'border-evari-edge bg-evari-surface text-evari-text',
-        outline: 'border-evari-edge bg-transparent text-evari-dim',
-        muted: 'border-transparent bg-evari-edge text-evari-dim',
-        accent: 'border-primary/40 bg-primary/15 text-primary',
-        gold: 'border-evari-gold/40 bg-evari-gold/10 text-evari-gold',
-        success: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
-        warning: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
-        critical: 'border-red-500/40 bg-red-500/15 text-red-300',
-        info: 'border-sky-500/40 bg-sky-500/10 text-sky-300',
+        default: 'bg-evari-surfaceSoft text-evari-text',
+        outline: 'bg-evari-surfaceSoft text-evari-dim',
+        muted: 'bg-evari-surfaceSoft text-evari-dim',
+        accent: 'bg-evari-accent text-white',
+        gold: 'bg-evari-gold text-evari-goldInk',
+        success: 'bg-evari-success text-evari-ink',
+        warning: 'bg-evari-warn text-evari-goldInk',
+        critical: 'bg-evari-danger text-white',
+        info: 'bg-sky-500 text-evari-ink',
       },
     },
     defaultVariants: { variant: 'default' },

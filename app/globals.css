@@ -2,37 +2,224 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 0 0% 4%;
-  --foreground: 0 0% 93%;
-  --card: 0 0% 8%;
-  --card-foreground: 0 0% 93%;
-  --popover: 0 0% 7%;
-  --popover-foreground: 0 0% 93%;
-  --primary: 0 80% 55%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 12%;
-  --secondary-foreground: 0 0% 93%;
-  --muted: 0 0% 10%;
-  --muted-foreground: 0 0% 64%;
-  --accent: 0 0% 12%;
-  --accent-foreground: 0 0% 93%;
-  --destructive: 0 70% 45%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 14%;
-  --input: 0 0% 14%;
-  --ring: 0 80% 55%;
+/* --------------------------------------------------------------------------
+   Design tokens — every colour is an RGB triplet so we can alpha-modify via
+   Tailwind (rgb(var(--x) / 0.5)). Light / dark swap via [data-theme] on
+   <html>. A separate [data-shade="0"…"4"] dial on <html> controls how dark
+   the dark theme is, from near-black (0) to a soft warm grey (4). Default
+   is 2 — the warm charcoal feel you'd see in the Claude desktop app.
+   -------------------------------------------------------------------------- */
+
+:root,
+:root[data-theme='dark'] {
+  /* Lozenge (kept for anywhere we still want a darker inset) */
+  --evari-lozenge: 14 14 14;
+  --evari-lozenge-ring: 0 0 0;
+
+  /* Text — neutral greys, never pure white. Gentler for astigmatism. */
+  --evari-text: 220 220 220;          /* body / headings */
+  --evari-dim: 152 152 152;            /* secondary */
+  --evari-dimmer: 110 110 110;         /* captions */
+
+  /* Accents (semantic only — kept muted). Greys are neutral throughout,
+     but accent hues remain for signal. Gold kept as a dusty mustard so
+     CTAs have presence without shouting. */
+  --evari-accent: 210 90 95;
+  --evari-accent-soft: 118 52 58;
+  /* One amber across the app — CTA fills, count circles, accents, editorial
+     highlights. Target warm dusty gold, readable against both charcoal and
+     white backgrounds. */
+  --evari-gold: 207 168 83;
+  --evari-gold-ink: 18 18 18;
+  --evari-success: 126 168 88;
+  --evari-warn: 207 168 83;
+  --evari-danger: 200 82 88;
+  /* Deep crimson — used for urgent priority lozenges and similar "hard stop" signals. */
+  --evari-crimson: 158 28 46;
+
+  /* Defaults — shade 2 (warm charcoal) will apply via data-shade below */
+
+  /* shadcn compat */
+  --background: 30 10% 11%;
+  --foreground: 40 10% 80%;
+  --card: 30 10% 13%;
+  --card-foreground: 40 10% 80%;
+  --popover: 30 10% 10%;
+  --popover-foreground: 40 10% 80%;
+  --primary: 40 50% 50%;
+  --primary-foreground: 30 15% 10%;
+  --secondary: 30 10% 16%;
+  --secondary-foreground: 40 10% 80%;
+  --muted: 30 10% 14%;
+  --muted-foreground: 40 8% 58%;
+  --accent: 30 10% 16%;
+  --accent-foreground: 40 10% 80%;
+  --destructive: 0 55% 50%;
+  --destructive-foreground: 40 10% 95%;
+  --border: 30 5% 20%;
+  --input: 30 5% 20%;
+  --ring: 40 50% 50%;
   --radius: 0.75rem;
 }
 
-* {
-  @apply border-border;
+/* ----- Shade scale (dark theme): 0 = near-black, 4 = medium grey -------
+   Every value is a neutral grey — R, G and B held equal — so there's no
+   warm or cool cast anywhere in the system. Accents carry the colour.
+   --evari-trough is specifically darker than --evari-ink: the "hole" that
+   pill groups sit in so the active pill (which uses --evari-surface-soft)
+   reads as brighter than its container. */
+
+:root[data-theme='dark'][data-shade='0'] {
+  --evari-ink: 14 14 14;
+  --evari-carbon: 10 10 10;
+  --evari-surface: 24 24 24;
+  --evari-surface-soft: 36 36 36;
+  --evari-trough: 6 6 6;
+  --evari-edge: 44 44 44;
+  --evari-mute: 60 60 60;
+}
+
+:root[data-theme='dark'][data-shade='1'] {
+  --evari-ink: 22 22 22;
+  --evari-carbon: 16 16 16;
+  --evari-surface: 34 34 34;
+  --evari-surface-soft: 46 46 46;
+  --evari-trough: 12 12 12;
+  --evari-edge: 56 56 56;
+  --evari-mute: 74 74 74;
+}
+
+/* Default — neutral charcoal, no warmth */
+:root[data-theme='dark'],
+:root[data-theme='dark'][data-shade='2'] {
+  --evari-ink: 30 30 30;
+  --evari-carbon: 24 24 24;
+  --evari-surface: 44 44 44;
+  --evari-surface-soft: 58 58 58;
+  --evari-trough: 18 18 18;
+  --evari-edge: 70 70 70;
+  --evari-mute: 90 90 90;
+}
+
+:root[data-theme='dark'][data-shade='3'] {
+  --evari-ink: 42 42 42;
+  --evari-carbon: 36 36 36;
+  --evari-surface: 56 56 56;
+  --evari-surface-soft: 72 72 72;
+  --evari-trough: 28 28 28;
+  --evari-edge: 86 86 86;
+  --evari-mute: 108 108 108;
+}
+
+:root[data-theme='dark'][data-shade='4'] {
+  --evari-ink: 54 54 54;
+  --evari-carbon: 48 48 48;
+  --evari-surface: 70 70 70;
+  --evari-surface-soft: 86 86 86;
+  --evari-trough: 38 38 38;
+  --evari-edge: 104 104 104;
+  --evari-mute: 124 124 124;
+}
+
+/* ----- Light theme ----- */
+
+/* ----- Shade scale for light theme too — 0 brightest → 4 most grey ----- */
+
+:root[data-theme='light'][data-shade='0'] {
+  --evari-ink: 252 252 252;
+  --evari-carbon: 248 248 248;
+  --evari-surface: 255 255 255;
+  --evari-surface-soft: 242 242 242;
+  --evari-trough: 230 230 230;
+  --evari-edge: 225 225 225;
+  --evari-mute: 200 200 200;
+}
+
+:root[data-theme='light'][data-shade='1'] {
+  --evari-ink: 248 248 248;
+  --evari-carbon: 242 242 242;
+  --evari-surface: 254 254 254;
+  --evari-surface-soft: 236 236 236;
+  --evari-trough: 224 224 224;
+  --evari-edge: 220 220 220;
+  --evari-mute: 196 196 196;
+}
+
+:root[data-theme='light'][data-shade='3'] {
+  --evari-ink: 238 238 238;
+  --evari-carbon: 230 230 230;
+  --evari-surface: 248 248 248;
+  --evari-surface-soft: 222 222 222;
+  --evari-trough: 208 208 208;
+  --evari-edge: 204 204 204;
+  --evari-mute: 184 184 184;
+}
+
+:root[data-theme='light'][data-shade='4'] {
+  --evari-ink: 228 228 228;
+  --evari-carbon: 220 220 220;
+  --evari-surface: 242 242 242;
+  --evari-surface-soft: 212 212 212;
+  --evari-trough: 196 196 196;
+  --evari-edge: 192 192 192;
+  --evari-mute: 176 176 176;
+}
+
+/* Default light = shade 2 */
+:root[data-theme='light'],
+:root[data-theme='light'][data-shade='2'] {
+  --evari-ink: 245 245 245;
+  --evari-carbon: 238 238 238;
+  --evari-surface: 253 253 253;
+  --evari-surface-soft: 232 232 232;
+  --evari-trough: 218 218 218;
+  --evari-edge: 214 214 214;
+  --evari-mute: 192 192 192;
+
+  --evari-lozenge: 30 30 30;
+  --evari-lozenge-ring: 18 18 18;
+
+  --evari-text: 52 52 52;
+  --evari-dim: 108 108 108;
+  --evari-dimmer: 148 148 148;
+
+  --evari-accent: 186 62 68;
+  --evari-accent-soft: 238 204 208;
+  /* Light-theme amber tuned a touch darker so it reads on white. Same hue
+     as the dark-theme value, different lightness. */
+  --evari-gold: 176 138 52;
+  --evari-gold-ink: 253 253 253;
+  --evari-success: 92 150 42;
+  --evari-warn: 176 138 52;
+  --evari-danger: 172 48 60;
+  --evari-crimson: 135 24 40;
+
+  /* shadcn compat */
+  --background: 40 25% 95%;
+  --foreground: 30 10% 20%;
+  --card: 40 25% 98%;
+  --card-foreground: 30 10% 20%;
+  --popover: 40 25% 98%;
+  --popover-foreground: 30 10% 20%;
+  --primary: 40 70% 40%;
+  --primary-foreground: 40 25% 98%;
+  --secondary: 40 15% 90%;
+  --secondary-foreground: 30 10% 20%;
+  --muted: 40 10% 88%;
+  --muted-foreground: 30 8% 42%;
+  --accent: 40 15% 90%;
+  --accent-foreground: 30 10% 20%;
+  --destructive: 0 55% 45%;
+  --destructive-foreground: 40 25% 98%;
+  --border: 40 12% 82%;
+  --input: 40 12% 82%;
+  --ring: 40 70% 40%;
 }
 
 html,
 body {
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: rgb(var(--evari-ink));
+  color: rgb(var(--evari-text));
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   font-feature-settings: 'cv11', 'ss01', 'ss03';
   -webkit-font-smoothing: antialiased;
@@ -40,8 +227,8 @@ body {
 }
 
 ::selection {
-  background: hsl(var(--primary) / 0.35);
-  color: hsl(var(--foreground));
+  background: rgb(var(--evari-gold) / 0.35);
+  color: rgb(var(--evari-text));
 }
 
 /* Subtle scrollbars */
@@ -53,67 +240,181 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(0 0% 18%);
+  background: rgb(var(--evari-edge));
   border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(0 0% 26%);
+  background: rgb(var(--evari-mute));
 }
 
-/* Fine grid background for the briefing hero */
+/* --------------------------------------------------------------------------
+   Reusable primitives
+   -------------------------------------------------------------------------- */
+
+/* Lozenge pattern — the Escapist Day/Week/Month style.
+   Darker "trough" container, lighter active pill sitting proud inside.
+   One rule applied everywhere: selected state is always LIGHTER than its
+   container, never darker. */
+.pill-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9999px;
+  background: rgb(var(--evari-trough));
+}
+
+.pill-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  font-size: 13px;
+  line-height: 1;
+  color: rgb(var(--evari-dim));
+  background: transparent;
+  transition: all 160ms ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pill-tab:hover {
+  color: rgb(var(--evari-text));
+}
+
+.pill-tab[data-active='true'] {
+  background: rgb(var(--evari-surface-soft));
+  color: rgb(var(--evari-text));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.25);
+}
+
+/* Shared selected-state utility for non-tab surfaces (sidebar nav, folders,
+   platform cards etc). Same rule: lighter lift inside a darker container. */
+.is-selected {
+  background: rgb(var(--evari-surface-soft));
+  color: rgb(var(--evari-text));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 1px 2px rgb(0 0 0 / 0.2);
+}
+
+.block {
+  background: rgb(var(--evari-surface));
+  border-radius: 12px;
+}
+
+.block-soft {
+  background: rgb(var(--evari-surface-soft));
+  border-radius: 12px;
+}
+
+/* Calendar cells — sit a third of the way from page bg toward surface so
+   the grid reads as elevated without feeling like a card. Weekend columns
+   get a small extra lift so the week/weekend rhythm is visible at a glance. */
+.cal-cell {
+  background: color-mix(in srgb, rgb(var(--evari-ink)), rgb(var(--evari-surface)) 33%);
+}
+.cal-cell-weekend {
+  background: color-mix(in srgb, rgb(var(--evari-ink)), rgb(var(--evari-surface)) 48%);
+}
+.cal-cell-selected {
+  background: rgb(var(--evari-surface)) !important;
+}
+.cal-cell:hover,
+.cal-cell-weekend:hover {
+  background: rgb(var(--evari-surface) / 0.7);
+}
+
+.stat-tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: rgb(var(--evari-surface));
+  border-radius: 12px;
+}
+
+.row-divide > * + * {
+  border-top: 1px solid rgb(var(--evari-edge) / 0.5);
+}
+
 .evari-grid {
-  background-image:
-    linear-gradient(hsl(0 0% 12%) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(0 0% 12%) 1px, transparent 1px);
+  background-image: linear-gradient(rgb(var(--evari-edge)) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--evari-edge)) 1px, transparent 1px);
   background-size: 32px 32px;
   background-position: -1px -1px;
 }
 
-/* Subtle red glow used very sparingly */
-.evari-accent-glow {
-  box-shadow: 0 0 0 1px hsl(0 80% 55% / 0.4), 0 8px 32px -8px hsl(0 80% 55% / 0.35);
+/* Smooth reorder animation when a task is marked done and shuffles down */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Markdown / MessageResponse base styles */
+/* Native range input styled to match the pill language */
+.shade-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgb(var(--evari-surface-soft));
+  border-radius: 9999px;
+  outline: none;
+}
+.shade-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgb(var(--evari-gold));
+  cursor: pointer;
+  border: 2px solid rgb(var(--evari-ink));
+  transition: transform 120ms ease;
+}
+.shade-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+.shade-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgb(var(--evari-gold));
+  cursor: pointer;
+  border: 2px solid rgb(var(--evari-ink));
+}
+
+/* Markdown */
 .prose-evari {
-  @apply text-evari-text;
+  color: rgb(var(--evari-text));
 }
-.prose-evari h1 {
-  @apply text-2xl font-medium tracking-tight mt-6 mb-3;
-}
-.prose-evari h2 {
-  @apply text-xl font-medium tracking-tight mt-6 mb-3;
-}
-.prose-evari h3 {
-  @apply text-base font-medium uppercase tracking-wider text-evari-dim mt-5 mb-2;
-}
-.prose-evari p {
-  @apply mb-3 leading-relaxed;
-}
-.prose-evari ul {
-  @apply list-disc pl-5 mb-3 space-y-1;
-}
-.prose-evari ol {
-  @apply list-decimal pl-5 mb-3 space-y-1;
-}
-.prose-evari li {
-  @apply leading-relaxed;
-}
-.prose-evari a {
-  @apply text-evari-gold underline-offset-4 hover:underline;
-}
-.prose-evari strong {
-  @apply text-evari-text font-medium;
-}
+.prose-evari h1 { @apply text-2xl font-medium tracking-tight mt-6 mb-3; }
+.prose-evari h2 { @apply text-xl font-medium tracking-tight mt-6 mb-3; }
+.prose-evari h3 { @apply text-base font-medium uppercase tracking-wider text-evari-dim mt-5 mb-2; }
+.prose-evari p { @apply mb-3 leading-relaxed; }
+.prose-evari ul { @apply list-disc pl-5 mb-3 space-y-1; }
+.prose-evari ol { @apply list-decimal pl-5 mb-3 space-y-1; }
+.prose-evari li { @apply leading-relaxed; }
+.prose-evari a { @apply text-evari-gold underline-offset-4 hover:underline; }
+.prose-evari strong { @apply text-evari-text font-medium; }
 .prose-evari blockquote {
-  @apply border-l-2 border-evari-edge pl-4 my-3 text-evari-dim italic;
+  @apply pl-4 my-3 text-evari-dim italic;
+  border-left: 2px solid rgb(var(--evari-edge));
 }
 .prose-evari code {
-  @apply font-mono text-[0.85em] bg-evari-edge/60 px-1.5 py-0.5 rounded;
+  @apply font-mono text-[0.85em] px-1.5 py-0.5 rounded;
+  background: rgb(var(--evari-surface-soft));
 }
 .prose-evari pre {
-  @apply font-mono text-sm bg-evari-edge/60 p-3 rounded-md my-3 overflow-x-auto;
+  @apply font-mono text-sm p-3 rounded-md my-3 overflow-x-auto;
+  background: rgb(var(--evari-surface-soft));
 }
 .prose-evari hr {
-  @apply border-evari-edge my-6;
+  @apply my-6;
+  border-top: 1px solid rgb(var(--evari-edge));
 }
