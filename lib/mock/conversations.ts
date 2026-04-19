@@ -265,6 +265,3 @@ Sarah`,
   },
 ];
 
-export function getMockThread(id: string) {
-  return MOCK_THREADS.find((t) => t.id === id);
-}

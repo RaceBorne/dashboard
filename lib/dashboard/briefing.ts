@@ -1,40 +1,63 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BriefingPayload } from '@/lib/types';
-import { MOCK_TRAFFIC_30D, MOCK_TRAFFIC_SOURCES } from './traffic';
-import { MOCK_LEADS } from './leads';
-import { MOCK_AUDIT_FINDINGS } from './seo';
-import { MOCK_SOCIAL_POSTS } from './social';
 import { formatDelta, formatNumber, formatPercent } from '@/lib/utils';
+import {
+  listAuditFindings,
+  listLeads,
+  listSocialPosts,
+  listTrafficDays,
+  listTrafficSources,
+} from '@/lib/dashboard/repository';
 
-export function getMockBriefing(): BriefingPayload {
-  const last7 = MOCK_TRAFFIC_30D.slice(-7);
-  const prior7 = MOCK_TRAFFIC_30D.slice(-14, -7);
-  const sum = (arr: typeof MOCK_TRAFFIC_30D, k: keyof typeof MOCK_TRAFFIC_30D[number]) =>
+export async function buildBriefingPayload(
+  supabase: SupabaseClient | null,
+): Promise<BriefingPayload> {
+  const [trafficDays, leads, auditFindings, socialPosts, trafficSources] = await Promise.all([
+    listTrafficDays(supabase),
+    listLeads(supabase),
+    listAuditFindings(supabase),
+    listSocialPosts(supabase),
+    listTrafficSources(supabase),
+  ]);
+
+  const last7 = trafficDays.slice(-7);
+  const prior7 = trafficDays.slice(-14, -7);
+  const sum = (arr: typeof trafficDays, k: keyof (typeof trafficDays)[number]) =>
     arr.reduce((a, b) => a + (b[k] as number), 0);
   const sessions7 = sum(last7, 'sessions');
   const sessions7p = sum(prior7, 'sessions');
   const conversions7 = sum(last7, 'conversions');
   const conversions7p = sum(prior7, 'conversions');
-  const sessionsDelta = (sessions7 - sessions7p) / sessions7p;
-  const conversionsDelta = (conversions7 - conversions7p) / conversions7p;
+  const sessionsDelta = sessions7p > 0 ? (sessions7 - sessions7p) / sessions7p : 0;
+  const conversionsDelta = conversions7p > 0 ? (conversions7 - conversions7p) / conversions7p : 0;
 
-  const newLeads24h = MOCK_LEADS.filter((l) => {
+  const newLeads24h = leads.filter((l) => {
     const ms = Date.now() - new Date(l.firstSeenAt).getTime();
     return ms < 24 * 3600 * 1000;
   }).length;
 
-  const awaitingReply = MOCK_LEADS.filter(
+  const awaitingReply = leads.filter(
     (l) => l.stage === 'discovery' || l.stage === 'configuring' || l.stage === 'new',
   ).length;
 
-  const criticalAudits = MOCK_AUDIT_FINDINGS.filter((f) => f.severity === 'critical').length;
-  const warningAudits = MOCK_AUDIT_FINDINGS.filter((f) => f.severity === 'warning').length;
+  const criticalAudits = auditFindings.filter((f) => f.severity === 'critical').length;
+  const warningAudits = auditFindings.filter((f) => f.severity === 'warning').length;
 
   const today = new Date().toISOString().slice(0, 10);
-  const scheduledToday = MOCK_SOCIAL_POSTS.filter(
+  const scheduledToday = socialPosts.filter(
     (p) => p.status === 'scheduled' && p.scheduledFor?.startsWith(today),
   ).length;
 
-  const topSource = MOCK_TRAFFIC_SOURCES[0];
+  const topSource = trafficSources[0] ?? {
+    source: '—',
+    medium: '—',
+    sessions: 0,
+    conversions: 0,
+    conversionRate: 0,
+  };
+
+  const cvr =
+    sessions7 > 0 ? formatPercent(conversions7 / sessions7, 2) : formatPercent(0, 2);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -51,7 +74,7 @@ export function getMockBriefing(): BriefingPayload {
         value: formatNumber(conversions7),
         delta: formatDelta(conversionsDelta),
         trend: conversionsDelta > 0 ? 'up' : conversionsDelta < 0 ? 'down' : 'flat',
-        helper: `${formatPercent(conversions7 / sessions7, 2)} CVR`,
+        helper: `${cvr} CVR`,
       },
       {
         label: 'New leads, 24h',

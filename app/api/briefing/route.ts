@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import { morningBriefingPrompt } from '@/lib/ai/prompts';
-import { getMockBriefing } from '@/lib/mock/briefing';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { buildBriefingPayload } from '@/lib/dashboard/briefing';
 
 const FALLBACK = `### Headline
 Mock briefing — AI Gateway is not connected.
@@ -16,7 +17,7 @@ Mock briefing — AI Gateway is not connected.
 `;
 
 export async function POST() {
-  const payload = getMockBriefing();
+  const payload = await buildBriefingPayload(createSupabaseAdmin());
 
   if (!hasAIGatewayCredentials()) {
     return NextResponse.json({ markdown: FALLBACK, mock: true, payload });

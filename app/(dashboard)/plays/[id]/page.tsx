@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { TopBar } from '@/components/sidebar/TopBar';
-import { getMockPlay } from '@/lib/mock/plays';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { getPlay } from '@/lib/dashboard/repository';
 import { PlayDetailClient } from '@/components/plays/PlayDetailClient';
 
 export default async function CampaignDetailPage({
@@ -9,7 +10,7 @@ export default async function CampaignDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const play = getMockPlay(id);
+  const play = await getPlay(createSupabaseAdmin(), id);
   if (!play) notFound();
   return (
     <>

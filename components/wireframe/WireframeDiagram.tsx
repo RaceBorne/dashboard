@@ -1534,14 +1534,8 @@ export function WireframeDiagram({
                 >
                   <div
                     className={cn(
-                      'absolute inline-flex items-center pointer-events-none text-[10px] uppercase tracking-[0.18em] font-medium px-2.5 py-1 rounded-full transition-all duration-200',
-                      // When every required member is connected, the title
-                      // becomes a bright green "lit-up" lozenge — the most
-                      // visible colour-blind-friendly "cluster live" signal.
-                      // Otherwise it's a pale, transparent caption.
-                      allLive
-                        ? 'bg-evari-success text-evari-ink shadow-[0_0_12px_rgba(126,168,88,0.55)]'
-                        : 'text-evari-dimmer',
+                      'absolute pointer-events-none text-[10px] uppercase tracking-[0.18em] font-medium transition-colors duration-200',
+                      allLive ? 'text-evari-success' : 'text-evari-dimmer',
                     )}
                     style={{
                       left: `${(20 / clusterWidthVb) * 100}%`,
@@ -1549,6 +1543,7 @@ export function WireframeDiagram({
                     }}
                   >
                     {meta.label}
+                    {allLive && <span className="ml-2 text-evari-success">●</span>}
                   </div>
                 </div>
               </div>
@@ -1849,7 +1844,7 @@ export function WireframeDiagram({
                           // friendly per-box equivalent of the cluster's
                           // green outline + green title-pill.
                           connected
-                            ? 'bg-evari-success text-evari-ink shadow-[0_0_8px_rgba(126,168,88,0.45)]'
+                            ? 'bg-evari-success text-evari-ink'
                             : cn(tier.accent, 'text-evari-dim'),
                         )}
                         title={
@@ -2292,13 +2287,13 @@ function NodeDetail({
             <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer">
               Credentials
             </div>
-            <Link
-              href="/connections"
+            <a
+              href="#connections-list"
               className="text-[10px] text-evari-dim hover:text-evari-text inline-flex items-center gap-1"
             >
               Full setup assistant
               <ExternalLink className="h-2.5 w-2.5" />
-            </Link>
+            </a>
           </div>
           <div className="space-y-2">
             {node.envVars.map((key) => (

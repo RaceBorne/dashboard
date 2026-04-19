@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { TopBar } from '@/components/sidebar/TopBar';
-import { MOCK_PLAYS } from '@/lib/mock/plays';
-import type { PlayStage } from '@/lib/types';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { listPlays } from '@/lib/dashboard/repository';
+import type { Play, PlayStage } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Pin, Plus } from 'lucide-react';
 import { relativeTime } from '@/lib/utils';
@@ -28,16 +29,17 @@ const STAGE_TONE: Record<PlayStage, string> = {
   retired: 'text-evari-dimmer bg-evari-surfaceSoft',
 };
 
-export default function PlaysPage() {
-  const byStage = new Map<PlayStage, typeof MOCK_PLAYS>();
+export default async function PlaysPage() {
+  const plays = await listPlays(createSupabaseAdmin());
+  const byStage = new Map<PlayStage, Play[]>();
   for (const s of STAGES) byStage.set(s.key, []);
-  for (const c of MOCK_PLAYS) {
+  for (const c of plays) {
     const arr = byStage.get(c.stage) ?? [];
     arr.push(c);
     byStage.set(c.stage, arr);
   }
 
-  const total = MOCK_PLAYS.length;
+  const total = plays.length;
 
   return (
     <>

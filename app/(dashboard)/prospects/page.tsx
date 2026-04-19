@@ -1,18 +1,20 @@
 import { TopBar } from '@/components/sidebar/TopBar';
-import { MOCK_PROSPECTS } from '@/lib/mock/prospects';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { listProspects } from '@/lib/dashboard/repository';
 import { ProspectsClient } from '@/components/prospects/ProspectsClient';
 
-export default function ProspectsPage() {
-  const ready = MOCK_PROSPECTS.filter(
+export default async function ProspectsPage() {
+  const prospects = await listProspects(createSupabaseAdmin());
+  const ready = prospects.filter(
     (p) => p.status === 'replied_positive' || p.status === 'qualified',
   ).length;
   return (
     <>
       <TopBar
         title="Prospects"
-        subtitle={`${MOCK_PROSPECTS.length} in test · ${ready} ready to promote`}
+        subtitle={`${prospects.length} in test · ${ready} ready to promote`}
       />
-      <ProspectsClient initialProspects={MOCK_PROSPECTS} />
+      <ProspectsClient initialProspects={prospects} />
     </>
   );
 }

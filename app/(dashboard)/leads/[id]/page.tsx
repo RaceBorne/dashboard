@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { StageBadge } from '@/components/leads/StageBadge';
 import { SourceBadge } from '@/components/leads/SourceBadge';
 import { ActivityTimeline } from '@/components/leads/ActivityTimeline';
-import { getMockLead } from '@/lib/mock/leads';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { getLead } from '@/lib/dashboard/repository';
 import { formatGBP, relativeTime } from '@/lib/utils';
 
 interface PageProps {
@@ -17,7 +18,7 @@ interface PageProps {
 
 export default async function LeadDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const lead = getMockLead(id);
+  const lead = await getLead(createSupabaseAdmin(), id);
   if (!lead) notFound();
 
   const initials = lead.fullName.split(' ').map((p) => p[0]).join('').slice(0, 2);

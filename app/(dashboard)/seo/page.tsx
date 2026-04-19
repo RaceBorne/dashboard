@@ -1,10 +1,11 @@
+import Link from 'next/link';
 import { TopBar } from '@/components/sidebar/TopBar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Wand2, ExternalLink } from 'lucide-react';
+import { Wand2, ExternalLink, ArrowRight } from 'lucide-react';
 import { cn, relativeTime } from '@/lib/utils';
-import { MOCK_AUDIT_FINDINGS } from '@/lib/mock/seo';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { listAuditFindings } from '@/lib/dashboard/repository';
 import type { AuditSeverity } from '@/lib/types';
 
 const SEVERITY_TONE: Record<AuditSeverity, { ring: string; dot: string; label: string }> = {
@@ -14,13 +15,14 @@ const SEVERITY_TONE: Record<AuditSeverity, { ring: string; dot: string; label: s
  pass: { ring: 'ring-emerald-500/30', dot: 'bg-emerald-400', label: 'Pass' },
 };
 
-export default function SEOPage() {
- const sorted = [...MOCK_AUDIT_FINDINGS].sort((a, b) => {
+export default async function SEOPage() {
+ const findings = await listAuditFindings(createSupabaseAdmin());
+ const sorted = [...findings].sort((a, b) => {
  const order = { critical: 0, warning: 1, info: 2, pass: 3 };
  return order[a.severity] - order[b.severity];
  });
 
- const counts = MOCK_AUDIT_FINDINGS.reduce<Record<AuditSeverity, number>>(
+ const counts = findings.reduce<Record<AuditSeverity, number>>(
  (a, f) => ({ ...a, [f.severity]: (a[f.severity] || 0) + 1 }),
  { critical: 0, warning: 0, info: 0, pass: 0 },
  );
@@ -30,6 +32,22 @@ export default function SEOPage() {
   <TopBar title="SEO Health" subtitle="evari.cc" />
 
   <div className="p-6 max-w-[1400px] space-y-5">
+  <div className="rounded-md bg-evari-warn/15 ring-1 ring-evari-warn/30 px-4 py-3 flex items-start sm:items-center gap-3 flex-col sm:flex-row">
+   <div className="flex-1 text-sm text-evari-text leading-relaxed">
+   <span className="font-medium">Audit snapshot from Supabase.</span>
+   <span className="text-evari-dim">
+    {' '}The live audit + auto-fix engine, scoped to your real Shopify
+    catalog, is being built at /shopify/seo-health.
+   </span>
+   </div>
+   <Button asChild variant="primary" size="sm" className="shrink-0">
+   <Link href="/shopify/seo-health">
+    Open Shopify SEO Health
+    <ArrowRight className="h-3 w-3" />
+   </Link>
+   </Button>
+  </div>
+
   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
    <SummaryTile label="Critical" value={counts.critical} tone="text-evari-danger" />
    <SummaryTile label="Warnings" value={counts.warning} tone="text-evari-warn" />
@@ -88,9 +106,14 @@ export default function SEOPage() {
      </div>
      <div className="shrink-0 flex flex-col items-end gap-2">
      {f.autoFixAvailable && (
-      <Button size="sm" variant="primary">
-      <Wand2 className="h-3 w-3" />
-      Apply auto-fix
+      <Button asChild size="sm" variant="primary">
+      <Link
+       href={`/shopify/seo-health?finding=${encodeURIComponent(f.id)}`}
+       title="Open this finding in the live SEO Health engine"
+      >
+       <Wand2 className="h-3 w-3" />
+       Apply auto-fix
+      </Link>
       </Button>
      )}
      </div>

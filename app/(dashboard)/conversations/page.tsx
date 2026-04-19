@@ -1,7 +1,7 @@
 import { TopBar } from '@/components/sidebar/TopBar';
 import { ConversationsClient } from '@/components/conversations/ConversationsClient';
-import { MOCK_THREADS } from '@/lib/mock/conversations';
-import { MOCK_LEADS } from '@/lib/mock/leads';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { listLeads, listThreads } from '@/lib/dashboard/repository';
 
 interface PageProps {
   searchParams: Promise<{ thread?: string }>;
@@ -9,13 +9,18 @@ interface PageProps {
 
 export default async function ConversationsPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const initialThreadId = sp.thread ?? MOCK_THREADS[0]?.id ?? '';
+  const supabase = createSupabaseAdmin();
+  const [threads, leads] = await Promise.all([listThreads(supabase), listLeads(supabase)]);
+  const initialThreadId = sp.thread ?? threads[0]?.id ?? '';
   return (
     <>
-      <TopBar title="Conversations" subtitle={String(MOCK_THREADS.filter((t) => t.unread).length) + ' unread'} />
+      <TopBar
+        title="Conversations"
+        subtitle={String(threads.filter((t) => t.unread).length) + ' unread'}
+      />
       <ConversationsClient
-        threads={MOCK_THREADS}
-        leads={MOCK_LEADS}
+        threads={threads}
+        leads={leads}
         initialThreadId={initialThreadId}
       />
     </>

@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
-import { MOCK_TASKS } from '@/lib/mock/tasks';
-import { MOCK_LEADS } from '@/lib/mock/leads';
-import { MOCK_PROSPECTS } from '@/lib/mock/prospects';
-import { MOCK_PLAYS } from '@/lib/mock/plays';
-import { getIntegrationStatuses } from '@/lib/mock/integrations';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { getAssistantTaskSummary } from '@/lib/tasks/repository';
+import {
+  listLeads,
+  listPlays,
+  listProspects,
+} from '@/lib/dashboard/repository';
+import { getIntegrationStatuses } from '@/lib/integrations/status';
 
 export const runtime = 'nodejs';
 
@@ -32,22 +35,40 @@ export async function POST(req: Request) {
     hour < 5 ? 'late night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
 
   // Compact dashboard state for grounding
-  const openTasks = MOCK_TASKS.filter((t) => t.status !== 'done').length;
-  const todayTasks = MOCK_TASKS.filter(
-    (t) => t.status !== 'done' && t.dueDate === now.toISOString().slice(0, 10),
-  ).length;
-  const urgentTasks = MOCK_TASKS.filter(
-    (t) => t.status !== 'done' && t.priority === 'urgent',
-  ).length;
-  const activeLeads = MOCK_LEADS.filter(
-    (l) => !['won', 'lost', 'cold'].includes(l.stage),
-  ).length;
-  const readyProspects = MOCK_PROSPECTS.filter(
-    (p) => p.status === 'replied_positive' || p.status === 'qualified',
-  ).length;
-  const activePlays = MOCK_PLAYS.filter(
-    (p) => p.stage !== 'retired' && p.stage !== 'idea',
-  );
+  const todayYmd = now.toISOString().slice(0, 10);
+  let openTasks = 0;
+  let todayTasks = 0;
+  let urgentTasks = 0;
+  const supabase = createSupabaseAdmin();
+  if (supabase) {
+    try {
+      const s = await getAssistantTaskSummary(supabase, todayYmd);
+      openTasks = s.openTasks;
+      todayTasks = s.todayTasks;
+      urgentTasks = s.urgentTasks;
+    } catch {
+      // keep zeros if Supabase is unavailable
+    }
+  }
+  let activeLeads = 0;
+  let readyProspects = 0;
+  let activePlays: Awaited<ReturnType<typeof listPlays>> = [];
+  if (supabase) {
+    try {
+      const [leads, prospects, plays] = await Promise.all([
+        listLeads(supabase),
+        listProspects(supabase),
+        listPlays(supabase),
+      ]);
+      activeLeads = leads.filter((l) => !['won', 'lost', 'cold'].includes(l.stage)).length;
+      readyProspects = prospects.filter(
+        (p) => p.status === 'replied_positive' || p.status === 'qualified',
+      ).length;
+      activePlays = plays.filter((p) => p.stage !== 'retired' && p.stage !== 'idea');
+    } catch {
+      /* keep zeros */
+    }
+  }
   const integrations = getIntegrationStatuses();
   const connected = integrations.filter((i) => i.connected).length;
   const missing = integrations.filter((i) => !i.connected).length;

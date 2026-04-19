@@ -8,9 +8,9 @@
  *
  * Costs are monthly in GBP at the tier we're likely to need.
  *
- * This is the canonical source of integration info — the /wireframe page is
- * the single place to see every connection, and eventually the old
- * /connections page is being retired in favour of this.
+ * This is the canonical source of integration info. The /wireframe page
+ * renders both the diagram and the per-integration list from this file —
+ * adding a node here makes it appear in both views automatically.
  */
 
 export type WireframeTier =
@@ -109,8 +109,7 @@ export const DASHBOARD_MAP: DashboardSection[] = [
   {
     label: 'System',
     pages: [
-      { href: '/wireframe', label: 'Wireframe', blurb: 'This page — live system architecture + per-service AI assistant.' },
-      { href: '/connections', label: 'Connections', blurb: 'Legacy setup chat (being retired — wireframe is the replacement).' },
+      { href: '/wireframe', label: 'Wireframe', blurb: 'Live system architecture, per-integration setup + status, and the AI audit panel — all in one place.' },
       { href: '/users', label: 'Users', blurb: 'Team members with role-based permissions.' },
       { href: '/settings', label: 'Settings', blurb: 'Theme, accent colour, voice, skill paths.' },
     ],
@@ -272,12 +271,12 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     cluster: 'core',
     x: 240,
     y: 290,
-    // VERCEL is auto-set to "1" at runtime on Vercel — and Vercel is wired
-    // to GitHub for auto-deploy. So if VERCEL is present, the GitHub →
-    // Vercel pipeline is implicitly working. (VERCEL_GIT_* vars are
-    // build-time only by default unless explicitly exposed in project
-    // settings, so we use the always-available VERCEL var instead.)
-    envVars: ['VERCEL'],
+    // Synthetic marker: page.tsx sets this whenever it confirms the
+    // GitHub repo exists by hitting the commits API. That makes the
+    // GitHub box light up the same way locally and on Vercel — the
+    // "is GitHub fundamentally part of this stack?" signal doesn't
+    // depend on which env we happen to be rendering from.
+    envVars: ['__GITHUB_LIVE'],
     account: {
       label: 'Repository',
       // Hard-coded since we know the repo and VERCEL_GIT_REPO_SLUG isn't
@@ -312,9 +311,12 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     cluster: 'core',
     x: 480,
     y: 290,
-    // VERCEL is auto-provisioned to "1" by Vercel's build/runtime environment
-    // — so a deployed app always lights Vercel up green. Locally, it's absent.
-    envVars: ['VERCEL'],
+    // Synthetic marker: page.tsx sets this whenever it can prove the
+    // repo is linked to a Vercel project — either because we're rendering
+    // ON Vercel (process.env.VERCEL set), or because .vercel/project.json
+    // exists locally (i.e. `vercel link` has been run). Either way, the
+    // GitHub → Vercel pipeline is established.
+    envVars: ['__VERCEL_LINKED'],
     account: {
       label: 'Team',
       identifierStatic: 'Evari',
@@ -386,7 +388,10 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     cluster: 'core',
     x: 960,
     y: 290,
-    envVars: ['AI_GATEWAY_API_KEY'],
+    // Synthetic marker: page.tsx sets this when EITHER a manual
+    // AI_GATEWAY_API_KEY exists OR the Vercel OIDC token is available
+    // (which is the recommended path — no static key needed).
+    envVars: ['__AI_GATEWAY_LIVE'],
     optional: true,
     account: {
       label: 'Team',

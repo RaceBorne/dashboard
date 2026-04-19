@@ -33,11 +33,10 @@ import {
  CustomList,
 } from '@/lib/types';
 import {
- MOCK_TASKS,
  TASK_CATEGORY_META,
  TASK_CATEGORY_ORDER,
  TaskCategoryMeta,
-} from '@/lib/mock/tasks';
+} from '@/lib/tasks/categories';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -152,9 +151,17 @@ const PRIORITY_STYLE: Record<TaskPriority, string> = {
 // Active filter: 'all', a category key, or 'list:<id>' for a custom list.
 type ActiveFilter = 'all' | TaskCategory | `list:${string}`;
 
-export function TasksClient({ today }: { today: string }) {
- const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
- const [customLists, setCustomLists] = useState<CustomList[]>([]);
+export function TasksClient({
+ today,
+ initialTasks,
+ initialLists,
+}: {
+ today: string;
+ initialTasks: Task[];
+ initialLists: CustomList[];
+}) {
+ const [tasks, setTasks] = useState<Task[]>(initialTasks);
+ const [customLists, setCustomLists] = useState<CustomList[]>(initialLists);
  const [newListName, setNewListName] = useState('');
  const [addingList, setAddingList] = useState(false);
  const [activeCategory, setActiveCategory] = useState<ActiveFilter>('all');
@@ -275,59 +282,84 @@ export function TasksClient({ today }: { today: string }) {
 
  // -------- mutations -------------------------------------------------------
 
- function cycleStatus(id: string) {
-  const apply = () => {
-   setTasks((prev) =>
-    prev.map((t) =>
-     t.id === id
-      ? { ...t, status: STATUS_CYCLE[t.status], updatedAt: new Date().toISOString() }
-      : t,
-    ),
-   );
+ async function cycleStatus(id: string) {
+  const t = tasks.find((x) => x.id === id);
+  if (!t) return;
+  const next = STATUS_CYCLE[t.status];
+  const apply = (task: Task) => {
+   setTasks((prev) => prev.map((x) => (x.id === id ? task : x)));
   };
-  // When a task changes state (esp. → done), it shuffles to the bottom of
-  // its group. View Transitions smoothly animate the reorder in supported
-  // browsers; everywhere else it just snaps.
+  const res = await fetch(`/api/tasks/${encodeURIComponent(id)}`, {
+   method: 'PATCH',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ status: next }),
+  });
+  const json = (await res.json()) as { task?: Task; error?: string };
+  if (!res.ok || !json.task) {
+   alert(json.error ?? 'Could not update task');
+   return;
+  }
   type DocVT = Document & { startViewTransition?: (cb: () => void) => void };
   const doc = typeof document !== 'undefined' ? (document as DocVT) : undefined;
   if (doc?.startViewTransition) {
-   doc.startViewTransition(() => apply());
+   doc.startViewTransition(() => apply(json.task!));
   } else {
-   apply();
+   apply(json.task);
   }
  }
 
- function addTask(input: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'source'>) {
-  const now = new Date().toISOString();
+ async function addTask(input: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'source'>) {
   const activeListId = activeCategory.startsWith('list:')
    ? activeCategory.slice(5)
    : input.listId;
-  const newTask: Task = {
-   ...input,
-   id: 't-' + Math.random().toString(36).slice(2, 9),
-   createdAt: now,
-   updatedAt: now,
-   source: 'manual',
-   listId: activeListId,
-  };
-  setTasks((prev) => [newTask, ...prev]);
+  const res = await fetch('/api/tasks', {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({
+    ...input,
+    source: 'manual' as const,
+    listId: activeListId,
+   }),
+  });
+  const json = (await res.json()) as { task?: Task; error?: string };
+  if (!res.ok || !json.task) {
+   alert(json.error ?? 'Could not create task');
+   return;
+  }
+  setTasks((prev) => [json.task!, ...prev]);
   setShowAdd(false);
  }
 
- function updateTask(id: string, changes: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'source'>) {
-  const now = new Date().toISOString();
-  setTasks((prev) =>
-   prev.map((t) => (t.id === id ? { ...t, ...changes, updatedAt: now } : t)),
-  );
+ async function updateTask(id: string, changes: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'source'>) {
+  const res = await fetch(`/api/tasks/${encodeURIComponent(id)}`, {
+   method: 'PATCH',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify(changes),
+  });
+  const json = (await res.json()) as { task?: Task; error?: string };
+  if (!res.ok || !json.task) {
+   alert(json.error ?? 'Could not save task');
+   return;
+  }
+  setTasks((prev) => prev.map((t) => (t.id === id ? json.task! : t)));
   setEditingTask(null);
  }
 
- function createList(name: string) {
+ async function createList(name: string) {
   const clean = name.trim();
   if (!clean) return;
-  const id = 'l-' + Math.random().toString(36).slice(2, 9);
-  setCustomLists((prev) => [...prev, { id, name: clean }]);
-  setActiveCategory(('list:' + id) as ActiveFilter);
+  const res = await fetch('/api/tasks/lists', {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ name: clean }),
+  });
+  const json = (await res.json()) as { list?: CustomList; error?: string };
+  if (!res.ok || !json.list) {
+   alert(json.error ?? 'Could not create list');
+   return;
+  }
+  setCustomLists((prev) => [...prev, json.list!]);
+  setActiveCategory(('list:' + json.list!.id) as ActiveFilter);
   setNewListName('');
   setAddingList(false);
  }
@@ -340,6 +372,14 @@ export function TasksClient({ today }: { today: string }) {
    tone: 'danger',
   });
   if (!ok) return;
+  const res = await fetch(`/api/tasks/lists/${encodeURIComponent(list.id)}`, {
+   method: 'DELETE',
+  });
+  if (!res.ok) {
+   const j = (await res.json()) as { error?: string };
+   alert(j.error ?? 'Could not delete list');
+   return;
+  }
   setCustomLists((prev) => prev.filter((l) => l.id !== list.id));
   setTasks((prev) =>
    prev.map((t) => (t.listId === list.id ? { ...t, listId: undefined } : t)),
@@ -355,6 +395,14 @@ export function TasksClient({ today }: { today: string }) {
    tone: 'danger',
   });
   if (!ok) return;
+  const res = await fetch(`/api/tasks/${encodeURIComponent(task.id)}`, {
+   method: 'DELETE',
+  });
+  if (!res.ok) {
+   const j = (await res.json()) as { error?: string };
+   alert(j.error ?? 'Could not delete task');
+   return;
+  }
   setTasks((prev) => prev.filter((t) => t.id !== task.id));
  }
 
@@ -854,7 +902,7 @@ function AddTaskForm({
  today: string;
  initialTask?: Task;
  submitLabel?: string;
- onSubmit: (input: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'source'>) => void;
+ onSubmit: (input: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'source'>) => void | Promise<void>;
  onCancel: () => void;
 }) {
  const [title, setTitle] = useState(initialTask?.title ?? '');
@@ -866,10 +914,10 @@ function AddTaskForm({
  const [dueDate, setDueDate] = useState(initialTask?.dueDate ?? today);
  const [status, setStatus] = useState<TaskStatus>(initialTask?.status ?? 'planned');
 
- function handleSubmit(e: React.FormEvent) {
+ async function handleSubmit(e: React.FormEvent) {
   e.preventDefault();
   if (!title.trim()) return;
-  onSubmit({
+  await onSubmit({
    title: title.trim(),
    description: description.trim() || undefined,
    category,

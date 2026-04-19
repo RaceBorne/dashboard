@@ -115,12 +115,3 @@ export const MOCK_SOCIAL_POSTS: SocialPost[] = [
     hashtags: ['#evari', '#customerstory', '#yorkshire'],
   },
 ];
-
-export function getMockPostsByMonth(year: number, monthZeroIndexed: number): SocialPost[] {
-  return MOCK_SOCIAL_POSTS.filter((p) => {
-    const iso = p.publishedAt ?? p.scheduledFor;
-    if (!iso) return false;
-    const d = new Date(iso);
-    return d.getFullYear() === year && d.getMonth() === monthZeroIndexed;
-  });
-}

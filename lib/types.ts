@@ -545,10 +545,19 @@ export interface IntegrationCapability {
   description: string;
 }
 
+/**
+ * Category mirrors the wireframe diagram's `cluster` ids exactly, so the
+ * list view on /wireframe and the boxes on the diagram always group by
+ * the same taxonomy. Add a new cluster to `CLUSTERS` in lib/wireframe.ts
+ * and it will automatically be a valid category here.
+ */
+export type IntegrationCategory = 'core' | 'outreach' | 'seo' | 'social';
+
 export interface IntegrationStatus {
-  key: IntegrationKey;
+  /** Wireframe node id — single source of truth for both the diagram and list. */
+  key: string;
   label: string;
-  category: 'ai' | 'commerce' | 'seo' | 'leads' | 'social' | 'storage' | 'infra';
+  category: IntegrationCategory;
   connected: boolean;
   envVarsRequired: string[];
   envVarsMissing: string[];

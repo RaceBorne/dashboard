@@ -598,7 +598,3 @@ export const MOCK_LEADS: Lead[] = [
     ],
   },
 ];
-
-export function getMockLead(id: string): Lead | undefined {
-  return MOCK_LEADS.find((l) => l.id === id);
-}

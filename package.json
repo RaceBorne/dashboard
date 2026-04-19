@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:seed": "npx tsx scripts/seed-dashboard.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^1.0.41",
@@ -19,6 +20,7 @@
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.6",
+    "@supabase/supabase-js": "^2.103.3",
     "ai": "^5.0.179",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -26,6 +28,7 @@
     "geist": "^1.3.1",
     "lucide-react": "^0.468.0",
     "next": "^16.0.0",
+    "pg": "^8.20.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^9.0.1",
@@ -36,15 +39,21 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/yauzl": "^2.10.3",
     "autoprefixer": "^10.4.20",
+    "dotenv": "^17.4.2",
     "eslint": "^9.17.0",
     "eslint-config-next": "^16.0.0",
     "postcss": "^8.5.0",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2"
+  },
+  "optionalDependencies": {
+    "@next/swc-linux-arm64-gnu": "^16.2.4"
   }
 }

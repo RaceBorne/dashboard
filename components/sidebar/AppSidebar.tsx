@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   Inbox,
@@ -13,34 +14,29 @@ import {
   CalendarDays,
   Settings,
   ListTodo,
-  Plug,
   Rocket,
   Flag,
   Users,
   Network,
+  ShoppingBag,
 } from 'lucide-react';
-import { MOCK_PLAYS } from '@/lib/mock/plays';
-import { MOCK_PROSPECTS } from '@/lib/mock/prospects';
 import { cn } from '@/lib/utils';
-import { MOCK_TASKS } from '@/lib/mock/tasks';
 import { useTheme } from '@/components/theme/ThemeProvider';
-
-const OPEN_TASKS = MOCK_TASKS.filter((t) => t.status !== 'done').length;
 
 const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
-  { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today', count: OPEN_TASKS },
-  { href: '/plays', label: 'Plays', icon: Rocket, group: 'pipeline', count: MOCK_PLAYS.length },
-  { href: '/prospects', label: 'Prospects', icon: Flag, group: 'pipeline', count: MOCK_PROSPECTS.filter((p) => p.status !== 'archived' && p.status !== 'qualified').length },
-  { href: '/leads', label: 'Leads', icon: Inbox, group: 'pipeline', count: 12 },
-  { href: '/conversations', label: 'Conversations', icon: MessageSquare, group: 'pipeline', count: 4 },
+  { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
+  { href: '/plays', label: 'Plays', icon: Rocket, group: 'pipeline' },
+  { href: '/prospects', label: 'Prospects', icon: Flag, group: 'pipeline' },
+  { href: '/leads', label: 'Leads', icon: Inbox, group: 'pipeline' },
+  { href: '/conversations', label: 'Conversations', icon: MessageSquare, group: 'pipeline' },
   { href: '/traffic', label: 'Traffic', icon: TrendingUp, group: 'web' },
   { href: '/seo', label: 'SEO Health', icon: Search, group: 'web', warn: true },
   { href: '/pages', label: 'Pages', icon: FileText, group: 'web' },
   { href: '/keywords', label: 'Keywords', icon: Hash, group: 'web' },
   { href: '/social', label: 'Social & blogs', icon: CalendarDays, group: 'broadcast' },
+  { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'commerce' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
-  { href: '/connections', label: 'Connections', icon: Plug, group: 'system' },
   { href: '/users', label: 'Users', icon: Users, group: 'system' },
   { href: '/settings', label: 'Settings', icon: Settings, group: 'system' },
 ] as const;
@@ -50,12 +46,77 @@ const GROUP_LABELS: Record<string, string> = {
   pipeline: 'Pipeline',
   web: 'Website',
   broadcast: 'Broadcast',
+  commerce: 'Commerce',
   system: 'System',
 };
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { theme } = useTheme();
+  const [openTaskCount, setOpenTaskCount] = useState<number | null>(null);
+  const [pipelineCounts, setPipelineCounts] = useState<{
+    plays: number;
+    prospectsActive: number;
+    leadsPipeline: number;
+    conversationsUnread: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/tasks/open-count')
+      .then((r) => r.json())
+      .then((d: { open?: number }) => {
+        if (!cancelled && typeof d.open === 'number') setOpenTaskCount(d.open);
+      })
+      .catch(() => {
+        if (!cancelled) setOpenTaskCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/dashboard/nav-counts')
+      .then((r) => r.json())
+      .then(
+        (d: {
+          plays?: number;
+          prospectsActive?: number;
+          leadsPipeline?: number;
+          conversationsUnread?: number;
+        }) => {
+          if (cancelled) return;
+          if (
+            typeof d.plays === 'number' &&
+            typeof d.prospectsActive === 'number' &&
+            typeof d.leadsPipeline === 'number' &&
+            typeof d.conversationsUnread === 'number'
+          ) {
+            setPipelineCounts({
+              plays: d.plays,
+              prospectsActive: d.prospectsActive,
+              leadsPipeline: d.leadsPipeline,
+              conversationsUnread: d.conversationsUnread,
+            });
+          }
+        },
+      )
+      .catch(() => {
+        if (!cancelled) {
+          setPipelineCounts({
+            plays: 0,
+            prospectsActive: 0,
+            leadsPipeline: 0,
+            conversationsUnread: 0,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Group items
   const groups = NAV.reduce<Record<string, typeof NAV[number][]>>((acc, item) => {
@@ -94,6 +155,34 @@ export function AppSidebar() {
                     ? pathname === '/'
                     : pathname.startsWith(item.href);
                 const Icon = item.icon;
+                let navCount: number | undefined;
+                if (item.href === '/tasks') {
+                  navCount =
+                    openTaskCount !== null && openTaskCount > 0 ? openTaskCount : undefined;
+                } else if (item.href === '/plays' && pipelineCounts && pipelineCounts.plays > 0) {
+                  navCount = pipelineCounts.plays;
+                } else if (
+                  item.href === '/prospects' &&
+                  pipelineCounts &&
+                  pipelineCounts.prospectsActive > 0
+                ) {
+                  navCount = pipelineCounts.prospectsActive;
+                } else if (
+                  item.href === '/leads' &&
+                  pipelineCounts &&
+                  pipelineCounts.leadsPipeline > 0
+                ) {
+                  navCount = pipelineCounts.leadsPipeline;
+                } else if (
+                  item.href === '/conversations' &&
+                  pipelineCounts &&
+                  pipelineCounts.conversationsUnread > 0
+                ) {
+                  navCount = pipelineCounts.conversationsUnread;
+                } else {
+                  navCount =
+                    'count' in item && typeof item.count === 'number' ? item.count : undefined;
+                }
                 return (
                   <Link
                     key={item.href}
@@ -112,7 +201,7 @@ export function AppSidebar() {
                       )}
                     />
                     <span className="flex-1">{item.label}</span>
-                    {'count' in item && item.count ? (
+                    {navCount ? (
                       <span
                         className={cn(
                           'inline-flex items-center justify-center h-5 min-w-[20px] px-1 text-[10px] tabular-nums rounded-full',
@@ -125,7 +214,7 @@ export function AppSidebar() {
                               : 'bg-evari-surface/60 text-evari-dimmer',
                         )}
                       >
-                        {item.count > 99 ? '99+' : item.count}
+                        {navCount > 99 ? '99+' : navCount}
                       </span>
                     ) : null}
                     {'warn' in item && item.warn ? (
@@ -143,7 +232,7 @@ export function AppSidebar() {
       <div className="px-4 py-3 text-[11px] text-evari-dimmer leading-tight">
         <div className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-evari-success" />
-          <span>Mock data — no APIs wired</span>
+          <span>Supabase + integrations</span>
         </div>
         <div className="mt-1 text-evari-dimmer/80 font-mono">v0.1.0</div>
       </div>

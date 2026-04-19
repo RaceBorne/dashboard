@@ -11,7 +11,8 @@
  *   - TikTok content.publish: 2-6 weeks
  */
 
-import { MOCK_SOCIAL_POSTS } from '@/lib/mock/social';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { listSocialPosts as listDashboardSocialPosts } from '@/lib/dashboard/repository';
 import type { SocialPlatform, SocialPost } from '@/lib/types';
 
 const isLinkedInConnected = () =>
@@ -35,7 +36,7 @@ export function platformConnected(p: SocialPlatform) {
 }
 
 export async function listSocialPosts(): Promise<SocialPost[]> {
-  return MOCK_SOCIAL_POSTS;
+  return listDashboardSocialPosts(createSupabaseAdmin());
 }
 
 export async function publishSocialPost(post: SocialPost) {

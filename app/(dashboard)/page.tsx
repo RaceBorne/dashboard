@@ -8,15 +8,23 @@ import { AnomalyList } from '@/components/briefing/AnomalyList';
 import { MiniTrafficChart } from '@/components/briefing/MiniTrafficChart';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getMockBriefing } from '@/lib/mock/briefing';
-import { MOCK_TRAFFIC_30D } from '@/lib/mock/traffic';
-import { MOCK_LEADS } from '@/lib/mock/leads';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { buildBriefingPayload } from '@/lib/dashboard/briefing';
+import { listLeads, listTrafficDays } from '@/lib/dashboard/repository';
 import { relativeTime, formatGBP } from '@/lib/utils';
 
-export default function BriefingPage() {
-  const briefing = getMockBriefing();
-  const hotLeads = [...MOCK_LEADS]
-    .filter((l) => ['configuring', 'discovery', 'quoted', 'contacted', 'new'].includes(l.stage))
+export default async function BriefingPage() {
+  const supabase = createSupabaseAdmin();
+  const [briefing, traffic, leads] = await Promise.all([
+    buildBriefingPayload(supabase),
+    listTrafficDays(supabase),
+    listLeads(supabase),
+  ]);
+
+  const hotLeads = [...leads]
+    .filter((l) =>
+      ['configuring', 'discovery', 'quoted', 'contacted', 'new'].includes(l.stage),
+    )
     .sort((a, b) => (b.estimatedValue ?? 0) - (a.estimatedValue ?? 0))
     .slice(0, 5);
 
@@ -43,13 +51,15 @@ export default function BriefingPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle>Sessions, last 30 days</CardTitle>
-                    <CardDescription>From GA4 — currently mock</CardDescription>
+                    <CardDescription>
+                      From GA4 when connected; otherwise dashboard snapshot in Supabase
+                    </CardDescription>
                   </div>
-                  <Badge variant="muted">mock</Badge>
+                  <Badge variant="muted">snapshot</Badge>
                 </div>
               </CardHeader>
               <CardContent>
-                <MiniTrafficChart data={MOCK_TRAFFIC_30D} />
+                <MiniTrafficChart data={traffic} />
               </CardContent>
             </Card>
 

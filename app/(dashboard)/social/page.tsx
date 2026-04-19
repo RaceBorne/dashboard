@@ -1,15 +1,17 @@
 import { TopBar } from '@/components/sidebar/TopBar';
 import { SocialCalendarClient } from '@/components/social/SocialCalendarClient';
-import { MOCK_SOCIAL_POSTS } from '@/lib/mock/social';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { listSocialPosts } from '@/lib/dashboard/repository';
 
-export default function SocialPage() {
+export default async function SocialPage() {
+  const posts = await listSocialPosts(createSupabaseAdmin());
   return (
     <>
       <TopBar
         title="Social"
         subtitle="LinkedIn · Instagram · TikTok"
       />
-      <SocialCalendarClient posts={MOCK_SOCIAL_POSTS} />
+      <SocialCalendarClient posts={posts} />
     </>
   );
 }

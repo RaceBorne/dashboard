@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
-import { getIntegrationStatuses } from '@/lib/mock/integrations';
+import { getIntegrationStatuses } from '@/lib/integrations/status';
 
 export const runtime = 'nodejs';
 

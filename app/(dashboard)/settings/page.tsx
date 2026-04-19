@@ -62,16 +62,16 @@ export default function SettingsPage() {
                 Looking for integrations?
               </div>
               <div className="text-xs text-evari-dim mt-0.5 max-w-sm">
-                Shopify, Google, Gmail, LinkedIn, Meta, TikTok, Supabase — all
-                moved to their own page, with an AI chat to decide what to wire
-                up next.
+                Shopify, Google, Gmail, LinkedIn, Meta, TikTok, Supabase — every
+                integration lives on the Wireframe page now, with the live
+                architecture diagram and an AI audit panel.
               </div>
             </div>
             <Link
-              href="/connections"
+              href="/wireframe"
               className="inline-flex items-center gap-1.5 rounded-md h-8 px-3 text-xs font-medium bg-evari-surfaceSoft text-evari-text hover:bg-evari-mute/60 transition"
             >
-              Go to Connections
+              Go to Wireframe
               <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>

@@ -1,16 +1,17 @@
 import { TopBar } from '@/components/sidebar/TopBar';
-import { MOCK_USERS, CURRENT_USER_ID } from '@/lib/mock/users';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { listUsers, resolveCurrentUserId } from '@/lib/dashboard/repository';
 import { UsersClient } from '@/components/users/UsersClient';
 
-export default function UsersPage() {
-  const active = MOCK_USERS.filter((u) => u.status === 'active').length;
+export default async function UsersPage() {
+  const supabase = createSupabaseAdmin();
+  const users = await listUsers(supabase);
+  const currentUserId = await resolveCurrentUserId(supabase);
+  const active = users.filter((u) => u.status === 'active').length;
   return (
     <>
       <TopBar title="Users" subtitle={active + ' active · invite by email'} />
-      <UsersClient
-        initialUsers={MOCK_USERS}
-        currentUserId={CURRENT_USER_ID}
-      />
+      <UsersClient initialUsers={users} currentUserId={currentUserId} />
     </>
   );
 }

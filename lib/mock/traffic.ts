@@ -1,6 +1,17 @@
 import type { TrafficDay, TrafficSourceRow, LandingPageRow } from '@/lib/types';
 
+/** Deterministic PRNG so seeded traffic matches between runs and Supabase seed. */
+function mulberry32(seed: number) {
+  return function () {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function generateTrafficDays(days: number): TrafficDay[] {
+  const rand = mulberry32(0x513375);
   const out: TrafficDay[] = [];
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
@@ -9,16 +20,16 @@ function generateTrafficDays(days: number): TrafficDay[] {
     const dow = date.getDay();
     const weekdayBoost = dow === 0 || dow === 6 ? 1.4 : 1;
     const seasonalBoost = 1 + Math.sin((i / days) * Math.PI) * 0.18;
-    const noise = 0.85 + Math.random() * 0.3;
+    const noise = 0.85 + rand() * 0.3;
     const sessions = Math.round(220 * weekdayBoost * seasonalBoost * noise);
-    const users = Math.round(sessions * (0.78 + Math.random() * 0.06));
-    const conversions = Math.round(sessions * (0.024 + Math.random() * 0.018));
+    const users = Math.round(sessions * (0.78 + rand() * 0.06));
+    const conversions = Math.round(sessions * (0.024 + rand() * 0.018));
     out.push({
       date: date.toISOString().slice(0, 10),
       sessions,
       users,
-      bounceRate: 0.42 + (Math.random() - 0.5) * 0.08,
-      avgDurationSec: Math.round(140 + Math.random() * 60),
+      bounceRate: 0.42 + (rand() - 0.5) * 0.08,
+      avgDurationSec: Math.round(140 + rand() * 60),
       conversions,
     });
   }

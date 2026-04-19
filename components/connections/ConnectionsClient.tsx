@@ -35,26 +35,32 @@ import {
   type EnvValues,
 } from '@/lib/connections-store';
 import { cn } from '@/lib/utils';
-import type { IntegrationStatus } from '@/lib/types';
+import { CLUSTERS } from '@/lib/wireframe';
+import type { IntegrationCategory, IntegrationStatus } from '@/lib/types';
 
-const CATEGORY_LABEL: Record<IntegrationStatus['category'], string> = {
-  infra: 'Infrastructure',
-  ai: 'AI',
-  commerce: 'Commerce',
-  seo: 'SEO & analytics',
-  leads: 'Leads & messaging',
-  social: 'Social',
-  storage: 'Storage',
-};
-const CATEGORY_ORDER: IntegrationStatus['category'][] = [
-  'infra',
-  'ai',
-  'commerce',
+// Categories mirror the diagram clusters exactly. Labels are pulled from
+// the same CLUSTERS map the wireframe uses so renaming a cluster updates
+// both views automatically.
+const CATEGORY_ORDER: IntegrationCategory[] = [
+  'core',
+  'outreach',
   'seo',
-  'leads',
   'social',
-  'storage',
 ];
+const CATEGORY_LABEL: Record<IntegrationCategory, string> = {
+  core: CLUSTERS.core?.label ?? 'Core',
+  outreach: CLUSTERS.outreach?.label ?? 'Commerce & Outreach',
+  seo: CLUSTERS.seo?.label ?? 'SEO',
+  social: CLUSTERS.social?.label ?? 'Social',
+};
+
+const AUDIT_PROMPT =
+  "Audit my current stack and tell me which connections we're missing. " +
+  "List up to 5 specific services that would meaningfully improve Evari " +
+  "(commerce, content, ops, AI, analytics, deliverability, support). " +
+  "For each: name, the cluster it belongs in (Core / Commerce & Outreach / SEO / Social), " +
+  "one-line why we'd want it, and the env vars it would need. " +
+  "Skip anything we already have.";
 
 interface ChatMsg {
   id: string;
@@ -65,8 +71,15 @@ interface ChatMsg {
 
 export function ConnectionsClient({
   integrations,
+  className,
 }: {
   integrations: IntegrationStatus[];
+  /**
+   * Override the outer container styling. Defaults to a standalone-page
+   * padding; pass `'space-y-6'` (or similar) when embedding inside another
+   * page so it inherits the parent's outer layout.
+   */
+  className?: string;
 }) {
   const grouped = integrations.reduce<
     Record<string, IntegrationStatus[]>
@@ -81,8 +94,8 @@ export function ConnectionsClient({
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  async function sendMessage() {
-    const text = input.trim();
+  async function sendMessage(override?: string) {
+    const text = (override ?? input).trim();
     if (!text || loading) return;
     const userMsg: ChatMsg = {
       id: 'u-' + Math.random().toString(36).slice(2, 9),
@@ -156,8 +169,8 @@ export function ConnectionsClient({
   const connectedCount = integrations.filter((i) => i.connected).length;
 
   return (
-    <div className="p-6 max-w-[1200px] space-y-6">
-      {/* Chat window */}
+    <div className={className ?? 'p-6 max-w-[1200px] space-y-6'}>
+      {/* Connections audit */}
       <section className="rounded-xl bg-evari-surface p-5 space-y-4">
         <div className="flex items-start gap-3">
           <div className="h-9 w-9 rounded-lg bg-evari-surfaceSoft flex items-center justify-center shrink-0">
@@ -165,17 +178,35 @@ export function ConnectionsClient({
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-evari-text">
-              Ask about connections
+              Audit connections
             </div>
             <div className="text-xs text-evari-dim mt-0.5">
-              What should we wire up next and why? Grounded in the current
-              connection state below.
+              Ask the assistant what other services we should wire in. Anything
+              you decide to add gets a box on the wireframe and a row in the
+              list below.
             </div>
           </div>
           <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
             {connectedCount} / {integrations.length} connected
           </div>
         </div>
+
+        {/* Primary CTA — one-click audit. Pre-fills and sends the audit
+            prompt so Craig doesn't have to remember the exact wording. */}
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => void sendMessage(AUDIT_PROMPT)}
+          disabled={loading}
+          className="w-full justify-center"
+        >
+          {loading ? (
+            <RefreshCw className="h-3 w-3 animate-spin" />
+          ) : (
+            <Sparkles className="h-3 w-3" />
+          )}
+          Suggest more connections we need for this site
+        </Button>
 
         {history.length > 0 && (
           <div
@@ -213,7 +244,7 @@ export function ConnectionsClient({
 
         <div className="flex items-center gap-2">
           <Input
-            placeholder="e.g. What scopes do I need to enable the bike-builder → Shopify draft-order flow?"
+            placeholder="Or ask anything else — e.g. what scopes do I need for Shopify draft orders?"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -328,19 +359,36 @@ function ConnectionCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  // Closed by default — clicking anywhere on the row header expands the
+  // card to reveal synopsis, notes, scopes, and env vars. Edit/delete
+  // buttons stop propagation so they don't accidentally toggle the row.
   const [open, setOpen] = useState(false);
   const localValues = readEnvValues(s.key);
   const hasLocal = Object.keys(localValues).length > 0;
 
   return (
-    <div className="group relative rounded-md bg-evari-surface/60 p-4 space-y-3 hover:bg-evari-surface transition-colors">
-      {/* Edit / delete — top-right */}
-      <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+    <div
+      className={cn(
+        'group relative rounded-md bg-evari-surface/60 hover:bg-evari-surface transition-colors',
+        open ? 'p-4 space-y-3' : 'p-0',
+      )}
+    >
+      {/* Edit / delete — top-right. Stop propagation so they don't toggle
+          the row open/closed when clicked. */}
+      <div
+        className={cn(
+          'absolute right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10',
+          open ? 'top-2' : 'top-1/2 -translate-y-1/2',
+        )}
+      >
         <button
           type="button"
           aria-label={'Edit ' + s.label + ' credentials'}
           title="Edit credentials"
-          onClick={onEdit}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
           className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
         >
           <Pencil className="h-3 w-3" />
@@ -349,135 +397,153 @@ function ConnectionCard({
           type="button"
           aria-label={'Clear ' + s.label + ' credentials'}
           title="Clear credentials"
-          onClick={onDelete}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
           className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft"
         >
           <Trash2 className="h-3 w-3" />
         </button>
       </div>
 
-      <div className="flex items-start justify-between gap-3 pr-14">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="text-sm font-medium text-evari-text">
-              {s.label}
-            </div>
-            {s.connected ? (
-              <Badge variant="success" className="text-[10px]">
-                <CheckCircle2 className="h-3 w-3" />
-                connected
-              </Badge>
-            ) : (
-              <Badge variant="warning" className="text-[10px]">
-                <AlertCircle className="h-3 w-3" />
-                not connected
-              </Badge>
-            )}
-            {hasLocal && !s.connected && (
-              <Badge variant="gold" className="text-[10px]">
-                saved locally
-              </Badge>
-            )}
-          </div>
+      {/* Header row — clickable surface that toggles the whole card open. */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={cn(
+          'w-full text-left flex items-center gap-3 pr-14',
+          open ? 'pb-1' : 'px-4 py-2.5',
+        )}
+      >
+        <ChevronDown
+          className={cn(
+            'h-3.5 w-3.5 text-evari-dimmer transition-transform shrink-0',
+            open && 'rotate-180',
+          )}
+        />
+        <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-evari-text">{s.label}</span>
+          {s.connected ? (
+            <Badge variant="success" className="text-[10px]">
+              <CheckCircle2 className="h-3 w-3" />
+              connected
+            </Badge>
+          ) : (
+            <Badge variant="warning" className="text-[10px]">
+              <AlertCircle className="h-3 w-3" />
+              not connected
+            </Badge>
+          )}
+          {hasLocal && !s.connected && (
+            <Badge variant="gold" className="text-[10px]">
+              saved locally
+            </Badge>
+          )}
+          {!open && (s.capabilities?.length ?? 0) > 0 && (
+            <span className="text-[10px] text-evari-dimmer">
+              {s.capabilities!.length} scopes
+            </span>
+          )}
+        </div>
+      </button>
+
+      {/* Expanded body */}
+      {open && (
+        <>
           <a
             href={s.docsUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-0.5 text-[11px] text-evari-dim hover:text-evari-gold inline-flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+            className="text-[11px] text-evari-dim hover:text-evari-gold inline-flex items-center gap-1"
           >
             documentation
             <ExternalLink className="h-2.5 w-2.5" />
           </a>
-        </div>
-        {(s.capabilities?.length ?? 0) > 0 && (
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="text-[11px] text-evari-dim hover:text-evari-text inline-flex items-center gap-1 h-6 px-2 rounded-md hover:bg-evari-surfaceSoft shrink-0"
-          >
-            {open ? 'Hide scopes' : `${s.capabilities!.length} scopes`}
-            <ChevronDown
-              className={cn(
-                'h-3 w-3 transition-transform',
-                open && 'rotate-180',
-              )}
-            />
-          </button>
-        )}
-      </div>
 
-      {s.synopsis && (
-        <p className="text-xs text-evari-dim leading-relaxed">{s.synopsis}</p>
-      )}
-      {s.notes && (
-        <p className="text-[11px] text-evari-dimmer leading-relaxed italic">
-          {s.notes}
-        </p>
-      )}
+          {s.synopsis && (
+            <p className="text-xs text-evari-dim leading-relaxed">
+              {s.synopsis}
+            </p>
+          )}
+          {s.notes && (
+            <p className="text-[11px] text-evari-dimmer leading-relaxed italic">
+              {s.notes}
+            </p>
+          )}
 
-      {open && s.capabilities && (
-        <ul className="space-y-1 pt-1">
-          {s.capabilities.map((c) => (
-            <li
-              key={c.name}
-              className="rounded-md bg-evari-surface/60 px-3 py-2 flex items-start gap-3"
-            >
-              <code className="text-[11px] font-mono text-evari-gold shrink-0 pt-0.5">
-                {c.name}
-              </code>
-              <span className="text-xs text-evari-dim leading-relaxed">
-                {c.description}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {s.envVarsRequired.length > 0 && (
-        <div className="rounded-md bg-evari-ink/60 p-2.5">
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-              Required env vars
-            </div>
-            <button
-              type="button"
-              onClick={onEdit}
-              className="text-[10px] text-evari-gold hover:text-evari-text inline-flex items-center gap-1"
-            >
-              <Pencil className="h-2.5 w-2.5" />
-              edit
-            </button>
-          </div>
-          <ul className="space-y-1">
-            {s.envVarsRequired.map((v) => {
-              const missingFromEnv = s.envVarsMissing.includes(v);
-              const locally = localValues[v];
-              return (
+          {s.capabilities && s.capabilities.length > 0 && (
+            <ul className="space-y-1 pt-1">
+              {s.capabilities.map((c) => (
                 <li
-                  key={v}
-                  className="flex items-center justify-between text-[11px] font-mono gap-3"
+                  key={c.name}
+                  className="rounded-md bg-evari-surface/60 px-3 py-2 flex items-start gap-3"
                 >
-                  <span
-                    className={
-                      missingFromEnv ? 'text-evari-dimmer' : 'text-evari-text'
-                    }
-                  >
-                    {v}
+                  <code className="text-[11px] font-mono text-evari-gold shrink-0 pt-0.5">
+                    {c.name}
+                  </code>
+                  <span className="text-xs text-evari-dim leading-relaxed">
+                    {c.description}
                   </span>
-                  {!missingFromEnv ? (
-                    <span className="text-evari-success">set</span>
-                  ) : locally ? (
-                    <span className="text-evari-gold tabular-nums">
-                      {maskValue(locally)}
-                    </span>
-                  ) : (
-                    <span className="text-evari-warn">missing</span>
-                  )}
                 </li>
-              );
-            })}
-          </ul>
-        </div>
+              ))}
+            </ul>
+          )}
+
+          {s.envVarsRequired.length > 0 && (
+            <div className="rounded-md bg-evari-ink/60 p-2.5">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+                  Required env vars
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit();
+                  }}
+                  className="text-[10px] text-evari-gold hover:text-evari-text inline-flex items-center gap-1"
+                >
+                  <Pencil className="h-2.5 w-2.5" />
+                  edit
+                </button>
+              </div>
+              <ul className="space-y-1">
+                {s.envVarsRequired.map((v) => {
+                  const missingFromEnv = s.envVarsMissing.includes(v);
+                  const locally = localValues[v];
+                  return (
+                    <li
+                      key={v}
+                      className="flex items-center justify-between text-[11px] font-mono gap-3"
+                    >
+                      <span
+                        className={
+                          missingFromEnv
+                            ? 'text-evari-dimmer'
+                            : 'text-evari-text'
+                        }
+                      >
+                        {v}
+                      </span>
+                      {!missingFromEnv ? (
+                        <span className="text-evari-success">set</span>
+                      ) : locally ? (
+                        <span className="text-evari-gold tabular-nums">
+                          {maskValue(locally)}
+                        </span>
+                      ) : (
+                        <span className="text-evari-warn">missing</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

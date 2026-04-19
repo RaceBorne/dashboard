@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
-import { getMockPlay } from '@/lib/mock/plays';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { getPlay } from '@/lib/dashboard/repository';
 
 export const runtime = 'nodejs';
 
@@ -28,7 +29,7 @@ export async function POST(
     return NextResponse.json({ error: 'empty message' }, { status: 400 });
   }
 
-  const play = getMockPlay(id);
+  const play = await getPlay(createSupabaseAdmin(), id);
   if (!play) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }

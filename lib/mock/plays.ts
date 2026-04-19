@@ -250,7 +250,3 @@ export const MOCK_PLAYS: Play[] = [
     ],
   },
 ];
-
-export function getMockPlay(id: string): Play | undefined {
-  return MOCK_PLAYS.find((c) => c.id === id);
-}

@@ -1,12 +1,14 @@
 import { TopBar } from '@/components/sidebar/TopBar';
-import { MOCK_PAGES } from '@/lib/mock/seo';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { listSeoPages } from '@/lib/dashboard/repository';
 import { PagesClient } from '@/components/pages/PagesClient';
 
-export default function PagesPage() {
+export default async function PagesPage() {
+  const pages = await listSeoPages(createSupabaseAdmin());
   return (
     <>
-      <TopBar title="Pages" subtitle={String(MOCK_PAGES.length) + ' tracked'} />
-      <PagesClient initialPages={MOCK_PAGES} />
+      <TopBar title="Pages" subtitle={String(pages.length) + ' tracked'} />
+      <PagesClient initialPages={pages} />
     </>
   );
 }

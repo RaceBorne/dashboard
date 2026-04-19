@@ -1,6 +1,10 @@
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { TopBar } from '@/components/sidebar/TopBar';
 import { WireframeDiagram } from '@/components/wireframe/WireframeDiagram';
+import { ConnectionsClient } from '@/components/connections/ConnectionsClient';
 import { WIREFRAME_NODES } from '@/lib/wireframe';
+import { getIntegrationStatuses } from '@/lib/integrations/status';
 
 // Force dynamic rendering so env var changes take effect on the next page
 // load — no rebuild required. Otherwise Next would static-prerender this
@@ -75,6 +79,23 @@ function formatRelative(iso: string): string {
 }
 
 /**
+ * Detect whether this checkout is linked to a Vercel project. True when
+ * either we're running on Vercel itself (`process.env.VERCEL`) or when a
+ * local `.vercel/project.json` exists (i.e. someone ran `vercel link`).
+ * This is the "fundamentally connected to Vercel" signal — independent
+ * of whether the page happens to be rendering from a deploy or a laptop.
+ */
+async function isVercelLinked(): Promise<boolean> {
+  if (process.env.VERCEL) return true;
+  try {
+    await fs.access(path.join(process.cwd(), '.vercel', 'project.json'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Cheap Supabase liveness check. Hits `/auth/v1/health`, which is the
  * public health endpoint — returns 200 if the project is up. We send the
  * anon key as `apikey` because Supabase rejects unauthenticated calls
@@ -119,10 +140,32 @@ export default async function WireframePage() {
   // for the live status (e.g. "Database healthy"). Designed as a map so
   // every other service can hang its own probe-derived status here without
   // touching the component contract.
-  const [lastCommit, supabaseHealthy] = await Promise.all([
+  const [lastCommit, supabaseHealthy, vercelLinked] = await Promise.all([
     fetchLastCommit(),
     fetchSupabaseHealth(),
+    isVercelLinked(),
   ]);
+
+  // Synthetic markers — set whenever a fundamental connection is proven,
+  // independent of which env this page happens to render from. GitHub is
+  // "live" if the commits API responded; Vercel is "linked" if either
+  // we're on Vercel runtime OR `.vercel/project.json` exists locally.
+  if (lastCommit) envPresent.add('__GITHUB_LIVE');
+  if (vercelLinked) envPresent.add('__VERCEL_LINKED');
+  // AI Gateway is "live" when ANY of the following holds:
+  //   1. A static AI_GATEWAY_API_KEY is set (manual key path).
+  //   2. A Vercel OIDC token is in process.env (local dev after
+  //      `vercel env pull`, or Pro/Enterprise runtime where it's surfaced).
+  //   3. We're running on a Vercel deployment at all (process.env.VERCEL).
+  //      Every Vercel project can call AI Gateway — auth is handled by
+  //      the platform even when the OIDC env var isn't surfaced (Hobby).
+  if (
+    process.env.AI_GATEWAY_API_KEY ||
+    process.env.VERCEL_OIDC_TOKEN ||
+    process.env.VERCEL
+  ) {
+    envPresent.add('__AI_GATEWAY_LIVE');
+  }
   const nodeMeta: Record<string, { liveStatus: string; tooltip?: string }> = {};
   if (lastCommit) {
     const ago = formatRelative(lastCommit.isoTime);
@@ -144,6 +187,22 @@ export default async function WireframePage() {
       tooltip: 'Supabase /auth/v1/health returned 200 OK',
     };
   }
+  if (process.env.AI_GATEWAY_API_KEY) {
+    nodeMeta['aigateway'] = {
+      liveStatus: 'Gateway ready',
+      tooltip: 'AI_GATEWAY_API_KEY present — direct gateway calls enabled',
+    };
+  } else if (process.env.VERCEL_OIDC_TOKEN) {
+    nodeMeta['aigateway'] = {
+      liveStatus: 'Gateway ready (OIDC)',
+      tooltip: 'Authenticating via Vercel OIDC token — no static key needed',
+    };
+  } else if (process.env.VERCEL) {
+    nodeMeta['aigateway'] = {
+      liveStatus: 'Gateway ready (Vercel runtime)',
+      tooltip: 'Vercel platform handles AI Gateway auth automatically',
+    };
+  }
 
   // Non-secret identifier values (username, store domain, email) passed
   // to the client so we can show "logged in as …" without ever exposing a
@@ -159,6 +218,11 @@ export default async function WireframePage() {
       identifierValues[v] = process.env[v]!;
     }
   }
+
+  // Connections list — derived from the same WIREFRAME_NODES the diagram
+  // uses, with the *same* envPresent set so synthetic markers (GitHub,
+  // Vercel, AI Gateway) light up identically in both views.
+  const integrations = getIntegrationStatuses(envPresent);
 
   return (
     <>
@@ -350,6 +414,14 @@ export default async function WireframePage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Per-integration detail. Each row collapses by default; click
+            anywhere on a row to expand and see synopsis, scopes, and the
+            required env vars. Categories are the same cluster ids as the
+            diagram above, so the two views always agree. */}
+        <div id="connections-list">
+          <ConnectionsClient integrations={integrations} className="space-y-6" />
         </div>
       </div>
     </>

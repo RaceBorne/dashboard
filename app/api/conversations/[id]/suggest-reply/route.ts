@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import { replySuggestionPrompt } from '@/lib/ai/prompts';
-import { getMockThread } from '@/lib/mock/conversations';
-import { getMockLead } from '@/lib/mock/leads';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { getLead, getThread } from '@/lib/dashboard/repository';
 
 const FALLBACK = (subject: string) =>
   `Thanks — quick reply on the points above.
@@ -18,14 +18,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const thread = getMockThread(id);
+  const supabase = createSupabaseAdmin();
+  const thread = await getThread(supabase, id);
   if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
 
   if (!hasAIGatewayCredentials()) {
     return NextResponse.json({ markdown: FALLBACK(thread.subject), mock: true });
   }
 
-  const lead = thread.leadId ? getMockLead(thread.leadId) : undefined;
+  const lead = thread.leadId ? await getLead(supabase, thread.leadId) : undefined;
 
   try {
     const markdown = await generateBriefing({

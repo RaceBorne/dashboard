@@ -1,15 +1,17 @@
 import { TopBar } from '@/components/sidebar/TopBar';
-import { MOCK_KEYWORDS } from '@/lib/mock/seo';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { listSeoKeywords } from '@/lib/dashboard/repository';
 import { KeywordsClient } from '@/components/keywords/KeywordsClient';
 
-export default function KeywordsPage() {
+export default async function KeywordsPage() {
+  const keywords = await listSeoKeywords(createSupabaseAdmin());
   return (
     <>
       <TopBar
         title="Keywords"
-        subtitle={String(MOCK_KEYWORDS.length) + ' tracked'}
+        subtitle={String(keywords.length) + ' tracked'}
       />
-      <KeywordsClient initialKeywords={MOCK_KEYWORDS} />
+      <KeywordsClient initialKeywords={keywords} />
     </>
   );
 }

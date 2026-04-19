@@ -16,9 +16,14 @@
  *      refresh_token; persist it to GOOGLE_REFRESH_TOKEN.
  */
 
-import { MOCK_TRAFFIC_30D, MOCK_TRAFFIC_SOURCES, MOCK_LANDING_PAGES } from '@/lib/mock/traffic';
-import { MOCK_KEYWORDS } from '@/lib/mock/seo';
-import { MOCK_THREADS } from '@/lib/mock/conversations';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import {
+  listLandingPages,
+  listSeoKeywords,
+  listThreads,
+  listTrafficDays,
+  listTrafficSources,
+} from '@/lib/dashboard/repository';
 
 const requiredEnv = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'] as const;
 
@@ -31,27 +36,27 @@ export const isGA4Connected = () => googleAuthReady() && Boolean(process.env.GA4
 export const isGmailConnected = () => googleAuthReady() && Boolean(process.env.GMAIL_USER_EMAIL);
 
 export async function fetchGA4Traffic30d() {
-  if (!isGA4Connected()) return MOCK_TRAFFIC_30D;
+  if (!isGA4Connected()) return listTrafficDays(createSupabaseAdmin());
   throw new Error('GA4 live mode not yet implemented');
 }
 
 export async function fetchGA4Sources() {
-  if (!isGA4Connected()) return MOCK_TRAFFIC_SOURCES;
+  if (!isGA4Connected()) return listTrafficSources(createSupabaseAdmin());
   throw new Error('GA4 live mode not yet implemented');
 }
 
 export async function fetchGA4LandingPages() {
-  if (!isGA4Connected()) return MOCK_LANDING_PAGES;
+  if (!isGA4Connected()) return listLandingPages(createSupabaseAdmin());
   throw new Error('GA4 live mode not yet implemented');
 }
 
 export async function fetchGSCKeywords() {
-  if (!isGSCConnected()) return MOCK_KEYWORDS;
+  if (!isGSCConnected()) return listSeoKeywords(createSupabaseAdmin());
   throw new Error('GSC live mode not yet implemented');
 }
 
 export async function fetchGmailThreads() {
-  if (!isGmailConnected()) return MOCK_THREADS;
+  if (!isGmailConnected()) return listThreads(createSupabaseAdmin());
   throw new Error('Gmail live mode not yet implemented');
 }
 
