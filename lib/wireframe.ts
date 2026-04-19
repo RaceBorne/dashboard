@@ -272,12 +272,17 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     cluster: 'core',
     x: 240,
     y: 290,
-    envVars: ['GITHUB_REPO_URL'],
+    // VERCEL_GIT_COMMIT_REPO is auto-provisioned by Vercel when the project
+    // is linked to a GitHub repo — so this lights up green automatically on
+    // the deployed site without needing manual env var configuration.
+    envVars: ['VERCEL_GIT_COMMIT_REPO'],
     account: {
       label: 'Repository',
-      identifierEnvVar: 'GITHUB_REPO_URL',
-      identifierPlaceholder: 'github.com/your-org/evari-dashboard',
-      adminUrlTemplate: '{id}',
+      // On Vercel, VERCEL_GIT_REPO_SLUG is "dashboard" and OWNER is "RaceBorne"
+      // — but showing the full repo URL via the combined slug looks cleaner.
+      identifierEnvVar: 'VERCEL_GIT_REPO_SLUG',
+      identifierPlaceholder: 'RaceBorne/dashboard',
+      adminUrlTemplate: 'https://github.com/RaceBorne/dashboard',
     },
     blurb:
       'Where the code lives. Every change is a branch + PR + preview deploy. Auto-deploys to Vercel on merge to main.',
@@ -306,7 +311,9 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     cluster: 'core',
     x: 480,
     y: 290,
-    envVars: ['VERCEL_OIDC_TOKEN'],
+    // VERCEL is auto-provisioned to "1" by Vercel's build/runtime environment
+    // — so a deployed app always lights Vercel up green. Locally, it's absent.
+    envVars: ['VERCEL'],
     account: {
       label: 'Team',
       identifierStatic: 'Evari',

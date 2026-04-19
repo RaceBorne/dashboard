@@ -1379,6 +1379,15 @@ export function WireframeDiagram({ envPresent: initialEnv, identifierValues }: P
             // 20-unit horizontal offset as a percentage of the cluster's own
             // width (since absolute children use parent dims for percent).
             const clusterWidthVb = maxX - minX + CLUSTER_PAD * 2;
+            // Colour-blind-friendly signal: the cluster label AND its outline
+            // turn bright green when every member of this cluster is live
+            // (not just a subtle "all-green-dot" per-box signal). Required,
+            // non-optional members must be connected; optional members can be
+            // skipped without breaking the "all green" state.
+            const requiredMembers = members.filter((m) => !m.optional);
+            const allLive =
+              requiredMembers.length > 0 &&
+              requiredMembers.every((m) => isConnected(m, envPresent));
             return (
               <div
                 key={clusterId}
@@ -1389,8 +1398,14 @@ export function WireframeDiagram({ envPresent: initialEnv, identifierValues }: P
                   width: `${width}%`,
                   height: `${height}%`,
                   background: meta.fillVar,
-                  // Explicit 16-unit border radius — fixed rule
                   borderRadius: '16px',
+                  // Cluster outline gains a bright green border when every
+                  // required member is connected. This is the most visible
+                  // colour-blind-friendly "cluster is live" signal.
+                  boxShadow: allLive
+                    ? 'inset 0 0 0 1.5px rgb(var(--evari-success))'
+                    : 'none',
+                  transition: 'box-shadow 200ms ease-in-out',
                 }}
               >
                 <div
@@ -1506,17 +1521,20 @@ export function WireframeDiagram({ envPresent: initialEnv, identifierValues }: P
                   }}
                 >
                   <div
-                    className="absolute text-[10px] uppercase tracking-[0.18em] text-evari-dimmer pointer-events-none"
-                    // Fixed rule: title sits 20 viewBox units from the
-                    // cluster's left and top edges. Horizontal offset is a
-                    // percentage of the cluster's own width (parent dim);
-                    // vertical is a percentage of the title strip's height.
+                    className={cn(
+                      'absolute text-[10px] uppercase tracking-[0.18em] pointer-events-none font-medium transition-colors',
+                      // Bright green when all required members are wired up
+                      // — the primary colour-blind-friendly "cluster live"
+                      // signal. Gold highlight fades when just hovered.
+                      allLive ? 'text-evari-success' : 'text-evari-dimmer',
+                    )}
                     style={{
                       left: `${(20 / clusterWidthVb) * 100}%`,
                       top: `${(20 / CLUSTER_TITLE_H) * 100}%`,
                     }}
                   >
                     {meta.label}
+                    {allLive && <span className="ml-2 text-evari-success">●</span>}
                   </div>
                 </div>
               </div>
