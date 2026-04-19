@@ -272,16 +272,17 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     cluster: 'core',
     x: 240,
     y: 290,
-    // VERCEL_GIT_COMMIT_REPO is auto-provisioned by Vercel when the project
-    // is linked to a GitHub repo — so this lights up green automatically on
-    // the deployed site without needing manual env var configuration.
-    envVars: ['VERCEL_GIT_COMMIT_REPO'],
+    // VERCEL is auto-set to "1" at runtime on Vercel — and Vercel is wired
+    // to GitHub for auto-deploy. So if VERCEL is present, the GitHub →
+    // Vercel pipeline is implicitly working. (VERCEL_GIT_* vars are
+    // build-time only by default unless explicitly exposed in project
+    // settings, so we use the always-available VERCEL var instead.)
+    envVars: ['VERCEL'],
     account: {
       label: 'Repository',
-      // On Vercel, VERCEL_GIT_REPO_SLUG is "dashboard" and OWNER is "RaceBorne"
-      // — but showing the full repo URL via the combined slug looks cleaner.
-      identifierEnvVar: 'VERCEL_GIT_REPO_SLUG',
-      identifierPlaceholder: 'RaceBorne/dashboard',
+      // Hard-coded since we know the repo and VERCEL_GIT_REPO_SLUG isn't
+      // runtime-available by default. If the repo ever moves, update here.
+      identifierStatic: 'RaceBorne/dashboard',
       adminUrlTemplate: 'https://github.com/RaceBorne/dashboard',
     },
     blurb:
