@@ -1,7 +1,7 @@
 import { TopBar } from '@/components/sidebar/TopBar';
 import { SeoHealthClient } from '@/components/shopify/SeoHealthClient';
 import { isShopifyConnected } from '@/lib/integrations/shopify';
-import { getCachedScan } from '@/lib/seo/scan';
+import { ensureScanHydrated, getCachedScan } from '@/lib/seo/scan';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,6 +18,11 @@ interface PageProps {
  * via /api/seo/scan + /api/seo/fix + /api/seo/undo.
  */
 export default async function SeoHealthPage({ searchParams }: PageProps) {
+  // Force a Supabase reload on every render — the page module can hold a
+  // stale `cachedScan` populated at an earlier render while /api/seo/fix
+  // mutates a different module instance. Without `force`, refresh shows
+  // the pre-fix snapshot.
+  await ensureScanHydrated({ force: true });
   const cached = getCachedScan();
   const sp = searchParams ? await searchParams : {};
   return (

@@ -19,6 +19,8 @@ import {
   Users,
   Network,
   ShoppingBag,
+  Gauge,
+  Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme/ThemeProvider';
@@ -34,6 +36,8 @@ const NAV = [
   { href: '/seo', label: 'SEO Health', icon: Search, group: 'web', warn: true },
   { href: '/pages', label: 'Pages', icon: FileText, group: 'web' },
   { href: '/keywords', label: 'Keywords', icon: Hash, group: 'web' },
+  { href: '/performance', label: 'Performance', icon: Gauge, group: 'web' },
+  { href: '/backlinks', label: 'Backlinks', icon: Link2, group: 'web' },
   { href: '/social', label: 'Social & blogs', icon: CalendarDays, group: 'broadcast' },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'commerce' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
@@ -52,7 +56,7 @@ const GROUP_LABELS: Record<string, string> = {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { theme } = useTheme();
+  const { theme, logoLight, logoDark } = useTheme();
   const [openTaskCount, setOpenTaskCount] = useState<number | null>(null);
   const [pipelineCounts, setPipelineCounts] = useState<{
     plays: number;
@@ -124,9 +128,13 @@ export function AppSidebar() {
     return acc;
   }, {});
 
-  // Light-on-dark logo for dark theme, dark-on-light logo for light theme.
+  // User-uploaded logos (stored as base64 data URLs in localStorage via
+  // ThemeProvider) take precedence. Fall back to the built-in Evari marks
+  // when nothing is uploaded for the current theme.
+  const uploaded = theme === 'dark' ? logoDark : logoLight;
   const logoSrc =
-    theme === 'dark' ? '/evari-logo-on-dark.svg' : '/evari-logo-on-light.svg';
+    uploaded ??
+    (theme === 'dark' ? '/evari-logo-on-dark.svg' : '/evari-logo-on-light.svg');
 
   return (
     <aside className="hidden lg:flex w-60 shrink-0 flex-col bg-evari-carbon sticky top-0 h-screen self-start">

@@ -162,6 +162,68 @@ export async function listSeoKeywords(supabase: SupabaseClient | null): Promise<
   return (data as { payload: KeywordRow }[]).map((r) => r.payload);
 }
 
+/**
+ * Read real GSC rollup data (written nightly by the ingest endpoint) and shape
+ * it into the `KeywordRow` form the Keywords page already consumes. Returns
+ * an empty array if no rollup has been written yet, so callers can fall back
+ * to the mock dataset or an empty-state view.
+ */
+export async function listGSCQueries28d(
+  supabase: SupabaseClient | null,
+  opts: { siteUrl?: string; limit?: number } = {},
+): Promise<KeywordRow[]> {
+  if (!supabase) return [];
+  const limit = opts.limit ?? 500;
+  let query = supabase
+    .from('dashboard_gsc_queries_28d')
+    .select('query,clicks,impressions,ctr,position,site_url')
+    .order('impressions', { ascending: false })
+    .limit(limit);
+  if (opts.siteUrl) query = query.eq('site_url', opts.siteUrl);
+  const { data, error } = await query;
+  if (error || !data?.length) return [];
+
+  return (data as Array<{
+    query: string;
+    clicks: number;
+    impressions: number;
+    ctr: number;
+    position: number;
+    site_url: string;
+  }>).map((r) => ({
+    id: `gsc:${r.query}`,
+    query: r.query,
+    impressions: r.impressions,
+    clicks: r.clicks,
+    ctr: r.ctr,
+    position: r.position,
+    positionDelta7d: 0, // needs day-level history to compute; 0 for now
+    intent: inferKeywordIntent(r.query),
+    priority: inferKeywordPriority(r.impressions, r.position),
+  }));
+}
+
+export function inferKeywordIntent(q: string): KeywordRow['intent'] {
+  const s = q.toLowerCase();
+  if (/\b(buy|price|cost|shop|order|discount|deal|cheap|sale|best\s+\w+\s+to\s+buy)\b/.test(s)) {
+    return 'transactional';
+  }
+  if (/\b(review|compare|comparison|vs|versus|top|best)\b/.test(s)) return 'commercial';
+  if (/\b(evari|raceborne)\b/.test(s)) return 'navigational';
+  return 'informational';
+}
+
+export function inferKeywordPriority(
+  impressions: number,
+  position: number,
+): KeywordRow['priority'] {
+  // High: already decent rank (<15) AND >=100 impressions
+  if (position <= 15 && impressions >= 100) return 'high';
+  // Medium: anything with meaningful exposure
+  if (impressions >= 25) return 'medium';
+  return 'low';
+}
+
 export async function listSeoPages(supabase: SupabaseClient | null): Promise<PageRecord[]> {
   if (!supabase) return [];
   const { data, error } = await supabase.from('dashboard_seo_pages').select('payload');

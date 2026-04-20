@@ -59,6 +59,14 @@ export interface WireframeNode {
   capabilities?: { name: string; description: string }[];
   notes?: string;
   docsUrl?: string;
+  /**
+   * Deep link to the page where you actually register an app and grab the
+   * API credentials (client id/secret, access token, etc.). Distinct from
+   * `docsUrl`, which is read-only documentation. Surface this as the
+   * primary "Connect" action in the tray so Craig gets straight to the
+   * console instead of having to hunt through marketing pages.
+   */
+  apiPortalUrl?: string;
 }
 
 export interface WireframeFlow {
@@ -191,7 +199,7 @@ export const CLUSTER_LAYOUT: ClusterLayoutDef[] = [
     cx: 1150,
     cy: 680,
     cols: 3,
-    members: ['gsc', 'ga4', 'pagespeed', 'gbp', 'trustpilot', 'semrush'],
+    members: ['gsc', 'ga4', 'pagespeed', 'gbp', 'trustpilot', 'dataforseo'],
   },
 ];
 
@@ -296,6 +304,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Optional GITHUB_TOKEN enables PR comments + issue automation from the dashboard.',
     docsUrl: 'https://docs.github.com/en/rest',
+    apiPortalUrl: 'https://github.com/settings/tokens',
   },
   {
     id: 'vercel',
@@ -335,6 +344,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'All three env values are auto-populated by `vercel link` + `vercel env pull`.',
     docsUrl: 'https://vercel.com/docs',
+    apiPortalUrl: 'https://vercel.com/account/tokens',
   },
   {
     id: 'supabase',
@@ -372,6 +382,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Provision via Vercel Marketplace — DATABASE_URL auto-injected.',
     docsUrl: 'https://supabase.com/docs',
+    apiPortalUrl: 'https://supabase.com/dashboard/account/tokens',
   },
   {
     id: 'aigateway',
@@ -416,6 +427,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'OIDC via `vercel env pull` is preferred — leave AI_GATEWAY_API_KEY blank on Vercel.',
     docsUrl: 'https://vercel.com/docs/ai-gateway',
+    apiPortalUrl: 'https://vercel.com/dashboard/ai',
   },
 
   // --- Commerce + Messaging + Booking row (y=380) ---
@@ -473,6 +485,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Custom app in Shopify admin → generate Admin API access token with scopes above.',
     docsUrl: 'https://shopify.dev/docs/api/admin',
+    apiPortalUrl: 'https://zgx6s7-ww.myshopify.com/admin/settings/apps/development',
   },
   {
     id: 'klaviyo',
@@ -488,7 +501,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     cluster: 'outreach',
     x: 400,
     y: 440,
-    envVars: ['KLAVIYO_PRIVATE_API_KEY'],
+    envVars: ['KLAVIYO_API_KEY'],
     account: {
       label: 'Account',
       identifierStatic: 'Evari Speed Bikes',
@@ -525,6 +538,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Private key is server-side only. Public key is safe for browser (tracking + sign-up).',
     docsUrl: 'https://developers.klaviyo.com/en/reference/api_overview',
+    apiPortalUrl: 'https://www.klaviyo.com/account#api-keys-tab',
   },
   {
     id: 'whatsapp',
@@ -568,6 +582,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Two paths: (a) Klaviyo WhatsApp (simpler, recommended for v1); (b) direct Meta Cloud API.',
     docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api',
+    apiPortalUrl: 'https://developers.facebook.com/apps/',
   },
   {
     id: 'email',
@@ -602,6 +617,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'One Google OAuth client covers GSC, GA4, Gmail, GBP, YouTube — one token, five services.',
     docsUrl: 'https://developers.google.com/gmail/api',
+    apiPortalUrl: 'https://console.cloud.google.com/apis/credentials',
   },
   {
     id: 'booking',
@@ -648,6 +664,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Cal.com is open-source, self-hostable, API-first. Calendly is the incumbent and easier.',
     docsUrl: 'https://cal.com/docs/api-reference',
+    apiPortalUrl: 'https://app.cal.com/settings/developer/api-keys',
   },
 
   // --- SEO row (y=530) ---
@@ -685,6 +702,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Single Google OAuth client shared with GA4, Gmail, GBP, YouTube — one refresh token.',
     docsUrl: 'https://developers.google.com/webmaster-tools',
+    apiPortalUrl: 'https://console.cloud.google.com/apis/library/searchconsole.googleapis.com',
   },
   {
     id: 'ga4',
@@ -715,6 +733,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Same Google OAuth as GSC/Gmail/GBP/YouTube.',
     docsUrl: 'https://developers.google.com/analytics/devguides/reporting/data/v1',
+    apiPortalUrl: 'https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com',
   },
   {
     id: 'pagespeed',
@@ -742,6 +761,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     capabilities: [{ name: 'runPagespeed', description: 'CWV for any URL on demand.' }],
     notes: 'Works without a key. Add PAGESPEED_API_KEY for higher rate limits.',
     docsUrl: 'https://developers.google.com/speed/docs/insights/v5/get-started',
+    apiPortalUrl: 'https://console.cloud.google.com/apis/credentials',
   },
   {
     id: 'gbp',
@@ -777,6 +797,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Same Google OAuth as GSC/GA4/Gmail/YouTube — no separate token needed.',
     docsUrl: 'https://developers.google.com/my-business',
+    apiPortalUrl: 'https://console.cloud.google.com/apis/library/mybusinessbusinessinformation.googleapis.com',
   },
   {
     id: 'trustpilot',
@@ -816,9 +837,10 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Invitation-only partner API — apply through Trustpilot for programmatic invites.',
     docsUrl: 'https://developers.trustpilot.com/',
+    apiPortalUrl: 'https://businessapp.b2b.trustpilot.com/#/integrations/api',
   },
   {
-    id: 'semrush',
+    id: 'dataforseo',
     label: 'DataForSEO API',
     role: 'Keyword + competitor + backlink data',
     costGBP: 60,
@@ -861,6 +883,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Pay only for calls you make. At our usage ~£60/mo.',
     docsUrl: 'https://docs.dataforseo.com/v3/',
+    apiPortalUrl: 'https://app.dataforseo.com/api-access',
   },
 
   // --- Social row (y=680) ---
@@ -898,6 +921,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Marketing Developer Platform approval is slow — apply early.',
     docsUrl: 'https://learn.microsoft.com/en-us/linkedin/marketing/',
+    apiPortalUrl: 'https://www.linkedin.com/developers/apps',
   },
   {
     id: 'instagram',
@@ -929,6 +953,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Permissions: instagram_content_publish, instagram_manage_insights, business_management.',
     docsUrl: 'https://developers.facebook.com/docs/instagram-api',
+    apiPortalUrl: 'https://developers.facebook.com/apps/',
   },
   {
     id: 'tiktok',
@@ -959,6 +984,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Two scopes required: content.publish and business.account.read. App review applies.',
     docsUrl: 'https://developers.tiktok.com/doc/content-posting-api-get-started/',
+    apiPortalUrl: 'https://developers.tiktok.com/apps/',
   },
   {
     id: 'youtube',
@@ -996,6 +1022,7 @@ export const WIREFRAME_NODES: WireframeNode[] = [
     ],
     notes: 'Same Google OAuth as GSC/GA4/Gmail/GBP.',
     docsUrl: 'https://developers.google.com/youtube/v3',
+    apiPortalUrl: 'https://console.cloud.google.com/apis/credentials',
   },
 ];
 
@@ -1143,7 +1170,7 @@ export const WIREFRAME_FLOWS: WireframeFlow[] = [
     summary: 'Star ratings in Google search results boost CTR 20-35%. Automated invite flow lifts count 3-5x.',
   },
   {
-    from: 'semrush',
+    from: 'dataforseo',
     to: 'supabase',
     fromPayloads: ['Keyword volumes + difficulty', 'Competitor SERP positions', 'Backlink discovery', 'Topic gap analysis'],
     toPayloads: [],

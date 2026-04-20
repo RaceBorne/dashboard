@@ -1409,13 +1409,19 @@ export function WireframeDiagram({
                   top: `${top}%`,
                   width: `${width}%`,
                   height: `${height}%`,
-                  background: meta.fillVar,
+                  // Cluster fill is driven by a theme-aware CSS variable:
+                  // in dark mode a faint white tint, in light mode a 3%
+                  // black wash so clusters read as a soft grey instead of
+                  // invisible white-on-white. `meta.fillVar` is preserved
+                  // for clusters that override the default via CLUSTERS
+                  // (none currently do, but keeping the hook).
+                  background: `rgb(var(--evari-wire-cluster))`,
                   borderRadius: '16px',
-                  // Cluster outline gains a bright green border when every
-                  // required member is connected. This is the most visible
-                  // colour-blind-friendly "cluster is live" signal.
+                  // Cluster outline lights up when every required member is
+                  // connected. Green in dark mode, warm orange in light —
+                  // lime-green reads harsh on a near-white canvas.
                   boxShadow: allLive
-                    ? 'inset 0 0 0 1.5px rgb(var(--evari-success))'
+                    ? 'inset 0 0 0 1.5px rgb(var(--evari-wire-live))'
                     : 'none',
                   transition: 'box-shadow 200ms ease-in-out',
                 }}
@@ -1535,15 +1541,30 @@ export function WireframeDiagram({
                   <div
                     className={cn(
                       'absolute pointer-events-none text-[10px] uppercase tracking-[0.18em] font-medium transition-colors duration-200',
-                      allLive ? 'text-evari-success' : 'text-evari-dimmer',
+                      !allLive && 'text-evari-dimmer',
                     )}
                     style={{
                       left: `${(20 / clusterWidthVb) * 100}%`,
                       top: `${(20 / CLUSTER_TITLE_H) * 100}%`,
+                      // Label TEXT uses the plain live-text tone (green in
+                      // dark, white in light — reads against the canvas).
+                      // The trailing dot keeps the live-FILL tone (green
+                      // in dark, orange in light) so it matches the
+                      // cluster outline and the tier pill.
+                      color: allLive
+                        ? 'rgb(var(--evari-wire-live-text))'
+                        : undefined,
                     }}
                   >
                     {meta.label}
-                    {allLive && <span className="ml-2 text-evari-success">●</span>}
+                    {allLive && (
+                      <span
+                        className="ml-2"
+                        style={{ color: 'rgb(var(--evari-wire-live))' }}
+                      >
+                        ●
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1799,8 +1820,7 @@ export function WireframeDiagram({
                     window.addEventListener('mouseup', onUp);
                   }}
                   className={cn(
-                    'absolute rounded-lg bg-evari-surfaceSoft px-3 py-2 transition-shadow text-left',
-                    'shadow-[0_2px_12px_rgba(0,0,0,0.25)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.35)]',
+                    'absolute rounded-lg bg-evari-surfaceSoft px-3 py-2 text-left wire-shadow',
                     (isHovered || isSelected || isRelated) && 'ring-1 ring-evari-gold z-20',
                     isSelected && 'scale-[1.03]',
                   )}
@@ -1819,8 +1839,13 @@ export function WireframeDiagram({
                         <span
                           className={cn(
                             'h-1.5 w-1.5 rounded-full shrink-0',
-                            connected ? 'bg-evari-success' : 'bg-evari-dimmer',
+                            !connected && 'bg-evari-dimmer',
                           )}
+                          style={
+                            connected
+                              ? { background: 'rgb(var(--evari-wire-live))' }
+                              : undefined
+                          }
                         />
                         <div className="text-[13px] font-medium text-evari-text truncate">
                           {n.label}
@@ -1837,16 +1862,21 @@ export function WireframeDiagram({
                       <div
                         className={cn(
                           'text-[8px] uppercase tracking-[0.1em] px-1.5 py-0.5 rounded shrink-0 transition-colors duration-200',
-                          // The tier badge does double-duty as the per-box
-                          // "live" signal: bright green when this box's env
-                          // vars are all present, otherwise the muted gold
-                          // category accent. This is the colour-blind-
-                          // friendly per-box equivalent of the cluster's
-                          // green outline + green title-pill.
-                          connected
-                            ? 'bg-evari-success text-evari-ink'
-                            : cn(tier.accent, 'text-evari-dim'),
+                          // Per-box tier badge doubles as the "live" signal.
+                          // Uses the theme-aware wire-live colour: green in
+                          // dark mode, orange in light mode. The text on
+                          // the filled pill is always white (--evari-wire-
+                          // live-ink).
+                          !connected && cn(tier.accent, 'text-evari-dim'),
                         )}
+                        style={
+                          connected
+                            ? {
+                                background: 'rgb(var(--evari-wire-live))',
+                                color: 'rgb(var(--evari-wire-live-ink))',
+                              }
+                            : undefined
+                        }
                         title={
                           connected
                             ? `${tier.label} — connected`
@@ -1862,14 +1892,38 @@ export function WireframeDiagram({
                         nodeMeta (e.g. GitHub "Saved 5m ago", Supabase
                         "Database healthy"). Falls back to the static role. */}
                     {(() => {
-                      const live = connected ? nodeMeta?.[n.id]?.liveStatus : undefined;
+                      // Live status: prefer a bespoke probe-derived string
+                      // from nodeMeta (GitHub "Saved 5m ago", Supabase
+                      // "Database healthy", etc.). If the box is connected
+                      // but no bespoke probe exists, fall back to a
+                      // generic "Connected & healthy" so every connected
+                      // service visibly reports live status. Only when
+                      // the box is unconnected do we show the static
+                      // role description (e.g. "Storefront & commerce
+                      // engine" on Shopify pre-connection).
+                      const bespoke = connected
+                        ? nodeMeta?.[n.id]?.liveStatus
+                        : undefined;
+                      const live =
+                        bespoke ??
+                        (connected ? 'Connected & healthy' : undefined);
+                      const tooltip = bespoke
+                        ? nodeMeta?.[n.id]?.tooltip
+                        : connected
+                          ? 'All required env vars present'
+                          : undefined;
                       return (
                         <div
                           className={cn(
                             'text-[10px] leading-tight line-clamp-1',
-                            live ? 'text-evari-success font-medium' : 'text-evari-dim',
+                            live ? 'font-medium' : 'text-evari-dim',
                           )}
-                          title={live ? nodeMeta?.[n.id]?.tooltip : undefined}
+                          style={
+                            live
+                              ? { color: 'rgb(var(--evari-wire-live-text))' }
+                              : undefined
+                          }
+                          title={tooltip}
                         >
                           {live ?? n.role}
                         </div>
@@ -2151,8 +2205,38 @@ function NodeDetail({
     return aOk && bOk;
   }
 
+  /**
+   * Click-to-close: a click anywhere on the tray closes it, EXCEPT when the
+   * click lands on:
+   *   - a native interactive element (button, link, input, textarea, select)
+   *   - a region explicitly opted out via `data-keep-open`
+   *     (currently: the Credentials env-var editor + the per-node chat)
+   *   - an active text selection (user was selecting, not clicking)
+   *
+   * We wire this on the outer wrapper and rely on bubbling — individual
+   * sections don't need their own handlers. The existing X close button in
+   * the header still works because clicks on it hit the button selector.
+   */
+  const handleTrayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target instanceof Element ? e.target : null;
+    if (!target) return;
+    if (
+      target.closest(
+        'button, a, input, textarea, select, [data-keep-open]',
+      )
+    ) {
+      return;
+    }
+    const selection = typeof window !== 'undefined' ? window.getSelection() : null;
+    if (selection && selection.toString().length > 0) return;
+    onClose();
+  };
+
   return (
-    <div className="rounded-xl bg-evari-surface overflow-hidden">
+    <div
+      className="rounded-xl bg-evari-surface overflow-hidden"
+      onClick={handleTrayClick}
+    >
       {/* Header */}
       <div className="flex items-start justify-between gap-4 px-5 py-4 bg-evari-surfaceSoft">
         <div className="min-w-0">
@@ -2280,9 +2364,11 @@ function NodeDetail({
         </div>
       </div>
 
-      {/* Env var editor — matches the Connections-page flow */}
+      {/* Env var editor — matches the Connections-page flow. Tagged with
+          `data-keep-open` so clicks inside this region (editing keys, save,
+          missing badges) don't bubble up and close the whole tray. */}
       {node.envVars.length > 0 && (
-        <div className="px-5 py-4 border-t border-evari-edge">
+        <div className="px-5 py-4 border-t border-evari-edge" data-keep-open>
           <div className="flex items-center justify-between mb-3">
             <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer">
               Credentials
@@ -2439,8 +2525,12 @@ function NodeDetail({
         </div>
       )}
 
-      {/* Notes + Docs */}
-      {(node.notes || node.docsUrl) && (
+      {/* Notes + Docs + API portal. We surface the dev-portal link as a
+          visually prominent button so Craig can jump straight to the page
+          that actually issues credentials — not the marketing homepage or
+          read-only docs. "Official docs" stays as a secondary link for
+          reference. */}
+      {(node.notes || node.docsUrl || node.apiPortalUrl) && (
         <div className="px-5 py-4 border-t border-evari-edge bg-evari-surfaceSoft/20">
           {node.notes && (
             <p className="text-xs text-evari-dim leading-relaxed">
@@ -2450,16 +2540,34 @@ function NodeDetail({
               {node.notes}
             </p>
           )}
-          {node.docsUrl && (
-            <a
-              href={node.docsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] text-evari-dim hover:text-evari-gold mt-2"
-            >
-              Official docs <ExternalLink className="h-2.5 w-2.5" />
-            </a>
-          )}
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            {node.apiPortalUrl && (
+              <a
+                href={node.apiPortalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(
+                  'inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md',
+                  connected
+                    ? 'text-evari-dim hover:text-evari-text bg-evari-surface hover:bg-evari-surfaceSoft'
+                    : 'text-evari-goldInk bg-evari-gold hover:brightness-110 font-medium',
+                )}
+              >
+                {connected ? 'Manage keys' : 'Get API keys'}{' '}
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            )}
+            {node.docsUrl && (
+              <a
+                href={node.docsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-evari-dim hover:text-evari-gold"
+              >
+                Official docs <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            )}
+          </div>
         </div>
       )}
 
@@ -2723,8 +2831,19 @@ function FlowDetail({
   toNode: WireframeNode;
   onClose: () => void;
 }) {
+  // Same click-to-close pattern as NodeDetail — clicks on non-interactive
+  // chrome collapse the panel; interactive elements and any text selection
+  // are respected.
+  const handleTrayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target instanceof Element ? e.target : null;
+    if (!target) return;
+    if (target.closest('button, a, input, textarea, select, [data-keep-open]')) return;
+    const selection = typeof window !== 'undefined' ? window.getSelection() : null;
+    if (selection && selection.toString().length > 0) return;
+    onClose();
+  };
   return (
-    <div className="rounded-xl bg-evari-surface overflow-hidden">
+    <div className="rounded-xl bg-evari-surface overflow-hidden" onClick={handleTrayClick}>
       <div className="flex items-start justify-between gap-4 px-5 py-4 bg-evari-surfaceSoft">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-evari-text">
@@ -2842,7 +2961,13 @@ function NodeChat({ node }: { node: WireframeNode }) {
   ];
 
   return (
-    <div className="px-5 py-4 border-t border-evari-edge bg-evari-surfaceSoft/30">
+    // `data-keep-open` — same opt-out as the Credentials editor. Clicking
+    // inside the chat (reading turns, scrolling, editing the prompt) must
+    // never collapse the parent tray.
+    <div
+      className="px-5 py-4 border-t border-evari-edge bg-evari-surfaceSoft/30"
+      data-keep-open
+    >
       <div className="flex items-center gap-2 mb-3">
         <div className="h-6 w-6 rounded-full bg-evari-gold flex items-center justify-center">
           <Sparkles className="h-3 w-3 text-evari-goldInk" />

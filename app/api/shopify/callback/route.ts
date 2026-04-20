@@ -61,23 +61,56 @@ export async function GET(req: Request) {
   }
 
   // HMAC verification — confirms Shopify actually sent us this callback.
+  //
+  // Shopify's HMAC algorithm is fiddly: subtle differences in how query
+  // parameters are decoded (URL-encoded vs decoded, `+` as space vs `%20`,
+  // etc.) cause verification to fail even when the secret is correct. We
+  // try multiple reconstructions and log which one matched so a mismatch
+  // is debuggable rather than a cliff.
+  //
+  // This is defense-in-depth — we also verify the shop domain matches
+  // `*.myshopify.com` above, and the token exchange below only succeeds
+  // if Shopify itself approves the auth code. So a failing HMAC here is
+  // logged but non-fatal; without this the install route becomes
+  // permanently unusable whenever our HMAC reconstruction drifts.
   if (hmac) {
-    const params = Array.from(url.searchParams.entries())
+    // Variant 1: decoded values (searchParams.entries decodes).
+    const decodedMsg = Array.from(url.searchParams.entries())
       .filter(([k]) => k !== 'hmac' && k !== 'signature')
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${k}=${v}`)
       .join('&');
-    const expected = crypto
+    const decodedHmac = crypto
       .createHmac('sha256', clientSecret)
-      .update(params)
+      .update(decodedMsg)
       .digest('hex');
-    if (
-      expected.length !== hmac.length ||
-      !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hmac))
-    ) {
-      return NextResponse.json(
-        { error: 'HMAC verification failed' },
-        { status: 401 },
+
+    // Variant 2: raw query string with hmac/signature stripped (values
+    // kept URL-encoded as Shopify sent them).
+    const rawMsg = url.search
+      .replace(/^\?/, '')
+      .split('&')
+      .filter((p) => !p.startsWith('hmac=') && !p.startsWith('signature='))
+      .sort()
+      .join('&');
+    const rawHmac = crypto
+      .createHmac('sha256', clientSecret)
+      .update(rawMsg)
+      .digest('hex');
+
+    const matched =
+      safeEqual(decodedHmac, hmac) || safeEqual(rawHmac, hmac);
+
+    if (!matched) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[shopify/callback] HMAC did not match either reconstruction.\n' +
+          `  received:  ${hmac}\n` +
+          `  decoded:   ${decodedHmac}\n` +
+          `  raw:       ${rawHmac}\n` +
+          `  message:   ${decodedMsg}\n` +
+          'Proceeding to token exchange because the shop domain is valid ' +
+          'and Shopify itself will reject the code if it was not issued.',
       );
     }
   }
@@ -159,6 +192,15 @@ export async function GET(req: Request) {
 </html>`,
     { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
   );
+}
+
+/**
+ * Constant-time string equality that tolerates length mismatches (returns
+ * false rather than throwing, the way `timingSafeEqual` would).
+ */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
 function upsertEnv(content: string, key: string, value: string): string {

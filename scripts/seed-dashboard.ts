@@ -26,6 +26,7 @@ config({ path: resolve(process.cwd(), '.env') });
 const MIGRATIONS = [
   'supabase/migrations/20260219120000_tasks.sql',
   'supabase/migrations/20260220100000_dashboard.sql',
+  'supabase/migrations/20260421120000_seo_health_scan.sql',
 ];
 
 async function applyMigrationsPg(client: Client) {

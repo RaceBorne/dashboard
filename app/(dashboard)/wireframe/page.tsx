@@ -12,6 +12,116 @@ import { getIntegrationStatuses } from '@/lib/integrations/status';
 export const dynamic = 'force-dynamic';
 
 /**
+ * Order-of-work steps. Each entry maps to a `WIREFRAME_NODES` id so the
+ * "is this connected yet?" check uses the same source of truth as the
+ * diagram and the connections list. When a step's integration flips to
+ * connected, it drops out of the rendered list automatically.
+ */
+interface OrderStep {
+  nodeId: string;
+  label: string;
+  blurb: string;
+}
+const ORDER_OF_WORK_STEPS: OrderStep[] = [
+  {
+    nodeId: 'github',
+    label: 'GitHub',
+    blurb: 'Push the repo. Free. Everything else deploys from here.',
+  },
+  {
+    nodeId: 'vercel',
+    label: 'Vercel',
+    blurb:
+      'Link the GitHub repo. First deploy is live in minutes. Also unlocks the AI Gateway and scheduled cron.',
+  },
+  {
+    nodeId: 'supabase',
+    label: 'Supabase',
+    blurb:
+      'Provision via Vercel Marketplace so DATABASE_URL flows into Vercel automatically. Dashboard stops using mock data.',
+  },
+  {
+    nodeId: 'shopify',
+    label: 'Shopify',
+    blurb:
+      'Custom app + Admin API token. Products, orders, abandoned carts flow in; meta updates + draft orders flow back.',
+  },
+  {
+    nodeId: 'klaviyo',
+    label: 'Klaviyo',
+    blurb:
+      'Private API key. Subscribers become the same dataset as leads; newsletters schedule from the dashboard.',
+  },
+  {
+    nodeId: 'email',
+    label: 'Gmail',
+    blurb:
+      'One Google OAuth covers Gmail + Search Console + GA4 + Business Profile. Four services, one token.',
+  },
+  {
+    nodeId: 'dataforseo',
+    label: 'DataForSEO',
+    blurb:
+      'SEO data last. Read-only, nothing depends on it, plug in whenever the budget allows.',
+  },
+];
+
+/**
+ * Renders only the outstanding setup steps. If `pending` is empty we show
+ * a short "you're done" state instead of hiding the panel entirely — so
+ * Craig has a moment of closure when the whole stack is wired up.
+ */
+function OrderOfWork({
+  pending,
+  totalSteps,
+}: {
+  pending: OrderStep[];
+  totalSteps: number;
+}) {
+  if (pending.length === 0) {
+    return (
+      <div className="rounded-xl bg-evari-surface px-5 py-4">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer">
+          Order of work
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-sm text-evari-text">
+          <span className="h-2 w-2 rounded-full bg-evari-success shrink-0" />
+          All {totalSteps} services connected. Setup is done.
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl bg-evari-surface px-5 py-4">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer">
+          Order of work
+        </div>
+        <div className="text-[10px] text-evari-dimmer">
+          {totalSteps - pending.length} of {totalSteps} done
+        </div>
+      </div>
+      <ol className="mt-2 space-y-2 text-sm text-evari-dim leading-relaxed">
+        {pending.map((step, idx) => (
+          <li key={step.nodeId} className="flex gap-2">
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-evari-warn shrink-0 mt-[0.55rem]"
+              aria-hidden
+            />
+            <div>
+              <span className="text-evari-text font-medium">
+                {idx + 1}. {step.label}
+              </span>{' '}
+              — {step.blurb}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/**
  * Fetch the most recent commit on main from GitHub. Optional GITHUB_TOKEN
  * lets us read private repos; without it, only public repos return data.
  * Result is cached for 60s to avoid hammering the API on every page hit.
@@ -234,50 +344,18 @@ export default async function WireframePage() {
           nodeMeta={nodeMeta}
         />
 
-        {/* Order-of-work guidance */}
-        <div className="rounded-xl bg-evari-surface px-5 py-4">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer">
-            Order of work
-          </div>
-          <ol className="mt-2 space-y-2 text-sm text-evari-dim leading-relaxed">
-            <li>
-              <span className="text-evari-text font-medium">1. GitHub</span>{' '}
-              — push the repo. Free. Everything else deploys from here.
-            </li>
-            <li>
-              <span className="text-evari-text font-medium">2. Vercel</span>{' '}
-              — link the GitHub repo. First deploy is live in minutes. Also
-              unlocks the AI Gateway and scheduled cron.
-            </li>
-            <li>
-              <span className="text-evari-text font-medium">3. Supabase</span>{' '}
-              — provision via Vercel Marketplace so DATABASE_URL flows into
-              Vercel automatically. Dashboard stops using mock data.
-            </li>
-            <li>
-              <span className="text-evari-text font-medium">4. Shopify</span>{' '}
-              — custom app + Admin API token. Products, orders, abandoned
-              carts flow in; meta updates + draft orders flow back.
-            </li>
-            <li>
-              <span className="text-evari-text font-medium">5. Klaviyo</span>{' '}
-              — private API key. Subscribers become the same dataset as
-              leads; newsletters schedule from the dashboard.
-            </li>
-            <li>
-              <span className="text-evari-text font-medium">6. Gmail</span>{' '}
-              — one Google OAuth covers Gmail + Search Console + GA4 +
-              Business Profile. Four services, one token.
-            </li>
-            <li>
-              <span className="text-evari-text font-medium">
-                7. SEMrush / DataForSEO
-              </span>{' '}
-              — SEO data last. Read-only, nothing depends on it, plug in
-              whenever the budget allows.
-            </li>
-          </ol>
-        </div>
+        {/* Order-of-work guidance — only shows steps that are still outstanding.
+            Each step maps to an integration node; once that node reports
+            `connected`, the step drops out of the list and the remaining
+            items are renumbered. When nothing's left, the panel flips to a
+            short "you're done" state instead. */}
+        <OrderOfWork
+          pending={ORDER_OF_WORK_STEPS.filter((s) => {
+            const match = integrations.find((i) => i.key === s.nodeId);
+            return !match?.connected;
+          })}
+          totalSteps={ORDER_OF_WORK_STEPS.length}
+        />
 
         {/* SEMrush deep-dive — Craig explicitly asked for this */}
         <div className="rounded-xl bg-evari-surface">

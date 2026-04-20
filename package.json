@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "db:seed": "npx tsx scripts/seed-dashboard.ts"
+    "db:seed": "npx tsx scripts/seed-dashboard.ts",
+    "db:migrate:seo-health": "npx tsx scripts/apply-migration-file.ts supabase/migrations/20260421120000_seo_health_scan.sql"
   },
   "dependencies": {
-    "@ai-sdk/gateway": "^1.0.41",
+    "@ai-sdk/anthropic": "^2.0.0",
+    "@ai-sdk/gateway": "^2.0.82",
     "@ai-sdk/react": "^2.0.181",
     "@radix-ui/react-dialog": "^1.1.4",
     "@radix-ui/react-dropdown-menu": "^2.1.4",

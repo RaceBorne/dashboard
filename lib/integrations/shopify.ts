@@ -329,9 +329,15 @@ export async function updateProduct(
       updatedAt: new Date().toISOString(),
     };
   }
+  // Admin API 2024-10+ renamed the productUpdate argument from
+  // `input: ProductInput!` to `product: ProductUpdateInput!`. Calling
+  // the old shape against 2025-01+ is accepted by the server but
+  // silently drops unrecognised fields (notably `seo`), producing the
+  // "write looked fine, rescan shows issue again" failure mode. We
+  // standardise on the new shape here.
   const mutation = /* GraphQL */ `
-    mutation UpdateProduct($input: ProductInput!) {
-      productUpdate(input: $input) {
+    mutation UpdateProduct($product: ProductUpdateInput!) {
+      productUpdate(product: $product) {
         product { ${PRODUCT_FIELDS} }
         userErrors { field message }
       }
@@ -353,9 +359,20 @@ export async function updateProduct(
   }
   const payload = await shopifyMutation<{ product: ShopifyProduct }>(
     mutation,
-    { input: gqlInput },
+    { product: gqlInput },
     { payloadKey: 'productUpdate' },
   );
+  // Log the write outcome so we can diagnose silent drops. If the SEO input
+  // we sent doesn't match what Shopify echoed back, we know the mutation
+  // ignored our change even though it returned no userErrors.
+  if (input.seoTitle !== undefined || input.seoDescription !== undefined) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[shopify/updateProduct] ${input.id} ` +
+        `sent seo=${JSON.stringify(gqlInput.seo)} ` +
+        `returned seo=${JSON.stringify(payload.product.seo)}`,
+    );
+  }
   return payload.product;
 }
 
@@ -375,6 +392,12 @@ export interface ShopifyPage {
   seo: { title: string | null; description: string | null };
 }
 
+// Page SEO lives in metafields in the 2026-04 Admin API (same story as
+// Article — the `seo { title description }` field that existed on Page
+// in older API versions was removed). The Online Store reads SEO from
+// the `global.title_tag` / `global.description_tag` metafields when
+// rendering <title> and <meta name="description">, so that's what we
+// pull here and project back into a `seo` shape for the checker.
 const PAGE_FIELDS = /* GraphQL */ `
   id
   handle
@@ -384,7 +407,8 @@ const PAGE_FIELDS = /* GraphQL */ `
   publishedAt
   createdAt
   updatedAt
-  seo { title description }
+  metaTitle: metafield(namespace: "global", key: "title_tag") { value }
+  metaDescription: metafield(namespace: "global", key: "description_tag") { value }
 `;
 
 /** List all published + unpublished Shopify pages (About, Finance, FAQ, etc). */
@@ -419,8 +443,7 @@ export async function listShopifyPages(
       }
     }
   `;
-  const out: ShopifyPage[] = [];
-  for await (const raw of shopifyPaginate<{
+  type RawPageNode = {
     id: string;
     handle: string;
     title: string;
@@ -429,14 +452,25 @@ export async function listShopifyPages(
     publishedAt: string | null;
     createdAt: string;
     updatedAt: string;
-    seo: { title: string | null; description: string | null };
-  }>(
+    metaTitle: { value: string } | null;
+    metaDescription: { value: string } | null;
+  };
+  const out: ShopifyPage[] = [];
+  for await (const raw of shopifyPaginate<RawPageNode>(
     q,
     { first },
     (data) => (data as { pages: { edges: Array<{ node: never; cursor: string }>; pageInfo: { hasNextPage: boolean; endCursor?: string | null } } }).pages,
     { maxPages: opts.maxPages ?? 5 },
   )) {
-    out.push({ ...raw, bodyHtml: raw.body });
+    const { body, metaTitle, metaDescription, ...rest } = raw;
+    out.push({
+      ...rest,
+      bodyHtml: body,
+      seo: {
+        title: metaTitle?.value ?? null,
+        description: metaDescription?.value ?? null,
+      },
+    });
   }
   return out;
 }
@@ -472,20 +506,84 @@ export async function updatePageMetadata(args: {
   const page: Record<string, unknown> = {};
   if (args.title !== undefined) page.title = args.title;
   if (args.bodyHtml !== undefined) page.body = args.bodyHtml;
-  if (args.metaTitle !== undefined || args.metaDescription !== undefined) {
-    page.seo = {
-      ...(args.metaTitle !== undefined ? { title: args.metaTitle } : {}),
-      ...(args.metaDescription !== undefined
-        ? { description: args.metaDescription }
-        : {}),
-    };
+  // NOTE: page.seo is NOT a field on PageUpdateInput in Admin API 2026-04
+  // — SEO on pages lives in metafields `global.title_tag` and
+  // `global.description_tag`, which we write in a separate mutation
+  // below. Only the non-SEO fields go into pageUpdate. Sending `seo`
+  // here would previously produce a silent drop or a schema error.
+  type RawPageNode = {
+    id: string;
+    handle: string;
+    title: string;
+    body: string;
+    isPublished: boolean;
+    publishedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    metaTitle: { value: string } | null;
+    metaDescription: { value: string } | null;
+  };
+  let payload: { page: RawPageNode } | null = null;
+  if (Object.keys(page).length > 0) {
+    payload = await shopifyMutation<{ page: RawPageNode }>(
+      mutation,
+      { id: gid, page },
+      { payloadKey: 'pageUpdate' },
+    );
   }
-  const payload = await shopifyMutation<{ page: ShopifyPage }>(
-    mutation,
-    { id: gid, page },
-    { payloadKey: 'pageUpdate' },
-  );
-  return { ok: true, page: payload.page };
+  if (args.metaTitle !== undefined || args.metaDescription !== undefined) {
+    const metafields: Array<{
+      ownerId: string;
+      namespace: string;
+      key: string;
+      value: string;
+      type: string;
+    }> = [];
+    if (args.metaTitle !== undefined) {
+      metafields.push({
+        ownerId: gid,
+        namespace: 'global',
+        key: 'title_tag',
+        value: args.metaTitle,
+        type: 'single_line_text_field',
+      });
+    }
+    if (args.metaDescription !== undefined) {
+      metafields.push({
+        ownerId: gid,
+        namespace: 'global',
+        key: 'description_tag',
+        value: args.metaDescription,
+        type: 'single_line_text_field',
+      });
+    }
+    const metaMutation = /* GraphQL */ `
+      mutation SetPageSeoMetafields($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id namespace key }
+          userErrors { field message code }
+        }
+      }
+    `;
+    await shopifyMutation(
+      metaMutation,
+      { metafields },
+      { payloadKey: 'metafieldsSet' },
+    );
+  }
+  if (!payload) {
+    return { ok: true, page: null };
+  }
+  const { body, metaTitle, metaDescription, ...rest } = payload.page;
+  const projected: ShopifyPage = {
+    ...rest,
+    bodyHtml: body,
+    seo: {
+      title: metaTitle?.value ?? null,
+      description: metaDescription?.value ?? null,
+    },
+  };
+  return { ok: true, page: projected };
 }
 
 // ---------------------------------------------------------------------------
@@ -515,6 +613,12 @@ export interface ShopifyArticle {
   image: { url: string; altText: string | null } | null;
 }
 
+// Article SEO in Shopify's Admin API lives in metafields — specifically
+// the legacy "global" namespace keys `title_tag` and `description_tag`,
+// which is what the Online Store writes when a merchant edits the SEO
+// accordion on a blog post. There is no `Article.seo` in Admin (unlike
+// Product / Page), so we pull those metafields and project them back
+// into a `seo` shape downstream for the checker.
 const ARTICLE_FIELDS = /* GraphQL */ `
   id
   handle
@@ -528,7 +632,8 @@ const ARTICLE_FIELDS = /* GraphQL */ `
   createdAt
   updatedAt
   blog { id handle title }
-  seo { title description }
+  metaTitle: metafield(namespace: "global", key: "title_tag") { value }
+  metaDescription: metafield(namespace: "global", key: "description_tag") { value }
   image { url altText }
 `;
 
@@ -599,8 +704,13 @@ export async function listArticles(
     : (data: unknown) =>
         (data as { articles: { edges: Array<{ node: never; cursor: string }>; pageInfo: { hasNextPage: boolean; endCursor?: string | null } } }).articles;
 
+  type RawArticleNode = Omit<ShopifyArticle, 'seo' | 'bodyHtml'> & {
+    body: string;
+    metaTitle: { value: string } | null;
+    metaDescription: { value: string } | null;
+  };
   const out: ShopifyArticle[] = [];
-  for await (const raw of shopifyPaginate<ShopifyArticle & { body: string }>(
+  for await (const raw of shopifyPaginate<RawArticleNode>(
     query,
     opts.blogId
       ? { blogId: opts.blogId, first }
@@ -608,7 +718,15 @@ export async function listArticles(
     selector,
     { maxPages: opts.maxPages ?? 5 },
   )) {
-    out.push({ ...raw, bodyHtml: (raw as { body: string }).body });
+    const { body, metaTitle, metaDescription, ...rest } = raw;
+    out.push({
+      ...rest,
+      bodyHtml: body,
+      seo: {
+        title: metaTitle?.value ?? null,
+        description: metaDescription?.value ?? null,
+      },
+    });
   }
   return out;
 }
@@ -643,17 +761,59 @@ export async function updateArticleMetadata(args: {
   if (args.title !== undefined) article.title = args.title;
   if (args.bodyHtml !== undefined) article.body = args.bodyHtml;
   if (args.summary !== undefined) article.summary = args.summary;
-  if (args.metaTitle !== undefined || args.metaDescription !== undefined) {
-    article.seo = {
-      ...(args.metaTitle !== undefined ? { title: args.metaTitle } : {}),
-      ...(args.metaDescription !== undefined
-        ? { description: args.metaDescription }
-        : {}),
-    };
+  // NOTE: article.seo is NOT a field on ArticleUpdateInput — SEO on
+  // articles lives in metafields `global.title_tag` and
+  // `global.description_tag`, which we write in a separate mutation
+  // below. Only the non-SEO fields go into articleUpdate.
+  let payload: { article: ShopifyArticle & { body: string } } | null = null;
+  if (Object.keys(article).length > 0) {
+    payload = await shopifyMutation<{
+      article: ShopifyArticle & { body: string };
+    }>(mutation, { id: gid, article }, { payloadKey: 'articleUpdate' });
   }
-  const payload = await shopifyMutation<{
-    article: ShopifyArticle & { body: string };
-  }>(mutation, { id: gid, article }, { payloadKey: 'articleUpdate' });
+  if (args.metaTitle !== undefined || args.metaDescription !== undefined) {
+    const metafields: Array<{
+      ownerId: string;
+      namespace: string;
+      key: string;
+      value: string;
+      type: string;
+    }> = [];
+    if (args.metaTitle !== undefined) {
+      metafields.push({
+        ownerId: gid,
+        namespace: 'global',
+        key: 'title_tag',
+        value: args.metaTitle,
+        type: 'single_line_text_field',
+      });
+    }
+    if (args.metaDescription !== undefined) {
+      metafields.push({
+        ownerId: gid,
+        namespace: 'global',
+        key: 'description_tag',
+        value: args.metaDescription,
+        type: 'single_line_text_field',
+      });
+    }
+    const metaMutation = /* GraphQL */ `
+      mutation SetArticleSeoMetafields($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id namespace key }
+          userErrors { field message code }
+        }
+      }
+    `;
+    await shopifyMutation(
+      metaMutation,
+      { metafields },
+      { payloadKey: 'metafieldsSet' },
+    );
+  }
+  if (!payload) {
+    return { ok: true, article: null };
+  }
   return {
     ok: true,
     article: { ...payload.article, bodyHtml: payload.article.body },

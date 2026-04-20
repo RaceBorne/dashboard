@@ -5,13 +5,16 @@
  * runs the per-entity checks, and returns a flat findings list plus a
  * 0–100 health score.
  *
- * Caching: result is held in module-level memory until the next scan.
- * The /api/seo/scan endpoint reads/writes via `getCachedScan` /
- * `setCachedScan`. This is "good enough" caching for a single-tenant
- * internal dashboard — production multi-tenant would back this with
- * Vercel KV or similar.
+ * Caching: result is held in module-level memory for fast reads on the
+ * same instance. On Vercel/serverless, each invocation may be a
+ * different instance — so we also persist the latest `ScanResult` to
+ * Supabase (`dashboard_seo_health_scan`) when `SUPABASE_SERVICE_ROLE_KEY`
+ * is set. `ensureScanHydrated()` loads that row into memory before
+ * serving `/api/seo/*` or the SEO Health page so fixes and removals
+ * survive refresh and cold starts.
  */
 
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import {
   getStorefrontBaseUrl,
   isShopifyConnected,
@@ -25,6 +28,7 @@ import {
   checkProduct,
   computeScore,
 } from './checks';
+import { recordScanEvent } from './history';
 import type {
   ScanEntityRef,
   ScanFinding,
@@ -33,10 +37,68 @@ import type {
 } from './types';
 
 // ---------------------------------------------------------------------------
-// In-memory cache
+// In-memory cache + Supabase snapshot (single row)
 // ---------------------------------------------------------------------------
 
+const SCAN_SNAPSHOT_ID = 'default';
+
 let cachedScan: ScanResult | null = null;
+
+async function persistScanToStorage(scan: ScanResult): Promise<void> {
+  const supabase = createSupabaseAdmin();
+  if (!supabase) return;
+  const { error } = await supabase.from('dashboard_seo_health_scan').upsert(
+    {
+      id: SCAN_SNAPSHOT_ID,
+      payload: scan,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' },
+  );
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[seo/scan] Failed to persist scan snapshot:', error.message);
+  }
+}
+
+async function loadScanFromStorage(): Promise<ScanResult | null> {
+  const supabase = createSupabaseAdmin();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('dashboard_seo_health_scan')
+    .select('payload')
+    .eq('id', SCAN_SNAPSHOT_ID)
+    .maybeSingle();
+  if (error || !data?.payload) return null;
+  return data.payload as ScanResult;
+}
+
+/**
+ * Load the last persisted scan from Supabase. Call before `getCachedScan()`
+ * in API routes and server components.
+ *
+ * Default behaviour: only hits Supabase when the in-memory cache is empty.
+ * Good for API routes, which mutate the cache themselves and so stay in
+ * sync within their own module instance.
+ *
+ * Pass `{ force: true }` to always reload. The SEO Health page server
+ * component needs this because the page module instance can hold a stale
+ * `cachedScan` populated at an earlier render — Next.js dev keeps the
+ * Node process warm, and HMR can split the page and API routes into
+ * separate module instances, so the page's in-memory copy doesn't see
+ * mutations made by `/api/seo/fix`. Forcing a reload on every page render
+ * costs one Supabase round-trip and eliminates the refresh-shows-stale
+ * bug.
+ */
+export async function ensureScanHydrated(
+  opts: { force?: boolean } = {},
+): Promise<void> {
+  if (cachedScan && !opts.force) return;
+  const loaded = await loadScanFromStorage();
+  if (loaded) {
+    cachedScan = loaded;
+  }
+}
 
 export function getCachedScan(): ScanResult | null {
   return cachedScan;
@@ -44,6 +106,12 @@ export function getCachedScan(): ScanResult | null {
 
 export function setCachedScan(scan: ScanResult | null): void {
   cachedScan = scan;
+  if (scan) {
+    void persistScanToStorage(scan);
+    // Append to history so the dashboard can chart score over time.
+    // Fire-and-forget — history is additive, never load-bearing.
+    void recordScanEvent(scan);
+  }
 }
 
 /**
@@ -61,6 +129,7 @@ export function applyFixesToCache(removeIds: string[]): ScanResult | null {
     findings: remaining,
     score: computeScore(remaining, totalEntities),
   };
+  void persistScanToStorage(cachedScan);
   return cachedScan;
 }
 
@@ -83,6 +152,7 @@ export function replaceFindingInCache(
     findings,
     score: computeScore(findings, totalEntities),
   };
+  void persistScanToStorage(cachedScan);
   return cachedScan;
 }
 
@@ -125,11 +195,35 @@ export async function runScan(opts: RunScanOptions = {}): Promise<ScanResult> {
 
   // Pull everything in parallel. Each list function already paginates
   // internally up to its `maxPages` cap.
-  const [products, pages, articles] = await Promise.all([
+  //
+  // We use `allSettled` here instead of `all` so that a failure on one
+  // entity type (most commonly articles, whose Admin-API schema has
+  // changed a couple of times) doesn't nuke the whole scan — products
+  // and pages should still be checkable.
+  const [productsRes, pagesRes, articlesRes] = await Promise.allSettled([
     listProducts({ first: 100, maxPages: Math.ceil(max / 100) }),
     listShopifyPages({ first: 100, maxPages: Math.ceil(max / 100) }),
     listArticles({ first: 100, maxPages: Math.ceil(max / 100) }),
   ]);
+
+  const products = productsRes.status === 'fulfilled' ? productsRes.value : [];
+  const pages = pagesRes.status === 'fulfilled' ? pagesRes.value : [];
+  const articles = articlesRes.status === 'fulfilled' ? articlesRes.value : [];
+
+  const warnings: string[] = [];
+  if (productsRes.status === 'rejected') {
+    warnings.push(`Could not list products: ${errMsg(productsRes.reason)}`);
+  }
+  if (pagesRes.status === 'rejected') {
+    warnings.push(`Could not list pages: ${errMsg(pagesRes.reason)}`);
+  }
+  if (articlesRes.status === 'rejected') {
+    warnings.push(`Could not list articles: ${errMsg(articlesRes.reason)}`);
+  }
+  if (warnings.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn('[seo/scan] Partial scan — some entity types failed:', warnings);
+  }
 
   const findings: ScanFinding[] = [];
 
@@ -202,10 +296,20 @@ export async function runScan(opts: RunScanOptions = {}): Promise<ScanResult> {
     },
     score: computeScore(findings, totalEntities),
     findings,
+    warnings: warnings.length > 0 ? warnings : undefined,
   };
 
   setCachedScan(result);
   return result;
+}
+
+function errMsg(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
 }
 
 /** Returns a cheap "is this scan stale?" hint for the UI. */

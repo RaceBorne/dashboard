@@ -56,6 +56,12 @@ export interface ScanResult {
   /** 0–100 weighted health score derived from finding severity. */
   score: number;
   findings: ScanFinding[];
+  /**
+   * Non-fatal warnings from the scan — e.g. one entity type failed but
+   * others succeeded. Surface these in the UI so the user understands
+   * the scan was partial and knows what's missing.
+   */
+  warnings?: string[];
 }
 
 export interface UndoEntry {

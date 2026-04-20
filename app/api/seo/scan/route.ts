@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  ensureScanHydrated,
   getCachedScan,
   runScan,
   shopifyConnected,
@@ -21,6 +22,7 @@ export const maxDuration = 90;
  *   Always runs a fresh scan and returns the results.
  */
 export async function GET(req: Request) {
+  await ensureScanHydrated();
   const url = new URL(req.url);
   const fresh = url.searchParams.get('fresh');
   if (!fresh) {
@@ -37,6 +39,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST() {
+  await ensureScanHydrated();
   return runAndRespond();
 }
 

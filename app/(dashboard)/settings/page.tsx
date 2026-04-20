@@ -3,6 +3,7 @@ import { TopBar } from '@/components/sidebar/TopBar';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { ShadeSlider } from '@/components/theme/ShadeSlider';
 import { AccentPicker } from '@/components/theme/AccentPicker';
+import { LogoUploader } from '@/components/theme/LogoUploader';
 import { ArrowUpRight } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -51,6 +52,24 @@ export default function SettingsPage() {
               </div>
             </div>
             <AccentPicker />
+          </div>
+          <div
+            className="flex items-start justify-between gap-6 pt-4"
+            style={{ borderTop: '1px solid rgb(var(--evari-edge) / 0.5)' }}
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-evari-text">Brand logo</div>
+              <div className="text-xs text-evari-dim mt-0.5 max-w-sm">
+                Replaces the Evari mark in the top-left of the sidebar. Upload
+                a light version for dark mode and a dark version for light
+                mode — the right one appears automatically based on the active
+                theme. Drop a file or click to browse; saves on upload.
+              </div>
+            </div>
+            <div className="flex flex-col gap-4 w-full max-w-xs">
+              <LogoUploader which="dark" label="For dark mode" />
+              <LogoUploader which="light" label="For light mode" />
+            </div>
           </div>
         </section>
 

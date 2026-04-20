@@ -37,6 +37,25 @@
   /* Deep crimson — used for urgent priority lozenges and similar "hard stop" signals. */
   --evari-crimson: 158 28 46;
 
+  /* Wireframe "live" accent — the colour used for filled lozenges (CORE
+     tier pill), the cluster outline, and the cluster title dot when every
+     required member is connected. Green in dark mode; orange in light
+     mode (see the light override below) because lime-green reads harsh
+     on a near-white canvas. */
+  --evari-wire-live: 126 168 88;          /* matches --evari-success */
+  --evari-wire-live-ink: 245 245 245;     /* text on the live fill pill */
+  /* Plain-text variant (no pill behind it) — the live status strings like
+     "Database healthy" / "Deployed 13h ago". Green in dark mode so it
+     stays readable on the dark card; white in light mode per Craig's
+     request — the card background is a mid-grey wash so white reads. */
+  --evari-wire-live-text: 126 168 88;     /* matches --evari-success */
+
+  /* Cluster rectangle fill — a very faint tint behind each cluster. In
+     dark mode a near-transparent white lifts the cluster off the canvas;
+     in light mode a 3% black produces a subtle grey wash instead (see
+     override in the light block). Alpha is baked in. */
+  --evari-wire-cluster: 255 255 255 / 0.04;
+
   /* Defaults — shade 2 (warm charcoal) will apply via data-shade below */
 
   /* shadcn compat */
@@ -130,7 +149,9 @@
   --evari-carbon: 248 248 248;
   --evari-surface: 255 255 255;
   --evari-surface-soft: 242 242 242;
-  --evari-trough: 230 230 230;
+  /* Trough lightened 50% toward white so pill-groups read as a soft inset,
+     not a dark band (Craig, light mode only). was 230 → (230+255)/2 = 243 */
+  --evari-trough: 243 243 243;
   --evari-edge: 225 225 225;
   --evari-mute: 200 200 200;
 }
@@ -140,7 +161,8 @@
   --evari-carbon: 242 242 242;
   --evari-surface: 254 254 254;
   --evari-surface-soft: 236 236 236;
-  --evari-trough: 224 224 224;
+  /* was 224 → 240 */
+  --evari-trough: 240 240 240;
   --evari-edge: 220 220 220;
   --evari-mute: 196 196 196;
 }
@@ -150,7 +172,8 @@
   --evari-carbon: 230 230 230;
   --evari-surface: 248 248 248;
   --evari-surface-soft: 222 222 222;
-  --evari-trough: 208 208 208;
+  /* was 208 → 232 */
+  --evari-trough: 232 232 232;
   --evari-edge: 204 204 204;
   --evari-mute: 184 184 184;
 }
@@ -160,7 +183,8 @@
   --evari-carbon: 220 220 220;
   --evari-surface: 242 242 242;
   --evari-surface-soft: 212 212 212;
-  --evari-trough: 196 196 196;
+  /* was 196 → 226 */
+  --evari-trough: 226 226 226;
   --evari-edge: 192 192 192;
   --evari-mute: 176 176 176;
 }
@@ -172,7 +196,8 @@
   --evari-carbon: 238 238 238;
   --evari-surface: 253 253 253;
   --evari-surface-soft: 232 232 232;
-  --evari-trough: 218 218 218;
+  /* was 218 → 237 */
+  --evari-trough: 237 237 237;
   --evari-edge: 214 214 214;
   --evari-mute: 192 192 192;
 
@@ -186,13 +211,32 @@
   --evari-accent: 186 62 68;
   --evari-accent-soft: 238 204 208;
   /* Light-theme amber tuned a touch darker so it reads on white. Same hue
-     as the dark-theme value, different lightness. */
+     as the dark-theme value, different lightness. Note: there's a light-
+     mode-only override further down that rewrites `text-evari-gold` to a
+     neutral grey, because olive-on-cream fails contrast. The amber is
+     preserved for `bg-evari-gold` (buttons, badges, chart fills). */
   --evari-gold: 176 138 52;
   --evari-gold-ink: 253 253 253;
   --evari-success: 92 150 42;
   --evari-warn: 176 138 52;
   --evari-danger: 172 48 60;
   --evari-crimson: 135 24 40;
+
+  /* Wireframe live-accent — orange on the near-white canvas reads cleanly
+     where the dark-mode lime-green would feel harsh. Used for the CORE
+     tier pill, the cluster outline, and the cluster title dot. */
+  --evari-wire-live: 234 126 36;
+  --evari-wire-live-ink: 253 253 253;
+  /* Plain live-status text (no pill) — the "Saved 13h ago" / "Database
+     healthy" strings and the CORE cluster label. Dark charcoal in light
+     mode so it reads clearly against the grey wash of the card; stays
+     green in dark mode. */
+  --evari-wire-live-text: 48 48 48;
+
+  /* Cluster fill in light mode = 3% gray (3% black on white = a very
+     subtle grey wash). Lifts each cluster off the canvas without any
+     white-on-white invisibility. */
+  --evari-wire-cluster: 0 0 0 / 0.03;
 
   /* shadcn compat */
   --background: 40 25% 95%;
@@ -229,6 +273,55 @@ body {
 ::selection {
   background: rgb(var(--evari-gold) / 0.35);
   color: rgb(var(--evari-text));
+}
+
+/* --------------------------------------------------------------------------
+   Light-mode readability: `text-evari-gold` AND `text-evari-warn` both resolve
+   to an olive/amber that fails contrast on near-white surfaces. In light mode
+   we force every text-gold / text-warn utility (base, hover, group-hover,
+   opacity-suffixed) to render as a neutral mid-grey. `!important` is required
+   here because ThemeProvider writes `--evari-gold` / `--evari-warn` as inline
+   styles on <html> (so users can pick a custom accent), which otherwise beats
+   the variable-override trick. Background/ring/chart-fill usages of gold and
+   warn are untouched — severity pills, warning dots, and badge backgrounds
+   keep their amber so the semantic cue survives.
+   -------------------------------------------------------------------------- */
+:root[data-theme='light'] .text-evari-gold,
+:root[data-theme='light'] .hover\:text-evari-gold:hover,
+:root[data-theme='light'] .group:hover .group-hover\:text-evari-gold,
+:root[data-theme='light'] .text-evari-warn,
+:root[data-theme='light'] .hover\:text-evari-warn:hover,
+:root[data-theme='light'] .group:hover .group-hover\:text-evari-warn {
+  color: rgb(108 108 108) !important;
+}
+:root[data-theme='light'] .text-evari-gold\/80,
+:root[data-theme='light'] .hover\:text-evari-gold\/80:hover,
+:root[data-theme='light'] .text-evari-warn\/80,
+:root[data-theme='light'] .hover\:text-evari-warn\/80:hover {
+  color: rgb(108 108 108 / 0.8) !important;
+}
+
+/* Informational panels (bg-evari-warn/15 + ring-evari-warn/30) render as
+   washed-out cream-yellow on the light background — the user hates it. In
+   light mode, paint these with a neutral soft-surface tone and kill the
+   outline entirely (no ring, no border) so the panel reads as a quiet
+   grey card rather than a bordered callout. Solid badge backgrounds
+   (bg-evari-warn without an opacity suffix) keep their amber so the
+   semantic cue is preserved. */
+:root[data-theme='light'] .bg-evari-warn\/10,
+:root[data-theme='light'] .bg-evari-warn\/15 {
+  background-color: rgb(var(--evari-surface-soft)) !important;
+}
+:root[data-theme='light'] .ring-evari-warn\/30,
+:root[data-theme='light'] .ring-evari-warn\/40 {
+  --tw-ring-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  box-shadow: none !important;
+}
+:root[data-theme='light'] .border-evari-warn\/30,
+:root[data-theme='light'] .border-evari-warn\/40 {
+  border-color: transparent !important;
 }
 
 /* Subtle scrollbars */
@@ -290,6 +383,16 @@ body {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.06),
     0 1px 2px rgb(0 0 0 / 0.25);
+}
+
+/* In light mode the active pill always wears the accent colour so the
+   selected theme reads as a pop, not just a shade shift. `color` uses the
+   ink variable (auto-resolves to readable light/dark) and beats the
+   text-gold/text-warn grey override because the selector is more specific
+   and targets a different element path. */
+:root[data-theme='light'] .pill-tab[data-active='true'] {
+  background: rgb(var(--evari-gold));
+  color: rgb(var(--evari-gold-ink));
 }
 
 /* Shared selected-state utility for non-tab surfaces (sidebar nav, folders,
@@ -417,4 +520,34 @@ body {
 .prose-evari hr {
   @apply my-6;
   border-top: 1px solid rgb(var(--evari-edge));
+}
+
+/* ---------------------------------------------------------------------------
+   Wireframe "ray-traced" box shadow. Stacked layers with exponentially
+   decaying opacity and a purely-downward offset so there's no shadow at the
+   top of the object (light comes from 12 o'clock). Every layer has a y-offset
+   ≥ its blur radius / 2, which produces the darkest tone right at the bottom
+   edge of the object and a soft, natural falloff as the penumbra scatters.
+   Works on any background — the alphas never exceed 0.08 so the total
+   contribution stays restrained in light mode but still has presence on
+   dark backgrounds. Hover gets a matching but ~40% stronger stack.
+   --------------------------------------------------------------------------- */
+.wire-shadow {
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.08),
+    0 2px 3px rgba(0, 0, 0, 0.06),
+    0 4px 6px rgba(0, 0, 0, 0.05),
+    0 8px 12px rgba(0, 0, 0, 0.04),
+    0 16px 24px rgba(0, 0, 0, 0.03),
+    0 32px 48px rgba(0, 0, 0, 0.02);
+  transition: box-shadow 200ms ease-in-out;
+}
+.wire-shadow:hover {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 3px 5px rgba(0, 0, 0, 0.09),
+    0 6px 10px rgba(0, 0, 0, 0.07),
+    0 12px 20px rgba(0, 0, 0, 0.06),
+    0 24px 40px rgba(0, 0, 0, 0.05),
+    0 48px 80px rgba(0, 0, 0, 0.03);
 }
