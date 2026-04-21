@@ -32,6 +32,10 @@ import {
   Mail,
   ShieldCheck,
   ShieldAlert,
+  Phone,
+  StickyNote,
+  User,
+  Save as SaveIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -85,6 +89,11 @@ export function ProspectsClient({
   const [contactsLoading, setContactsLoading] = useState<Set<string>>(new Set());
   const [contactPhase, setContactPhase] = useState<Record<string, string>>({});
   const [contactAttempted, setContactAttempted] = useState<Set<string>>(new Set());
+  const [editingField, setEditingField] = useState<
+    { id: string; field: 'name' | 'email' | 'phone' | 'notes' } | null
+  >(null);
+  const [editValue, setEditValue] = useState('');
+  const [fieldSaving, setFieldSaving] = useState<Set<string>>(new Set());
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [busyCategory, setBusyCategory] = useState<string | null>(null);
@@ -389,6 +398,136 @@ export function ProspectsClient({
     }
   }
 
+
+
+  async function saveField(
+    p: Prospect,
+    field: 'name' | 'email' | 'phone' | 'notes',
+    value: string,
+  ) {
+    const trimmed = value.trim();
+    // No-op if unchanged
+    const current =
+      field === 'name'
+        ? p.name
+        : field === 'email'
+          ? p.email ?? ''
+          : field === 'phone'
+            ? p.phone ?? ''
+            : p.notes ?? '';
+    if (trimmed === (current ?? '').trim()) {
+      setEditingField(null);
+      return;
+    }
+    const key = p.id + ':' + field;
+    setFieldSaving((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+    try {
+      const body: Record<string, unknown> = {};
+      if (field === 'name') body.fullName = trimmed;
+      else if (field === 'email') {
+        body.email = trimmed;
+        body.emailInferred = false;
+      } else if (field === 'phone') body.phone = trimmed;
+      else body.notes = trimmed;
+      const res = await fetch('/api/leads/' + p.id, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        promoted?: boolean;
+        error?: string;
+      };
+      if (!data.ok) throw new Error(data.error || 'Save failed');
+
+      if (data.promoted) {
+        // Prospect flipped to Lead — drop from this view.
+        setProspects((prev) => prev.filter((x) => x.id !== p.id));
+      } else {
+        setProspects((prev) =>
+          prev.map((x) =>
+            x.id === p.id
+              ? {
+                  ...x,
+                  ...(field === 'name' && { name: trimmed }),
+                  ...(field === 'email' && {
+                    email: trimmed,
+                    emailInferred: false,
+                  }),
+                  ...(field === 'phone' && { phone: trimmed }),
+                  ...(field === 'notes' && { notes: trimmed }),
+                }
+              : x,
+          ),
+        );
+      }
+    } catch (err) {
+      console.warn('save field failed', err);
+    } finally {
+      setFieldSaving((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      setEditingField(null);
+    }
+  }
+
+  async function useContactAsLead(p: Prospect, c: CompanyContact) {
+    if (!c.email) return;
+    const key = p.id + ':use-contact';
+    setFieldSaving((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+    try {
+      const res = await fetch('/api/leads/' + p.id, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          fullName: c.name,
+          email: c.email,
+          emailInferred: c.emailSource === 'inferred',
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        promoted?: boolean;
+        error?: string;
+      };
+      if (!data.ok) throw new Error(data.error || 'Use contact failed');
+      if (data.promoted) {
+        setProspects((prev) => prev.filter((x) => x.id !== p.id));
+      } else {
+        setProspects((prev) =>
+          prev.map((x) =>
+            x.id === p.id
+              ? {
+                  ...x,
+                  name: c.name,
+                  email: c.email,
+                  emailInferred: c.emailSource === 'inferred',
+                }
+              : x,
+          ),
+        );
+      }
+    } catch (err) {
+      console.warn('use contact failed', err);
+    } finally {
+      setFieldSaving((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  }
 
   async function enrichContactsFor(p: Prospect, force = false) {
     if (contactsLoading.has(p.id)) return;
@@ -941,6 +1080,23 @@ export function ProspectsClient({
                       )}
                     </div>
                   )}
+                  <LeadFieldsBlock
+                    prospect={p}
+                    editingField={
+                      editingField && editingField.id === p.id
+                        ? editingField.field
+                        : null
+                    }
+                    editValue={editValue}
+                    setEditValue={setEditValue}
+                    fieldSaving={fieldSaving}
+                    onStartEdit={(field, value) => {
+                      setEditingField({ id: p.id, field });
+                      setEditValue(value ?? '');
+                    }}
+                    onCancelEdit={() => setEditingField(null)}
+                    onSave={(field, value) => void saveField(p, field, value)}
+                  />
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
                     <Sparkles className="h-3 w-3" />
                     Synopsis
@@ -967,6 +1123,8 @@ export function ProspectsClient({
                     phase={contactPhase[p.id]}
                     attempted={contactAttempted.has(p.id)}
                     onRefresh={() => void enrichContactsFor(p, true)}
+                    onUseContact={(c) => void useContactAsLead(p, c)}
+                    useContactPending={fieldSaving.has(p.id + ':use-contact')}
                   />
                   {(p.companyUrl || p.linkedinUrl || p.address) && (
                     <div className="flex flex-wrap items-center gap-3 text-[11px] pt-1">
@@ -1143,12 +1301,16 @@ function ContactsBlock({
   phase,
   attempted,
   onRefresh,
+  onUseContact,
+  useContactPending,
 }: {
   prospect: Prospect;
   loading: boolean;
   phase?: string;
   attempted: boolean;
   onRefresh: () => void;
+  onUseContact: (c: CompanyContact) => void;
+  useContactPending: boolean;
 }) {
   const contacts = prospect.orgProfile?.contacts ?? [];
   const hasContacts = contacts.length > 0;
@@ -1189,7 +1351,12 @@ function ContactsBlock({
       {hasContacts ? (
         <ul className="space-y-1">
           {contacts.map((c, i) => (
-            <ContactRow key={(c.email ?? c.name) + i} c={c} />
+            <ContactRow
+              key={(c.email ?? c.name) + i}
+              c={c}
+              onUse={c.email ? () => onUseContact(c) : undefined}
+              pending={useContactPending}
+            />
           ))}
         </ul>
       ) : loading ? (
@@ -1216,7 +1383,15 @@ function ContactsBlock({
   );
 }
 
-function ContactRow({ c }: { c: CompanyContact }) {
+function ContactRow({
+  c,
+  onUse,
+  pending,
+}: {
+  c: CompanyContact;
+  onUse?: () => void;
+  pending: boolean;
+}) {
   const label =
     c.emailSource === 'scraped'
       ? 'scraped'
@@ -1290,6 +1465,228 @@ function ContactRow({ c }: { c: CompanyContact }) {
           <ExternalLink className="h-2.5 w-2.5" />
         </a>
       )}
+      {onUse && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onUse();
+          }}
+          disabled={pending}
+          title="Use this person as the lead contact — fills name + email and promotes."
+          className="ml-auto text-[9px] text-evari-gold hover:text-evari-text px-1.5 py-0.5 rounded border border-evari-gold/40 hover:border-evari-gold disabled:opacity-40"
+        >
+          {pending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : 'Use'}
+        </button>
+      )}
     </li>
+  );
+}
+
+
+function LeadFieldsBlock({
+  prospect,
+  editingField,
+  editValue,
+  setEditValue,
+  fieldSaving,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+}: {
+  prospect: Prospect;
+  editingField: 'name' | 'email' | 'phone' | 'notes' | null;
+  editValue: string;
+  setEditValue: (v: string) => void;
+  fieldSaving: Set<string>;
+  onStartEdit: (field: 'name' | 'email' | 'phone' | 'notes', current: string) => void;
+  onCancelEdit: () => void;
+  onSave: (field: 'name' | 'email' | 'phone' | 'notes', value: string) => void;
+}) {
+  const hasRealEmail = Boolean(
+    prospect.email && !prospect.emailInferred,
+  );
+
+  return (
+    <div className="space-y-1 pb-2 border-b border-evari-line/40">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-1">
+        Contact
+        {!hasRealEmail && (
+          <span
+            className="ml-2 text-[9px] normal-case tracking-normal text-evari-warn"
+            title="Add a real email to promote this row to a Lead."
+          >
+            add an email to promote to Lead
+          </span>
+        )}
+      </div>
+      <LeadField
+        icon={<User className="h-3 w-3 text-evari-dimmer" />}
+        label="Name"
+        value={prospect.name}
+        placeholder="Who's the contact?"
+        editing={editingField === 'name'}
+        saving={fieldSaving.has(prospect.id + ':name')}
+        editValue={editValue}
+        setEditValue={setEditValue}
+        onStartEdit={() => onStartEdit('name', prospect.name)}
+        onCancelEdit={onCancelEdit}
+        onSave={(v) => onSave('name', v)}
+      />
+      <LeadField
+        icon={<Mail className="h-3 w-3 text-evari-dimmer" />}
+        label="Email"
+        value={prospect.email ?? ''}
+        placeholder="real@domain.com"
+        mono
+        editing={editingField === 'email'}
+        saving={fieldSaving.has(prospect.id + ':email')}
+        editValue={editValue}
+        setEditValue={setEditValue}
+        onStartEdit={() => onStartEdit('email', prospect.email ?? '')}
+        onCancelEdit={onCancelEdit}
+        onSave={(v) => onSave('email', v)}
+        trailing={
+          prospect.email && prospect.emailInferred ? (
+            <span
+              className="text-[9px] text-evari-warn"
+              title="Currently pattern-inferred — replace with a real one to promote."
+            >
+              inferred
+            </span>
+          ) : prospect.email ? (
+            <span
+              className="text-[9px] text-evari-success"
+              title="Verified email on file."
+            >
+              verified
+            </span>
+          ) : null
+        }
+      />
+      <LeadField
+        icon={<Phone className="h-3 w-3 text-evari-dimmer" />}
+        label="Phone"
+        value={prospect.phone ?? ''}
+        placeholder="+44 …"
+        mono
+        editing={editingField === 'phone'}
+        saving={fieldSaving.has(prospect.id + ':phone')}
+        editValue={editValue}
+        setEditValue={setEditValue}
+        onStartEdit={() => onStartEdit('phone', prospect.phone ?? '')}
+        onCancelEdit={onCancelEdit}
+        onSave={(v) => onSave('phone', v)}
+      />
+      <LeadField
+        icon={<StickyNote className="h-3 w-3 text-evari-dimmer" />}
+        label="Notes"
+        value={prospect.notes ?? ''}
+        placeholder="Anything to remember"
+        multiline
+        editing={editingField === 'notes'}
+        saving={fieldSaving.has(prospect.id + ':notes')}
+        editValue={editValue}
+        setEditValue={setEditValue}
+        onStartEdit={() => onStartEdit('notes', prospect.notes ?? '')}
+        onCancelEdit={onCancelEdit}
+        onSave={(v) => onSave('notes', v)}
+      />
+    </div>
+  );
+}
+
+function LeadField({
+  icon,
+  label,
+  value,
+  placeholder,
+  mono,
+  multiline,
+  editing,
+  saving,
+  editValue,
+  setEditValue,
+  onStartEdit,
+  onCancelEdit,
+  onSave,
+  trailing,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  placeholder: string;
+  mono?: boolean;
+  multiline?: boolean;
+  editing: boolean;
+  saving: boolean;
+  editValue: string;
+  setEditValue: (v: string) => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: (v: string) => void;
+  trailing?: React.ReactNode;
+}) {
+  if (editing) {
+    const InputEl = multiline ? 'textarea' : 'input';
+    return (
+      <div
+        className="flex items-start gap-2 text-[11px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="pt-1.5 shrink-0">{icon}</span>
+        <span className="w-12 pt-1 text-evari-dimmer shrink-0">{label}</span>
+        <InputEl
+          autoFocus
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !multiline) {
+              e.preventDefault();
+              onSave(editValue);
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              onCancelEdit();
+            }
+          }}
+          onBlur={() => onSave(editValue)}
+          placeholder={placeholder}
+          rows={multiline ? 2 : undefined}
+          className={cn(
+            'flex-1 min-w-0 bg-evari-ink/60 rounded px-2 py-1 text-evari-text outline-none border border-evari-gold/50 focus:border-evari-gold',
+            mono && 'font-mono',
+          )}
+        />
+        {saving && (
+          <Loader2 className="h-3 w-3 animate-spin text-evari-dim mt-1.5" />
+        )}
+      </div>
+    );
+  }
+
+  const empty = !value.trim();
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onStartEdit();
+      }}
+      className="w-full flex items-start gap-2 text-[11px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-0.5 -mx-1"
+    >
+      <span className="pt-0.5 shrink-0">{icon}</span>
+      <span className="w-12 text-evari-dimmer shrink-0">{label}</span>
+      <span
+        className={cn(
+          'flex-1 min-w-0 truncate',
+          empty ? 'text-evari-dimmer italic' : 'text-evari-text',
+          mono && !empty && 'font-mono',
+        )}
+      >
+        {empty ? placeholder : value}
+      </span>
+      {trailing}
+      <Pencil className="h-2.5 w-2.5 text-evari-dimmer opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
+    </button>
   );
 }

@@ -19,6 +19,14 @@ interface PatchBody {
   stage?: LeadStage;
   notes?: string;
   category?: string;
+  /** Contact person's full name (editable from the Prospect card). */
+  fullName?: string;
+  /** Real, sendable email. Setting this on a prospect auto-promotes to Lead. */
+  email?: string;
+  /** Tagged true when the email is a pattern-inferred guess, not verified. */
+  emailInferred?: boolean;
+  /** Phone number. */
+  phone?: string;
 }
 
 const LEAD_STAGES: LeadStage[] = [
@@ -93,6 +101,53 @@ export async function PATCH(
     next.category = body.category.trim();
   }
 
+  // -- Contact details + auto-promote --------------------------------------
+  let autoPromoted = false;
+  if (typeof body.fullName === 'string') {
+    const trimmed = body.fullName.trim();
+    if (trimmed.length > 0) next.fullName = trimmed;
+  }
+  if (typeof body.phone === 'string') {
+    next.phone = body.phone.trim();
+  }
+  if (typeof body.email === 'string') {
+    const trimmedEmail = body.email.trim().toLowerCase();
+    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+    const changed = trimmedEmail !== (existing.email ?? '').toLowerCase();
+    if (looksLikeEmail) {
+      next.email = trimmedEmail;
+      // Caller can override, but the default when a human types in an
+      // email is that it's verified (not inferred).
+      const emailInferred =
+        typeof body.emailInferred === 'boolean'
+          ? body.emailInferred
+          : false;
+      next.emailInferred = emailInferred;
+      // Auto-promote: a prospect becomes a lead the moment it gains a
+      // real (non-inferred) email. This is the commitment signal — we
+      // can now actually send to this row.
+      if (
+        changed &&
+        !emailInferred &&
+        (existing.tier ?? 'lead') === 'prospect' &&
+        body.tier !== 'prospect'
+      ) {
+        next.tier = 'lead';
+        next.prospectStatus = 'qualified';
+        autoPromoted = true;
+        activityEntries.push({
+          id: 'act-' + Date.now(),
+          type: 'stage_change',
+          at: nowIso,
+          summary: 'Auto-promoted to Lead — email added: ' + trimmedEmail,
+        });
+      }
+    } else if (trimmedEmail.length === 0) {
+      // Explicit clear.
+      next.email = '';
+    }
+  }
+
   if (activityEntries.length > 0) {
     next.activity = [...(existing.activity ?? []), ...activityEntries];
   }
@@ -104,5 +159,5 @@ export async function PATCH(
       { status: 500 },
     );
   }
-  return NextResponse.json({ ok: true, lead: saved });
+  return NextResponse.json({ ok: true, lead: saved, promoted: autoPromoted });
 }
