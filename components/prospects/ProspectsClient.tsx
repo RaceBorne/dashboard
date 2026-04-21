@@ -1126,20 +1126,9 @@ export function ProspectsClient({
                     onUseContact={(c) => void useContactAsLead(p, c)}
                     useContactPending={fieldSaving.has(p.id + ':use-contact')}
                   />
-                  {(p.companyUrl || p.linkedinUrl || p.address) && (
+                  {(p.linkedinUrl || p.address) && (
                     <div className="flex flex-wrap items-center gap-3 text-[11px] pt-1">
-                      {p.companyUrl && (
-                        <a
-                          href={p.companyUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-evari-gold hover:text-evari-text"
-                        >
-                          <ExternalLink className="h-2.5 w-2.5" />
-                          Website
-                        </a>
-                      )}
-                      {p.linkedinUrl && (
+{p.linkedinUrl && (
                         <a
                           href={p.linkedinUrl}
                           target="_blank"
@@ -1578,6 +1567,21 @@ function LeadFieldsBlock({
         onCancelEdit={onCancelEdit}
         onSave={(v) => onSave('phone', v)}
       />
+      {prospect.companyUrl && (
+        <a
+          href={prospect.companyUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="w-full flex items-start gap-2 text-[11px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-0.5 -mx-1"
+        >
+          <ExternalLink className="h-3 w-3 text-evari-dimmer mt-0.5 shrink-0" />
+          <span className="w-12 text-evari-dimmer shrink-0">Website</span>
+          <span className="flex-1 min-w-0 truncate text-evari-gold group-hover:text-evari-text">
+            {prospect.companyUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+          </span>
+        </a>
+      )}
       <LeadField
         icon={<StickyNote className="h-3 w-3 text-evari-dimmer" />}
         label="Notes"
