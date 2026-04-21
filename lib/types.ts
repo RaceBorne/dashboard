@@ -563,7 +563,7 @@ export interface PlayScope {
 
 export interface PlaySourceRun {
   at: string;
-  agent: 'paste' | 'dataforseo' | 'auto-scan';
+  agent: 'paste' | 'dataforseo' | 'google_places' | 'auto-scan';
   description?: string;
   locationName?: string;
   found?: number;

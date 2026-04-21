@@ -5,6 +5,10 @@ import {
   searchBusinessListings,
   type BusinessListing,
 } from '@/lib/integrations/dataforseo';
+import {
+  isGooglePlacesConnected,
+  searchPlaces,
+} from '@/lib/integrations/googleplaces';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import type { Lead, Play, PlaySourceRun } from '@/lib/types';
 
@@ -39,6 +43,13 @@ interface SearchQuery {
   description: string;
   locationName: string;
   limit?: number;
+  /**
+   * Optional Google Places type for strict filtering (e.g. "sports_club",
+   * "gym", "bicycle_store", "doctor"). When present AND the active provider
+   * is Google Places, the search rejects anything that isn't of this type.
+   * DFS ignores this field.
+   */
+  includedType?: string;
 }
 
 interface SearchPlan {
@@ -133,17 +144,21 @@ export async function POST(
       }
 
       // ---------------- Auto-source path ---------------------------------
-      if (!isDataForSeoConnected()) {
+      // Accept either provider. Google Places is preferred when configured;
+      // DFS is the fallback. If neither is set, bail out with the reason.
+      const gpConnected = isGooglePlacesConnected();
+      const dfsConnected = isDataForSeoConnected();
+      if (!gpConnected && !dfsConnected) {
         const run: PlaySourceRun = {
           at: nowIso,
           agent: 'dataforseo',
           inserted: 0,
-          error: 'DataForSEO not configured',
+          error: 'No search provider configured',
           durationMs: Date.now() - startedAt,
         };
         await stampRun(supabase, play, run);
         fail(
-          'DataForSEO is not configured. Set DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD, or paste a candidate list.',
+          'No search provider configured. Set GOOGLE_PLACES_API_KEY (preferred) or DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD, or paste a candidate list.',
         );
         return;
       }
@@ -155,7 +170,8 @@ export async function POST(
             {
               description: body.search.description,
               locationName: body.search.locationName,
-              limit: body.search.limit ?? 50,
+              limit: body.search.limit ?? 20,
+              includedType: body.search.includedType,
             },
           ],
         };
@@ -226,10 +242,9 @@ export async function POST(
           total: plan.queries.length,
         });
         try {
-          const res = await searchBusinessListings({
-            description: q.description,
-            locationName: q.locationName,
-            limit: Math.min(q.limit ?? 50, cap),
+          const res = await runProviderQuery(q, cap, {
+            gpConnected,
+            dfsConnected,
           });
           costTotal += res.cost;
           foundTotal += res.listings.length;
@@ -248,7 +263,9 @@ export async function POST(
             message:
               '"' +
               q.description +
-              '" returned ' +
+              '" via ' +
+              res.source +
+              ' returned ' +
               res.listings.length +
               ' listing(s)' +
               (rejected > 0
@@ -259,6 +276,7 @@ export async function POST(
             found: res.listings.length,
             rejected,
             country,
+            source: res.source,
             foundTotal,
             uniqueTotal: seen.size,
             costUsd: res.cost,
@@ -299,9 +317,12 @@ export async function POST(
       });
 
       if (unique.length === 0) {
+        const agentLabel: PlaySourceRun['agent'] = gpConnected
+          ? 'google_places'
+          : 'dataforseo';
         const run: PlaySourceRun = {
           at: nowIso,
-          agent: 'dataforseo',
+          agent: agentLabel,
           description: primaryQuery?.description,
           locationName: primaryQuery?.locationName,
           found: 0,
@@ -316,7 +337,7 @@ export async function POST(
           play: saved,
           inserted: 0,
           found: 0,
-          agent: 'dataforseo',
+          agent: agentLabel,
           queries: plan.queries,
           costUsd: costTotal,
         });
@@ -343,9 +364,12 @@ export async function POST(
           emit({ phase: 'inserted-progress', done, total, lead }),
       );
 
+      const finalAgentLabel: PlaySourceRun['agent'] = gpConnected
+        ? 'google_places'
+        : 'dataforseo';
       const run: PlaySourceRun = {
         at: nowIso,
-        agent: 'dataforseo',
+        agent: finalAgentLabel,
         description: primaryQuery?.description,
         locationName: primaryQuery?.locationName,
         found: unique.length,
@@ -359,7 +383,7 @@ export async function POST(
         play: saved,
         inserted,
         found: unique.length,
-        agent: 'dataforseo',
+        agent: finalAgentLabel,
         queries: plan.queries,
         costUsd: costTotal,
       });
@@ -388,9 +412,9 @@ export async function POST(
  */
 async function derivePlan(play: Play): Promise<SearchPlan> {
   const prompt = [
-    'You are translating an Evari outreach Play into a fan-out of DataForSEO Business Listings searches.',
+    'You are translating an Evari outreach Play into a fan-out of Google Places (New) Text Search queries.',
     '',
-    'DataForSEO Business Listings only returns useful results for SHORT Google-style keywords (2-4 words), like a search a human would type into Google Maps. Long descriptive phrases return ZERO results. Examples that work: "yacht broker London", "private knee clinic", "luxury bike shop", "boutique design studio". Examples that FAIL: "marine architecture naval design practices London Southampton Hamble Cowes UK".',
+    'Google Places Text Search accepts natural Google-Maps-style queries like "cycling club in Surrey" or "private knee clinic in London". It returns structured places with an official `types` taxonomy (sports_club, gym, doctor, bicycle_store, etc.) — so keywords should describe the VENUE or ORGANISATION, not the people inside it.',
     '',
     'Play title: ' + play.title,
     'Category: ' + (play.category ?? play.title),
@@ -400,20 +424,20 @@ async function derivePlan(play: Play): Promise<SearchPlan> {
     'Emit a single JSON object with exactly this shape:',
     '{',
     '  "queries": [',
-    '    { "description": string, "locationName": string, "limit": number },',
+    '    { "description": string, "locationName": string, "limit": number, "includedType"?: string },',
     '    ...',
     '  ]',
     '}',
     '',
     'Rules:',
     '- Return between 3 and 6 queries.',
-    '- Each "description" must be 2-4 words MAX — a short Google-style BUSINESS-NAME keyword. Never a sentence.',
-    '- CRITICAL: DataForSEO matches the keyword against business NAMES + categories, NOT the people inside them. Keywords must be venue / organisation types. Forbidden words inside description: "secretary", "organiser", "organizer", "director", "manager", "owner", "founder", "head of", "committee", "CEO", "CTO". A person role will return zero results.',
-    '- GOOD keywords: "cycling club London", "road cycling club Surrey", "triathlon club Kent", "yacht broker Hamble", "private knee clinic". BAD: "cycling club secretary", "ride organiser", "committee member".',
-    '- Vary the angles: different verticals, different sub-types, different cities if the Play is geographic.',
-    '- locationName must be a DataForSEO location string. For a UK Play use "United Kingdom" as the country tail, plus city/region specifics like "London, England, United Kingdom", "Surrey, England, United Kingdom", "Kent, England, United Kingdom".',
-    '- EVERY query must stay in the Play\'s target country. Inspect play.scope.summary for geographic intent and mirror it. If the scope mentions "South East England", never emit locationName="United States" or "Canada".',
-    '- limit should be 25-50 per query.',
+    '- Each "description" must be 2-5 words — a natural Google-style BUSINESS/VENUE keyword. Examples that work: "cycling club", "road cycling club", "triathlon club", "yacht broker", "private knee clinic", "boutique design studio". BAD: "cycling club secretary" (person role — returns nothing), "where to buy luxury bikes" (too conversational).',
+    '- CRITICAL: keywords describe business NAMES or venue types, NOT people. Forbidden tokens: "secretary", "organiser", "organizer", "director", "manager", "owner", "founder", "head of", "committee", "CEO", "CTO".',
+    '- Vary the angles: different sub-types, different cities if the Play is geographic. The planner fans out — each query should hit a different slice of the market.',
+    '- locationName must be a comma-separated human-readable location with the country as the tail. For a UK Play: "London, England, United Kingdom", "Surrey, England, United Kingdom", "Kent, England, United Kingdom", "South East England, United Kingdom". For a US Play: "San Francisco, CA, United States".',
+    '- EVERY query must stay in the Play\'s target country. Inspect play.scope.summary for geographic intent. If the scope mentions "South East England", never emit a US or Canadian locationName.',
+    '- includedType (optional) hard-filters to one Google Places type. Use it when you have high confidence. Common types: "sports_club" (cycling/triathlon/golf/yacht clubs), "gym" (fitness studios), "bicycle_store" (bike shops), "doctor" (medical practices — use "dental_clinic" for dentists, "hospital" for hospitals), "stadium", "sports_complex". Full list: https://developers.google.com/maps/documentation/places/web-service/place-types',
+    '- limit should be 15-20 per query (Google Places caps at 20 results per page).',
     '- Never target generic bike shops. Prefer HNW / luxury-adjacent verticals consistent with the grounded brand brief.',
     '- Return raw JSON only — no prose, no markdown fences.',
   ].join('\n');
@@ -446,7 +470,11 @@ async function derivePlan(play: Play): Promise<SearchPlan> {
     if (!description) continue;
     // Hard guard — refuse anything longer than 6 words; short keywords only.
     if (description.split(/\s+/).length > 6) continue;
-    queries.push({ description, locationName, limit });
+    const includedType =
+      typeof rec.includedType === 'string' && rec.includedType.trim().length > 0
+        ? rec.includedType.trim()
+        : undefined;
+    queries.push({ description, locationName, limit, includedType });
   }
   if (queries.length === 0) {
     throw new Error(
@@ -679,3 +707,54 @@ async function stampRun(
   await supabase.from('dashboard_plays').update({ payload: next }).eq('id', next.id);
   return next;
 }
+
+// ---------------------------------------------------------------------------
+// Provider dispatch — Google Places is preferred, DFS is fallback
+// ---------------------------------------------------------------------------
+
+/**
+ * Run a single planner query against whichever provider is configured.
+ * Preference order:
+ *   1. Google Places (New) Text Search — strict geofence via regionCode +
+ *      optional includedType filter. Low noise, high precision.
+ *   2. DataForSEO business_listings — legacy fallback. Wider coverage but
+ *      looser matching; we still post-filter geographically in the caller.
+ *
+ * If both providers are configured and Google returns zero listings, we
+ * fall through to DFS for that query only — the operator still gets SOMETHING
+ * to review instead of an empty panel. Costs are summed across providers.
+ */
+async function runProviderQuery(
+  q: SearchQuery,
+  cap: number,
+  opts: { gpConnected: boolean; dfsConnected: boolean },
+): Promise<{ listings: BusinessListing[]; cost: number; source: 'google_places' | 'dataforseo' }> {
+  const limit = Math.min(q.limit ?? 20, cap);
+  if (opts.gpConnected) {
+    try {
+      const res = await searchPlaces({
+        query: q.description,
+        locationName: q.locationName,
+        limit,
+        includedType: q.includedType,
+      });
+      if (res.listings.length > 0 || !opts.dfsConnected) {
+        return { ...res, source: 'google_places' };
+      }
+      // Google returned zero — fall through to DFS if available.
+    } catch (err) {
+      console.warn('[source-prospects] Google Places failed, falling back:', (err as Error).message);
+      if (!opts.dfsConnected) throw err;
+    }
+  }
+  if (opts.dfsConnected) {
+    const res = await searchBusinessListings({
+      description: q.description,
+      locationName: q.locationName,
+      limit: Math.min(limit, 50),
+    });
+    return { ...res, source: 'dataforseo' };
+  }
+  throw new Error('No search provider configured');
+}
+
