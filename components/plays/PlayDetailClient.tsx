@@ -413,6 +413,18 @@ export function PlayDetailClient({
     };
   }, [autoScanActive, play.id]);
 
+  // Auto-dismiss the Source Prospects modal 500ms after the stream
+  // finishes successfully. On error we leave it open so the operator
+  // can read the message and close it themselves.
+  const lastSourceStepPhase = sourceRunSteps[sourceRunSteps.length - 1]?.phase;
+  useEffect(() => {
+    if (sourcingProspects) return;
+    if (sourceRunSteps.length === 0) return;
+    if (lastSourceStepPhase !== 'done') return;
+    const handle = setTimeout(() => setSourceRunSteps([]), 500);
+    return () => clearTimeout(handle);
+  }, [sourcingProspects, sourceRunSteps.length, lastSourceStepPhase]);
+
   const strategy = play.strategy;
   const scope = play.scope;
 
