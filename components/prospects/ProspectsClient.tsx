@@ -25,6 +25,8 @@ import {
   Loader2,
   Sparkles,
   ExternalLink,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -75,6 +77,9 @@ export function ProspectsClient({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [synopsisLoading, setSynopsisLoading] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set());
+  const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [busyCategory, setBusyCategory] = useState<string | null>(null);
   const confirm = useConfirm();
 
   // --- Derived ------------------------------------------------------------
@@ -235,6 +240,102 @@ export function ProspectsClient({
     }
   }
 
+
+  async function commitCategoryRename() {
+    const from = renamingCategory;
+    const to = renameValue.trim();
+    if (!from) return;
+    if (!to || to === from) {
+      setRenamingCategory(null);
+      setRenameValue('');
+      return;
+    }
+    setBusyCategory(from);
+    try {
+      const res = await fetch('/api/leads/category', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ from, to, tier: 'prospect' }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        renamed?: number;
+        error?: string;
+      };
+      if (res.ok) {
+        setProspects((prev) =>
+          prev.map((p) =>
+            ((p.category ?? '').trim() || 'Uncategorised') === from
+              ? { ...p, category: to }
+              : p,
+          ),
+        );
+        setActiveCategories((prev) => {
+          if (!prev.has(from)) return prev;
+          const next = new Set(prev);
+          next.delete(from);
+          next.add(to);
+          return next;
+        });
+      } else {
+        console.warn('rename folder failed', data.error);
+      }
+    } catch (err) {
+      console.warn('rename folder failed', err);
+    } finally {
+      setBusyCategory(null);
+      setRenamingCategory(null);
+      setRenameValue('');
+    }
+  }
+
+  async function deleteCategory(category: string) {
+    const count = categoryCounts[category] ?? 0;
+    const ok = await confirm({
+      title: 'Delete "' + category + '" folder?',
+      description:
+        'Permanently deletes ' +
+        count +
+        ' prospect' +
+        (count === 1 ? '' : 's') +
+        ' in this folder. This cannot be undone.',
+      confirmLabel: 'Delete folder',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setBusyCategory(category);
+    try {
+      const res = await fetch('/api/leads/category', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ category, tier: 'prospect' }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        deleted?: number;
+        error?: string;
+      };
+      if (res.ok) {
+        setProspects((prev) =>
+          prev.filter(
+            (p) =>
+              ((p.category ?? '').trim() || 'Uncategorised') !== category,
+          ),
+        );
+        setActiveCategories((prev) => {
+          if (!prev.has(category)) return prev;
+          const next = new Set(prev);
+          next.delete(category);
+          return next;
+        });
+      } else {
+        console.warn('delete folder failed', data.error);
+      }
+    } catch (err) {
+      console.warn('delete folder failed', err);
+    } finally {
+      setBusyCategory(null);
+    }
+  }
+
   async function toggleExpand(p: Prospect) {
     const isOpen = expandedIds.has(p.id);
     setExpandedIds((prev) => {
@@ -391,27 +492,93 @@ export function ProspectsClient({
                 {categoryKeys.map((key) => {
                   const count = categoryCounts[key];
                   const active = activeCategories.has(key);
+                  const renaming = renamingCategory === key;
+                  const busy = busyCategory === key;
                   return (
-                    <button
+                    <div
                       key={key}
-                      type="button"
-                      onClick={() => toggleCategory(key)}
                       className={cn(
-                        'w-full flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors text-left',
+                        'group relative flex items-center rounded-md transition-colors',
                         active
                           ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                           : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
                       )}
                     >
-                      <Folder
-                        className={cn(
-                          'h-3.5 w-3.5 shrink-0',
-                          active ? 'text-evari-text' : 'text-evari-dimmer',
-                        )}
-                      />
-                      <span className="flex-1 truncate">{key}</span>
-                      <CountPill n={count} />
-                    </button>
+                      {renaming ? (
+                        <div className="flex-1 flex items-center gap-2 px-3 py-1 text-sm">
+                          <Folder className="h-3.5 w-3.5 shrink-0 text-evari-dimmer" />
+                          <input
+                            autoFocus
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void commitCategoryRename();
+                              if (e.key === 'Escape') {
+                                setRenamingCategory(null);
+                                setRenameValue('');
+                              }
+                            }}
+                            onBlur={() => void commitCategoryRename()}
+                            className="flex-1 min-w-0 bg-transparent text-sm text-evari-text outline-none border-b border-evari-gold/60 focus:border-evari-gold"
+                          />
+                          {busy && (
+                            <Loader2 className="h-3 w-3 animate-spin text-evari-dim" />
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => toggleCategory(key)}
+                            className="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-1.5 text-sm text-left"
+                          >
+                            <Folder
+                              className={cn(
+                                'h-3.5 w-3.5 shrink-0',
+                                active ? 'text-evari-text' : 'text-evari-dimmer',
+                              )}
+                            />
+                            <span className="flex-1 truncate">{key}</span>
+                            <CountPill n={count} />
+                          </button>
+                          <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingCategory(key);
+                                setRenameValue(key);
+                              }}
+                              disabled={busy || key === 'Uncategorised'}
+                              title={
+                                key === 'Uncategorised'
+                                  ? 'Cannot rename Uncategorised'
+                                  : 'Rename folder'
+                              }
+                              className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void deleteCategory(key);
+                              }}
+                              disabled={busy}
+                              title="Delete folder + all prospects inside"
+                              className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-surface/60 disabled:opacity-30"
+                            >
+                              {busy ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -490,12 +657,26 @@ export function ProspectsClient({
               key={p.id}
               className="bg-evari-surface/60 rounded-md p-4 space-y-3"
             >
-              <div className="flex items-start justify-between gap-3">
+              <div
+                className="flex items-start justify-between gap-3 cursor-pointer"
+                onClick={() => void toggleExpand(p)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    void toggleExpand(p);
+                  }
+                }}
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => void toggleExpand(p)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void toggleExpand(p);
+                      }}
                       title={expanded ? 'Collapse' : 'Expand'}
                       className="h-5 w-5 -ml-1 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
                     >
@@ -557,7 +738,10 @@ export function ProspectsClient({
                       <Button
                         size="sm"
                         variant="primary"
-                        onClick={() => void promoteToLead(p)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void promoteToLead(p);
+                        }}
                         disabled={loadingAction}
                       >
                         {loadingAction ? (
@@ -571,7 +755,10 @@ export function ProspectsClient({
                   {p.status !== 'archived' && (
                     <button
                       type="button"
-                      onClick={() => void archive(p)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void archive(p);
+                      }}
                       disabled={loadingAction}
                       className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft disabled:opacity-50"
                       title="Archive"

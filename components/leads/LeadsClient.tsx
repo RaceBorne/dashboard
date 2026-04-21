@@ -11,6 +11,8 @@ import {
   Users,
   Layers,
   Inbox,
+  Folder,
+  Loader2,
 } from 'lucide-react';
 import { StageBadge } from '@/components/leads/StageBadge';
 import {
@@ -71,6 +73,10 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
   const [activeStages, setActiveStages] = useState<Set<LeadStage>>(
     new Set(STAGES),
   );
+  const [activeFunnel, setActiveFunnel] = useState<Set<string>>(new Set());
+  const [renamingFunnel, setRenamingFunnel] = useState<string | null>(null);
+  const [funnelRenameValue, setFunnelRenameValue] = useState('');
+  const [busyFunnel, setBusyFunnel] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('newest');
 
   function toggleCategory(c: LeadSourceCategory) {
@@ -88,6 +94,109 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
       else next.add(s);
       return next;
     });
+  }
+  function toggleFunnel(k: string) {
+    setActiveFunnel((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  }
+  async function commitFunnelRename() {
+    const from = renamingFunnel;
+    const to = funnelRenameValue.trim();
+    if (!from) return;
+    if (!to || to === from) {
+      setRenamingFunnel(null);
+      setFunnelRenameValue('');
+      return;
+    }
+    setBusyFunnel(from);
+    try {
+      const res = await fetch('/api/leads/category', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ from, to, tier: 'lead' }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        renamed?: number;
+        error?: string;
+      };
+      if (res.ok) {
+        setLeads((prev) =>
+          prev.map((l) =>
+            ((l.category ?? '').trim() || 'Uncategorised') === from
+              ? { ...l, category: to }
+              : l,
+          ),
+        );
+        setActiveFunnel((prev) => {
+          if (!prev.has(from)) return prev;
+          const next = new Set(prev);
+          next.delete(from);
+          next.add(to);
+          return next;
+        });
+      } else {
+        console.warn('rename folder failed', data.error);
+      }
+    } catch (err) {
+      console.warn('rename folder failed', err);
+    } finally {
+      setBusyFunnel(null);
+      setRenamingFunnel(null);
+      setFunnelRenameValue('');
+    }
+  }
+  async function deleteFunnel(category: string) {
+    const count = leads.filter(
+      (l) => ((l.category ?? '').trim() || 'Uncategorised') === category,
+    ).length;
+    const ok = await confirm({
+      title: 'Delete "' + category + '" folder?',
+      description:
+        'Permanently deletes ' +
+        count +
+        ' lead' +
+        (count === 1 ? '' : 's') +
+        ' in this folder. This cannot be undone.',
+      confirmLabel: 'Delete folder',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setBusyFunnel(category);
+    try {
+      const res = await fetch('/api/leads/category', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ category, tier: 'lead' }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        deleted?: number;
+        error?: string;
+      };
+      if (res.ok) {
+        setLeads((prev) =>
+          prev.filter(
+            (l) =>
+              ((l.category ?? '').trim() || 'Uncategorised') !== category,
+          ),
+        );
+        setActiveFunnel((prev) => {
+          if (!prev.has(category)) return prev;
+          const next = new Set(prev);
+          next.delete(category);
+          return next;
+        });
+      } else {
+        console.warn('delete folder failed', data.error);
+      }
+    } catch (err) {
+      console.warn('delete folder failed', err);
+    } finally {
+      setBusyFunnel(null);
+    }
   }
   function allSourcesOn() {
     setActiveCategories(new Set(SOURCE_CATEGORY_ORDER));
@@ -125,12 +234,35 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
     }, {});
   }, [leads]);
 
+  const funnelCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const l of leads) {
+      const key = (l.category ?? '').trim() || 'Uncategorised';
+      c[key] = (c[key] ?? 0) + 1;
+    }
+    return c;
+  }, [leads]);
+
+  const funnelKeys = useMemo(
+    () =>
+      Object.keys(funnelCounts).sort((a, b) => {
+        if (a === 'Uncategorised') return 1;
+        if (b === 'Uncategorised') return -1;
+        return a.localeCompare(b);
+      }),
+    [funnelCounts],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return leads.filter((l) => {
       const cat = l.sourceCategory ?? sourceCategoryFor(l.source);
       if (!activeCategories.has(cat)) return false;
       if (!activeStages.has(l.stage)) return false;
+      if (activeFunnel.size > 0) {
+        const key = (l.category ?? '').trim() || 'Uncategorised';
+        if (!activeFunnel.has(key)) return false;
+      }
       if (q) {
         const hay = [
           l.fullName,
@@ -146,7 +278,7 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
       }
       return true;
     });
-  }, [leads, search, activeCategories, activeStages]);
+  }, [leads, search, activeCategories, activeStages, activeFunnel]);
 
   const sorted = useMemo(() => {
     const stageOrder: Record<string, number> = {
@@ -315,6 +447,119 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
               );
             })}
           </FilterSection>
+
+          {funnelKeys.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between px-1 pb-1.5">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium">
+                  Funnel
+                </div>
+                {activeFunnel.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveFunnel(new Set())}
+                    className="text-[10px] text-evari-dim hover:text-evari-text px-1.5 py-0.5 rounded hover:bg-evari-surfaceSoft"
+                  >
+                    clear
+                  </button>
+                )}
+              </div>
+              <div className="space-y-0.5">
+                {funnelKeys.map((key) => {
+                  const count = funnelCounts[key];
+                  const active = activeFunnel.has(key);
+                  const renaming = renamingFunnel === key;
+                  const busy = busyFunnel === key;
+                  return (
+                    <div
+                      key={key}
+                      className={cn(
+                        'group relative flex items-center rounded-md transition-colors',
+                        active
+                          ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                          : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
+                      )}
+                    >
+                      {renaming ? (
+                        <div className="flex-1 flex items-center gap-2 px-3 py-1 text-sm">
+                          <Folder className="h-3.5 w-3.5 shrink-0 text-evari-dimmer" />
+                          <input
+                            autoFocus
+                            value={funnelRenameValue}
+                            onChange={(e) => setFunnelRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void commitFunnelRename();
+                              if (e.key === 'Escape') {
+                                setRenamingFunnel(null);
+                                setFunnelRenameValue('');
+                              }
+                            }}
+                            onBlur={() => void commitFunnelRename()}
+                            className="flex-1 min-w-0 bg-transparent text-sm text-evari-text outline-none border-b border-evari-gold/60 focus:border-evari-gold"
+                          />
+                          {busy && (
+                            <Loader2 className="h-3 w-3 animate-spin text-evari-dim" />
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => toggleFunnel(key)}
+                            className="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-1.5 text-sm text-left"
+                          >
+                            <Folder
+                              className={cn(
+                                'h-3.5 w-3.5 shrink-0',
+                                active ? 'text-evari-text' : 'text-evari-dimmer',
+                              )}
+                            />
+                            <span className="flex-1 truncate">{key}</span>
+                            <CountPill n={count} />
+                          </button>
+                          <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingFunnel(key);
+                                setFunnelRenameValue(key);
+                              }}
+                              disabled={busy || key === 'Uncategorised'}
+                              title={
+                                key === 'Uncategorised'
+                                  ? 'Cannot rename Uncategorised'
+                                  : 'Rename folder'
+                              }
+                              className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void deleteFunnel(key);
+                              }}
+                              disabled={busy}
+                              title="Delete folder + all leads inside"
+                              className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-surface/60 disabled:opacity-30"
+                            >
+                              {busy ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
