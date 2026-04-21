@@ -276,6 +276,41 @@ body {
 }
 
 /* --------------------------------------------------------------------------
+   Selection policy — site-wide rule (Craig's ask):
+   "If something is not editable, it shouldn't be touchable by the mouse
+    or highlightable. Only an editable item, a text field, or an audio
+    field should be selectable."
+
+   Default every surface to user-select: none so UI chrome (labels, pills,
+   counts, buttons, stage badges, sidebar items, nav) can't be accidentally
+   drag-highlighted. Then opt in explicitly for:
+     - form inputs (input, textarea, select)
+     - contenteditable elements
+     - .prose-evari (chat replies + any rendered markdown)
+     - pre / code (copy code snippets)
+     - .selectable (manual opt-in for anything else that's really "content")
+   -------------------------------------------------------------------------- */
+html,
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea,
+select,
+[contenteditable='true'],
+[contenteditable=''],
+.selectable,
+.selectable *,
+.prose-evari,
+.prose-evari *,
+pre,
+code {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* --------------------------------------------------------------------------
    Light-mode readability: `text-evari-gold` AND `text-evari-warn` both resolve
    to an olive/amber that fails contrast on near-white surfaces. In light mode
    we force every text-gold / text-warn utility (base, hover, group-hover,

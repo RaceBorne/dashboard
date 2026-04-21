@@ -17,7 +17,7 @@ export default async function ProductsPage() {
   return (
     <>
       <TopBar title="Products" subtitle={`${products.length} products`} />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <ProductsClient
           initial={products}
           mock={!isShopifyConnected()}

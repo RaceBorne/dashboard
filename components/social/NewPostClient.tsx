@@ -105,7 +105,7 @@ export function NewPostClient() {
     format.captionMax != null && caption.length > format.captionMax;
 
   return (
-    <div className="p-6 max-w-[1400px] space-y-5">
+    <div className="p-6 space-y-5">
       {/* Back link */}
       <div>
         <Link

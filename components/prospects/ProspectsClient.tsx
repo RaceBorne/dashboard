@@ -148,7 +148,7 @@ export function ProspectsClient({
   const noneSelected = activeStatuses.size === 0;
 
   return (
-    <div className="flex gap-5 p-6 max-w-[1400px]">
+    <div className="flex gap-5 p-6">
       {/* Left filter sidebar */}
       <aside className="w-56 shrink-0">
         <div className="sticky top-4 space-y-5">

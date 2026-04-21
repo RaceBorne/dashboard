@@ -139,7 +139,7 @@ export function UsersClient({
   }
 
   return (
-    <div className="p-6 max-w-[1200px] space-y-5">
+    <div className="p-6 space-y-5">
       {/* Intro */}
       <section className="rounded-xl bg-evari-surface p-5 flex items-start justify-between gap-4">
         <div className="min-w-0">

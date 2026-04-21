@@ -1,40 +1,64 @@
 import { NextResponse } from 'next/server';
-import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
-import { morningBriefingPrompt } from '@/lib/ai/prompts';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
-import { buildBriefingPayload } from '@/lib/dashboard/briefing';
+import {
+  generateAndPersistBriefing,
+  readLatestBriefing,
+} from '@/lib/dashboard/briefing';
 
-const FALLBACK = `### Headline
-Mock briefing — AI Gateway is not connected.
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-**Pipeline.** A handful of warm leads are sat with you. James Pemberton is the closest to closing — test ride is booked Saturday and he is bringing his wife. Phoebe Carrington is on the bespoke quote, paint slot held until Friday. Aurora Architects in Bath has been waiting eight hours for a reply on six commuters.
-
-**Website.** Sessions are up week-on-week. The two real problems are the sitemap returning 500 since the last theme deploy, and the mobile LCP on the Tour PDP at 3.8 seconds. The first is hurting indexing. The second is hurting conversion.
-
-**Action for today.** Reply to Sarah Mitchell at Aurora Architects. Six commuters at corporate value is the highest-leverage conversation in the inbox.
-
-> _Connect AI_GATEWAY_API_KEY (or run \`vercel env pull\` to get a Vercel OIDC token) to replace this fallback with a freshly generated briefing in your voice._
-`;
-
+/**
+ * POST /api/briefing
+ *
+ * On-demand regenerate. Rebuilds the briefing payload from live data,
+ * calls Claude via the AI Gateway, and upserts into `dashboard_briefings`
+ * under today's date (Europe/London). A same-day regen replaces the
+ * cron-generated morning briefing — intentional; the latest snapshot is
+ * the most informed.
+ */
 export async function POST() {
-  const payload = await buildBriefingPayload(createSupabaseAdmin());
+  const supabase = createSupabaseAdmin();
+  const brief = await generateAndPersistBriefing(supabase, { source: 'manual' });
+  return NextResponse.json({
+    markdown: brief.markdown,
+    mock: brief.mock,
+    payload: brief.payload,
+    date: brief.date,
+    source: brief.source,
+  });
+}
 
-  if (!hasAIGatewayCredentials()) {
-    return NextResponse.json({ markdown: FALLBACK, mock: true, payload });
-  }
-
-  try {
-    const markdown = await generateBriefing({
-      task: 'Morning briefing for the founder',
-      voice: 'analyst',
-      prompt: morningBriefingPrompt(payload),
-    });
-    return NextResponse.json({ markdown, mock: false, payload });
-  } catch (err) {
+/**
+ * GET /api/briefing
+ *
+ * Returns the most recent persisted briefing without re-running Claude.
+ * The UI hits this on page load and only triggers POST when Craig asks
+ * for a refresh. If the table is empty (first run on a fresh env), we
+ * fall through to a regenerate so the user never sees an empty state.
+ */
+export async function GET() {
+  const supabase = createSupabaseAdmin();
+  const latest = await readLatestBriefing(supabase);
+  if (latest) {
     return NextResponse.json({
-      markdown: `${FALLBACK}\n\n> _Tried to call the AI Gateway and it failed: ${(err as Error).message}_`,
-      mock: true,
-      payload,
+      markdown: latest.markdown,
+      mock: latest.mock,
+      payload: latest.payload,
+      date: latest.date,
+      source: latest.source,
+      cached: true,
     });
   }
+  // First-run fallback — no briefings have been persisted yet, so generate
+  // one on the fly. This only costs an AI Gateway call once.
+  const fresh = await generateAndPersistBriefing(supabase, { source: 'manual' });
+  return NextResponse.json({
+    markdown: fresh.markdown,
+    mock: fresh.mock,
+    payload: fresh.payload,
+    date: fresh.date,
+    source: fresh.source,
+    cached: false,
+  });
 }

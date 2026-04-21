@@ -5,7 +5,10 @@ import {
   isGA4Connected,
   isGSCConnected,
 } from '@/lib/integrations/google';
+import { ingestGmailThreads, isGmailConnected } from '@/lib/integrations/gmail';
 import { ingestPSISnapshots, isPSIConnected } from '@/lib/integrations/pagespeed';
+import { generateAndPersistBriefing } from '@/lib/dashboard/briefing';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -63,6 +66,34 @@ export async function GET(request: Request) {
     }
   } else {
     steps.psi = { skipped: 'PSI not connected' };
+  }
+
+  // 4. Gmail thread summaries — last 30d of customer + outbound + klaviyo-reply
+  // threads. Feeds the briefing + strategy chat context.
+  if (isGmailConnected()) {
+    try {
+      steps.gmail = await ingestGmailThreads({ days: 30, maxThreads: 200 });
+    } catch (err) {
+      steps.gmail = { ok: false, error: errMessage(err) };
+    }
+  } else {
+    steps.gmail = { skipped: 'Gmail not connected' };
+  }
+
+  // 5. Morning briefing — runs AFTER the ingests above so the briefing sees
+  // today's fresh numbers. Failure is non-fatal — we still return success for
+  // the ingest steps, just flag the briefing as failed.
+  try {
+    const brief = await generateAndPersistBriefing(createSupabaseAdmin(), {
+      source: 'cron',
+    });
+    steps.briefing = {
+      date: brief.date,
+      mock: brief.mock,
+      markdownBytes: brief.markdown.length,
+    };
+  } catch (err) {
+    steps.briefing = { ok: false, error: errMessage(err) };
   }
 
   return NextResponse.json({

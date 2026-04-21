@@ -19,7 +19,7 @@ export default async function ArticlesIndexPage() {
   return (
     <>
       <TopBar title="Articles" subtitle={`${articles.length} articles`} />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <ArticlesClient
           initial={articles}
           blogs={blogs}

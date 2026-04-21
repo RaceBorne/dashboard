@@ -618,6 +618,21 @@ export interface GA4EventRow {
   users: number;
 }
 
+export interface GA4DeviceRow {
+  device: string; // mobile | desktop | tablet | smart_tv | ...
+  sessions: number;
+  users: number;
+  newUsers: number;
+  engagedSessions: number;
+}
+
+export interface GA4DemographicRow {
+  gender: string;
+  ageBracket: string;
+  users: number;
+  sessions: number;
+}
+
 function ga4PropertyId(): string {
   const id = process.env.GA4_PROPERTY_ID?.trim();
   if (!id) throw new Error('GA4_PROPERTY_ID is not set');
@@ -890,6 +905,88 @@ export async function fetchGA4Geo28d(
   return { propertyId, startDate, endDate, rows };
 }
 
+export async function fetchGA4Devices28d(
+  days = 28,
+  limit = 10,
+): Promise<{
+  propertyId: string;
+  startDate: string;
+  endDate: string;
+  rows: GA4DeviceRow[];
+}> {
+  const propertyId = ga4PropertyId();
+  const { startDate, endDate } = defaultGA4Window(days);
+  const report = await runGA4Report(propertyId, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [{ name: 'deviceCategory' }],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'totalUsers' },
+      { name: 'newUsers' },
+      { name: 'engagedSessions' },
+    ],
+    orderBys: [{ desc: true, metric: { metricName: 'sessions' } }],
+    limit,
+  });
+  const rows: GA4DeviceRow[] = (report.rows ?? []).map((row) => ({
+    device: row.dimensionValues[0]?.value ?? '(unknown)',
+    sessions: parseInt(row.metricValues[0]?.value ?? '0', 10) || 0,
+    users: parseInt(row.metricValues[1]?.value ?? '0', 10) || 0,
+    newUsers: parseInt(row.metricValues[2]?.value ?? '0', 10) || 0,
+    engagedSessions: parseInt(row.metricValues[3]?.value ?? '0', 10) || 0,
+  }));
+  return { propertyId, startDate, endDate, rows };
+}
+
+/**
+ * Gender + age bracket from GA4. Requires Google Signals — without it GA4
+ * returns zero rows and the UI falls back to an empty-state explanation.
+ * We swallow common "Signals not enabled" errors so the nightly ingest
+ * keeps running even when the property is freshly provisioned.
+ */
+export async function fetchGA4Demographics28d(
+  days = 28,
+  limit = 50,
+): Promise<{
+  propertyId: string;
+  startDate: string;
+  endDate: string;
+  rows: GA4DemographicRow[];
+  signalsEnabled: boolean;
+}> {
+  const propertyId = ga4PropertyId();
+  const { startDate, endDate } = defaultGA4Window(days);
+  try {
+    const report = await runGA4Report(propertyId, {
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: 'userGender' }, { name: 'userAgeBracket' }],
+      metrics: [{ name: 'totalUsers' }, { name: 'sessions' }],
+      orderBys: [{ desc: true, metric: { metricName: 'totalUsers' } }],
+      limit,
+    });
+    const rows: GA4DemographicRow[] = (report.rows ?? []).map((row) => ({
+      gender: (row.dimensionValues[0]?.value ?? 'unknown').toLowerCase(),
+      ageBracket: row.dimensionValues[1]?.value ?? 'unknown',
+      users: parseInt(row.metricValues[0]?.value ?? '0', 10) || 0,
+      sessions: parseInt(row.metricValues[1]?.value ?? '0', 10) || 0,
+    }));
+    return { propertyId, startDate, endDate, rows, signalsEnabled: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // GA4 returns 403 / "permission" style errors when Signals is off. Treat as
+    // "no data" so the caller can show the empty state hint.
+    if (
+      msg.includes('userGender') ||
+      msg.includes('userAgeBracket') ||
+      msg.includes('permission') ||
+      msg.includes('Signals')
+    ) {
+      return { propertyId, startDate, endDate, rows: [], signalsEnabled: false };
+    }
+    throw err;
+  }
+}
+
 /**
  * Nightly GA4 rollup. Upserts into:
  *   - dashboard_traffic_days        (one row per day, up to 365d)
@@ -900,6 +997,9 @@ export async function fetchGA4Geo28d(
  *   - dashboard_ga4_cities_28d      (truncated + reinserted per property)
  *   - dashboard_ga4_languages_28d   (truncated + reinserted per property)
  *   - dashboard_ga4_events_28d      (truncated + reinserted per property)
+ *   - dashboard_ga4_devices_28d     (truncated + reinserted per property)
+ *   - dashboard_ga4_demographics_28d (truncated + reinserted; may be empty
+ *     if Google Signals is not enabled on the property)
  *
  * Default window is 365 days for the day-level trend (used by the Traffic
  * page's 12-month KPI sparklines). The breakdown widgets all use the last 28d
@@ -917,6 +1017,8 @@ export async function ingestGA4Rollup(opts: {
   maxCities?: number;
   maxLanguages?: number;
   maxEvents?: number;
+  maxDevices?: number;
+  maxDemographics?: number;
 } = {}): Promise<{
   propertyId: string;
   startDate: string;
@@ -929,6 +1031,8 @@ export async function ingestGA4Rollup(opts: {
   cities: { fetched: number; written: number };
   languages: { fetched: number; written: number };
   events: { fetched: number; written: number };
+  devices: { fetched: number; written: number };
+  demographics: { fetched: number; written: number; signalsEnabled: boolean };
   durationMs: number;
 }> {
   const startedAt = Date.now();
@@ -941,16 +1045,19 @@ export async function ingestGA4Rollup(opts: {
   }
 
   // Fan out every GA4 report in parallel — each is its own API call.
-  const [traffic, sources, pages, geo, channels, cities, languages, events] = await Promise.all([
-    fetchGA4TrafficDays(days),
-    fetchGA4Sources28d(28, opts.maxSources ?? 50),
-    fetchGA4Pages28d(28, opts.maxPages ?? 100),
-    fetchGA4Geo28d(28, opts.maxGeo ?? 250),
-    fetchGA4Channels28d(28, opts.maxChannels ?? 20),
-    fetchGA4Cities28d(28, opts.maxCities ?? 200),
-    fetchGA4Languages28d(28, opts.maxLanguages ?? 20),
-    fetchGA4Events28d(28, opts.maxEvents ?? 30),
-  ]);
+  const [traffic, sources, pages, geo, channels, cities, languages, events, devices, demographics] =
+    await Promise.all([
+      fetchGA4TrafficDays(days),
+      fetchGA4Sources28d(28, opts.maxSources ?? 50),
+      fetchGA4Pages28d(28, opts.maxPages ?? 100),
+      fetchGA4Geo28d(28, opts.maxGeo ?? 250),
+      fetchGA4Channels28d(28, opts.maxChannels ?? 20),
+      fetchGA4Cities28d(28, opts.maxCities ?? 200),
+      fetchGA4Languages28d(28, opts.maxLanguages ?? 20),
+      fetchGA4Events28d(28, opts.maxEvents ?? 30),
+      fetchGA4Devices28d(28, opts.maxDevices ?? 10),
+      fetchGA4Demographics28d(28, opts.maxDemographics ?? 50),
+    ]);
 
   const propertyId = traffic.propertyId;
 
@@ -1182,6 +1289,108 @@ export async function ingestGA4Rollup(opts: {
     }
   }
 
+  // Helper: does this Supabase error indicate the table just doesn't exist
+  // yet? PostgREST surfaces it as "Could not find the table '...' in the
+  // schema cache" (error code PGRST205); Postgres surfaces it as
+  // "relation ... does not exist" (42P01). We degrade gracefully for both
+  // so the first ingest after adding a migration doesn't hard-fail.
+  const isTableMissing = (err: { message?: string; code?: string } | null): boolean => {
+    if (!err) return false;
+    if (err.code === 'PGRST205' || err.code === '42P01') return true;
+    const msg = err.message ?? '';
+    return (
+      /relation .* does not exist/i.test(msg) ||
+      /could not find the table/i.test(msg) ||
+      /schema cache/i.test(msg)
+    );
+  };
+
+  // 9. Devices. Truncate + reinsert per property.
+  let writtenDevices = 0;
+  let devicesMissing = false;
+  const delDevices = await supa
+    .from('dashboard_ga4_devices_28d')
+    .delete()
+    .eq('property_id', propertyId);
+  if (delDevices.error) {
+    if (isTableMissing(delDevices.error)) {
+      devicesMissing = true;
+      console.warn(
+        '[ga4 ingest] dashboard_ga4_devices_28d not found — run `npm run db:migrate:ga4-devices-demo` to create it.',
+      );
+    } else {
+      throw new Error(`GA4 devices clear failed: ${delDevices.error.message}`);
+    }
+  }
+  if (!devicesMissing && devices.rows.length > 0) {
+    const payload = devices.rows.map((r, idx) => ({
+      property_id: propertyId,
+      device: r.device,
+      sessions: r.sessions,
+      users: r.users,
+      new_users: r.newUsers,
+      engaged_sessions: r.engagedSessions,
+      window_start: devices.startDate,
+      window_end: devices.endDate,
+      sort_order: idx + 1,
+    }));
+    const ins = await supa.from('dashboard_ga4_devices_28d').insert(payload);
+    if (ins.error) {
+      if (!isTableMissing(ins.error)) {
+        throw new Error(`GA4 devices insert failed: ${ins.error.message}`);
+      }
+    } else {
+      writtenDevices = payload.length;
+    }
+  }
+
+  // 10. Demographics (may be empty if Google Signals is off).
+  let writtenDemographics = 0;
+  let demoMissing = false;
+  const delDemo = await supa
+    .from('dashboard_ga4_demographics_28d')
+    .delete()
+    .eq('property_id', propertyId);
+  if (delDemo.error) {
+    if (isTableMissing(delDemo.error)) {
+      demoMissing = true;
+      console.warn(
+        '[ga4 ingest] dashboard_ga4_demographics_28d not found — run `npm run db:migrate:ga4-devices-demo` to create it.',
+      );
+    } else {
+      throw new Error(`GA4 demographics clear failed: ${delDemo.error.message}`);
+    }
+  }
+  if (!demoMissing && demographics.rows.length > 0) {
+    const seen = new Set<string>();
+    const payload: Array<Record<string, unknown>> = [];
+    demographics.rows.forEach((r, idx) => {
+      const key = `${r.gender}|${r.ageBracket}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      payload.push({
+        property_id: propertyId,
+        gender: r.gender,
+        age_bracket: r.ageBracket,
+        users: r.users,
+        sessions: r.sessions,
+        window_start: demographics.startDate,
+        window_end: demographics.endDate,
+        sort_order: idx + 1,
+      });
+    });
+    if (payload.length > 0) {
+      const ins = await supa.from('dashboard_ga4_demographics_28d').insert(payload);
+      if (ins.error) {
+        if (!isTableMissing(ins.error)) {
+          throw new Error(`GA4 demographics insert failed: ${ins.error.message}`);
+        }
+      } else {
+        writtenDemographics = payload.length;
+      }
+    }
+  }
+
   const durationMs = Date.now() - startedAt;
 
   // Sync log.
@@ -1209,6 +1418,12 @@ export async function ingestGA4Rollup(opts: {
     cities: { fetched: cities.rows.length, written: writtenCities },
     languages: { fetched: languages.rows.length, written: writtenLanguages },
     events: { fetched: events.rows.length, written: writtenEvents },
+    devices: { fetched: devices.rows.length, written: writtenDevices },
+    demographics: {
+      fetched: demographics.rows.length,
+      written: writtenDemographics,
+      signalsEnabled: demographics.signalsEnabled,
+    },
     durationMs,
   };
 }

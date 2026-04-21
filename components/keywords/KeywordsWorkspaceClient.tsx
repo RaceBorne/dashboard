@@ -1,31 +1,20 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
-  RefreshCw,
   Trash2,
-  Globe,
-  User,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   X,
-  Target,
+  ExternalLink,
+  Trophy,
+  GitCompareArrows,
+  Link2,
+  Gauge,
+  List,
+  LayoutGrid,
+  MessageSquare,
 } from 'lucide-react';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from 'recharts';
-
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,7 +35,14 @@ import type {
   KeywordMember,
   KeywordWorkspace,
 } from '@/lib/keywords/workspace';
-import { CompetitorGrid } from './CompetitorGrid';
+import { CompetitorSidebar } from './CompetitorSidebar';
+import {
+  CompetitorDetail,
+  BacklinksTab,
+  TrafficTab,
+  TabButton,
+} from './CompetitorDetail';
+import { KeywordStrategyChat } from './KeywordStrategyChat';
 
 // -----------------------------------------------------------------------------
 // Interactive Keywords workspace: lists + members + charts + inline CRUD.
@@ -56,46 +52,22 @@ interface Props {
   workspace: KeywordWorkspace;
 }
 
-type LeaderboardMode = 'all' | 'we-beat-them' | 'they-beat-us' | 'missing';
+type TopTab = 'workspace' | 'strategy';
 
 export function KeywordsWorkspaceClient({ workspace }: Props) {
   const router = useRouter();
   const [activeListId, setActiveListId] = useState<number | null>(
     workspace.lists[0]?.id ?? null,
   );
+  const [topTab, setTopTab] = useState<TopTab>('workspace');
   const [busy, startTransition] = useTransition();
-  const [mode, setMode] = useState<LeaderboardMode>('all');
   const [addKwOpen, setAddKwOpen] = useState(false);
   const [newListOpen, setNewListOpen] = useState(false);
+  const [editList, setEditList] = useState<KeywordList | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const activeList = workspace.lists.find((l) => l.id === activeListId) ?? null;
   const members = activeListId != null ? workspace.membersByList[activeListId] ?? [] : [];
-
-  // Competitor lists get a richer filter set (we/they/missing). Own lists
-  // show just "all".
-  const filteredMembers = useMemo(() => {
-    if (!activeList || activeList.kind === 'own') return members;
-    switch (mode) {
-      case 'we-beat-them':
-        return members.filter(
-          (m) =>
-            m.ourPosition != null &&
-            m.theirPosition != null &&
-            m.ourPosition < m.theirPosition,
-        );
-      case 'they-beat-us':
-        return members.filter(
-          (m) =>
-            m.theirPosition != null &&
-            (m.ourPosition == null || m.ourPosition > m.theirPosition),
-        );
-      case 'missing':
-        return members.filter((m) => m.ourPosition == null);
-      default:
-        return members;
-    }
-  }, [members, mode, activeList]);
 
   async function refresh() {
     router.refresh();
@@ -214,47 +186,75 @@ export function KeywordsWorkspaceClient({ workspace }: Props) {
   }
 
   return (
-    <div className="px-6 pt-6 pb-10 space-y-5">
-      {error ? (
-        <div className="rounded-md bg-evari-danger/10 text-evari-danger text-sm px-4 py-3 flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} aria-label="Dismiss">
-            <X className="h-4 w-4" />
-          </button>
+    <div className="flex flex-col min-h-[calc(100vh-4rem)]">
+      <TopTabBar tab={topTab} setTab={setTopTab} />
+
+      {topTab === 'strategy' ? (
+        <KeywordStrategyChat workspace={workspace} />
+      ) : (
+        <div className="flex flex-1 min-h-0">
+          <CompetitorSidebar
+            lists={workspace.lists}
+            activeListId={activeListId}
+            onSelect={setActiveListId}
+            onAddCompetitor={() => setNewListOpen(true)}
+            onSyncAll={syncAllCompetitors}
+            onEditList={(l) => setEditList(l)}
+            busy={busy}
+          />
+
+          <main className="flex-1 min-w-0 flex flex-col">
+        {error ? (
+          <div className="mx-6 mt-4 rounded-md bg-evari-danger/10 text-evari-danger text-sm px-4 py-3 flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} aria-label="Dismiss">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+
+        {activeList == null ? (
+          <div className="flex-1 flex items-center justify-center px-6 py-16">
+            <div className="text-center max-w-sm">
+              <p className="text-sm text-evari-dim">
+                Select a competitor from the sidebar, or add one to start tracking.
+              </p>
+              <Button
+                variant="primary"
+                size="sm"
+                className="mt-3"
+                onClick={() => setNewListOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" /> Add competitor
+              </Button>
+            </div>
+          </div>
+        ) : activeList.kind === 'competitor' ? (
+          <CompetitorDetail
+            list={activeList}
+            members={members}
+            workspace={workspace}
+            busy={busy}
+            onAddKeyword={() => setAddKwOpen(true)}
+            onRunIngest={() => runIngest(activeList)}
+            onDeleteList={() => deleteList(activeList)}
+          />
+        ) : (
+          <div className="flex-1 min-w-0 px-4 pt-6 pb-10 space-y-5 overflow-x-hidden">
+            <ListActiveView
+              list={activeList}
+              members={members}
+              workspace={workspace}
+              busy={busy}
+              onAddKeyword={() => setAddKwOpen(true)}
+              onRemoveMember={(kw) => removeMember(activeList.id, kw)}
+              onDeleteList={() => deleteList(activeList)}
+            />
+          </div>
+        )}
+          </main>
         </div>
-      ) : null}
-
-      <CompetitorGrid
-        lists={workspace.lists}
-        activeListId={activeListId}
-        onSelect={setActiveListId}
-        onAddCompetitor={() => setNewListOpen(true)}
-        busy={busy}
-        onSyncOne={runIngest}
-        onSyncAll={syncAllCompetitors}
-      />
-
-      <ListTabs
-        lists={workspace.lists}
-        activeListId={activeListId}
-        onSelect={setActiveListId}
-        onNew={() => setNewListOpen(true)}
-      />
-
-      {activeList ? (
-        <ListActiveView
-          list={activeList}
-          members={members}
-          filteredMembers={filteredMembers}
-          mode={mode}
-          setMode={setMode}
-          busy={busy}
-          onAddKeyword={() => setAddKwOpen(true)}
-          onRunIngest={() => runIngest(activeList)}
-          onRemoveMember={(kw) => removeMember(activeList.id, kw)}
-          onDeleteList={() => deleteList(activeList)}
-        />
-      ) : null}
+      )}
 
       <AddKeywordDialog
         open={addKwOpen}
@@ -270,136 +270,115 @@ export function KeywordsWorkspaceClient({ workspace }: Props) {
           refresh();
         }}
       />
+      <EditListDialog
+        list={editList}
+        onOpenChange={(open) => {
+          if (!open) setEditList(null);
+        }}
+        onDone={() => {
+          setEditList(null);
+          refresh();
+        }}
+      />
     </div>
   );
 }
 
 // -----------------------------------------------------------------------------
-// Tabs across the top — one per list.
-// -----------------------------------------------------------------------------
-
-function ListTabs({
-  lists,
-  activeListId,
-  onSelect,
-  onNew,
-}: {
-  lists: KeywordList[];
-  activeListId: number | null;
-  onSelect: (id: number) => void;
-  onNew: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-      {lists.map((l) => {
-        const active = l.id === activeListId;
-        const Icon = l.kind === 'own' ? User : Globe;
-        return (
-          <button
-            key={l.id}
-            onClick={() => onSelect(l.id)}
-            className={cn(
-              'inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors whitespace-nowrap',
-              active
-                ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                : 'bg-transparent text-evari-dim hover:bg-evari-surface hover:text-evari-text',
-            )}
-          >
-            <Icon className={cn('h-3.5 w-3.5', l.kind === 'own' ? 'text-evari-gold' : 'text-evari-accent')} />
-            <span>{l.label}</span>
-            <span
-              className={cn(
-                'inline-flex items-center justify-center h-4 min-w-[18px] px-1 text-[10px] tabular-nums rounded-full',
-                active ? 'bg-evari-surface text-evari-dim' : 'bg-evari-surfaceSoft text-evari-dimmer',
-              )}
-            >
-              {l.memberCount}
-            </span>
-          </button>
-        );
-      })}
-      <button
-        onClick={onNew}
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-evari-dim hover:text-evari-text hover:bg-evari-surface transition-colors whitespace-nowrap"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        New list
-      </button>
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// The active list's stats, charts, and table.
+// The active "own" list view. Matches the competitor AllKeywordsTab column
+// layout — same dense table, same info, just no "Them" column because there's
+// nothing to compare against on an own list.
 // -----------------------------------------------------------------------------
 
 function ListActiveView({
   list,
   members,
-  filteredMembers,
-  mode,
-  setMode,
+  workspace,
   busy,
   onAddKeyword,
-  onRunIngest,
   onRemoveMember,
   onDeleteList,
 }: {
   list: KeywordList;
   members: KeywordMember[];
-  filteredMembers: KeywordMember[];
-  mode: LeaderboardMode;
-  setMode: (m: LeaderboardMode) => void;
+  workspace: KeywordWorkspace;
   busy: boolean;
   onAddKeyword: () => void;
-  onRunIngest: () => void;
   onRemoveMember: (keyword: string) => void;
   onDeleteList: () => void;
 }) {
-  const stats = computeStats(members);
-  const intentData = bucketBy(members, (m) => m.searchIntent || 'unknown');
-  const priorityData = bucketBy(members, (m) => priorityBucket(m));
-  const featuresData = bucketFeatures(members);
-  const topByVolume = [...members]
-    .filter((m) => m.searchVolume != null)
-    .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0))
-    .slice(0, 10);
+  const [tab, setTab] = useState<'all' | 'wins' | 'backlinks' | 'traffic'>('all');
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const base = q ? members.filter((m) => m.keyword.includes(q)) : members;
+    // Sort by our position (best first), nulls last, then volume desc.
+    return [...base].sort((a, b) => {
+      const ap = a.ourPosition ?? Number.POSITIVE_INFINITY;
+      const bp = b.ourPosition ?? Number.POSITIVE_INFINITY;
+      if (ap !== bp) return ap - bp;
+      return (b.searchVolume ?? 0) - (a.searchVolume ?? 0);
+    });
+  }, [members, search]);
+
+  // Equivalent stats for the Own side — same shape the competitor view uses,
+  // but computed off `ourPosition` instead of `theirPosition`.
+  const trafficStats = useMemo(() => estimateOwnTraffic(members), [members]);
+  const keywordsWeWin = useMemo(
+    () =>
+      members
+        .filter((m) => m.ourPosition != null && m.ourPosition <= 10)
+        .sort((a, b) => (a.ourPosition ?? 999) - (b.ourPosition ?? 999)),
+    [members],
+  );
+  const top3Count = useMemo(
+    () => members.filter((m) => m.ourPosition != null && m.ourPosition <= 3).length,
+    [members],
+  );
+
+  // Our own backlinks + top pages (evari.cc), looked up via the same maps the
+  // competitor view uses. Will be null / [] if we haven't synced backlinks or
+  // ranked keywords for our own domain.
+  const target = (list.targetDomain ?? '').toLowerCase();
+  const backlinks = target ? workspace.backlinksByDomain[target] ?? null : null;
+  const referring = target ? workspace.referringDomainsByDomain[target] ?? [] : [];
+  const topPages = target ? workspace.topPagesByDomain[target] ?? [] : [];
 
   return (
     <>
-      {/* Header: title + sync info + actions */}
+      {/* Header — mirrors the competitor layout: title + badge + meta line,
+          actions on the right. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-medium text-evari-text">{list.label}</h2>
-            <Badge variant={list.kind === 'own' ? 'gold' : 'accent'}>
-              {list.kind === 'own' ? 'Us' : list.targetDomain}
-            </Badge>
-            <span className="text-xs text-evari-dimmer">
-              {localeLabel(list.locationCode, list.languageCode)}
-            </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="text-lg font-medium text-evari-text truncate">{list.label}</h2>
+            <Badge variant="gold">Us</Badge>
+            {list.targetDomain ? (
+              <a
+                href={`https://${list.targetDomain}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-evari-dimmer hover:text-evari-text"
+                aria-label={`Visit ${list.targetDomain}`}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ) : null}
           </div>
           {list.notes ? (
             <p className="mt-1 text-xs text-evari-dim max-w-2xl">{list.notes}</p>
           ) : null}
           <p className="mt-0.5 text-[11px] text-evari-dimmer">
             {list.lastSyncedAt
-              ? `Last synced ${relativeTime(list.lastSyncedAt)} · $${(list.lastSyncCostUsd ?? 0).toFixed(3)}`
-              : list.kind === 'competitor'
-                ? 'Not synced yet — run ingest to pull ranked keywords.'
-                : 'Market data pulled via DataForSEO keyword ingest.'}
+              ? `Last synced ${relativeTime(list.lastSyncedAt)}`
+              : 'Market data pulled via DataForSEO keyword ingest.'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={onAddKeyword} disabled={busy}>
             <Plus className="h-3.5 w-3.5" /> Add keyword
           </Button>
-          {list.kind === 'competitor' ? (
-            <Button variant="primary" size="sm" onClick={onRunIngest} disabled={busy}>
-              <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
-              Pull ranked keywords
-            </Button>
-          ) : null}
           {list.slug !== 'our-keywords' ? (
             <Button variant="ghost" size="sm" onClick={onDeleteList} disabled={busy}>
               <Trash2 className="h-3.5 w-3.5" />
@@ -409,254 +388,388 @@ function ListActiveView({
         </div>
       </div>
 
-      {/* Stat tiles */}
+      {/* Headline stat tiles — identical shape/styling to the competitor view
+          (4 tiles, same grid, same icons + tones). Numbers swapped for our
+          own positions + our domain's backlinks. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatTile
-          icon={<Target className="h-4 w-4" />}
+          icon={<Trophy className="h-4 w-4" />}
+          iconTone="text-evari-gold"
+          value={keywordsWeWin.length.toLocaleString('en-GB')}
+          unit="keywords we win"
+          helper={`of ${members.length} tracked`}
+        />
+        <StatTile
+          icon={<GitCompareArrows className="h-4 w-4" />}
           iconTone="text-evari-accent"
-          value={stats.total.toLocaleString('en-GB')}
-          unit="keywords"
+          value={top3Count.toLocaleString('en-GB')}
+          unit="top-3"
           helper={
-            stats.trackedHere > 0
-              ? `${stats.trackedHere} SERP-tracked`
-              : 'None SERP-tracked yet'
+            keywordsWeWin.length > 0
+              ? `${Math.round((top3Count / keywordsWeWin.length) * 100)}% of wins`
+              : 'Positions 1–3'
           }
         />
         <StatTile
-          icon={<TrendingUp className="h-4 w-4" />}
-          iconTone="text-evari-gold"
-          value={stats.totalVolume.toLocaleString('en-GB')}
-          unit="/mo"
-          helper={`Avg ${Math.round(stats.avgVolume).toLocaleString('en-GB')} per keyword`}
+          icon={<Link2 className="h-4 w-4" />}
+          iconTone="text-evari-accent"
+          value={
+            backlinks
+              ? (backlinks.referringDomains || 0).toLocaleString('en-GB')
+              : '—'
+          }
+          unit="ref domains"
+          helper={
+            backlinks
+              ? `${(backlinks.backlinks || 0).toLocaleString('en-GB')} total links`
+              : 'No backlinks data yet'
+          }
         />
         <StatTile
-          icon={<Minus className="h-4 w-4" />}
-          iconTone={kdTone(stats.avgDifficulty)}
-          value={stats.avgDifficulty != null ? Math.round(stats.avgDifficulty) : '—'}
-          unit="avg KD"
-          helper={kdLabel(stats.avgDifficulty)}
+          icon={<Gauge className="h-4 w-4" />}
+          iconTone="text-evari-success"
+          value={Math.round(trafficStats.estMonthly).toLocaleString('en-GB')}
+          unit="est. traffic/mo"
+          helper={`Across ${trafficStats.rankingKeywords} ranking keywords`}
         />
-        {list.kind === 'competitor' ? (
-          <StatTile
-            icon={<Globe className="h-4 w-4" />}
-            iconTone="text-evari-accent"
-            value={`${stats.weBeatThem}/${stats.overlap || 0}`}
-            unit="we lead"
-            helper={
-              stats.overlap > 0
-                ? `${Math.round((stats.weBeatThem / stats.overlap) * 100)}% of overlap`
-                : 'No SERP overlap yet'
-            }
-          />
-        ) : (
-          <StatTile
-            icon={<User className="h-4 w-4" />}
-            iconTone="text-evari-success"
-            value={stats.avgPosition != null ? stats.avgPosition.toFixed(1) : '—'}
-            unit="avg rank"
-            helper={`${stats.top10} in top 10`}
-          />
-        )}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Search intent</CardTitle>
-          </CardHeader>
-          <CardContent className="h-52">
-            <DonutChart data={intentData} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Priority mix</CardTitle>
-          </CardHeader>
-          <CardContent className="h-52">
-            <DonutChart data={priorityData} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Top SERP features</CardTitle>
-          </CardHeader>
-          <CardContent className="h-52">
-            {featuresData.length > 0 ? (
-              <DonutChart data={featuresData} />
-            ) : (
-              <EmptyChart message="No SERP features tracked yet." />
-            )}
-          </CardContent>
-        </Card>
+      {/* Tab bar — same four-tab layout as the competitor view. Overlap is
+          gone from both sides; the remaining four tabs mirror one-for-one. */}
+      <div className="flex items-center gap-1 border-b border-evari-surfaceSoft">
+        <TabButton
+          active={tab === 'all'}
+          onClick={() => setTab('all')}
+          icon={<List className="h-3.5 w-3.5" />}
+          label="All keywords"
+          count={members.length}
+        />
+        <TabButton
+          active={tab === 'wins'}
+          onClick={() => setTab('wins')}
+          icon={<Trophy className="h-3.5 w-3.5" />}
+          label="Keywords we win"
+          count={keywordsWeWin.length}
+        />
+        <TabButton
+          active={tab === 'backlinks'}
+          onClick={() => setTab('backlinks')}
+          icon={<Link2 className="h-3.5 w-3.5" />}
+          label="Backlink profile"
+          count={backlinks ? backlinks.referringDomains : null}
+        />
+        <TabButton
+          active={tab === 'traffic'}
+          onClick={() => setTab('traffic')}
+          icon={<Gauge className="h-3.5 w-3.5" />}
+          label="Traffic + pages"
+          count={topPages.length}
+        />
       </div>
 
-      {/* Bar chart row */}
-      <Card>
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm">Top 10 by monthly volume</CardTitle>
-          <span className="text-[11px] text-evari-dimmer">UK / en</span>
+      {/* Tab contents */}
+      {tab === 'all' ? (
+        // Full keyword dump — identical column layout to the competitor's
+        // AllKeywordsTab minus the "Them" column.
+        <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-sm">Every keyword we track</CardTitle>
+            <p className="text-xs text-evari-dimmer">
+              {filtered.length.toLocaleString('en-GB')} of{' '}
+              {members.length.toLocaleString('en-GB')} shown. Sorted by our
+              search rank.
+            </p>
+          </div>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter keywords…"
+            className="h-8 w-48 rounded-md bg-evari-surface border border-evari-surfaceSoft px-2.5 text-xs text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:ring-1 focus:ring-evari-accent"
+          />
         </CardHeader>
-        <CardContent className="h-64">
-          {topByVolume.length > 0 ? (
-            <VolumeBarChart data={topByVolume} />
+        <CardContent className="px-0">
+          {members.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-evari-dim">
+              No keywords yet. Click{' '}
+              <span className="font-medium">Add keyword</span> to start tracking.
+            </div>
           ) : (
-            <EmptyChart message="No volume data yet — run the keyword ingest." />
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm table-fixed">
+                <colgroup>
+                  <col className="w-12" /> {/* Us */}
+                  <col /> {/* Keyword + URL */}
+                  <col className="w-20" /> {/* Volume */}
+                  <col className="w-12" /> {/* KD */}
+                  <col className="w-16" /> {/* CPC */}
+                  <col className="w-16" /> {/* Comp */}
+                  <col className="w-24" /> {/* Intent */}
+                  <col className="w-20" /> {/* Est. traffic */}
+                  <col className="w-10" /> {/* Remove */}
+                </colgroup>
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-[0.1em] text-evari-dimmer border-b border-evari-surfaceSoft">
+                    <th className="text-right font-medium px-2 py-2">Us</th>
+                    <th className="text-left font-medium px-3 py-2">Keyword / page</th>
+                    <th className="text-right font-medium px-2 py-2">Volume</th>
+                    <th className="text-right font-medium px-2 py-2">KD</th>
+                    <th className="text-right font-medium px-2 py-2">CPC</th>
+                    <th
+                      className="text-right font-medium px-2 py-2"
+                      title="Paid search competition (0–1)"
+                    >
+                      Comp
+                    </th>
+                    <th className="text-left font-medium px-2 py-2">Intent</th>
+                    <th
+                      className="text-right font-medium px-2 py-2"
+                      title="Estimated monthly visits = volume × CTR at our rank"
+                    >
+                      Est. traffic
+                    </th>
+                    <th className="px-2 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((m) => {
+                    const estTraffic =
+                      m.ourPosition != null && m.searchVolume != null
+                        ? m.searchVolume * ctrFor(m.ourPosition)
+                        : null;
+                    return (
+                      <tr
+                        key={m.keyword}
+                        className="border-b border-evari-surface/40 hover:bg-evari-surface/30 align-top"
+                      >
+                        <td className="px-2 py-2 text-right tabular-nums">
+                          <PositionCell pos={m.ourPosition} />
+                        </td>
+                        <td className="px-3 py-2 min-w-0">
+                          <div
+                            className="font-medium text-evari-text truncate"
+                            title={m.keyword}
+                          >
+                            {m.keyword}
+                          </div>
+                          {m.ourUrl ? (
+                            <a
+                              href={m.ourUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-0.5 flex items-center gap-1 text-[11px] text-evari-dimmer hover:text-evari-accent truncate"
+                              title={m.ourUrl}
+                            >
+                              <span className="truncate">{prettyPath(m.ourUrl)}</span>
+                              <ExternalLink className="h-2.5 w-2.5 opacity-60 shrink-0" />
+                            </a>
+                          ) : null}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums text-evari-dim">
+                          {m.searchVolume != null
+                            ? m.searchVolume.toLocaleString('en-GB')
+                            : '—'}
+                        </td>
+                        <td
+                          className={cn(
+                            'px-2 py-2 text-right tabular-nums',
+                            kdTone(m.keywordDifficulty),
+                          )}
+                        >
+                          {m.keywordDifficulty ?? '—'}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums text-evari-dim">
+                          {m.cpc != null ? `£${m.cpc.toFixed(2)}` : '—'}
+                        </td>
+                        <td
+                          className={cn(
+                            'px-2 py-2 text-right tabular-nums',
+                            compTone(m.competition),
+                          )}
+                        >
+                          {m.competition != null ? m.competition.toFixed(2) : '—'}
+                        </td>
+                        <td className="px-2 py-2">
+                          {m.searchIntent ? (
+                            <Badge variant="outline" className="text-[10px]">
+                              {m.searchIntent}
+                            </Badge>
+                          ) : (
+                            <span className="text-evari-dimmer text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums text-evari-text">
+                          {estTraffic != null
+                            ? Math.round(estTraffic).toLocaleString('en-GB')
+                            : '—'}
+                        </td>
+                        <td className="px-2 py-2 text-right">
+                          <button
+                            onClick={() => onRemoveMember(m.keyword)}
+                            aria-label={`Remove ${m.keyword}`}
+                            className="text-evari-dimmer hover:text-evari-danger transition-colors"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Leaderboard filter (competitor lists only) */}
-      {list.kind === 'competitor' ? (
-        <LeaderboardFilter mode={mode} setMode={setMode} stats={stats} />
-      ) : null}
-
-      {/* Members table */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">
-            {filteredMembers.length} keyword{filteredMembers.length === 1 ? '' : 's'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-0">
-          <MembersTable
-            list={list}
-            members={filteredMembers}
-            onRemove={onRemoveMember}
-          />
-        </CardContent>
-      </Card>
+      ) : tab === 'wins' ? (
+        <KeywordsWeWinTab rows={keywordsWeWin} onRemoveMember={onRemoveMember} />
+      ) : tab === 'backlinks' ? (
+        <BacklinksTab summary={backlinks} referring={referring} target={target} />
+      ) : (
+        <TrafficTab stats={trafficStats} topPages={topPages} target={target} />
+      )}
     </>
   );
 }
 
 // -----------------------------------------------------------------------------
-// Stats computation.
+// Keywords we win — our top-10 rankings, parallel to the competitor's
+// KeywordsTheyWinTab. Sorted by our position (best wins first).
 // -----------------------------------------------------------------------------
 
-interface Stats {
-  total: number;
-  trackedHere: number;
-  totalVolume: number;
-  avgVolume: number;
-  avgDifficulty: number | null;
-  avgPosition: number | null;
-  top10: number;
-  weBeatThem: number;
-  theyBeatUs: number;
-  overlap: number;
-  missing: number;
+function KeywordsWeWinTab({
+  rows,
+  onRemoveMember,
+}: {
+  rows: KeywordMember[];
+  onRemoveMember: (keyword: string) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">Keywords we rank top-10 for</CardTitle>
+        <p className="text-xs text-evari-dimmer">
+          Sorted by our position (best first). These are the wins worth defending.
+        </p>
+      </CardHeader>
+      <CardContent className="px-0">
+        {rows.length === 0 ? (
+          <div className="px-5 py-10 text-center text-sm text-evari-dim">
+            No top-10 rankings yet. Once DataForSEO has a SERP snapshot for
+            your keywords, wins will show up here.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-[0.1em] text-evari-dimmer border-b border-evari-surfaceSoft">
+                  <th className="text-right font-medium px-5 py-2">Our rank</th>
+                  <th className="text-left font-medium px-3 py-2">Keyword / page</th>
+                  <th className="text-right font-medium px-3 py-2">Volume</th>
+                  <th className="text-right font-medium px-3 py-2">KD</th>
+                  <th className="text-right font-medium px-3 py-2">CPC</th>
+                  <th className="text-left font-medium px-3 py-2">Intent</th>
+                  <th
+                    className="text-right font-medium px-3 py-2 pr-5"
+                    title="Estimated monthly visits = volume × CTR at our rank"
+                  >
+                    Est. traffic
+                  </th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((m) => {
+                  const estTraffic =
+                    m.ourPosition != null && m.searchVolume != null
+                      ? m.searchVolume * ctrFor(m.ourPosition)
+                      : null;
+                  return (
+                    <tr
+                      key={m.keyword}
+                      className="border-b border-evari-surface/40 hover:bg-evari-surface/30 align-top"
+                    >
+                      <td className="px-5 py-2 text-right tabular-nums">
+                        <PositionCell pos={m.ourPosition} />
+                      </td>
+                      <td className="px-3 py-2 min-w-0">
+                        <div
+                          className="font-medium text-evari-text truncate"
+                          title={m.keyword}
+                        >
+                          {m.keyword}
+                        </div>
+                        {m.ourUrl ? (
+                          <a
+                            href={m.ourUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-0.5 flex items-center gap-1 text-[11px] text-evari-dimmer hover:text-evari-accent truncate"
+                            title={m.ourUrl}
+                          >
+                            <span className="truncate">{prettyPath(m.ourUrl)}</span>
+                            <ExternalLink className="h-2.5 w-2.5 opacity-60 shrink-0" />
+                          </a>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-evari-dim">
+                        {m.searchVolume != null
+                          ? m.searchVolume.toLocaleString('en-GB')
+                          : '—'}
+                      </td>
+                      <td
+                        className={cn(
+                          'px-3 py-2 text-right tabular-nums',
+                          kdTone(m.keywordDifficulty),
+                        )}
+                      >
+                        {m.keywordDifficulty ?? '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-evari-dim">
+                        {m.cpc != null ? `£${m.cpc.toFixed(2)}` : '—'}
+                      </td>
+                      <td className="px-3 py-2">
+                        {m.searchIntent ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            {m.searchIntent}
+                          </Badge>
+                        ) : (
+                          <span className="text-evari-dimmer text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 pr-5 text-right tabular-nums text-evari-text">
+                        {estTraffic != null
+                          ? Math.round(estTraffic).toLocaleString('en-GB')
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => onRemoveMember(m.keyword)}
+                          aria-label={`Remove ${m.keyword}`}
+                          className="text-evari-dimmer hover:text-evari-danger transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
-function computeStats(members: KeywordMember[]): Stats {
-  if (members.length === 0) {
-    return {
-      total: 0,
-      trackedHere: 0,
-      totalVolume: 0,
-      avgVolume: 0,
-      avgDifficulty: null,
-      avgPosition: null,
-      top10: 0,
-      weBeatThem: 0,
-      theyBeatUs: 0,
-      overlap: 0,
-      missing: 0,
-    };
-  }
-
-  let totalVolume = 0;
-  let volumeCount = 0;
-  let kdSum = 0;
-  let kdCount = 0;
-  let posSum = 0;
-  let posCount = 0;
-  let top10 = 0;
-  let weBeatThem = 0;
-  let theyBeatUs = 0;
-  let overlap = 0;
-  let missing = 0;
-  let trackedHere = 0;
-
-  for (const m of members) {
-    if (m.searchVolume != null) {
-      totalVolume += m.searchVolume;
-      volumeCount += 1;
-    }
-    if (m.keywordDifficulty != null) {
-      kdSum += m.keywordDifficulty;
-      kdCount += 1;
-    }
-    if (m.ourPosition != null) {
-      posSum += m.ourPosition;
-      posCount += 1;
-      if (m.ourPosition <= 10) top10 += 1;
-      trackedHere += 1;
-    } else {
-      missing += 1;
-    }
-    if (m.theirPosition != null && m.ourPosition != null) {
-      overlap += 1;
-      if (m.ourPosition < m.theirPosition) weBeatThem += 1;
-      else if (m.theirPosition < m.ourPosition) theyBeatUs += 1;
-    }
-  }
-
-  return {
-    total: members.length,
-    trackedHere,
-    totalVolume,
-    avgVolume: volumeCount > 0 ? totalVolume / volumeCount : 0,
-    avgDifficulty: kdCount > 0 ? kdSum / kdCount : null,
-    avgPosition: posCount > 0 ? posSum / posCount : null,
-    top10,
-    weBeatThem,
-    theyBeatUs,
-    overlap,
-    missing,
-  };
-}
-
-function bucketBy(
-  members: KeywordMember[],
-  pick: (m: KeywordMember) => string,
-): Array<{ name: string; value: number }> {
-  const counts: Record<string, number> = {};
-  for (const m of members) {
-    const k = pick(m);
-    counts[k] = (counts[k] ?? 0) + 1;
-  }
-  return Object.entries(counts)
-    .map(([name, value]) => ({ name: prettyLabel(name), value }))
-    .sort((a, b) => b.value - a.value);
-}
-
-function bucketFeatures(members: KeywordMember[]): Array<{ name: string; value: number }> {
-  const counts: Record<string, number> = {};
-  for (const m of members) {
-    for (const f of m.serpFeatures) {
-      counts[f] = (counts[f] ?? 0) + 1;
-    }
-  }
-  return Object.entries(counts)
-    .map(([name, value]) => ({ name: prettyLabel(name), value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 8);
-}
-
-function priorityBucket(m: KeywordMember): string {
-  // Rough priority heuristic based on volume + KD: high = >500 vol & <50 KD,
-  // mid = some-volume, low = everything else.
-  const vol = m.searchVolume ?? 0;
-  const kd = m.keywordDifficulty ?? 100;
-  if (vol >= 500 && kd < 50) return 'high';
-  if (vol >= 100) return 'mid';
-  return 'low';
-}
-
-function prettyLabel(s: string): string {
-  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
+// -----------------------------------------------------------------------------
+// Helpers shared with the Own-list table. Keyword-difficulty + paid-competition
+// colour tones, relative-time formatter, URL path prettifier, CTR curve.
+// Kept local so this file stays self-contained — the competitor view has its
+// own copies in CompetitorDetail.tsx.
+// -----------------------------------------------------------------------------
 
 function kdTone(kd: number | null): string {
   if (kd == null) return 'text-evari-dim';
@@ -665,11 +778,11 @@ function kdTone(kd: number | null): string {
   return 'text-evari-danger';
 }
 
-function kdLabel(kd: number | null): string {
-  if (kd == null) return 'No difficulty data';
-  if (kd < 30) return 'Easy wins';
-  if (kd < 60) return 'Medium battle';
-  return 'Hard fight';
+function compTone(comp: number | null): string {
+  if (comp == null) return 'text-evari-dim';
+  if (comp < 0.33) return 'text-evari-success';
+  if (comp < 0.66) return 'text-evari-gold';
+  return 'text-evari-danger';
 }
 
 function relativeTime(iso: string): string {
@@ -681,250 +794,68 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function localeLabel(loc: number, lang: string): string {
-  // 2826 = UK. Keep simple for now.
-  if (loc === 2826) return `Google UK / ${lang}`;
-  if (loc === 2840) return `Google US / ${lang}`;
-  return `loc ${loc} / ${lang}`;
-}
-
-// -----------------------------------------------------------------------------
-// Charts.
-// -----------------------------------------------------------------------------
-
-const CHART_COLORS = ['#D4A017', '#F97316', '#06B6D4', '#10B981', '#8B5CF6', '#EF4444', '#64748B', '#F59E0B'];
-
-function DonutChart({ data }: { data: Array<{ name: string; value: number }> }) {
-  if (data.length === 0) return <EmptyChart message="Nothing to show yet." />;
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
-        <Pie
-          data={data}
-          dataKey="value"
-          nameKey="name"
-          innerRadius={45}
-          outerRadius={75}
-          paddingAngle={2}
-          stroke="none"
-        >
-          {data.map((_, idx) => (
-            <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
-          ))}
-        </Pie>
-        <Tooltip
-          contentStyle={{
-            backgroundColor: 'var(--evari-surface, #141414)',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: 12,
-          }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
-  );
-}
-
-function VolumeBarChart({ data }: { data: KeywordMember[] }) {
-  const chartData = data.map((m) => ({
-    name: m.keyword.length > 24 ? m.keyword.slice(0, 24) + '…' : m.keyword,
-    volume: m.searchVolume ?? 0,
-  }));
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={chartData} margin={{ top: 8, right: 8, left: 4, bottom: 40 }}>
-        <XAxis
-          dataKey="name"
-          tick={{ fontSize: 10, fill: '#9CA3AF' }}
-          interval={0}
-          angle={-30}
-          textAnchor="end"
-          height={60}
-        />
-        <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: 'var(--evari-surface, #141414)',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: 12,
-          }}
-        />
-        <Bar dataKey="volume" fill="#D4A017" radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-function EmptyChart({ message }: { message: string }) {
-  return (
-    <div className="h-full flex items-center justify-center text-xs text-evari-dimmer">
-      {message}
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Leaderboard filter.
-// -----------------------------------------------------------------------------
-
-function LeaderboardFilter({
-  mode,
-  setMode,
-  stats,
-}: {
-  mode: LeaderboardMode;
-  setMode: (m: LeaderboardMode) => void;
-  stats: Stats;
-}) {
-  const options: Array<{ key: LeaderboardMode; label: string; count: number }> = [
-    { key: 'all', label: 'All', count: stats.total },
-    { key: 'we-beat-them', label: 'We beat them', count: stats.weBeatThem },
-    { key: 'they-beat-us', label: 'They beat us', count: stats.theyBeatUs },
-    { key: 'missing', label: 'We don\'t rank', count: stats.missing },
-  ];
-  return (
-    <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1">
-      {options.map((o) => {
-        const active = mode === o.key;
-        return (
-          <button
-            key={o.key}
-            onClick={() => setMode(o.key)}
-            className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors whitespace-nowrap',
-              active
-                ? 'bg-evari-accent text-white'
-                : 'bg-evari-surface text-evari-dim hover:text-evari-text',
-            )}
-          >
-            <span>{o.label}</span>
-            <span
-              className={cn(
-                'inline-flex items-center justify-center h-4 min-w-[18px] px-1 text-[10px] tabular-nums rounded-full',
-                active ? 'bg-white/20 text-white' : 'bg-evari-surfaceSoft text-evari-dimmer',
-              )}
-            >
-              {o.count}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Members table.
-// -----------------------------------------------------------------------------
-
-function MembersTable({
-  list,
-  members,
-  onRemove,
-}: {
-  list: KeywordList;
-  members: KeywordMember[];
-  onRemove: (keyword: string) => void;
-}) {
-  const isCompetitor = list.kind === 'competitor';
-
-  if (members.length === 0) {
-    return (
-      <div className="px-5 py-8 text-center text-sm text-evari-dim">
-        No keywords match this filter.
-      </div>
-    );
+function prettyPath(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.pathname === '/' ? u.host : u.pathname + (u.search || '');
+  } catch {
+    return url;
   }
+}
 
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-[11px] uppercase tracking-[0.1em] text-evari-dimmer border-b border-evari-surfaceSoft">
-            <th className="text-left font-medium px-5 py-2">Keyword</th>
-            <th className="text-right font-medium px-3 py-2">Volume</th>
-            <th className="text-right font-medium px-3 py-2">KD</th>
-            <th className="text-left font-medium px-3 py-2">Intent</th>
-            <th className="text-right font-medium px-3 py-2">
-              {isCompetitor ? 'Us' : 'Rank'}
-            </th>
-            {isCompetitor ? (
-              <>
-                <th className="text-right font-medium px-3 py-2">Them</th>
-                <th className="text-right font-medium px-3 py-2">Gap</th>
-              </>
-            ) : null}
-            <th className="text-right font-medium px-3 py-2 pr-5"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((m) => {
-            const gap =
-              m.ourPosition != null && m.theirPosition != null
-                ? m.ourPosition - m.theirPosition
-                : null;
-            return (
-              <tr
-                key={m.keyword}
-                className="border-b border-evari-surface/40 hover:bg-evari-surface/30"
-              >
-                <td className="px-5 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-evari-text">{m.keyword}</span>
-                    {m.source === 'auto' ? (
-                      <Badge variant="outline" className="text-[9px] py-0">auto</Badge>
-                    ) : m.source === 'seed' ? (
-                      <Badge variant="outline" className="text-[9px] py-0">seed</Badge>
-                    ) : m.source === 'gsc' ? (
-                      <Badge variant="outline" className="text-[9px] py-0">gsc</Badge>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums text-evari-dim">
-                  {m.searchVolume != null ? m.searchVolume.toLocaleString('en-GB') : '—'}
-                </td>
-                <td className={cn('px-3 py-2 text-right tabular-nums', kdTone(m.keywordDifficulty))}>
-                  {m.keywordDifficulty ?? '—'}
-                </td>
-                <td className="px-3 py-2">
-                  {m.searchIntent ? (
-                    <Badge variant="outline" className="text-[10px]">
-                      {m.searchIntent}
-                    </Badge>
-                  ) : (
-                    <span className="text-evari-dimmer text-xs">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  <PositionCell pos={m.ourPosition} />
-                </td>
-                {isCompetitor ? (
-                  <>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      <PositionCell pos={m.theirPosition} />
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      <GapCell gap={gap} ourMissing={m.ourPosition == null && m.theirPosition != null} />
-                    </td>
-                  </>
-                ) : null}
-                <td className="px-3 py-2 pr-5 text-right">
-                  <button
-                    onClick={() => onRemove(m.keyword)}
-                    aria-label={`Remove ${m.keyword}`}
-                    className="text-evari-dimmer hover:text-evari-danger transition-colors"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+// AWR 2024 organic CTR curve (UK, desktop + mobile average). Drops off hard
+// after pos 10 — same numbers used in CompetitorDetail.tsx.
+const CTR_CURVE: Record<number, number> = {
+  1: 0.304,
+  2: 0.154,
+  3: 0.099,
+  4: 0.068,
+  5: 0.05,
+  6: 0.039,
+  7: 0.031,
+  8: 0.025,
+  9: 0.021,
+  10: 0.019,
+};
+
+function ctrFor(pos: number): number {
+  if (pos <= 10) return CTR_CURVE[Math.max(1, Math.round(pos))] ?? 0.019;
+  if (pos <= 20) return 0.01;
+  if (pos <= 50) return 0.003;
+  return 0.0005;
+}
+
+// Sum of (volume × CTR) across every keyword we rank for. Mirrors the
+// competitor-side estimateTraffic() but walks ourPosition instead. Returns
+// the same TrafficEstimate shape the shared TrafficTab expects.
+function estimateOwnTraffic(members: KeywordMember[]): {
+  estMonthly: number;
+  rankingKeywords: number;
+  top3: number;
+  top10: number;
+  avgPosition: number | null;
+} {
+  let est = 0;
+  let ranking = 0;
+  let top3 = 0;
+  let top10 = 0;
+  let posSum = 0;
+  for (const m of members) {
+    const pos = m.ourPosition;
+    if (pos == null) continue;
+    ranking += 1;
+    posSum += pos;
+    if (pos <= 3) top3 += 1;
+    if (pos <= 10) top10 += 1;
+    est += (m.searchVolume ?? 0) * ctrFor(pos);
+  }
+  return {
+    estMonthly: est,
+    rankingKeywords: ranking,
+    top3,
+    top10,
+    avgPosition: ranking > 0 ? posSum / ranking : null,
+  };
 }
 
 function PositionCell({ pos }: { pos: number | null }) {
@@ -940,27 +871,61 @@ function PositionCell({ pos }: { pos: number | null }) {
   return <span className={tone}>#{pos}</span>;
 }
 
-function GapCell({ gap, ourMissing }: { gap: number | null; ourMissing: boolean }) {
-  if (ourMissing) {
-    return (
-      <span className="inline-flex items-center gap-1 text-evari-danger text-xs">
-        <TrendingDown className="h-3 w-3" /> not ranking
-      </span>
-    );
-  }
-  if (gap == null) return <span className="text-evari-dimmer">—</span>;
-  if (gap === 0) return <span className="text-evari-dim">tied</span>;
-  if (gap < 0) {
-    return (
-      <span className="inline-flex items-center gap-1 text-evari-success text-xs">
-        <TrendingUp className="h-3 w-3" /> +{Math.abs(gap)}
-      </span>
-    );
-  }
+// -----------------------------------------------------------------------------
+// Top-level page tab bar — toggles between the competitor/list workspace
+// (sidebar + detail) and the strategy chat. Sits above both views so Craig
+// can flip without losing either one.
+// -----------------------------------------------------------------------------
+
+function TopTabBar({
+  tab,
+  setTab,
+}: {
+  tab: TopTab;
+  setTab: (t: TopTab) => void;
+}) {
   return (
-    <span className="inline-flex items-center gap-1 text-evari-danger text-xs">
-      <TrendingDown className="h-3 w-3" /> -{gap}
-    </span>
+    <div className="flex items-center gap-1 px-4 pt-3 border-b border-evari-surfaceSoft">
+      <TopTabButton
+        active={tab === 'workspace'}
+        onClick={() => setTab('workspace')}
+        icon={<LayoutGrid className="h-3.5 w-3.5" />}
+        label="Workspace"
+      />
+      <TopTabButton
+        active={tab === 'strategy'}
+        onClick={() => setTab('strategy')}
+        icon={<MessageSquare className="h-3.5 w-3.5" />}
+        label="Strategy"
+      />
+    </div>
+  );
+}
+
+function TopTabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 px-3 py-2 text-sm transition-colors border-b-2 -mb-px',
+        active
+          ? 'border-evari-accent text-evari-text'
+          : 'border-transparent text-evari-dim hover:text-evari-text',
+      )}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -1159,6 +1124,118 @@ function NewListDialog({
           </Button>
           <Button variant="primary" onClick={submit} disabled={busy}>
             {busy ? 'Creating…' : 'Create list'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Edit dialog: rename a list or tweak its notes. Opened from the pencil icon
+// in the sidebar. Domain is intentionally read-only — changing the target
+// domain mid-flight would orphan every previously-ingested row.
+// -----------------------------------------------------------------------------
+
+function EditListDialog({
+  list,
+  onOpenChange,
+  onDone,
+}: {
+  list: KeywordList | null;
+  onOpenChange: (o: boolean) => void;
+  onDone: () => void;
+}) {
+  const [label, setLabel] = useState('');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Reset the form whenever a new list is opened.
+  useEffect(() => {
+    if (list) {
+      setLabel(list.label);
+      setNotes(list.notes ?? '');
+      setErr(null);
+    }
+  }, [list]);
+
+  const open = list != null;
+  const isOwnSeed = list?.slug === 'our-keywords';
+
+  async function submit() {
+    if (!list) return;
+    if (!label.trim()) {
+      setErr('Label is required.');
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const res = await fetch(`/api/keywords/lists/${list.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: label.trim(),
+        notes: notes.trim() || null,
+      }),
+    });
+    const data = (await res.json()) as { ok: boolean; error?: string };
+    setBusy(false);
+    if (!data.ok) {
+      setErr(data.error || 'Update failed');
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit list</DialogTitle>
+          <DialogDescription>
+            Rename the list or tweak its notes. The target domain stays fixed —
+            changing it would orphan previously-ingested keyword data.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-evari-dim">Label</label>
+            <Input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Fuell"
+              disabled={isOwnSeed}
+            />
+            {isOwnSeed ? (
+              <p className="mt-1 text-[11px] text-evari-dimmer">
+                The seed &ldquo;Our keywords&rdquo; list can&rsquo;t be renamed.
+              </p>
+            ) : null}
+          </div>
+          {list?.targetDomain ? (
+            <div>
+              <label className="text-xs text-evari-dim">Domain</label>
+              <Input value={list.targetDomain} disabled />
+            </div>
+          ) : null}
+          <div>
+            <label className="text-xs text-evari-dim">Notes (optional)</label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Why is this list interesting?"
+              className="min-h-[64px]"
+            />
+          </div>
+          {err ? <p className="text-xs text-evari-danger">{err}</p> : null}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={submit} disabled={busy}>
+            {busy ? 'Saving…' : 'Save changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

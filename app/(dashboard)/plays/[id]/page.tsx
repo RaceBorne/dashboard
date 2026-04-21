@@ -14,7 +14,7 @@ export default async function CampaignDetailPage({
   if (!play) notFound();
   return (
     <>
-      <TopBar title={play.title} subtitle={'Play · ' + play.stage} />
+      <TopBar title={play.title} subtitle={'Strategy · ' + play.stage} />
       <PlayDetailClient play={play} />
     </>
   );

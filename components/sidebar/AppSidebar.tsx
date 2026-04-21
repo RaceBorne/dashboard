@@ -21,6 +21,7 @@ import {
   ShoppingBag,
   Gauge,
   Link2,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme/ThemeProvider';
@@ -28,7 +29,7 @@ import { useTheme } from '@/components/theme/ThemeProvider';
 const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
-  { href: '/plays', label: 'Plays', icon: Rocket, group: 'pipeline' },
+  { href: '/plays', label: 'Strategy', icon: Rocket, group: 'pipeline' },
   { href: '/prospects', label: 'Prospects', icon: Flag, group: 'pipeline' },
   { href: '/leads', label: 'Leads', icon: Inbox, group: 'pipeline' },
   { href: '/conversations', label: 'Conversations', icon: MessageSquare, group: 'pipeline' },
@@ -39,6 +40,7 @@ const NAV = [
   { href: '/performance', label: 'Performance', icon: Gauge, group: 'web' },
   { href: '/backlinks', label: 'Backlinks', icon: Link2, group: 'web' },
   { href: '/social', label: 'Social & blogs', icon: CalendarDays, group: 'broadcast' },
+  { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'marketing' },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'commerce' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
   { href: '/users', label: 'Users', icon: Users, group: 'system' },
@@ -50,6 +52,7 @@ const GROUP_LABELS: Record<string, string> = {
   pipeline: 'Pipeline',
   web: 'Website',
   broadcast: 'Broadcast',
+  marketing: 'Marketing',
   commerce: 'Commerce',
   system: 'System',
 };

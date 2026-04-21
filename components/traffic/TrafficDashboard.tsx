@@ -28,6 +28,14 @@ import {
   BarChart3,
   Globe2,
   AlertCircle,
+  Plus,
+  Smartphone,
+  Monitor,
+  Tablet,
+  Languages,
+  Activity,
+  MapPin,
+  UserCircle2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +52,8 @@ import type {
   TrafficSourceRow,
   TrafficLanguageRow,
   TrafficEventRow,
+  TrafficDeviceRow,
+  TrafficDemographicRow,
 } from '@/lib/traffic/repository';
 
 // -----------------------------------------------------------------------------
@@ -62,15 +72,17 @@ import type {
 // All widgets gracefully show an "awaiting data" state if their array is empty.
 // -----------------------------------------------------------------------------
 
+// All chart accents use shades of teal — the Traffic page deliberately stays
+// off-brand from the gold/orange elsewhere so charts read as "data, not UI".
 const CHART_PALETTE = [
-  '#c69749', // evari gold
-  '#d97757', // accent (raceborne orange)
-  '#7ba8d9', // cool blue
-  '#94b56f', // sage
-  '#b77dc4', // lilac
-  '#e0b44a', // mustard
-  '#6fb3b3', // teal
-  '#d48a8a', // rose
+  '#2b7a78', // deep teal
+  '#3aafa9', // mid teal
+  '#6fb3b3', // mint teal
+  '#8fd3d0', // pale teal
+  '#1a5f5e', // forest teal
+  '#5eb5b5', // sea teal
+  '#87c5c3', // foam teal
+  '#4a9896', // slate teal
 ];
 
 type TrendKey = 'sessions' | 'users' | 'newUsers' | 'events' | 'conversions';
@@ -83,6 +95,25 @@ const TREND_OPTIONS: Array<{ key: TrendKey; label: string }> = [
   { key: 'conversions', label: 'Key events' },
 ];
 
+// Preset zoom windows for the 12-month trend card. Each step has a minimum
+// points-shown equal to its days value (if we have fewer rows we just show
+// everything we've got).
+const TREND_WINDOWS = [28, 90, 180, 365] as const;
+type TrendWindow = (typeof TREND_WINDOWS)[number];
+
+function windowLabel(n: TrendWindow): string {
+  return n === 28 ? '28 days' : n === 90 ? '90 days' : n === 180 ? '180 days' : '12 months';
+}
+
+// Small footer used under every panel to explain where the number came from.
+function PanelFooter({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="pt-2 text-[11px] text-evari-dimmer leading-snug border-t border-evari-edge/50">
+      {children}
+    </div>
+  );
+}
+
 interface Props {
   snapshot: TrafficSnapshot;
 }
@@ -92,6 +123,16 @@ export function TrafficDashboard({ snapshot }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [trendKey, setTrendKey] = useState<TrendKey>('sessions');
+  const [trendWindow, setTrendWindow] = useState<TrendWindow>(365);
+
+  // Zoom stepping through TREND_WINDOWS. In = fewer days (more detail).
+  const windowIdx = TREND_WINDOWS.indexOf(trendWindow);
+  const canZoomIn = windowIdx > 0;
+  const canZoomOut = windowIdx < TREND_WINDOWS.length - 1;
+  const trimmedTrend = useMemo(
+    () => snapshot.trend365.slice(Math.max(0, snapshot.trend365.length - trendWindow)),
+    [snapshot.trend365, trendWindow],
+  );
 
   async function runSync() {
     setBusy(true);
@@ -117,7 +158,7 @@ export function TrafficDashboard({ snapshot }: Props) {
 
   if (!snapshot.connected) {
     return (
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <Card>
           <CardContent className="p-8 text-center space-y-3">
             <AlertCircle className="h-8 w-8 text-evari-warn mx-auto" />
@@ -134,7 +175,7 @@ export function TrafficDashboard({ snapshot }: Props) {
 
   if (!snapshot.hasData) {
     return (
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <Card>
           <CardContent className="p-8 text-center space-y-3">
             <AlertCircle className="h-8 w-8 text-evari-warn mx-auto" />
@@ -157,7 +198,7 @@ export function TrafficDashboard({ snapshot }: Props) {
   }
 
   return (
-    <div className="p-6 max-w-[1400px] space-y-5">
+    <div className="p-6 space-y-5">
       {/* Header row — sync state + refresh */}
       <div className="flex items-center justify-between">
         <div>
@@ -193,10 +234,30 @@ export function TrafficDashboard({ snapshot }: Props) {
 
       {/* 1. KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiTileCard tile={snapshot.kpi.activeUsers} icon={<Users className="h-4 w-4" />} color={CHART_PALETTE[0]} />
-        <KpiTileCard tile={snapshot.kpi.newUsers} icon={<UserPlus className="h-4 w-4" />} color={CHART_PALETTE[2]} />
-        <KpiTileCard tile={snapshot.kpi.sessions} icon={<MousePointerClick className="h-4 w-4" />} color={CHART_PALETTE[1]} />
-        <KpiTileCard tile={snapshot.kpi.events} icon={<BarChart3 className="h-4 w-4" />} color={CHART_PALETTE[3]} />
+        <KpiTileCard
+          tile={snapshot.kpi.activeUsers}
+          icon={<Users className="h-4 w-4" />}
+          color={CHART_PALETTE[0]}
+          description="Unique people who visited the site in the last 28 days (GA4 totalUsers)."
+        />
+        <KpiTileCard
+          tile={snapshot.kpi.newUsers}
+          icon={<UserPlus className="h-4 w-4" />}
+          color={CHART_PALETTE[1]}
+          description="First-ever visit within the window — the cookie / User-ID has never been seen before."
+        />
+        <KpiTileCard
+          tile={snapshot.kpi.sessions}
+          icon={<MousePointerClick className="h-4 w-4" />}
+          color={CHART_PALETTE[2]}
+          description="Visits — grouped runs of activity that end after 30 min idle (GA4 sessions)."
+        />
+        <KpiTileCard
+          tile={snapshot.kpi.events}
+          icon={<BarChart3 className="h-4 w-4" />}
+          color={CHART_PALETTE[3]}
+          description="Total tracked interactions: page_view, click, scroll, form_submit and the rest."
+        />
       </div>
 
       {/* 2. 12-month trend */}
@@ -204,29 +265,75 @@ export function TrafficDashboard({ snapshot }: Props) {
         <CardContent className="p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-sm font-medium text-evari-text">12-month trend</div>
+              <div className="text-sm font-medium text-evari-text">
+                {windowLabel(trendWindow)} trend
+              </div>
               <div className="text-xs text-evari-dim">
-                Rolling 365d · switch metric to compare shapes
+                Zoom in/out with +/- · switch metric to compare shapes
               </div>
             </div>
-            <div className="flex items-center gap-1 flex-wrap">
-              {TREND_OPTIONS.map((opt) => (
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Zoom stepper */}
+              <div className="flex items-center rounded-md border border-evari-edge bg-evari-surfaceSoft overflow-hidden">
                 <button
-                  key={opt.key}
-                  onClick={() => setTrendKey(opt.key)}
+                  onClick={() => canZoomOut && setTrendWindow(TREND_WINDOWS[windowIdx + 1])}
+                  disabled={!canZoomOut}
+                  title="Zoom out"
                   className={cn(
-                    'text-[10px] uppercase tracking-[0.1em] px-2.5 py-1 rounded-md transition-colors font-medium',
-                    trendKey === opt.key
-                      ? 'bg-evari-gold text-evari-goldInk'
-                      : 'bg-evari-surfaceSoft text-evari-dim hover:text-evari-text hover:bg-evari-mute',
+                    'p-1.5 transition-colors',
+                    canZoomOut
+                      ? 'text-evari-text hover:bg-evari-mute'
+                      : 'text-evari-dimmer cursor-not-allowed opacity-50',
                   )}
                 >
-                  {opt.label}
+                  <Minus className="h-3.5 w-3.5" />
                 </button>
-              ))}
+                <div className="px-2 text-[10px] uppercase tracking-[0.1em] text-evari-dim font-medium border-x border-evari-edge min-w-[64px] text-center py-1">
+                  {windowLabel(trendWindow)}
+                </div>
+                <button
+                  onClick={() => canZoomIn && setTrendWindow(TREND_WINDOWS[windowIdx - 1])}
+                  disabled={!canZoomIn}
+                  title="Zoom in"
+                  className={cn(
+                    'p-1.5 transition-colors',
+                    canZoomIn
+                      ? 'text-evari-text hover:bg-evari-mute'
+                      : 'text-evari-dimmer cursor-not-allowed opacity-50',
+                  )}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {/* Metric switcher */}
+              <div className="flex items-center gap-1 flex-wrap">
+                {TREND_OPTIONS.map((opt) => {
+                  const active = trendKey === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      onClick={() => setTrendKey(opt.key)}
+                      className={cn(
+                        'text-[10px] uppercase tracking-[0.1em] px-2.5 py-1 rounded-md transition-colors font-medium',
+                        active
+                          ? 'text-white'
+                          : 'bg-evari-surfaceSoft text-evari-dim hover:text-evari-text hover:bg-evari-mute',
+                      )}
+                      style={active ? { background: CHART_PALETTE[0] } : undefined}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-          <TrendArea trend={snapshot.trend365} metric={trendKey} />
+          <TrendArea trend={trimmedTrend} metric={trendKey} />
+          <PanelFooter>
+            GA4 daily export · one point per day for the selected window.
+            Missing days appear as gaps rather than zeros. Zoom levels are{' '}
+            {TREND_WINDOWS.map(windowLabel).join(' → ')}.
+          </PanelFooter>
         </CardContent>
       </Card>
 
@@ -237,7 +344,7 @@ export function TrafficDashboard({ snapshot }: Props) {
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-sm font-medium text-evari-text flex items-center gap-1.5">
-                  <Globe2 className="h-4 w-4 text-evari-accent" />
+                  <Globe2 className="h-4 w-4" style={{ color: CHART_PALETTE[1] }} />
                   Users by country
                 </div>
                 <div className="text-xs text-evari-dim">Top 12 · last 28 days</div>
@@ -247,6 +354,10 @@ export function TrafficDashboard({ snapshot }: Props) {
               </Badge>
             </div>
             <CountryBars rows={snapshot.countries.slice(0, 12)} />
+            <PanelFooter>
+              GA4 country dimension · deduped from (country, region) rows so each country
+              is counted once. Ordered by sessions; bar width is relative to the leader.
+            </PanelFooter>
           </CardContent>
         </Card>
 
@@ -257,6 +368,10 @@ export function TrafficDashboard({ snapshot }: Props) {
               <div className="text-xs text-evari-dim">Top 5 countries + rest</div>
             </div>
             <CountryDonut rows={snapshot.countries} />
+            <PanelFooter>
+              Slices = each country&apos;s share of total sessions (last 28d). Countries
+              outside the top 5 are rolled up into a single &quot;Other&quot; slice.
+            </PanelFooter>
           </CardContent>
         </Card>
       </div>
@@ -274,10 +389,89 @@ export function TrafficDashboard({ snapshot }: Props) {
             <ChannelDonut rows={snapshot.channels} />
             <ChannelTable rows={snapshot.channels} />
           </div>
+          <PanelFooter>
+            GA4&apos;s default channel grouping — Direct, Organic Search, Paid Social, Referral,
+            etc. Each session is bucketed once using the source/medium/campaign rules GA4 applies
+            at ingest. Engaged = sessions ≥ 10s, with 2+ pageviews or a key event.
+          </PanelFooter>
         </CardContent>
       </Card>
 
-      {/* 5. Pages & screens */}
+      {/* 5. Devices + Demographics — each card hides itself entirely when the
+          underlying data is missing, so we don't render half-empty placeholders.
+          Devices is universal (deviceCategory), Demographics needs Google
+          Signals. */}
+      {(() => {
+        const hasDevices = snapshot.devices.some((d) => d.sessions > 0);
+        const hasDemographics = snapshot.demographics.some(
+          (d) => d.users > 0 && (d.gender !== 'unknown' || d.ageBracket !== 'unknown'),
+        );
+        if (!hasDevices && !hasDemographics) return null;
+        return (
+          <div
+            className={cn(
+              'grid grid-cols-1 gap-5',
+              hasDevices && hasDemographics ? 'lg:grid-cols-2' : 'lg:grid-cols-1',
+            )}
+          >
+            {hasDevices ? (
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-evari-text flex items-center gap-1.5">
+                        <Smartphone
+                          className="h-4 w-4"
+                          style={{ color: CHART_PALETTE[0] }}
+                        />
+                        Mobile vs desktop
+                      </div>
+                      <div className="text-xs text-evari-dim">
+                        Device category breakdown · last 28 days
+                      </div>
+                    </div>
+                  </div>
+                  <DevicesPanel rows={snapshot.devices} />
+                  <PanelFooter>
+                    GA4 deviceCategory dimension — mobile / desktop / tablet.
+                    Sessions counted once per device per user. Useful for deciding
+                    where to prioritise responsive work and ad creative.
+                  </PanelFooter>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {hasDemographics ? (
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-evari-text flex items-center gap-1.5">
+                        <UserCircle2
+                          className="h-4 w-4"
+                          style={{ color: CHART_PALETTE[1] }}
+                        />
+                        Demographics
+                      </div>
+                      <div className="text-xs text-evari-dim">
+                        Gender + age · last 28 days
+                      </div>
+                    </div>
+                  </div>
+                  <DemographicsPanel rows={snapshot.demographics} />
+                  <PanelFooter>
+                    GA4 userGender + userAgeBracket dimensions. Requires Google
+                    Signals enabled on the property; without Signals this panel
+                    is hidden entirely.
+                  </PanelFooter>
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+        );
+      })()}
+
+      {/* 6. Pages & screens */}
       <Card>
         <CardContent className="p-4 space-y-4">
           <div className="flex items-start justify-between">
@@ -288,20 +482,34 @@ export function TrafficDashboard({ snapshot }: Props) {
             <Badge variant="muted">{snapshot.pages.length} pages</Badge>
           </div>
           <PagesBars rows={snapshot.pages.slice(0, 10)} />
+          <PanelFooter>
+            GA4 screenPageViews per pageTitle — counts every view (not deduped per session).
+            The Y-axis auto-widens to fit the longest title so nothing truncates.
+          </PanelFooter>
         </CardContent>
       </Card>
 
-      {/* 6. Cities + sources */}
+      {/* 7. Cities + sources */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card>
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium text-evari-text">Active users by town / city</div>
-                <div className="text-xs text-evari-dim">Top 12 · last 28 days</div>
+                <div className="text-sm font-medium text-evari-text flex items-center gap-1.5">
+                  <MapPin className="h-4 w-4" style={{ color: CHART_PALETTE[0] }} />
+                  Cities, grouped by country
+                </div>
+                <div className="text-xs text-evari-dim">
+                  Highest-density cities in each top country · last 28 days
+                </div>
               </div>
             </div>
-            <CityTable rows={snapshot.cities.slice(0, 12)} />
+            <CitiesByCountry rows={snapshot.cities} />
+            <PanelFooter>
+              GA4 city + country dimensions · grouped by country (flag) with cities listed
+              in descending user order. Useful for spotting where the density of your
+              customers / viewers is concentrated within each country.
+            </PanelFooter>
           </CardContent>
         </Card>
 
@@ -314,21 +522,34 @@ export function TrafficDashboard({ snapshot }: Props) {
               </div>
             </div>
             <SourceTable rows={snapshot.sources.slice(0, 12)} />
+            <PanelFooter>
+              Raw source / medium pairs (e.g. google / organic, instagram / social). CVR =
+              conversions ÷ sessions for that pair. Unlike channels, this does not group
+              across campaigns — each referrer stands alone.
+            </PanelFooter>
           </CardContent>
         </Card>
       </div>
 
-      {/* 7. Languages + events */}
+      {/* 8. Languages + events */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card>
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium text-evari-text">Active users by language</div>
+                <div className="text-sm font-medium text-evari-text flex items-center gap-1.5">
+                  <Languages className="h-4 w-4" style={{ color: CHART_PALETTE[2] }} />
+                  Active users by language
+                </div>
                 <div className="text-xs text-evari-dim">Top 10 · last 28 days</div>
               </div>
             </div>
             <LanguageBars rows={snapshot.languages.slice(0, 10)} />
+            <PanelFooter>
+              GA4 language dimension — pulled from the visitor&apos;s browser locale (not
+              guessed from IP). Regional variants (en-gb, en-us) are rolled under the same
+              label where the region tag is unambiguous.
+            </PanelFooter>
           </CardContent>
         </Card>
 
@@ -336,11 +557,19 @@ export function TrafficDashboard({ snapshot }: Props) {
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium text-evari-text">Key events</div>
+                <div className="text-sm font-medium text-evari-text flex items-center gap-1.5">
+                  <Activity className="h-4 w-4" style={{ color: CHART_PALETTE[3] }} />
+                  Key events
+                </div>
                 <div className="text-xs text-evari-dim">All events · last 28 days</div>
               </div>
             </div>
             <EventsPanel rows={snapshot.events} />
+            <PanelFooter>
+              GA4 event_count per event_name, ordered by volume. Events marked as
+              &quot;key events&quot; in GA4 count as conversions in KPI deltas above;
+              pageless events like scroll / session_start are still included here.
+            </PanelFooter>
           </CardContent>
         </Card>
       </div>
@@ -355,10 +584,12 @@ function KpiTileCard({
   tile,
   icon,
   color,
+  description,
 }: {
   tile: TrafficKpiTile;
   icon: React.ReactNode;
   color: string;
+  description?: string;
 }) {
   const arrow = tile.deltaPct > 0 ? TrendingUp : tile.deltaPct < 0 ? TrendingDown : Minus;
   const Arrow = arrow;
@@ -391,6 +622,11 @@ function KpiTileCard({
         <div className="h-10 -mx-1">
           <Sparkline data={tile.trend} color={color} />
         </div>
+        {description ? (
+          <div className="text-[10px] text-evari-dimmer leading-snug pt-1 border-t border-evari-edge/50">
+            {description}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -695,6 +931,13 @@ function PagesBars({ rows }: { rows: TrafficPageRow[] }) {
     users: r.users,
   }));
 
+  // Label column needs to fit the longest page title on a single line, so
+  // we size the YAxis width off the actual data + a roughly-measured char
+  // width at the rendered font size (11px). Capped so we don't starve the
+  // bars on very narrow cards.
+  const longest = data.reduce((n, d) => Math.max(n, d.title.length), 0);
+  const labelWidth = Math.min(560, Math.max(240, Math.round(longest * 6.4) + 16));
+
   return (
     <div className="h-[380px] w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -715,11 +958,11 @@ function PagesBars({ rows }: { rows: TrafficPageRow[] }) {
             tick={{ fontSize: 11, fill: 'rgb(var(--evari-text))' }}
             tickLine={false}
             axisLine={false}
-            width={280}
-            tickFormatter={(v: string) => truncate(v, 40)}
+            width={labelWidth}
+            interval={0}
           />
           <Tooltip
-            cursor={{ fill: 'rgb(var(--evari-surfaceSoft))' }}
+            cursor={{ fill: 'rgba(0, 0, 0, 0.03)' }}
             contentStyle={{
               background: 'rgb(var(--evari-surface))',
               border: '1px solid rgb(var(--evari-edge))',
@@ -854,7 +1097,7 @@ function LanguageBars({ rows }: { rows: TrafficLanguageRow[] }) {
             tickFormatter={(v: string) => prettyLanguage(v)}
           />
           <Tooltip
-            cursor={{ fill: 'rgb(var(--evari-surfaceSoft))' }}
+            cursor={{ fill: 'rgba(0, 0, 0, 0.03)' }}
             contentStyle={{
               background: 'rgb(var(--evari-surface))',
               border: '1px solid rgb(var(--evari-edge))',
@@ -919,6 +1162,277 @@ function EventsPanel({ rows }: { rows: TrafficEventRow[] }) {
 }
 
 // -----------------------------------------------------------------------------
+// Devices — horizontal stack bar + numeric legend.
+// -----------------------------------------------------------------------------
+function DevicesPanel({ rows }: { rows: TrafficDeviceRow[] }) {
+  if (rows.length === 0) return <EmptyChart note="No device data yet." />;
+
+  const total = rows.reduce((sum, r) => sum + r.sessions, 0) || 1;
+  const iconFor = (device: string) => {
+    const d = device.toLowerCase();
+    if (d === 'mobile') return <Smartphone className="h-4 w-4" />;
+    if (d === 'tablet') return <Tablet className="h-4 w-4" />;
+    if (d === 'desktop') return <Monitor className="h-4 w-4" />;
+    return <Monitor className="h-4 w-4" />;
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Stacked bar — one segment per device */}
+      <div className="h-3 w-full rounded-full bg-evari-surfaceSoft overflow-hidden flex">
+        {rows.map((r, idx) => {
+          const share = r.sessions / total;
+          return (
+            <div
+              key={r.device}
+              style={{
+                width: `${share * 100}%`,
+                background: CHART_PALETTE[idx % CHART_PALETTE.length],
+              }}
+              title={`${r.device}: ${formatPct(share)} (${formatNumber(r.sessions)} sessions)`}
+            />
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {rows.slice(0, 3).map((r, idx) => {
+          const share = r.sessions / total;
+          return (
+            <div
+              key={r.device}
+              className="rounded-lg border border-evari-edge/60 bg-evari-surfaceSoft/30 p-2.5 flex items-center gap-2.5"
+            >
+              <div
+                className="h-8 w-8 rounded-md flex items-center justify-center text-white shrink-0"
+                style={{ background: CHART_PALETTE[idx % CHART_PALETTE.length] }}
+              >
+                {iconFor(r.device)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] uppercase tracking-[0.1em] text-evari-dimmer font-medium">
+                  {r.device}
+                </div>
+                <div className="text-sm text-evari-text font-mono tabular-nums leading-tight">
+                  {formatPct(share)}
+                </div>
+                <div className="text-[10px] text-evari-dimmer">
+                  {formatNumber(r.sessions)} sessions · {formatNumber(r.users)} users
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Demographics — gender donut + age bars. Hides when all-empty.
+// -----------------------------------------------------------------------------
+function DemographicsPanel({ rows }: { rows: TrafficDemographicRow[] }) {
+  const totals = useMemo(() => {
+    const byGender = new Map<string, number>();
+    const byAge = new Map<string, number>();
+    for (const r of rows) {
+      byGender.set(r.gender, (byGender.get(r.gender) ?? 0) + r.users);
+      byAge.set(r.ageBracket, (byAge.get(r.ageBracket) ?? 0) + r.users);
+    }
+    return { byGender, byAge };
+  }, [rows]);
+
+  const hasSignal = rows.some(
+    (r) => r.users > 0 && (r.gender !== 'unknown' || r.ageBracket !== 'unknown'),
+  );
+
+  if (!hasSignal) {
+    return (
+      <div className="h-[200px] flex flex-col items-center justify-center text-center gap-2 px-4">
+        <UserCircle2 className="h-6 w-6 text-evari-dimmer" />
+        <div className="text-xs text-evari-dim max-w-xs">
+          Demographics will appear once Google Signals has enough data. Enable Signals in
+          GA4 → Admin → Data collection for gender + age breakdowns.
+        </div>
+      </div>
+    );
+  }
+
+  const genderData = Array.from(totals.byGender.entries())
+    .filter(([g]) => g !== 'unknown')
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+  const genderTotal = genderData.reduce((s, d) => s + d.value, 0) || 1;
+
+  // Canonical age order for stable rendering even if GA4 returns them jumbled.
+  const AGE_ORDER = ['18-24', '25-34', '35-44', '45-54', '55-64', '65+'];
+  const ageData = AGE_ORDER.map((name) => ({
+    name,
+    value: totals.byAge.get(name) ?? 0,
+  }));
+  const ageMax = Math.max(1, ...ageData.map((d) => d.value));
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-4 items-center">
+      {/* Gender donut */}
+      <div>
+        <div className="h-[160px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={genderData}
+                innerRadius={42}
+                outerRadius={70}
+                dataKey="value"
+                paddingAngle={2}
+                stroke="none"
+                isAnimationActive={false}
+              >
+                {genderData.map((_, idx) => (
+                  <Cell key={idx} fill={CHART_PALETTE[idx % CHART_PALETTE.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  background: 'rgb(var(--evari-surface))',
+                  border: '1px solid rgb(var(--evari-edge))',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  padding: '6px 10px',
+                }}
+                formatter={(v: number) => formatNumber(v)}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="space-y-1 pt-1">
+          {genderData.map((d, idx) => (
+            <div key={d.name} className="flex items-center gap-2 text-xs">
+              <span
+                className="inline-block h-2 w-2 rounded-full shrink-0"
+                style={{ background: CHART_PALETTE[idx % CHART_PALETTE.length] }}
+              />
+              <span className="text-evari-text flex-1 capitalize">{d.name}</span>
+              <span className="font-mono tabular-nums text-evari-dim">
+                {formatPct(d.value / genderTotal)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Age bars */}
+      <div className="space-y-1.5">
+        <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium pb-0.5">
+          Users by age
+        </div>
+        {ageData.map((d, idx) => {
+          const pct = Math.max(0.02, d.value / ageMax);
+          return (
+            <div key={d.name} className="flex items-center gap-3">
+              <div className="w-14 text-xs text-evari-text shrink-0 font-mono tabular-nums">
+                {d.name}
+              </div>
+              <div className="flex-1 h-2 rounded-full bg-evari-surfaceSoft overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${pct * 100}%`,
+                    background: CHART_PALETTE[(idx + 2) % CHART_PALETTE.length],
+                  }}
+                />
+              </div>
+              <div className="w-16 text-right font-mono tabular-nums text-xs text-evari-text">
+                {formatNumber(d.value)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Cities grouped by country — flag header + top cities as nested progress bars.
+// -----------------------------------------------------------------------------
+function CitiesByCountry({ rows }: { rows: TrafficCityRow[] }) {
+  const groups = useMemo(() => {
+    const map = new Map<
+      string,
+      { country: string; countryCode: string; total: number; cities: TrafficCityRow[] }
+    >();
+    for (const r of rows) {
+      const key = r.countryCode || r.country || '(unknown)';
+      const prev = map.get(key);
+      if (prev) {
+        prev.total += r.users;
+        prev.cities.push(r);
+      } else {
+        map.set(key, {
+          country: r.country || '(unknown)',
+          countryCode: r.countryCode,
+          total: r.users,
+          cities: [r],
+        });
+      }
+    }
+    return Array.from(map.values())
+      .map((g) => ({
+        ...g,
+        cities: g.cities.sort((a, b) => b.users - a.users).slice(0, 4),
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [rows]);
+
+  if (groups.length === 0) return <EmptyChart note="No city data yet." />;
+
+  const globalMax = Math.max(1, ...groups.flatMap((g) => g.cities.map((c) => c.users)));
+
+  return (
+    <div className="space-y-3">
+      {groups.map((g, gIdx) => {
+        const barColor = CHART_PALETTE[gIdx % CHART_PALETTE.length];
+        return (
+          <div key={g.country} className="space-y-1.5">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-base leading-none">{flagEmoji(g.countryCode)}</span>
+              <span className="text-evari-text font-medium">{g.country}</span>
+              <span className="text-evari-dimmer">·</span>
+              <span className="text-evari-dim font-mono tabular-nums">
+                {formatNumber(g.total)} users
+              </span>
+            </div>
+            <div className="pl-7 space-y-1">
+              {g.cities.map((c) => {
+                const pct = Math.max(0.02, c.users / globalMax);
+                return (
+                  <div key={`${g.countryCode}-${c.city}`} className="flex items-center gap-2">
+                    <div className="w-28 text-[11px] text-evari-text truncate shrink-0">
+                      {c.city || '(unknown)'}
+                    </div>
+                    <div className="flex-1 h-1.5 rounded-full bg-evari-surfaceSoft overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${pct * 100}%`, background: barColor }}
+                      />
+                    </div>
+                    <div className="w-14 text-right text-[11px] font-mono tabular-nums text-evari-dim">
+                      {formatNumber(c.users)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
 // Shared helpers.
 // -----------------------------------------------------------------------------
 function EmptyChart({ note }: { note: string }) {
@@ -951,11 +1465,6 @@ function formatMonthTick(day: string): string {
   if (!day || day.length < 10) return day;
   const d = new Date(day + 'T00:00:00Z');
   return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-}
-
-function truncate(s: string, n: number): string {
-  if (!s) return '';
-  return s.length > n ? s.slice(0, n - 1) + '…' : s;
 }
 
 function relativeTime(iso: string): string {

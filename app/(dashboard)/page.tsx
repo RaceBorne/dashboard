@@ -32,7 +32,7 @@ export default async function BriefingPage() {
     <>
       <TopBar title="Morning briefing" subtitle="today" />
 
-      <div className="p-6 space-y-6 max-w-[1400px]">
+      <div className="p-6 space-y-6">
         {/* Editorial headline + Hey Evari button on the same row */}
         <div className="flex items-start justify-between gap-6">
           <div className="flex-1 min-w-0">

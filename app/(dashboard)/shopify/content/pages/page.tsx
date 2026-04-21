@@ -17,7 +17,7 @@ export default async function PagesIndexPage() {
   return (
     <>
       <TopBar title="Pages" subtitle={`${pages.length} pages`} />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <PagesClient
           initial={pages}
           mock={!isShopifyConnected()}

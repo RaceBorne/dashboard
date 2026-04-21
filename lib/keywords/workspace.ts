@@ -73,9 +73,43 @@ export interface KeywordMember {
   serpFeatures: string[];
 }
 
+export interface CompetitorBacklinksSummary {
+  target: string;
+  rank: number;
+  backlinks: number;
+  referringDomains: number;
+  referringMainDomains: number;
+  anchorTop10: Array<{ anchor: string; backlinks: number }>;
+  fetchedAt: string | null;
+}
+
+export interface CompetitorReferringDomain {
+  target: string;
+  domainFrom: string;
+  backlinks: number;
+  rank: number | null;
+  lastSeen: string | null;
+}
+
+export interface CompetitorTopPage {
+  target: string;
+  url: string;
+  keywordCount: number;
+  totalVolume: number; // sum of search_volume for keywords they rank for on this URL
+  avgPosition: number; // mean position across those keywords
+}
+
 export interface KeywordWorkspace {
   lists: KeywordList[];
   membersByList: Record<number, KeywordMember[]>;
+  // Backlinks summary + top referring domains for each domain the workspace
+  // cares about (evari.cc + every competitor's target_domain). Empty record if
+  // no backlinks data has been ingested yet.
+  backlinksByDomain: Record<string, CompetitorBacklinksSummary>;
+  referringDomainsByDomain: Record<string, CompetitorReferringDomain[]>;
+  // Top ranking pages per target, derived from serp_keywords rows (which URL on
+  // the target ranks for how many keywords + summed volume).
+  topPagesByDomain: Record<string, CompetitorTopPage[]>;
   connected: boolean; // DataForSEO env set?
   hasData: boolean;  // any list has >= 1 member?
 }
@@ -110,8 +144,18 @@ export async function getKeywordWorkspace(): Promise<KeywordWorkspace> {
   const supa = createSupabaseAdmin();
   const connected = Boolean(process.env.DATAFORSEO_LOGIN && process.env.DATAFORSEO_PASSWORD);
 
+  const emptyWorkspace = (): KeywordWorkspace => ({
+    lists: [],
+    membersByList: {},
+    backlinksByDomain: {},
+    referringDomainsByDomain: {},
+    topPagesByDomain: {},
+    connected,
+    hasData: false,
+  });
+
   if (!supa) {
-    return { lists: [], membersByList: {}, connected, hasData: false };
+    return emptyWorkspace();
   }
 
   // 1. Active lists.
@@ -123,7 +167,7 @@ export async function getKeywordWorkspace(): Promise<KeywordWorkspace> {
     .is('retired_at', null);
 
   if (listErr || !listRows || listRows.length === 0) {
-    return { lists: [], membersByList: {}, connected, hasData: false };
+    return emptyWorkspace();
   }
 
   // 2. All members for those lists.
@@ -140,19 +184,27 @@ export async function getKeywordWorkspace(): Promise<KeywordWorkspace> {
     new Set(membersRaw.map((m) => String(m.keyword).toLowerCase().trim())),
   );
 
-  // 3. Market data for all unique keywords (one big IN query, not per-keyword).
-  //    Filter by location_code/language_code only once we know we need more than
-  //    one locale. For now the app is single-locale (UK/en), so skip filtering
-  //    and let the client resolve per-list.
+  // 3. Market data for all unique keywords.
+  //    Chunk the IN list — PostgREST puts it in the URL query string and
+  //    web-server URL length limits (~8KB) can silently truncate or 414 when
+  //    the array gets into the hundreds. Chunking keeps every request under the
+  //    limit and merges the results back together.
   let marketRows: MarketDataRow[] = [];
   if (uniqueKeywords.length > 0) {
-    const { data } = await supa
-      .from('dashboard_dataforseo_keyword_data')
-      .select(
-        'keyword, location_code, language_code, search_volume, cpc, competition, competition_level, keyword_difficulty, search_intent',
-      )
-      .in('keyword', uniqueKeywords);
-    marketRows = (data ?? []) as MarketDataRow[];
+    const chunks = chunkArray(uniqueKeywords, 200);
+    const results = await Promise.all(
+      chunks.map((chunk) =>
+        supa
+          .from('dashboard_dataforseo_keyword_data')
+          .select(
+            'keyword, location_code, language_code, search_volume, cpc, competition, competition_level, keyword_difficulty, search_intent',
+          )
+          .in('keyword', chunk),
+      ),
+    );
+    for (const r of results) {
+      if (r.data) marketRows.push(...(r.data as MarketDataRow[]));
+    }
   }
 
   // 4. SERP positions. We need rows for target='evari.cc' AND for every
@@ -167,14 +219,73 @@ export async function getKeywordWorkspace(): Promise<KeywordWorkspace> {
 
   let serpRows: SerpKeywordRow[] = [];
   if (uniqueKeywords.length > 0 && allTargets.length > 0) {
-    const { data } = await supa
-      .from('dashboard_dataforseo_serp_keywords')
-      .select(
-        'keyword, target, location_code, language_code, latest_position, latest_url, latest_title, latest_serp_features, latest_checked_at',
-      )
-      .in('keyword', uniqueKeywords)
-      .in('target', allTargets);
-    serpRows = (data ?? []) as SerpKeywordRow[];
+    const chunks = chunkArray(uniqueKeywords, 200);
+    const results = await Promise.all(
+      chunks.map((chunk) =>
+        supa
+          .from('dashboard_dataforseo_serp_keywords')
+          .select(
+            'keyword, target, location_code, language_code, latest_position, latest_url, latest_title, latest_serp_features, latest_checked_at',
+          )
+          .in('keyword', chunk)
+          .in('target', allTargets)
+          // Default PostgREST row cap is 1000; with 200 kws × 5 targets we can
+          // legitimately need up to 1000 rows per chunk, so raise it.
+          .limit(5000),
+      ),
+    );
+    for (const r of results) {
+      if (r.data) serpRows.push(...(r.data as SerpKeywordRow[]));
+    }
+  }
+
+  // 4b. Backlinks summary + top 10 referring domains for every tracked target.
+  //     Scoped to the same `allTargets` set so we pull at most once per domain.
+  const backlinksByDomain: Record<string, CompetitorBacklinksSummary> = {};
+  const referringDomainsByDomain: Record<string, CompetitorReferringDomain[]> = {};
+  if (allTargets.length > 0) {
+    const [blSummaryRes, refDomainRes] = await Promise.all([
+      supa
+        .from('dashboard_dataforseo_backlinks_summary')
+        .select(
+          'target, rank, backlinks, referring_domains, referring_main_domains, anchor_text_top10, fetched_at',
+        )
+        .in('target', allTargets),
+      supa
+        .from('dashboard_dataforseo_referring_domains')
+        .select('target, domain_from, backlinks, rank, last_seen')
+        .in('target', allTargets)
+        .order('rank', { ascending: false, nullsFirst: false })
+        .limit(1000),
+    ]);
+
+    for (const r of blSummaryRes.data ?? []) {
+      const tgt = String(r.target).toLowerCase();
+      backlinksByDomain[tgt] = {
+        target: tgt,
+        rank: (r.rank as number) ?? 0,
+        backlinks: (r.backlinks as number) ?? 0,
+        referringDomains: (r.referring_domains as number) ?? 0,
+        referringMainDomains: (r.referring_main_domains as number) ?? 0,
+        anchorTop10:
+          (r.anchor_text_top10 as Array<{ anchor: string; backlinks: number }> | null) ?? [],
+        fetchedAt: (r.fetched_at as string | null) ?? null,
+      };
+    }
+
+    for (const r of refDomainRes.data ?? []) {
+      const tgt = String(r.target).toLowerCase();
+      if (!referringDomainsByDomain[tgt]) referringDomainsByDomain[tgt] = [];
+      // cap 20 per target — just a preview
+      if (referringDomainsByDomain[tgt].length >= 20) continue;
+      referringDomainsByDomain[tgt].push({
+        target: tgt,
+        domainFrom: r.domain_from as string,
+        backlinks: (r.backlinks as number) ?? 0,
+        rank: (r.rank as number | null) ?? null,
+        lastSeen: (r.last_seen as string | null) ?? null,
+      });
+    }
   }
 
   // 5. Index market + SERP rows for O(1) lookup.
@@ -285,5 +396,74 @@ export async function getKeywordWorkspace(): Promise<KeywordWorkspace> {
 
   const hasData = Object.values(membersByList).some((arr) => arr.length > 0);
 
-  return { lists, membersByList, connected, hasData };
+  // 7. Derive top pages per target from SERP rows.
+  //    For each (target, latest_url) group: count keywords that rank there,
+  //    sum their search_volume, average their position. Rank pages by
+  //    (keywordCount desc, totalVolume desc), cap 20 per target.
+  const topPagesByDomain: Record<string, CompetitorTopPage[]> = {};
+  const pageBucket = new Map<string, {
+    target: string;
+    url: string;
+    positions: number[];
+    totalVolume: number;
+  }>();
+
+  for (const r of serpRows) {
+    if (!r.latest_url || r.latest_position == null) continue;
+    const tgt = String(r.target).toLowerCase();
+    const url = String(r.latest_url);
+    const key = `${tgt}|${url}`;
+    const bucket =
+      pageBucket.get(key) ?? { target: tgt, url, positions: [], totalVolume: 0 };
+    bucket.positions.push(r.latest_position);
+    // Find the market row for volume (same location/language as the serp row).
+    const market = marketIndex.get(
+      marketKey(r.keyword, r.location_code, r.language_code),
+    );
+    bucket.totalVolume += market?.search_volume ?? 0;
+    pageBucket.set(key, bucket);
+  }
+
+  for (const b of pageBucket.values()) {
+    if (!topPagesByDomain[b.target]) topPagesByDomain[b.target] = [];
+    topPagesByDomain[b.target].push({
+      target: b.target,
+      url: b.url,
+      keywordCount: b.positions.length,
+      totalVolume: b.totalVolume,
+      avgPosition:
+        b.positions.reduce((acc, v) => acc + v, 0) / Math.max(1, b.positions.length),
+    });
+  }
+
+  for (const tgt of Object.keys(topPagesByDomain)) {
+    topPagesByDomain[tgt].sort((a, b) => {
+      if (b.keywordCount !== a.keywordCount) return b.keywordCount - a.keywordCount;
+      return b.totalVolume - a.totalVolume;
+    });
+    topPagesByDomain[tgt] = topPagesByDomain[tgt].slice(0, 20);
+  }
+
+  return {
+    lists,
+    membersByList,
+    backlinksByDomain,
+    referringDomainsByDomain,
+    topPagesByDomain,
+    connected,
+    hasData,
+  };
+}
+
+// Split an array into chunks of a given size. Used to keep PostgREST IN-clauses
+// under the URL length limit — once `uniqueKeywords` gets past a couple hundred
+// the generated URL exceeds ~8KB and the request silently returns fewer rows or
+// fails with 414 URI Too Long.
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  if (size <= 0) return [arr];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
 }

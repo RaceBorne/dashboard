@@ -17,7 +17,7 @@ export default async function AbandonedPage() {
         title="Abandoned checkouts"
         subtitle={`${carts.length} carts · GBP ${totalValue.toFixed(0)} unrecovered`}
       />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <AbandonedClient initial={carts} mock={!isShopifyConnected()} />
       </div>
     </>

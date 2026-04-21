@@ -9,7 +9,11 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "db:seed": "npx tsx scripts/seed-dashboard.ts",
-    "db:migrate:seo-health": "npx tsx scripts/apply-migration-file.ts supabase/migrations/20260421120000_seo_health_scan.sql"
+    "db:migrate:seo-health": "npx tsx scripts/apply-migration-file.ts supabase/migrations/20260421120000_seo_health_scan.sql",
+    "db:migrate:ga4-devices-demo": "npx tsx scripts/apply-migration-file.ts supabase/migrations/20260421130000_ga4_devices_demographics.sql",
+    "db:migrate:klaviyo-preview": "npx tsx scripts/apply-migration-file.ts supabase/migrations/20260422120000_klaviyo_campaign_preview.sql",
+    "ingest:ga4": "npx tsx scripts/ingest-ga4.ts",
+    "db:migrate:outreach-senders": "npx tsx scripts/apply-migration-file.ts supabase/migrations/20260424120000_outreach_senders_suppressions.sql"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.0",

@@ -99,6 +99,26 @@ export interface TrafficEventRow {
   users: number;
 }
 
+export interface TrafficDeviceRow {
+  device: string; // 'mobile' | 'desktop' | 'tablet' | 'smart_tv' | ...
+  sessions: number;
+  users: number;
+  newUsers: number;
+  engagedSessions: number;
+}
+
+/**
+ * GA4 audiences dimension rows — one row per (gender, ageBracket) pair.
+ * Requires Google Signals to be enabled on the GA4 property; without it the
+ * query returns zero rows and the panel collapses to its empty state.
+ */
+export interface TrafficDemographicRow {
+  gender: string; // 'male' | 'female' | 'unknown'
+  ageBracket: string; // '18-24' | '25-34' | '35-44' | '45-54' | '55-64' | '65+' | 'unknown'
+  users: number;
+  sessions: number;
+}
+
 export interface TrafficSnapshot {
   connected: boolean;
   hasData: boolean;
@@ -118,6 +138,8 @@ export interface TrafficSnapshot {
   sources: TrafficSourceRow[];
   languages: TrafficLanguageRow[];
   events: TrafficEventRow[];
+  devices: TrafficDeviceRow[];
+  demographics: TrafficDemographicRow[];
   lastSyncedAt: string | null;
 }
 
@@ -185,49 +207,72 @@ export async function getTrafficSnapshot(): Promise<TrafficSnapshot> {
 
   // 2. Breakdown tables — all scoped to the ingest's 28d window (we don't
   //    filter by window_start/end because ingest truncates each run).
-  const [countriesRes, citiesRes, channelsRes, pagesRes, sourcesRes, languagesRes, eventsRes, syncRes] =
-    await Promise.all([
-      supa
-        .from('dashboard_ga4_geo_28d')
-        .select('country, country_code, sessions, users, conversions')
-        .order('sessions', { ascending: false })
-        .limit(50),
-      supa
-        .from('dashboard_ga4_cities_28d')
-        .select('city, country, country_code, sessions, users')
-        .order('sessions', { ascending: false })
-        .limit(25),
-      supa
-        .from('dashboard_ga4_channels_28d')
-        .select('channel, sessions, users, new_users, engaged_sessions, conversions')
-        .order('sessions', { ascending: false })
-        .limit(20),
-      supa
-        .from('dashboard_ga4_pages_28d')
-        .select('page_path, page_title, views, sessions, users, bounce_rate, avg_duration_sec, conversions')
-        .order('views', { ascending: false })
-        .limit(25),
-      supa
-        .from('dashboard_traffic_sources')
-        .select('source, medium, sessions, conversions, conversion_rate')
-        .order('sort_order', { ascending: true })
-        .limit(20),
-      supa
-        .from('dashboard_ga4_languages_28d')
-        .select('language, sessions, users')
-        .order('sessions', { ascending: false })
-        .limit(15),
-      supa
-        .from('dashboard_ga4_events_28d')
-        .select('event_name, event_count, users')
-        .order('event_count', { ascending: false })
-        .limit(20),
-      supa
-        .from('dashboard_ga4_sync_log')
-        .select('ran_at')
-        .order('ran_at', { ascending: false })
-        .limit(1),
-    ]);
+  const [
+    countriesRes,
+    citiesRes,
+    channelsRes,
+    pagesRes,
+    sourcesRes,
+    languagesRes,
+    eventsRes,
+    devicesRes,
+    demographicsRes,
+    syncRes,
+  ] = await Promise.all([
+    supa
+      .from('dashboard_ga4_geo_28d')
+      .select('country, country_code, sessions, users, conversions')
+      .order('sessions', { ascending: false })
+      .limit(50),
+    supa
+      .from('dashboard_ga4_cities_28d')
+      .select('city, country, country_code, sessions, users')
+      .order('sessions', { ascending: false })
+      .limit(60),
+    supa
+      .from('dashboard_ga4_channels_28d')
+      .select('channel, sessions, users, new_users, engaged_sessions, conversions')
+      .order('sessions', { ascending: false })
+      .limit(20),
+    supa
+      .from('dashboard_ga4_pages_28d')
+      .select('page_path, page_title, views, sessions, users, bounce_rate, avg_duration_sec, conversions')
+      .order('views', { ascending: false })
+      .limit(25),
+    supa
+      .from('dashboard_traffic_sources')
+      .select('source, medium, sessions, conversions, conversion_rate')
+      .order('sort_order', { ascending: true })
+      .limit(20),
+    supa
+      .from('dashboard_ga4_languages_28d')
+      .select('language, sessions, users')
+      .order('sessions', { ascending: false })
+      .limit(15),
+    supa
+      .from('dashboard_ga4_events_28d')
+      .select('event_name, event_count, users')
+      .order('event_count', { ascending: false })
+      .limit(20),
+    // These two tables are added in 20260421130000_ga4_devices_demographics.sql;
+    // if they don't exist yet the query errors out harmlessly and we fall back
+    // to empty arrays. `.limit()` is enough for both since cardinality is low.
+    supa
+      .from('dashboard_ga4_devices_28d')
+      .select('device, sessions, users, new_users, engaged_sessions')
+      .order('sessions', { ascending: false })
+      .limit(10),
+    supa
+      .from('dashboard_ga4_demographics_28d')
+      .select('gender, age_bracket, users, sessions')
+      .order('users', { ascending: false })
+      .limit(50),
+    supa
+      .from('dashboard_ga4_sync_log')
+      .select('ran_at')
+      .order('ran_at', { ascending: false })
+      .limit(1),
+  ]);
 
   // Collapse geo to country-level (dedupe the (country, region) duplicates).
   const countryMap = new Map<string, TrafficCountryRow>();
@@ -302,6 +347,21 @@ export async function getTrafficSnapshot(): Promise<TrafficSnapshot> {
     users: (r.users as number) ?? 0,
   }));
 
+  const devices: TrafficDeviceRow[] = (devicesRes.data ?? []).map((r) => ({
+    device: (r.device as string) ?? '(unknown)',
+    sessions: (r.sessions as number) ?? 0,
+    users: (r.users as number) ?? 0,
+    newUsers: (r.new_users as number) ?? 0,
+    engagedSessions: (r.engaged_sessions as number) ?? 0,
+  }));
+
+  const demographics: TrafficDemographicRow[] = (demographicsRes.data ?? []).map((r) => ({
+    gender: (r.gender as string) ?? 'unknown',
+    ageBracket: (r.age_bracket as string) ?? 'unknown',
+    users: (r.users as number) ?? 0,
+    sessions: (r.sessions as number) ?? 0,
+  }));
+
   const lastSyncedAt = (syncRes.data?.[0]?.ran_at as string | undefined) ?? null;
 
   const hasData =
@@ -325,6 +385,8 @@ export async function getTrafficSnapshot(): Promise<TrafficSnapshot> {
     sources,
     languages,
     events,
+    devices,
+    demographics,
     lastSyncedAt,
   };
 }
@@ -413,6 +475,8 @@ function emptySnapshot(): TrafficSnapshot {
     sources: [],
     languages: [],
     events: [],
+    devices: [],
+    demographics: [],
     lastSyncedAt: null,
   };
 }

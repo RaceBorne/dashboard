@@ -10,7 +10,7 @@ export default async function CustomersPage() {
   return (
     <>
       <TopBar title="Customers" subtitle={`${customers.length} customers`} />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <CustomersClient initial={customers} mock={!isShopifyConnected()} />
       </div>
     </>

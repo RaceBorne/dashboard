@@ -169,7 +169,7 @@ export function ConnectionsClient({
   const connectedCount = integrations.filter((i) => i.connected).length;
 
   return (
-    <div className={className ?? 'p-6 max-w-[1200px] space-y-6'}>
+    <div className={className ?? 'p-6 space-y-6'}>
       {/* Connections audit */}
       <section className="rounded-xl bg-evari-surface p-5 space-y-4">
         <div className="flex items-start gap-3">

@@ -31,7 +31,7 @@ export default async function SEOPage() {
  <>
   <TopBar title="SEO Health" subtitle="evari.cc" />
 
-  <div className="p-6 max-w-[1400px] space-y-5">
+  <div className="p-6 space-y-5">
   <div className="rounded-md bg-evari-warn/15 ring-1 ring-evari-warn/30 px-4 py-3 flex items-start sm:items-center gap-3 flex-col sm:flex-row">
    <div className="flex-1 text-sm text-evari-text leading-relaxed">
    <span className="font-medium">Audit snapshot from Supabase.</span>

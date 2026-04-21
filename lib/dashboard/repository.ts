@@ -4,10 +4,12 @@ import type {
   KeywordRow,
   LandingPageRow,
   Lead,
+  OutreachSender,
   PageRecord,
   Play,
   Prospect,
   SocialPost,
+  SuppressionEntry,
   Thread,
   TrafficDay,
   TrafficSourceRow,
@@ -284,4 +286,109 @@ export async function getDashboardNavCounts(supabase: SupabaseClient | null): Pr
     leadsPipeline: leads.filter((l) => !['won', 'lost', 'cold'].includes(l.stage)).length,
     conversationsUnread: threads.filter((t) => t.unread).length,
   };
+}
+
+
+// -- Outreach senders --------------------------------------------------------
+
+export async function listSenders(
+  supabase: SupabaseClient | null,
+): Promise<OutreachSender[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('dashboard_outreach_senders')
+    .select('payload');
+  if (error || !data?.length) return [];
+  return (data as { payload: OutreachSender }[])
+    .map((r) => r.payload)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+export async function getSender(
+  supabase: SupabaseClient | null,
+  id: string,
+): Promise<OutreachSender | undefined> {
+  if (!supabase) return undefined;
+  const { data, error } = await supabase
+    .from('dashboard_outreach_senders')
+    .select('payload')
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  return (data as { payload: OutreachSender }).payload;
+}
+
+export async function upsertSender(
+  supabase: SupabaseClient | null,
+  sender: OutreachSender,
+): Promise<void> {
+  if (!supabase) return;
+  await supabase
+    .from('dashboard_outreach_senders')
+    .upsert({ id: sender.id, payload: sender, updated_at: new Date().toISOString() });
+
+  // Enforce single default: if this sender was just made default, clear the
+  // flag on all others.
+  if (sender.isDefault) {
+    const others = await listSenders(supabase);
+    await Promise.all(
+      others
+        .filter((s) => s.id !== sender.id && s.isDefault)
+        .map((s) =>
+          supabase
+            .from('dashboard_outreach_senders')
+            .update({ payload: { ...s, isDefault: false, updatedAt: new Date().toISOString() } })
+            .eq('id', s.id),
+        ),
+    );
+  }
+}
+
+export async function deleteSender(
+  supabase: SupabaseClient | null,
+  id: string,
+): Promise<void> {
+  if (!supabase) return;
+  await supabase.from('dashboard_outreach_senders').delete().eq('id', id);
+}
+
+// -- Suppression list --------------------------------------------------------
+
+export async function listSuppressions(
+  supabase: SupabaseClient | null,
+): Promise<SuppressionEntry[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('dashboard_suppressions')
+    .select('payload');
+  if (error || !data?.length) return [];
+  return (data as { payload: SuppressionEntry }[]).map((r) => r.payload);
+}
+
+export async function isSuppressed(
+  supabase: SupabaseClient | null,
+  email: string,
+  playId?: string,
+): Promise<boolean> {
+  if (!supabase) return false;
+  const lower = email.trim().toLowerCase();
+  const { data, error } = await supabase
+    .from('dashboard_suppressions')
+    .select('payload')
+    .eq('email', lower);
+  if (error || !data?.length) return false;
+  return (data as { payload: SuppressionEntry }[]).some((r) => {
+    const e = r.payload;
+    return !e.playId || e.playId === playId;
+  });
+}
+
+export async function addSuppression(
+  supabase: SupabaseClient | null,
+  entry: SuppressionEntry,
+): Promise<void> {
+  if (!supabase) return;
+  await supabase
+    .from('dashboard_suppressions')
+    .upsert({ id: entry.id, payload: entry });
 }

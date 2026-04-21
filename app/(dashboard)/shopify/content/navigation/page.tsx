@@ -10,7 +10,7 @@ export default async function NavigationPage() {
   return (
     <>
       <TopBar title="Navigation" subtitle={`${menus.length} menus`} />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <NavigationClient menus={menus} mock={!isShopifyConnected()} />
       </div>
     </>

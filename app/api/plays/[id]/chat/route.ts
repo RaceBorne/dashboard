@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay } from '@/lib/dashboard/repository';
+import { listCachedGmailThreads } from '@/lib/integrations/gmail';
+import type { GmailThreadSummary } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
@@ -34,6 +36,11 @@ export async function POST(
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }
 
+  // Recent customer context from Gmail (if connected). We pull 12 most recent
+  // threads total, biased toward support + klaviyo-reply since those are the
+  // ones with the richest "what are real customers actually saying" signal.
+  const gmailContext = await safeGmailContext();
+
   const prompt = [
     `Play title: ${play.title}`,
     `Stage: ${play.stage}`,
@@ -57,6 +64,7 @@ export async function POST(
           .map((m) => `- ${m.channel}${m.subject ? ' · "' + m.subject + '"' : ''}`)
           .join('\n')
       : '',
+    gmailContext,
     '',
     '---',
     'Conversation so far:',
@@ -89,4 +97,40 @@ export async function POST(
         'Something went wrong calling the AI Gateway. Check the logs or try again.',
     });
   }
+}
+
+/**
+ * Build the "Recent customer context" prompt block from the Gmail ingest.
+ * Returns '' if Gmail isn't connected or the table is empty — callers should
+ * drop the block with a `.filter(Boolean)` so the prompt stays tidy.
+ *
+ * Bias: we pull up to 8 support + 4 klaviyo-reply + 3 outbound threads,
+ * most-recent-first. Outbound is included last because it's lowest-signal
+ * for "what are customers saying" — but it's useful for "what have we
+ * already said" when spitballing follow-up.
+ */
+async function safeGmailContext(): Promise<string> {
+  try {
+    const [support, klaviyoReply, outbound] = await Promise.all([
+      listCachedGmailThreads({ category: 'support', limit: 8 }),
+      listCachedGmailThreads({ category: 'klaviyo-reply', limit: 4 }),
+      listCachedGmailThreads({ category: 'outbound', limit: 3 }),
+    ]);
+    const threads = [...support, ...klaviyoReply, ...outbound];
+    if (threads.length === 0) return '';
+    return (
+      'Recent customer context (from Gmail, last 30 days):\n' +
+      threads.map((t) => `- [${t.category}] ${formatGmailRow(t)}`).join('\n')
+    );
+  } catch {
+    // Never fail a chat because Gmail ingest is down — just skip the block.
+    return '';
+  }
+}
+
+function formatGmailRow(t: GmailThreadSummary): string {
+  const when = t.lastMessageAt.slice(0, 10);
+  const subject = t.subject.replace(/\s+/g, ' ').trim().slice(0, 120);
+  const snippet = t.snippet.replace(/\s+/g, ' ').trim().slice(0, 160);
+  return `${when} · "${subject}" — ${snippet}`;
 }

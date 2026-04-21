@@ -409,7 +409,7 @@ export function TasksClient({
  // -------- render ----------------------------------------------------------
 
  return (
-  <div className="flex gap-5 p-6 max-w-[1400px]">
+  <div className="flex gap-5 p-6">
    {/* Category folders */}
    <aside className="w-56 shrink-0">
     <div className="sticky top-4 space-y-4">

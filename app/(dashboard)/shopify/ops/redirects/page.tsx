@@ -13,7 +13,7 @@ export default async function RedirectsPage() {
   return (
     <>
       <TopBar title="URL redirects" subtitle={`${redirects.length} active`} />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <RedirectsClient
           initial={redirects}
           mock={!isShopifyConnected()}

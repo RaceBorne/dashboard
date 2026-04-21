@@ -27,7 +27,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
     <>
       <TopBar title={lead.fullName} subtitle={lead.stage} />
 
-      <div className="p-6 max-w-[1400px] space-y-5">
+      <div className="p-6 space-y-5">
         <Link
           href="/leads"
           className="inline-flex items-center gap-1 text-xs text-evari-dim hover:text-evari-text"

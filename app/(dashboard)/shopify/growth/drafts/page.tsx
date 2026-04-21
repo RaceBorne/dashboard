@@ -13,7 +13,7 @@ export default async function DraftsPage() {
   return (
     <>
       <TopBar title="Draft orders" subtitle={`${drafts.length} drafts`} />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <DraftsClient initial={drafts} mock={!isShopifyConnected()} />
       </div>
     </>

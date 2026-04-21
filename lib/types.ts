@@ -158,6 +158,31 @@ export interface Thread {
   messages: ThreadMessage[];
 }
 
+// -- Gmail ingest (separate from the mocked Conversations viewer) ------------
+//
+// Lightweight thread summary written nightly by /api/integrations/google/gmail/ingest.
+// The full Conversations viewer uses `Thread` above — `GmailThreadSummary` is
+// just enough context for the briefing + strategy chats to reference real
+// customer conversations.
+
+export type GmailCategory = 'support' | 'outbound' | 'klaviyo-reply' | 'other';
+
+export interface GmailThreadSummary {
+  threadId: string;
+  subject: string;
+  snippet: string;
+  /** Best-guess category, inferred from labels + participant heuristics. */
+  category: GmailCategory;
+  /** Email addresses of everyone on the thread (de-duped, lowercased). */
+  participants: string[];
+  /** ISO timestamp of the most recent message. */
+  lastMessageAt: string;
+  /** Raw Gmail label IDs for the thread's most recent message. */
+  labels: string[];
+  /** Gmail permalink so Craig can open the thread in Gmail directly. */
+  gmailUrl: string;
+}
+
 // -- Traffic / Analytics -----------------------------------------------------
 
 export interface TrafficDay {
@@ -387,6 +412,138 @@ export interface Play {
     won?: number;
     revenue?: number;
   };
+
+  /**
+   * Strategy authoring output — produced in the "idea" stage, typically via
+   * the AI chat panel. Drives the scrape + outreach engine once the play
+   * goes live.
+   */
+  strategy?: PlayStrategy;
+
+  /** Scrape brief the outreach agent follows. */
+  scrapeBrief?: ScrapeBrief;
+
+  /** Which configured OutreachSender this Play sends from. */
+  senderId?: string;
+
+  /** Follow-up cadence config for this Play. */
+  cadence?: OutreachCadence;
+
+  /** Email template used for the first-touch outreach (with {{slots}}). */
+  emailTemplate?: OutreachTemplate;
+}
+
+// -- Play strategy + scrape brief --------------------------------------------
+
+export interface PlayStrategy {
+  /** One-sentence "why now" thesis for this play. */
+  hypothesis: string;
+  /** Market/sector label, e.g. "UK private knee-surgery clinics". */
+  sector: string;
+  /** The job title we actually email, not the famous one. */
+  targetPersona: string;
+  /** 1-3 message angles to test with prospects. */
+  messagingAngles: string[];
+  /** Volume target — e.g. 20 new prospects/week. */
+  weeklyTarget?: number;
+  /** How we know the play worked (reply rate, meetings, etc.). */
+  successMetrics: string[];
+  /** Why we would *not* contact someone who otherwise matches. */
+  disqualifiers?: string[];
+}
+
+export interface ScrapeBrief {
+  /**
+   * Seed URLs the agent starts from — directories, listing pages, CQC
+   * registers, Google Maps searches, etc.
+   */
+  seedSources: Array<{
+    label: string;
+    url: string;
+    /** Optional hint to the agent about what's on this page. */
+    notes?: string;
+  }>;
+  /** Which enrichment fields the agent must capture per record. */
+  harvestFields: Array<
+    | 'org'
+    | 'website'
+    | 'address'
+    | 'decisionMakerName'
+    | 'decisionMakerRole'
+    | 'decisionMakerEmail'
+    | 'linkedin'
+    | 'evidenceSnippet'
+  >;
+  /** Free-text rules, e.g. "Only clinics doing >50 knee ops/year". */
+  inclusionRules?: string[];
+  /** Free-text rules, e.g. "Skip NHS trusts". */
+  exclusionRules?: string[];
+  /** Last time the agent ran for this play. */
+  lastRunAt?: string;
+}
+
+export interface OutreachCadence {
+  /** Number of touches in the sequence. */
+  totalTouches: number;
+  /** Day offset from first send for each touch (first is always 0). */
+  daysBetween: number[];
+  /** Whether each send needs human approval. */
+  approvalPolicy: 'every_send' | 'first_only' | 'spot_check';
+}
+
+export interface OutreachTemplate {
+  subject: string;
+  body: string;
+  /**
+   * The slot keys the template uses, e.g. ['firstName','org','evidence'].
+   * Drives what the AI personaliser fills in per-prospect.
+   */
+  slots: string[];
+  updatedAt: string;
+}
+
+// -- Outreach senders (Gmail mailboxes we send from) -------------------------
+
+export interface OutreachSender {
+  id: string;
+  /** Full email address, e.g. craig.mcdonald@evari.cc. */
+  email: string;
+  /** Friendly "From" name, e.g. "Craig McDonald". */
+  displayName: string;
+  /** Job title to render below the name in the signature. */
+  role?: string;
+  /**
+   * Signature HTML — may reference {{logoUrl}}, {{displayName}},
+   * {{role}}, {{email}}. Rendered at send time.
+   */
+  signatureHtml: string;
+  /** Optional company logo (data URL or external URL) used in signatures. */
+  logoUrl?: string;
+  /** When false, the sender is hidden from new Play pickers. */
+  isActive: boolean;
+  /** The Play picker uses this when no explicit senderId on the play. */
+  isDefault?: boolean;
+  /**
+   * Whether a Google OAuth refresh token has been saved for this sender.
+   * The token itself lives in env / secure storage, never in this payload.
+   */
+  oauthConnected: boolean;
+  /** ISO timestamps. */
+  createdAt: string;
+  updatedAt: string;
+  lastSentAt?: string;
+}
+
+// -- Suppression list (compliance: unsubscribes, bounces, DNC) ---------------
+
+export interface SuppressionEntry {
+  id: string;
+  email: string;
+  reason: 'unsubscribed' | 'hard_bounce' | 'complaint' | 'manual_dnc';
+  at: string;
+  /** Scope: if playId is set, suppression only applies to that play. */
+  playId?: string;
+  notes?: string;
 }
 
 // -- Prospects (testing layer between Plays and Leads) -------------------

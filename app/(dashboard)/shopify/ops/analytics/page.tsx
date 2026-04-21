@@ -22,7 +22,7 @@ export default async function AnalyticsPage() {
   return (
     <>
       <TopBar title="Analytics" subtitle="Last 30 days" />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <AnalyticsClient
           initial={sales}
           mock={!connected}

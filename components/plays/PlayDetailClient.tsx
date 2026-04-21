@@ -16,6 +16,10 @@ import {
   Activity,
   Target,
   BookOpenText,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PillTabs } from '@/components/ui/pill-tabs';
 import { MessageResponse } from '@/components/MessageResponse';
 import { cn, relativeTime } from '@/lib/utils';
+import { useVoiceChat } from '@/lib/hooks/useVoiceChat';
 import type {
   Play,
   PlayChatMessage,
@@ -60,6 +65,7 @@ export function PlayDetailClient({
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const voice = useVoiceChat();
 
   function setStage(s: PlayStage) {
     setCampaign((prev) => ({
@@ -78,8 +84,8 @@ export function PlayDetailClient({
     }));
   }
 
-  async function sendChat() {
-    const text = chatInput.trim();
+  async function sendChat(override?: string) {
+    const text = (override ?? chatInput).trim();
     if (!text || chatLoading) return;
     const userMsg: PlayChatMessage = {
       id: 'c-' + Math.random().toString(36).slice(2, 9),
@@ -110,6 +116,7 @@ export function PlayDetailClient({
         at: new Date().toISOString(),
       };
       setCampaign((prev) => ({ ...prev, chat: [...prev.chat, aiMsg] }));
+      if (voice.autoSpeak) voice.speak(data.markdown);
     } catch {
       // swallow
     } finally {
@@ -121,6 +128,24 @@ export function PlayDetailClient({
         });
       });
     }
+  }
+
+  function toggleMic() {
+    if (voice.isListening) {
+      voice.stopListening();
+      return;
+    }
+    // Don't let Claude narrate over Craig while he's speaking.
+    voice.stopSpeaking();
+    voice.startListening(
+      (finalText) => {
+        setChatInput('');
+        void sendChat(finalText);
+      },
+      (interim) => {
+        setChatInput(interim);
+      },
+    );
   }
 
   function togglePinned(id: string) {
@@ -141,7 +166,7 @@ export function PlayDetailClient({
           className="inline-flex items-center gap-1 text-xs text-evari-dim hover:text-evari-text"
         >
           <ArrowLeft className="h-3 w-3" />
-          Back to plays
+          Back to strategy
         </Link>
 
         {/* Title + stage controls */}
@@ -247,7 +272,7 @@ export function PlayDetailClient({
             <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
               Brief
             </div>
-            <p className="text-sm text-evari-text leading-relaxed whitespace-pre-wrap">
+            <p className="text-sm text-evari-text leading-relaxed whitespace-pre-wrap selectable">
               {play.brief}
             </p>
             {play.links && play.links.length > 0 && (
@@ -465,10 +490,36 @@ export function PlayDetailClient({
                 Spitball with Claude
               </div>
               <div className="text-[11px] text-evari-dim leading-snug">
-                Grounded in this play's brief, research, targets and prior
+                Grounded in this strategy's brief, research, targets and prior
                 conversation.
               </div>
             </div>
+            {voice.speakerSupported ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (voice.autoSpeak) voice.stopSpeaking();
+                  voice.setAutoSpeak(!voice.autoSpeak);
+                }}
+                title={
+                  voice.autoSpeak
+                    ? 'Speaker on — click to mute'
+                    : 'Speaker off — click to hear replies'
+                }
+                className={cn(
+                  'shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors',
+                  voice.autoSpeak
+                    ? 'text-evari-gold bg-evari-surfaceSoft'
+                    : 'text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft',
+                )}
+              >
+                {voice.autoSpeak ? (
+                  <Volume2 className="h-3.5 w-3.5" />
+                ) : (
+                  <VolumeX className="h-3.5 w-3.5" />
+                )}
+              </button>
+            ) : null}
           </div>
 
           <div
@@ -502,7 +553,7 @@ export function PlayDetailClient({
                 {m.role === 'assistant' ? (
                   <MessageResponse>{m.content}</MessageResponse>
                 ) : (
-                  <p className="text-evari-text leading-relaxed whitespace-pre-wrap">
+                  <p className="text-evari-text leading-relaxed whitespace-pre-wrap selectable">
                     {m.content}
                   </p>
                 )}
@@ -520,7 +571,7 @@ export function PlayDetailClient({
 
           <div className="p-3 flex items-center gap-2">
             <Input
-              placeholder="Ask, draft, plan…"
+              placeholder={voice.isListening ? 'Listening…' : 'Ask, draft, plan…'}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
@@ -532,6 +583,32 @@ export function PlayDetailClient({
               disabled={chatLoading}
               className="flex-1"
             />
+            {voice.isSpeaking ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={voice.stopSpeaking}
+                title="Stop Claude from reading out loud"
+              >
+                <VolumeX className="h-3 w-3" />
+              </Button>
+            ) : null}
+            {voice.micSupported ? (
+              <Button
+                variant={voice.isListening ? 'primary' : 'ghost'}
+                size="sm"
+                onClick={toggleMic}
+                disabled={chatLoading}
+                title={voice.isListening ? 'Stop listening' : 'Hold a conversation out loud'}
+                className={voice.isListening ? 'animate-pulse' : ''}
+              >
+                {voice.isListening ? (
+                  <MicOff className="h-3 w-3" />
+                ) : (
+                  <Mic className="h-3 w-3" />
+                )}
+              </Button>
+            ) : null}
             <Button
               variant="primary"
               size="sm"

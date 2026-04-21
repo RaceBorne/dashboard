@@ -4,6 +4,7 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { ShadeSlider } from '@/components/theme/ShadeSlider';
 import { AccentPicker } from '@/components/theme/AccentPicker';
 import { LogoUploader } from '@/components/theme/LogoUploader';
+import { SendersSection } from '@/components/settings/SendersSection';
 import { ArrowUpRight } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -72,6 +73,9 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* Outreach senders */}
+        <SendersSection />
 
         {/* Pointer to Connections */}
         <section className="rounded-xl bg-evari-surface p-5">

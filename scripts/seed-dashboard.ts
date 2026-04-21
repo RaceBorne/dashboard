@@ -15,10 +15,10 @@ import { MOCK_LEADS } from '@/lib/mock/leads';
 import { MOCK_THREADS } from '@/lib/mock/conversations';
 import { MOCK_PLAYS } from '@/lib/mock/plays';
 import { MOCK_PROSPECTS } from '@/lib/mock/prospects';
-import { MOCK_TRAFFIC_30D, MOCK_TRAFFIC_SOURCES, MOCK_LANDING_PAGES } from '@/lib/mock/traffic';
 import { MOCK_KEYWORDS, MOCK_PAGES, MOCK_AUDIT_FINDINGS } from '@/lib/mock/seo';
 import { MOCK_SOCIAL_POSTS } from '@/lib/mock/social';
 import { MOCK_USERS } from '@/lib/mock/users';
+import { MOCK_SENDERS } from '@/lib/mock/senders';
 
 config({ path: resolve(process.cwd(), '.env.local') });
 config({ path: resolve(process.cwd(), '.env') });
@@ -27,6 +27,9 @@ const MIGRATIONS = [
   'supabase/migrations/20260219120000_tasks.sql',
   'supabase/migrations/20260220100000_dashboard.sql',
   'supabase/migrations/20260421120000_seo_health_scan.sql',
+  'supabase/migrations/20260421130000_ga4_devices_demographics.sql',
+  'supabase/migrations/20260422120000_klaviyo_campaign_preview.sql',
+  'supabase/migrations/20260424120000_outreach_senders_suppressions.sql',
 ];
 
 async function applyMigrationsPg(client: Client) {
@@ -91,37 +94,10 @@ async function seedViaPg() {
     );
     console.log(`dashboard_prospects: ${MOCK_PROSPECTS.length}`);
 
-    for (const d of MOCK_TRAFFIC_30D) {
-      await client.query(
-        `INSERT INTO public.dashboard_traffic_days (day, sessions, users, bounce_rate, avg_duration_sec, conversions)
-         VALUES ($1::date, $2, $3, $4, $5, $6)
-         ON CONFLICT (day) DO UPDATE SET
-           sessions = EXCLUDED.sessions, users = EXCLUDED.users, bounce_rate = EXCLUDED.bounce_rate,
-           avg_duration_sec = EXCLUDED.avg_duration_sec, conversions = EXCLUDED.conversions`,
-        [d.date, d.sessions, d.users, d.bounceRate, d.avgDurationSec, d.conversions],
-      );
-    }
-    console.log(`dashboard_traffic_days: ${MOCK_TRAFFIC_30D.length}`);
-
-    await client.query('DELETE FROM public.dashboard_traffic_sources');
-    let sortOrder = 0;
-    for (const s of MOCK_TRAFFIC_SOURCES) {
-      await client.query(
-        `INSERT INTO public.dashboard_traffic_sources (sort_order, source, medium, sessions, conversions, conversion_rate)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [sortOrder++, s.source, s.medium, s.sessions, s.conversions, s.conversionRate],
-      );
-    }
-    console.log(`dashboard_traffic_sources: ${MOCK_TRAFFIC_SOURCES.length}`);
-
-    for (const p of MOCK_LANDING_PAGES) {
-      await client.query(
-        `INSERT INTO public.dashboard_landing_pages (path, payload) VALUES ($1, $2::jsonb)
-         ON CONFLICT (path) DO UPDATE SET payload = EXCLUDED.payload`,
-        [p.path, JSON.stringify(p)],
-      );
-    }
-    console.log(`dashboard_landing_pages: ${MOCK_LANDING_PAGES.length}`);
+    // Traffic tables (dashboard_traffic_days, dashboard_traffic_sources,
+    // dashboard_landing_pages) are intentionally NOT seeded here — they're
+    // populated by the real GA4 ingest (`npm run ingest:ga4` or the nightly
+    // cron). Seeding fake rows here would collide with real GA4 data.
 
     await upsertJson('dashboard_seo_keywords', 'id', MOCK_KEYWORDS.map((k) => ({ id: k.id, payload: k })));
     console.log(`dashboard_seo_keywords: ${MOCK_KEYWORDS.length}`);
@@ -145,6 +121,13 @@ async function seedViaPg() {
 
     await upsertJson('dashboard_users', 'id', MOCK_USERS.map((u) => ({ id: u.id, payload: u })));
     console.log(`dashboard_users: ${MOCK_USERS.length}`);
+
+    await upsertJson(
+      'dashboard_outreach_senders',
+      'id',
+      MOCK_SENDERS.map((s) => ({ id: s.id, payload: s })),
+    );
+    console.log(`dashboard_outreach_senders: ${MOCK_SENDERS.length}`);
 
     console.log('Done (via DATABASE_URL / pg).');
   } finally {
@@ -191,45 +174,10 @@ async function seedViaSupabaseJs() {
   );
   console.log(`dashboard_prospects: ${MOCK_PROSPECTS.length}`);
 
-  for (const d of MOCK_TRAFFIC_30D) {
-    const { error } = await supabase.from('dashboard_traffic_days').upsert(
-      {
-        day: d.date,
-        sessions: d.sessions,
-        users: d.users,
-        bounce_rate: d.bounceRate,
-        avg_duration_sec: d.avgDurationSec,
-        conversions: d.conversions,
-      },
-      { onConflict: 'day' },
-    );
-    if (error) throw new Error(`dashboard_traffic_days: ${error.message}`);
-  }
-  console.log(`dashboard_traffic_days: ${MOCK_TRAFFIC_30D.length}`);
-
-  await supabase.from('dashboard_traffic_sources').delete().neq('id', 0);
-  let sortOrder = 0;
-  for (const s of MOCK_TRAFFIC_SOURCES) {
-    const { error } = await supabase.from('dashboard_traffic_sources').insert({
-      sort_order: sortOrder++,
-      source: s.source,
-      medium: s.medium,
-      sessions: s.sessions,
-      conversions: s.conversions,
-      conversion_rate: s.conversionRate,
-    });
-    if (error) throw new Error(`dashboard_traffic_sources: ${error.message}`);
-  }
-  console.log(`dashboard_traffic_sources: ${MOCK_TRAFFIC_SOURCES.length}`);
-
-  {
-    const { error } = await supabase.from('dashboard_landing_pages').upsert(
-      MOCK_LANDING_PAGES.map((p) => ({ path: p.path, payload: p })),
-      { onConflict: 'path' },
-    );
-    if (error) throw new Error(`dashboard_landing_pages: ${error.message}`);
-  }
-  console.log(`dashboard_landing_pages: ${MOCK_LANDING_PAGES.length}`);
+  // Traffic tables (dashboard_traffic_days, dashboard_traffic_sources,
+  // dashboard_landing_pages) are intentionally NOT seeded here — they're
+  // populated by the real GA4 ingest (`npm run ingest:ga4` or the nightly
+  // cron). Seeding fake rows here would collide with real GA4 data.
 
   await upsertPayload(
     'dashboard_seo_keywords',
@@ -260,6 +208,12 @@ async function seedViaSupabaseJs() {
     MOCK_USERS.map((u) => ({ id: u.id, payload: u })),
   );
   console.log(`dashboard_users: ${MOCK_USERS.length}`);
+
+  await upsertPayload(
+    'dashboard_outreach_senders',
+    MOCK_SENDERS.map((s) => ({ id: s.id, payload: s })),
+  );
+  console.log(`dashboard_outreach_senders: ${MOCK_SENDERS.length}`);
 
   console.log('Done (via Supabase service role).');
 }

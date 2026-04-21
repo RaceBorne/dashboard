@@ -10,7 +10,7 @@ export default async function DiscountsPage() {
   return (
     <>
       <TopBar title="Discounts" subtitle={`${discounts.length} discounts`} />
-      <div className="p-6 max-w-[1400px]">
+      <div className="p-6">
         <DiscountsClient initial={discounts} mock={!isShopifyConnected()} />
       </div>
     </>
