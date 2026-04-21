@@ -9,6 +9,8 @@ import {
   Flag,
   Rocket,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   MailX,
   Clock,
   CircleHelp,
@@ -19,6 +21,10 @@ import {
   UserCheck,
   Trash2,
   ArrowUpRight,
+  Folder,
+  Loader2,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -63,8 +69,12 @@ export function ProspectsClient({
   const [activeStatuses, setActiveStatuses] = useState<Set<ProspectStatus>>(
     new Set(STATUSES.map((s) => s.key)),
   );
+  const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortKey>('quality');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [synopsisLoading, setSynopsisLoading] = useState<Set<string>>(new Set());
+  const [actionLoading, setActionLoading] = useState<Set<string>>(new Set());
   const confirm = useConfirm();
 
   // --- Derived ------------------------------------------------------------
@@ -75,19 +85,50 @@ export function ProspectsClient({
     return c;
   }, [prospects]);
 
+  const categoryCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const p of prospects) {
+      const key = (p.category ?? '').trim() || 'Uncategorised';
+      c[key] = (c[key] ?? 0) + 1;
+    }
+    return c;
+  }, [prospects]);
+
+  const categoryKeys = useMemo(
+    () =>
+      Object.keys(categoryCounts).sort((a, b) => {
+        if (a === 'Uncategorised') return 1;
+        if (b === 'Uncategorised') return -1;
+        return a.localeCompare(b);
+      }),
+    [categoryCounts],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const catFilterOn = activeCategories.size > 0;
     return prospects.filter((p) => {
       if (!activeStatuses.has(p.status)) return false;
+      if (catFilterOn) {
+        const key = (p.category ?? '').trim() || 'Uncategorised';
+        if (!activeCategories.has(key)) return false;
+      }
       if (q) {
-        const hay = [p.name, p.org ?? '', p.email ?? '', p.role ?? '', p.sourceDetail ?? '']
+        const hay = [
+          p.name,
+          p.org ?? '',
+          p.email ?? '',
+          p.role ?? '',
+          p.sourceDetail ?? '',
+          p.category ?? '',
+        ]
           .join(' ')
           .toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [prospects, search, activeStatuses]);
+  }, [prospects, search, activeStatuses, activeCategories]);
 
   const sorted = useMemo(() => {
     const out = [...filtered];
@@ -118,30 +159,116 @@ export function ProspectsClient({
     });
   }
 
+  function toggleCategory(key: string) {
+    setActiveCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   function updateStatus(id: string, status: ProspectStatus) {
     setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
   }
 
+  function mark(id: string, set: 'action' | 'synopsis', on: boolean) {
+    const setter = set === 'action' ? setActionLoading : setSynopsisLoading;
+    setter((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
   async function promoteToLead(p: Prospect) {
     const ok = await confirm({
-      title: `Promote ${p.name} to Lead?`,
-      description: `Creates a Lead record on /leads carrying the campaign source. ${p.name} will be marked as qualified and removed from the active test pool.`,
+      title: 'Promote ' + p.name + ' to Lead?',
+      description:
+        'Flips this row from the Prospect tier to the Lead tier. It will ' +
+        'disappear from this view and appear on /leads under the ' +
+        '"' + (p.category ?? 'Uncategorised') + '" funnel.',
       confirmLabel: 'Promote',
     });
     if (!ok) return;
-    updateStatus(p.id, 'qualified');
-    // TODO (when Supabase wires): actually insert into leads table.
+    mark(p.id, 'action', true);
+    try {
+      const res = await fetch('/api/leads/' + p.id + '/promote', {
+        method: 'POST',
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!data.ok) throw new Error(data.error || 'Promote failed');
+      // The Lead is no longer tier=prospect — drop it from this list.
+      setProspects((prev) => prev.filter((x) => x.id !== p.id));
+    } catch (err) {
+      console.warn('promote failed', err);
+      updateStatus(p.id, 'qualified');
+    } finally {
+      mark(p.id, 'action', false);
+    }
   }
 
   async function archive(p: Prospect) {
     const ok = await confirm({
       title: 'Archive prospect?',
-      description: `${p.name} will be moved to archived. Their outreach history stays on record.`,
+      description: p.name + ' will be moved to archived. Their outreach history stays on record.',
       confirmLabel: 'Archive',
       tone: 'danger',
     });
     if (!ok) return;
-    updateStatus(p.id, 'archived');
+    mark(p.id, 'action', true);
+    try {
+      const res = await fetch('/api/leads/' + p.id, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prospectStatus: 'archived' }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!data.ok) throw new Error(data.error || 'Archive failed');
+      updateStatus(p.id, 'archived');
+    } catch (err) {
+      console.warn('archive failed', err);
+      updateStatus(p.id, 'archived');
+    } finally {
+      mark(p.id, 'action', false);
+    }
+  }
+
+  async function toggleExpand(p: Prospect) {
+    const isOpen = expandedIds.has(p.id);
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (isOpen) next.delete(p.id);
+      else next.add(p.id);
+      return next;
+    });
+    if (!isOpen && !p.synopsis && !synopsisLoading.has(p.id)) {
+      mark(p.id, 'synopsis', true);
+      try {
+        const res = await fetch('/api/leads/' + p.id + '/synopsis', {
+          method: 'POST',
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          synopsis?: string;
+          error?: string;
+        };
+        if (data.ok && data.synopsis) {
+          setProspects((prev) =>
+            prev.map((x) =>
+              x.id === p.id
+                ? { ...x, synopsis: data.synopsis, synopsisGeneratedAt: new Date().toISOString() }
+                : x,
+            ),
+          );
+        }
+      } catch (err) {
+        console.warn('synopsis failed', err);
+      } finally {
+        mark(p.id, 'synopsis', false);
+      }
+    }
   }
 
   const allSelected = activeStatuses.size === STATUSES.length;
@@ -243,6 +370,53 @@ export function ProspectsClient({
               })}
             </div>
           </div>
+
+          {categoryKeys.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between px-1 pb-1.5">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium">
+                  Funnel
+                </div>
+                {activeCategories.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveCategories(new Set())}
+                    className="text-[10px] text-evari-dim hover:text-evari-text px-1.5 py-0.5 rounded hover:bg-evari-surfaceSoft"
+                  >
+                    clear
+                  </button>
+                )}
+              </div>
+              <div className="space-y-0.5">
+                {categoryKeys.map((key) => {
+                  const count = categoryCounts[key];
+                  const active = activeCategories.has(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleCategory(key)}
+                      className={cn(
+                        'w-full flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors text-left',
+                        active
+                          ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                          : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
+                      )}
+                    >
+                      <Folder
+                        className={cn(
+                          'h-3.5 w-3.5 shrink-0',
+                          active ? 'text-evari-text' : 'text-evari-dimmer',
+                        )}
+                      />
+                      <span className="flex-1 truncate">{key}</span>
+                      <CountPill n={count} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -307,7 +481,11 @@ export function ProspectsClient({
 
         {/* Prospect rows */}
         <ul className="space-y-1">
-          {sorted.map((p) => (
+          {sorted.map((p) => {
+            const expanded = expandedIds.has(p.id);
+            const loadingSynopsis = synopsisLoading.has(p.id);
+            const loadingAction = actionLoading.has(p.id);
+            return (
             <li
               key={p.id}
               className="bg-evari-surface/60 rounded-md p-4 space-y-3"
@@ -315,6 +493,18 @@ export function ProspectsClient({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => void toggleExpand(p)}
+                      title={expanded ? 'Collapse' : 'Expand'}
+                      className="h-5 w-5 -ml-1 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
+                    >
+                      {expanded ? (
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      )}
+                    </button>
                     <div className="text-sm font-medium text-evari-text">
                       {p.name}
                     </div>
@@ -326,13 +516,32 @@ export function ProspectsClient({
                     >
                       {p.status.replace(/_/g, ' ')}
                     </span>
+                    {p.category && (
+                      <span
+                        className="inline-flex items-center gap-1 text-[10px] text-evari-dim bg-evari-surfaceSoft rounded-full px-2 py-0.5"
+                        title={'Funnel: ' + p.category}
+                      >
+                        <Folder className="h-2.5 w-2.5" />
+                        {p.category}
+                      </span>
+                    )}
                     <QualityPill score={p.qualityScore ?? 0} />
                   </div>
                   <div className="text-xs text-evari-dim mt-0.5">
                     {p.role}
                     {p.org ? ' · ' + p.org : ''}
                     {p.email ? (
-                      <span className="font-mono text-evari-dimmer"> · {p.email}</span>
+                      <span className="font-mono text-evari-dimmer">
+                        {' · ' + p.email}
+                        {p.emailInferred && (
+                          <span
+                            className="ml-1 text-evari-warn"
+                            title="Email was inferred — verify before sending"
+                          >
+                            (inferred)
+                          </span>
+                        )}
+                      </span>
                     ) : null}
                   </div>
                   {p.sourceDetail && (
@@ -349,8 +558,13 @@ export function ProspectsClient({
                         size="sm"
                         variant="primary"
                         onClick={() => void promoteToLead(p)}
+                        disabled={loadingAction}
                       >
-                        <UserCheck className="h-3 w-3" />
+                        {loadingAction ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <UserCheck className="h-3 w-3" />
+                        )}
                         Promote to Lead
                       </Button>
                     )}
@@ -358,7 +572,8 @@ export function ProspectsClient({
                     <button
                       type="button"
                       onClick={() => void archive(p)}
-                      className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft"
+                      disabled={loadingAction}
+                      className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft disabled:opacity-50"
                       title="Archive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -366,6 +581,60 @@ export function ProspectsClient({
                   )}
                 </div>
               </div>
+
+              {expanded && (
+                <div className="rounded-md bg-evari-ink/40 p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+                    <Sparkles className="h-3 w-3" />
+                    Synopsis
+                    {loadingSynopsis && (
+                      <Loader2 className="h-3 w-3 animate-spin text-evari-dim" />
+                    )}
+                  </div>
+                  {p.synopsis ? (
+                    <p className="text-xs text-evari-text leading-relaxed whitespace-pre-wrap">
+                      {p.synopsis}
+                    </p>
+                  ) : loadingSynopsis ? (
+                    <p className="text-xs text-evari-dim italic">
+                      Claude is reading what we know and drafting a summary…
+                    </p>
+                  ) : (
+                    <p className="text-xs text-evari-dimmer italic">
+                      No synopsis yet.
+                    </p>
+                  )}
+                  {(p.companyUrl || p.linkedinUrl || p.address) && (
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] pt-1">
+                      {p.companyUrl && (
+                        <a
+                          href={p.companyUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-evari-gold hover:text-evari-text"
+                        >
+                          <ExternalLink className="h-2.5 w-2.5" />
+                          Website
+                        </a>
+                      )}
+                      {p.linkedinUrl && (
+                        <a
+                          href={p.linkedinUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-evari-gold hover:text-evari-text"
+                        >
+                          <ExternalLink className="h-2.5 w-2.5" />
+                          LinkedIn
+                        </a>
+                      )}
+                      {p.address && (
+                        <span className="text-evari-dim">{p.address}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Signals strip */}
               <div className="flex items-center gap-2 text-[11px] flex-wrap">
@@ -412,7 +681,8 @@ export function ProspectsClient({
                 </div>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
 
         {sorted.length === 0 && (

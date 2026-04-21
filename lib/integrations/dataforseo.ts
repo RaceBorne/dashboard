@@ -305,6 +305,90 @@ async function logSync(
 }
 
 // ============================================================================
+// Business Listings (used by the Source Prospects agent)
+// ============================================================================
+
+export interface BusinessListing {
+  title: string;
+  url?: string;
+  phone?: string;
+  domain?: string;
+  address?: string;
+  rating?: { value?: number; votes_count?: number };
+  category?: string;
+  categoryIds?: string[];
+  latitude?: number;
+  longitude?: number;
+  placeId?: string;
+  cid?: string;
+}
+
+interface BusinessListingsLiveResult {
+  items?: Array<{
+    title?: string;
+    url?: string;
+    phone?: string;
+    domain?: string;
+    address?: string;
+    rating?: { value?: number; votes_count?: number };
+    category?: string;
+    category_ids?: string[];
+    latitude?: number;
+    longitude?: number;
+    place_id?: string;
+    cid?: string;
+  }>;
+}
+
+/**
+ * Find business listings by keyword + location. Synchronous /live call.
+ *
+ * `description` is the Google-search-style keyword (e.g. "knee surgery clinic").
+ * `locationName` is a DataForSEO location string (e.g. "United Kingdom",
+ * "London, England, United Kingdom"). `limit` is capped at 500 by the API.
+ */
+export async function searchBusinessListings(opts: {
+  description: string;
+  locationName?: string;
+  limit?: number;
+  categories?: string[];
+}): Promise<{ listings: BusinessListing[]; cost: number }> {
+  const body: Record<string, unknown> = {
+    description: opts.description,
+    location_name: opts.locationName ?? 'United Kingdom',
+    limit: Math.min(Math.max(opts.limit ?? 50, 1), 500),
+  };
+  if (opts.categories && opts.categories.length > 0) {
+    body.categories = opts.categories;
+  }
+  const { tasks, cost } = await dfsPost<BusinessListingsLiveResult>(
+    '/business_data/business_listings/search/live',
+    [body],
+  );
+  const listings: BusinessListing[] = [];
+  for (const t of tasks) {
+    for (const it of t.items ?? []) {
+      if (!it.title) continue;
+      listings.push({
+        title: it.title,
+        url: it.url,
+        phone: it.phone,
+        domain: it.domain,
+        address: it.address,
+        rating: it.rating,
+        category: it.category,
+        categoryIds: it.category_ids,
+        latitude: it.latitude,
+        longitude: it.longitude,
+        placeId: it.place_id,
+        cid: it.cid,
+      });
+    }
+  }
+  return { listings, cost };
+}
+
+// ============================================================================
 // Backlinks Ingest
 // ============================================================================
 

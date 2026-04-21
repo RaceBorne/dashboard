@@ -757,6 +757,8 @@ export interface Prospect {
   channel: 'email' | 'linkedin' | 'phone' | 'whatsapp';
   status: ProspectStatus;
   playId?: string;    // play this prospect came from
+  /** Funnel label — matches Play.category. Used to group rows. */
+  category?: string;
   sourceDetail?: string;  // inherited from play / target
   createdAt: string;
   lastTouchAt?: string;
@@ -764,6 +766,13 @@ export interface Prospect {
   signals?: ProspectSignal;
   outreach: ProspectOutreach[];
   notes?: string;
+  /** ~100-word summary of company/person/opportunity. Lazy-generated. */
+  synopsis?: string;
+  synopsisGeneratedAt?: string;
+  companyUrl?: string;
+  linkedinUrl?: string;
+  address?: string;
+  emailInferred?: boolean;
 }
 
 // -- Tasks (the Evari to-do list) --------------------------------------------

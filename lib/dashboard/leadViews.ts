@@ -24,12 +24,19 @@ export function leadToProspect(l: Lead): Prospect {
     channel: 'email',
     status: l.prospectStatus ?? 'pending',
     playId: l.playId,
+    category: l.category,
     sourceDetail: l.sourceDetail,
     createdAt: l.firstSeenAt,
     lastTouchAt: l.lastTouchAt ?? l.firstSeenAt,
     signals: l.prospectSignals,
     outreach: l.outreach ?? [],
     notes: l.notes,
+    synopsis: l.synopsis,
+    synopsisGeneratedAt: l.synopsisGeneratedAt,
+    companyUrl: l.companyUrl,
+    linkedinUrl: l.linkedinUrl,
+    address: l.address,
+    emailInferred: l.emailInferred,
   };
 }
 
