@@ -12,6 +12,8 @@ import {
   ExternalLink,
   FileText,
   Inbox,
+  ListChecks,
+  Loader2,
   Mail,
   Mic,
   MicOff,
@@ -19,6 +21,7 @@ import {
   Pin,
   Plus,
   RefreshCw,
+  Rocket,
   Send,
   Sparkles,
   Target,
@@ -39,6 +42,7 @@ import { useVoiceChat } from '@/lib/hooks/useVoiceChat';
 import type {
   Play,
   PlayChatMessage,
+  PlayScope,
   PlayStage,
   PlayStrategy,
 } from '@/lib/types';
@@ -72,6 +76,10 @@ export function PlayDetailClient({
   const [pane, setPane] = useState<Pane>('brief');
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [committingStrategy, setCommittingStrategy] = useState(false);
+  const [committingScope, setCommittingScope] = useState(false);
+  const [sourcingProspects, setSourcingProspects] = useState(false);
+  const [flowError, setFlowError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceChat();
 
@@ -104,6 +112,14 @@ export function PlayDetailClient({
 
   async function saveStrategy(patch: Partial<PlayStrategy>) {
     await patchPlay({ strategy: patch });
+  }
+
+  async function saveCategory(next: string) {
+    await patchPlay({ category: next });
+  }
+
+  async function saveScope(patch: Partial<PlayScope>) {
+    await patchPlay({ scope: patch });
   }
 
   // ----- Stage transitions ---------------------------------------------
@@ -195,7 +211,100 @@ export function PlayDetailClient({
     }));
   }
 
+  // ----- Flow actions: Brief -> Strategy -> Scope -> Source --------
+
+  async function commitStrategy() {
+    if (committingStrategy) return;
+    setCommittingStrategy(true);
+    setFlowError(null);
+    try {
+      const res = await fetch('/api/plays/' + play.id + '/commit-strategy', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          history: play.chat.map(({ role, content }) => ({ role, content })),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        play?: Play;
+        error?: string;
+      };
+      if (!data.ok || !data.play) {
+        throw new Error(data.error || 'Commit failed');
+      }
+      setPlay(data.play);
+    } catch (err) {
+      setFlowError(err instanceof Error ? err.message : 'Commit failed');
+    } finally {
+      setCommittingStrategy(false);
+    }
+  }
+
+  async function commitScope() {
+    if (committingScope) return;
+    if (!play.strategy) {
+      setFlowError('Commit a strategy first.');
+      return;
+    }
+    setCommittingScope(true);
+    setFlowError(null);
+    try {
+      const res = await fetch('/api/plays/' + play.id + '/commit-scope', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        play?: Play;
+        error?: string;
+      };
+      if (!data.ok || !data.play) {
+        throw new Error(data.error || 'Scope generation failed');
+      }
+      setPlay(data.play);
+    } catch (err) {
+      setFlowError(err instanceof Error ? err.message : 'Scope generation failed');
+    } finally {
+      setCommittingScope(false);
+    }
+  }
+
+  async function sourceProspects() {
+    if (sourcingProspects) return;
+    if (!play.scope) {
+      setFlowError('Convert the strategy to a scope first.');
+      return;
+    }
+    setSourcingProspects(true);
+    setFlowError(null);
+    try {
+      const res = await fetch('/api/plays/' + play.id + '/source-prospects', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        play?: Play;
+        inserted?: number;
+        note?: string;
+        error?: string;
+      };
+      if (!data.ok || !data.play) {
+        throw new Error(data.error || 'Source Prospects failed');
+      }
+      setPlay(data.play);
+      if (data.note) setFlowError(data.note);
+    } catch (err) {
+      setFlowError(err instanceof Error ? err.message : 'Source Prospects failed');
+    } finally {
+      setSourcingProspects(false);
+    }
+  }
+
   const strategy = play.strategy;
+  const scope = play.scope;
 
   return (
     <div className="flex gap-5 p-6 max-w-[1600px]">
@@ -227,6 +336,20 @@ export function PlayDetailClient({
                 <div className="text-[11px] text-evari-dimmer mt-1">
                   Created {relativeTime(play.createdAt)} · updated{' '}
                   {relativeTime(play.updatedAt)}
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-[11px]">
+                  <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+                    Funnel
+                  </span>
+                  <div className="flex-1 min-w-0 max-w-[360px]">
+                    <InlineText
+                      value={play.category ?? ''}
+                      onSave={saveCategory}
+                      placeholder="e.g. Knee Ops"
+                      displayClassName="text-[11px] text-evari-text"
+                      label="funnel category"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -355,13 +478,34 @@ export function PlayDetailClient({
 
             {/* Strategy block */}
             <section className="rounded-xl bg-evari-surface p-5 space-y-5">
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
-                  Strategy
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void commitScope()}
+                    disabled={committingScope || !strategy}
+                    title={
+                      strategy
+                        ? 'Turn this strategy into a bulleted Scope plan.'
+                        : 'Commit a strategy first.'
+                    }
+                    className="text-[11px] uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                  >
+                    {committingScope ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <ListChecks className="h-3 w-3" />
+                    )}
+                    Convert to scope
+                  </Button>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
+                    Strategy
+                  </div>
                 </div>
                 {!strategy && (
                   <span className="text-[10px] text-evari-dimmer italic">
-                    Start editing any field to create a strategy.
+                    Commit from Spitball, or edit any field below.
                   </span>
                 )}
               </div>
@@ -444,6 +588,100 @@ export function PlayDetailClient({
                   placeholder="Add a disqualifier..."
                 />
               </StrategyField>
+            </section>
+
+            {/* Scope block — generated from Strategy. */}
+            <section className="rounded-xl bg-evari-surface p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void sourceProspects()}
+                    disabled={sourcingProspects || !scope}
+                    title={
+                      scope
+                        ? 'Run the Source Prospects agent for this scope.'
+                        : 'Convert the strategy to a scope first.'
+                    }
+                    className="text-[11px] uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                  >
+                    {sourcingProspects ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Rocket className="h-3 w-3" />
+                    )}
+                    Source prospects
+                  </Button>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
+                    Scope
+                  </div>
+                </div>
+                {scope?.sourcedAt ? (
+                  <span className="text-[10px] text-evari-dimmer">
+                    {scope.sourcedCount ?? 0} sourced · {relativeTime(scope.sourcedAt)}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-evari-dimmer italic">
+                    {scope ? 'Ready to source.' : 'Convert from Strategy to create a scope.'}
+                  </span>
+                )}
+              </div>
+
+              {flowError && (
+                <div className="text-[11px] text-evari-warn bg-evari-surfaceSoft rounded px-2.5 py-1.5">
+                  {flowError}
+                </div>
+              )}
+
+              {scope ? (
+                <div className="space-y-4">
+                  <StrategyField
+                    label="Summary"
+                    hint="How we go to market for this Play."
+                  >
+                    <InlineText
+                      value={scope.summary}
+                      onSave={(v) => saveScope({ summary: v })}
+                      multiline
+                      placeholder="Click to write a one-paragraph scope summary."
+                      displayClassName="text-sm text-evari-text leading-relaxed whitespace-pre-wrap"
+                      label="scope summary"
+                    />
+                  </StrategyField>
+
+                  <StrategyField
+                    label="Plan"
+                    hint="Who we contact, in what sequence, with what message."
+                  >
+                    <InlineList
+                      values={scope.bullets}
+                      onSave={(v) => saveScope({ bullets: v })}
+                      placeholder="Add a plan step..."
+                    />
+                  </StrategyField>
+
+                  {(scope.targetSummary || true) && (
+                    <StrategyField
+                      label="Target"
+                      hint="Who we contact — sector, role, rough volume."
+                    >
+                      <InlineText
+                        value={scope.targetSummary ?? ''}
+                        onSave={(v) => saveScope({ targetSummary: v })}
+                        placeholder="e.g. Practice managers at UK private knee clinics — ~120 targets"
+                        displayClassName="text-sm text-evari-text"
+                        label="target summary"
+                      />
+                    </StrategyField>
+                  )}
+                </div>
+              ) : (
+                <div className="text-xs text-evari-dimmer italic">
+                  Commit a Strategy, then click Convert to scope to generate a
+                  bulleted plan here.
+                </div>
+              )}
             </section>
           </div>
         )}
@@ -646,6 +884,25 @@ export function PlayDetailClient({
                 conversation.
               </div>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void commitStrategy()}
+              disabled={committingStrategy || play.chat.length === 0}
+              title={
+                play.chat.length === 0
+                  ? 'Chat with Claude first.'
+                  : 'Commit the current chat into a structured Strategy.'
+              }
+              className="shrink-0 text-[11px] uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+            >
+              {committingStrategy ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+              Commit to strategy
+            </Button>
             {voice.speakerSupported ? (
               <button
                 type="button"

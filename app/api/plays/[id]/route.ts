@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay } from '@/lib/dashboard/repository';
-import type { Play, PlayStage, PlayStrategy } from '@/lib/types';
+import type { Play, PlayScope, PlayStage, PlayStrategy } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,6 +38,8 @@ interface PatchBody {
   stage?: PlayStage;
   pinned?: boolean;
   strategy?: StrategyPatch;
+  category?: string;
+  scope?: Partial<PlayScope>;
 }
 
 export async function PATCH(
@@ -96,6 +98,36 @@ export async function PATCH(
   }
   if (typeof body.pinned === 'boolean') {
     patch.pinned = body.pinned;
+  }
+  if (typeof body.category === 'string') {
+    patch.category = body.category.trim();
+  }
+  if (body.scope && typeof body.scope === 'object') {
+    const incoming = body.scope;
+    const base: PlayScope = existing.scope ?? {
+      summary: '',
+      bullets: [],
+      updatedAt: new Date().toISOString(),
+    };
+    patch.scope = {
+      ...base,
+      ...(typeof incoming.summary === 'string'
+        ? { summary: incoming.summary }
+        : {}),
+      ...(Array.isArray(incoming.bullets)
+        ? { bullets: incoming.bullets.map((b) => String(b)).filter(Boolean) }
+        : {}),
+      ...(typeof incoming.targetSummary === 'string'
+        ? { targetSummary: incoming.targetSummary }
+        : {}),
+      ...(typeof incoming.sourcedAt === 'string'
+        ? { sourcedAt: incoming.sourcedAt }
+        : {}),
+      ...(typeof incoming.sourcedCount === 'number'
+        ? { sourcedCount: incoming.sourcedCount }
+        : {}),
+      updatedAt: new Date().toISOString(),
+    };
   }
   if (body.strategy && typeof body.strategy === 'object') {
     const validated = validateStrategyPatch(body.strategy);

@@ -17,6 +17,7 @@ import type {
   TrafficSourceRow,
   User,
 } from '@/lib/types';
+import { ensureLeadTimestamps, leadToProspect } from '@/lib/dashboard/leadViews';
 
 /** Default when env / DB has no preference (matches seeded user id). */
 export const DEFAULT_CURRENT_USER_ID = 'user_craig';
@@ -100,11 +101,64 @@ export async function getPlay(
   return (data as { payload: Play }).payload;
 }
 
+/**
+ * Prospects now live in dashboard_leads with tier='prospect'. We read the Lead
+ * rows and map to the Prospect view shape so the existing Prospects UI is
+ * unchanged. Once the CRM surfaces share a single component this mapper goes.
+ */
 export async function listProspects(supabase: SupabaseClient | null): Promise<Prospect[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase.from('dashboard_prospects').select('payload');
+  const { data, error } = await supabase
+    .from('dashboard_leads')
+    .select('payload')
+    .eq('tier', 'prospect');
   if (error || !data?.length) return [];
-  return (data as { payload: Prospect }[]).map((r) => r.payload).sort(byLastTouchProspect);
+  return (data as { payload: Lead }[])
+    .map((r) => leadToProspect(r.payload))
+    .sort(byLastTouchProspect);
+}
+
+export async function listLeadsByTier(
+  supabase: SupabaseClient | null,
+  tier: 'prospect' | 'lead',
+): Promise<Lead[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('dashboard_leads')
+    .select('payload')
+    .eq('tier', tier);
+  if (error || !data?.length) return [];
+  return (data as { payload: Lead }[]).map((r) => r.payload).sort(byLastTouchLead);
+}
+
+export async function listLeadsByCategory(
+  supabase: SupabaseClient | null,
+  category: string,
+): Promise<Lead[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('dashboard_leads')
+    .select('payload')
+    .contains('payload', { category });
+  if (error || !data?.length) return [];
+  return (data as { payload: Lead }[]).map((r) => r.payload).sort(byLastTouchLead);
+}
+
+/** Upsert a Lead row. Ensures tier + timestamps defaults. */
+export async function upsertLead(
+  supabase: SupabaseClient | null,
+  lead: Lead,
+): Promise<Lead | undefined> {
+  if (!supabase) return undefined;
+  const normalised = ensureLeadTimestamps(lead);
+  const { error } = await supabase
+    .from('dashboard_leads')
+    .upsert({ id: normalised.id, payload: normalised, tier: normalised.tier ?? 'lead' });
+  if (error) {
+    console.warn('[repository] upsertLead failed', error);
+    return undefined;
+  }
+  return normalised;
 }
 
 export async function listTrafficDays(supabase: SupabaseClient | null): Promise<TrafficDay[]> {

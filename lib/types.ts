@@ -18,7 +18,8 @@ export type LeadSource =
   | 'medical_partner'
   | 'event'
   | 'press'
-  | 'existing_customer';
+  | 'existing_customer'
+  | 'outreach_agent';   // sourced automatically by a Play's Source Prospects run
 
 /** Coarse bucket for filtering — groups detailed sources into channels. */
 export type LeadSourceCategory =
@@ -31,7 +32,8 @@ export type LeadSourceCategory =
   | 'event'      // Trade shows, demo days, rides
   | 'press'      // Journalist / magazine enquiries
   | 'in_person'  // Walk-in / showroom
-  | 'commerce';  // Shopify order or abandoned cart
+  | 'commerce'   // Shopify order or abandoned cart
+  | 'outreach';  // Play-driven outreach agent (prospect tier)
 
 export type LeadStage =
   | 'new'
@@ -45,6 +47,15 @@ export type LeadStage =
 
 export type LeadIntent = 'commute' | 'touring' | 'leisure' | 'cargo' | 'unknown';
 
+/**
+ * Unified Lead record. A Lead can be in one of two tiers:
+ *  - 'prospect' — sourced by the Outreach agent, pending human triage, not yet
+ *     treated as a real commercial lead. Lives in the Prospects CRM view.
+ *  - 'lead' — promoted to the commercial pipeline. Lives in the Leads CRM.
+ *
+ * The same table/row moves between tiers. Fields are designed so a prospect
+ * can graduate to a lead with a single `tier` flip and no data reshape.
+ */
 export interface Lead {
   id: string;
   fullName: string;
@@ -72,6 +83,49 @@ export interface Lead {
     campaign?: string; // standard utm_campaign — unrelated to our Plays concept
   };
   activity: LeadActivity[];
+
+  // -- Unified prospect/lead fields ------------------------------------------
+
+  /** Which CRM this row is visible in. Defaults to 'lead' on legacy rows. */
+  tier?: 'prospect' | 'lead';
+  /** Funnel name — matches play.category. Used to group rows in the CRM. */
+  category?: string;
+  /** Source Play id for rows sourced by the Outreach agent. */
+  playId?: string;
+
+  // -- Company / person enrichment (populated during Source Prospects) -------
+
+  companyName?: string;
+  companyUrl?: string;
+  jobTitle?: string;
+  linkedinUrl?: string;
+  address?: string;
+  /** True when the email was inferred (e.g. firstname@domain) rather than explicit. */
+  emailInferred?: boolean;
+  /** Other decision-makers in the same org worth knowing about. */
+  relatedContacts?: RelatedContact[];
+
+  // -- AI synopsis (lazy-generated on first view) ---------------------------
+
+  /** ~100-word summary of company / person / opportunity. */
+  synopsis?: string;
+  synopsisGeneratedAt?: string;
+
+  // -- Prospect-tier extras (used only when tier === 'prospect') -------------
+
+  /** Pipeline status for the prospect tier. Distinct from Lead.stage. */
+  prospectStatus?: ProspectStatus;
+  prospectSignals?: ProspectSignal;
+  /** Per-message outreach log for the prospect tier. */
+  outreach?: ProspectOutreach[];
+}
+
+export interface RelatedContact {
+  name: string;
+  jobTitle?: string;
+  email?: string;
+  linkedinUrl?: string;
+  phone?: string;
 }
 
 /** Default mapping from detailed source → coarse category. */
@@ -104,6 +158,8 @@ export function sourceCategoryFor(source: LeadSource): LeadSourceCategory {
       return 'event';
     case 'press':
       return 'press';
+    case 'outreach_agent':
+      return 'outreach';
   }
 }
 
@@ -431,6 +487,29 @@ export interface Play {
 
   /** Email template used for the first-touch outreach (with {{slots}}). */
   emailTemplate?: OutreachTemplate;
+
+  /**
+   * Free-text funnel category for this Play. Defaults to the title on create
+   * and is carried onto every Lead row sourced from this Play (Lead.category).
+   * The Leads CRM groups rows by this value into funnels.
+   */
+  category?: string;
+
+  /** Scope — the bulleted plan produced from the committed Strategy. */
+  scope?: PlayScope;
+}
+
+export interface PlayScope {
+  /** One-paragraph summary of how we go to market for this Play. */
+  summary: string;
+  /** Ordered bullets: who we contact, in what sequence, with what message. */
+  bullets: string[];
+  /** Who we contact — sector, role, rough volume. */
+  targetSummary?: string;
+  updatedAt: string;
+  /** Set when Source Prospects last ran for this scope. */
+  sourcedAt?: string;
+  sourcedCount?: number;
 }
 
 // -- Play strategy + scrape brief --------------------------------------------

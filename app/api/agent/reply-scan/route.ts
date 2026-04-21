@@ -5,11 +5,12 @@ import {
   addSuppression,
   listDraftsByStatus,
   upsertDraft,
+  upsertLead,
 } from '@/lib/dashboard/repository';
 import { getGoogleAccessToken, isGmailConnected } from '@/lib/integrations/google';
 import type {
   DraftMessage,
-  Prospect,
+  Lead,
   ProspectOutreach,
   ProspectStatus,
   SuppressionEntry,
@@ -394,16 +395,16 @@ async function recordClassifiedReply(args: {
   };
   await upsertDraft(supabase, updatedDraft);
 
-  // 2) Find and update the Prospect (created at send time with id
-  //    `prospect-<threadId>`). If it's gone, we skip — reply still recorded
-  //    on the draft.
+  // 2) Find and update the Lead row (tier='prospect', created at send time
+  //    with id `prospect-<threadId>`). If it's gone we skip — reply is still
+  //    recorded on the draft above.
   const prospectId = 'prospect-' + draft.gmailThreadId;
   const { data: prospectRow } = await supabase
-    .from('dashboard_prospects')
+    .from('dashboard_leads')
     .select('id, payload')
     .eq('id', prospectId)
     .maybeSingle();
-  const existing = (prospectRow as { id: string; payload: Prospect } | null)?.payload;
+  const existing = (prospectRow as { id: string; payload: Lead } | null)?.payload;
 
   const outreach: ProspectOutreach = {
     id: 'po-reply-' + reply.id,
@@ -417,13 +418,13 @@ async function recordClassifiedReply(args: {
   const nextStatus = statusFor(classification);
 
   if (existing) {
-    const nextProspect: Prospect = {
+    const nextLead: Lead = {
       ...existing,
-      status: nextStatus ?? existing.status,
+      prospectStatus: nextStatus ?? existing.prospectStatus,
       lastTouchAt: replyAt,
       outreach: [...(existing.outreach ?? []), outreach],
-      signals: {
-        ...(existing.signals ?? {}),
+      prospectSignals: {
+        ...(existing.prospectSignals ?? {}),
         replied: true,
         sentiment:
           classification === 'positive'
@@ -433,10 +434,7 @@ async function recordClassifiedReply(args: {
               : 'neutral',
       },
     };
-    await supabase
-      .from('dashboard_prospects')
-      .update({ payload: nextProspect })
-      .eq('id', existing.id);
+    await upsertLead(supabase, nextLead);
   }
 
   // 3) Compliance: unsubscribe intent auto-adds to the suppression list.
@@ -451,12 +449,11 @@ async function recordClassifiedReply(args: {
     await addSuppression(supabase, entry);
 
     if (existing) {
-      await supabase
-        .from('dashboard_prospects')
-        .update({
-          payload: { ...existing, status: 'archived', lastTouchAt: replyAt },
-        })
-        .eq('id', existing.id);
+      await upsertLead(supabase, {
+        ...existing,
+        prospectStatus: 'archived',
+        lastTouchAt: replyAt,
+      });
     }
   }
 }

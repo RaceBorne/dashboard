@@ -7,10 +7,11 @@ import {
   isSuppressed,
   listDraftsByStatus,
   upsertDraft,
+  upsertLead,
 } from '@/lib/dashboard/repository';
 import { renderSignature } from '@/lib/dashboard/signature';
 import { sendGmailMessage } from '@/lib/integrations/gmail';
-import type { DraftMessage, Prospect, ProspectOutreach } from '@/lib/types';
+import type { DraftMessage, Lead, ProspectOutreach } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -176,7 +177,8 @@ export async function POST(
     })
     .eq('id', sender.id);
 
-  // Promote to Prospect: look up by email, create if missing, append outreach.
+  // Promote to Prospect tier in dashboard_leads: look up by email, create if
+  // missing, append outreach. Carries play.category through as the funnel label.
   const prospect = await upsertProspectFromSend({
     supabase,
     draft: sentDraft,
@@ -184,6 +186,7 @@ export async function POST(
     threadId: sendResult.threadId,
     sentAt,
     sourceDetail: play ? 'Play: ' + play.title : undefined,
+    category: play?.category,
   });
 
   return NextResponse.json({
@@ -280,10 +283,9 @@ function complianceFooter(opts: { playId: string; toEmail: string }): string {
 }
 
 /**
- * Create or update the Prospect that represents the recipient of this draft.
- * Matching is by lowercased email (unique enough for outreach). When a prospect
- * already exists we append an outreach entry; when it doesn't we create a new
- * row seeded from the draft.
+ * Create or update the Lead row (tier='prospect') representing the recipient of
+ * this draft. Matching is by lowercased email. When a row already exists we
+ * append an outreach entry; when it doesn't we seed a new row from the draft.
  */
 async function upsertProspectFromSend(opts: {
   supabase: NonNullable<ReturnType<typeof createSupabaseAdmin>>;
@@ -292,17 +294,18 @@ async function upsertProspectFromSend(opts: {
   threadId: string;
   sentAt: string;
   sourceDetail?: string;
-}): Promise<Prospect | undefined> {
-  const { supabase, draft, sendId, threadId, sentAt, sourceDetail } = opts;
+  category?: string;
+}): Promise<Lead | undefined> {
+  const { supabase, draft, sendId, threadId, sentAt, sourceDetail, category } = opts;
   const email = draft.toEmail.toLowerCase();
 
-  // Look up existing prospect by email (jsonb contains filter).
+  // Look up existing Lead row by email (lowered email is indexed).
   const { data: existingRows, error: readErr } = await supabase
-    .from('dashboard_prospects')
+    .from('dashboard_leads')
     .select('id, payload')
     .ilike('payload->>email', email);
   if (readErr) {
-    console.warn('[drafts/send] prospect lookup failed', readErr);
+    console.warn('[drafts/send] lead lookup failed', readErr);
     return undefined;
   }
 
@@ -315,43 +318,42 @@ async function upsertProspectFromSend(opts: {
     status: 'sent',
   };
 
-  const existing = (existingRows as { id: string; payload: Prospect }[] | null)?.[0];
+  const existing = (existingRows as { id: string; payload: Lead }[] | null)?.[0];
 
   if (existing) {
-    const next: Prospect = {
-      ...existing.payload,
-      status: existing.payload.status === 'archived' ? 'sent' : 'sent',
+    const prev = existing.payload;
+    const next: Lead = {
+      ...prev,
       lastTouchAt: sentAt,
-      outreach: [...(existing.payload.outreach ?? []), outreach],
-      playId: existing.payload.playId ?? draft.playId,
+      prospectStatus: 'sent',
+      outreach: [...(prev.outreach ?? []), outreach],
+      playId: prev.playId ?? draft.playId,
+      category: prev.category ?? category,
+      tier: prev.tier ?? 'prospect',
     };
-    await supabase
-      .from('dashboard_prospects')
-      .update({ payload: next })
-      .eq('id', existing.id);
-    return next;
+    return upsertLead(supabase, next);
   }
 
-  const prospect: Prospect = {
+  const lead: Lead = {
     id: 'prospect-' + threadId,
-    name: draft.toName,
-    org: draft.toOrg,
-    role: draft.toRole,
+    fullName: draft.toName,
     email: draft.toEmail,
-    channel: 'email',
-    status: 'sent',
-    playId: draft.playId,
+    companyName: draft.toOrg,
+    jobTitle: draft.toRole,
+    source: 'outreach_agent',
+    sourceCategory: 'outreach',
     sourceDetail,
-    createdAt: sentAt,
+    stage: 'new',
+    intent: 'unknown',
+    firstSeenAt: sentAt,
     lastTouchAt: sentAt,
+    tags: [],
+    activity: [],
+    tier: 'prospect',
+    category,
+    playId: draft.playId,
+    prospectStatus: 'sent',
     outreach: [outreach],
   };
-
-  const { error: writeErr } = await supabase
-    .from('dashboard_prospects')
-    .insert({ id: prospect.id, payload: prospect });
-  if (writeErr) {
-    console.warn('[drafts/send] prospect insert failed', writeErr);
-  }
-  return prospect;
+  return upsertLead(supabase, lead);
 }

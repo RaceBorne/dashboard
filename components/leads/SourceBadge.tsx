@@ -35,6 +35,7 @@ const SOURCES: Record<LeadSource, { label: string; Icon: typeof ShoppingBag }> =
   event: { label: 'Event', Icon: CalendarDays },
   press: { label: 'Press', Icon: Megaphone },
   existing_customer: { label: 'Existing customer', Icon: UserCircle },
+  outreach_agent: { label: 'Outreach', Icon: Target },
 };
 
 export function SourceBadge({
@@ -75,6 +76,7 @@ export const SOURCE_CATEGORY_META: Record<
   press: { label: 'Press', Icon: Megaphone },
   in_person: { label: 'In person', Icon: Handshake },
   commerce: { label: 'Shopify', Icon: ShoppingBag },
+  outreach: { label: 'Outreach', Icon: Target },
 };
 
 export const SOURCE_CATEGORY_ORDER: LeadSourceCategory[] = [
@@ -88,4 +90,5 @@ export const SOURCE_CATEGORY_ORDER: LeadSourceCategory[] = [
   'press',
   'in_person',
   'commerce',
+  'outreach',
 ];
