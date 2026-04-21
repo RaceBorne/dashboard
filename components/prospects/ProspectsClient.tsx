@@ -27,6 +27,8 @@ import {
   ExternalLink,
   Pencil,
   Check,
+  Users2,
+  Briefcase,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -353,13 +355,19 @@ export function ProspectsClient({
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
           synopsis?: string;
+          orgProfile?: Prospect['orgProfile'];
           error?: string;
         };
         if (data.ok && data.synopsis) {
           setProspects((prev) =>
             prev.map((x) =>
               x.id === p.id
-                ? { ...x, synopsis: data.synopsis, synopsisGeneratedAt: new Date().toISOString() }
+                ? {
+                    ...x,
+                    synopsis: data.synopsis,
+                    synopsisGeneratedAt: new Date().toISOString(),
+                    orgProfile: data.orgProfile ?? x.orgProfile,
+                  }
                 : x,
             ),
           );
@@ -770,7 +778,63 @@ export function ProspectsClient({
               </div>
 
               {expanded && (
-                <div className="rounded-md bg-evari-ink/40 p-3 space-y-2">
+                <div className="rounded-md bg-evari-ink/40 p-3 space-y-3">
+                  {p.orgProfile && (
+                    <div className="space-y-1.5 pb-2 border-b border-evari-line/40">
+                      <div className="flex items-center gap-3 text-[11px] text-evari-dim">
+                        {p.orgProfile.orgType && (
+                          <span className="inline-flex items-center gap-1 capitalize">
+                            <Briefcase className="h-3 w-3 text-evari-dimmer" />
+                            {p.orgProfile.orgType}
+                          </span>
+                        )}
+                        {(p.orgProfile.employeeCount ?? p.orgProfile.employeeRange) && (
+                          <span className="inline-flex items-center gap-1">
+                            <Users2 className="h-3 w-3 text-evari-dimmer" />
+                            {p.orgProfile.employeeCount
+                              ? p.orgProfile.employeeCount.toLocaleString() + ' employees'
+                              : p.orgProfile.employeeRange + ' employees'}
+                          </span>
+                        )}
+                      </div>
+                      {p.orgProfile.leaders && p.orgProfile.leaders.length > 0 && (
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-1">
+                            {p.orgProfile.orgType === 'club' ||
+                            p.orgProfile.orgType === 'nonprofit'
+                              ? 'Management team'
+                              : p.orgProfile.orgType === 'practice'
+                                ? 'Partners'
+                                : 'C-suite'}
+                          </div>
+                          <ul className="space-y-0.5">
+                            {p.orgProfile.leaders.map((l, i) => (
+                              <li
+                                key={l.name + i}
+                                className="text-[11px] text-evari-text flex items-baseline gap-1.5"
+                              >
+                                <span className="font-medium">{l.name}</span>
+                                {l.jobTitle && (
+                                  <span className="text-evari-dim">— {l.jobTitle}</span>
+                                )}
+                                {l.linkedinUrl && (
+                                  <a
+                                    href={l.linkedinUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-evari-gold hover:text-evari-text"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <ExternalLink className="h-2.5 w-2.5" />
+                                  </a>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
                     <Sparkles className="h-3 w-3" />
                     Synopsis

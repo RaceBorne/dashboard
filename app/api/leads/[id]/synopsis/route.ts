@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getLead, upsertLead, getPlay } from '@/lib/dashboard/repository';
-import type { Lead } from '@/lib/types';
+import type { Lead, OrgProfile, RelatedContact } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,10 +35,11 @@ export async function POST(
   if (!lead) {
     return NextResponse.json({ ok: false, error: 'Lead not found' }, { status: 404 });
   }
-  if (lead.synopsis && !regenerate) {
+  if (lead.synopsis && lead.orgProfile && !regenerate) {
     return NextResponse.json({
       ok: true,
       synopsis: lead.synopsis,
+      orgProfile: lead.orgProfile,
       cached: true,
       lead,
     });
@@ -99,11 +100,35 @@ export async function POST(
     'Write the synopsis now. Cover: what the company does, where they are,',
     'their likely buying trigger given the Play context, and whether the',
     'named person or a related contact is the right decision-maker to email.',
+    '',
+    'AFTER the synopsis, on a new line, emit EXACTLY this delimiter and',
+    'then a single JSON object on the next line:',
+    '<<<ORG_PROFILE>>>',
+    '{',
+    '  "orgType": "corporation" | "club" | "nonprofit" | "practice" | "other",',
+    '  "employeeCount": number | null,',
+    '  "employeeRange": string | null,   // e.g. "11-50" when exact is unknown',
+    '  "leaders": [                       // C-suite if corporation, management team if club',
+    '    { "name": string, "jobTitle": string, "linkedinUrl": string | null }',
+    '  ],',
+    '  "sourceNote": string               // 1 short line on how you chose these',
+    '}',
+    '',
+    'Rules for the JSON:',
+    '- Return ONLY what you can infer with high confidence from the data above,',
+    '  standard web presence for the company, or widely-known public facts.',
+    '- Never fabricate names. If leadership is unknown, return leaders: [].',
+    '- If org type is unclear, use "other".',
+    '- employeeCount OR employeeRange (or both) when known — never both null if',
+    '  the company has any public scale signal (LinkedIn band, team page, etc).',
+    '- Max 6 leaders. Prefer the most senior (CEO / Founder / President / Head Coach).',
+    '- Keep leader jobTitles natural ("CEO", "Co-Founder & CTO", "Head Coach").',
+    '- Do NOT wrap the JSON in markdown code fences.',
   ].join('\n');
 
-  let synopsis = '';
+  let raw = '';
   try {
-    synopsis = (
+    raw = (
       await generateBriefing({
         task: 'lead-synopsis',
         voice: 'analyst',
@@ -117,11 +142,65 @@ export async function POST(
     );
   }
 
+  // Split the model's output into prose synopsis + JSON org profile. The
+  // prompt asks for a '<<<ORG_PROFILE>>>' delimiter on its own line; be
+  // forgiving about whitespace and markdown fences in case the model drifts.
+  const delimIdx = raw.indexOf('<<<ORG_PROFILE>>>');
+  const synopsis = (delimIdx >= 0 ? raw.slice(0, delimIdx) : raw).trim();
+  let orgProfile: OrgProfile | undefined;
+  if (delimIdx >= 0) {
+    const jsonRaw = raw.slice(delimIdx + '<<<ORG_PROFILE>>>'.length).trim();
+    // Strip a leading/trailing ``` fence if the model emitted one.
+    const cleaned = jsonRaw
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/i, '')
+      .trim();
+    try {
+      const parsed = JSON.parse(cleaned) as {
+        orgType?: OrgProfile['orgType'];
+        employeeCount?: number | null;
+        employeeRange?: string | null;
+        leaders?: Array<{
+          name?: string;
+          jobTitle?: string;
+          linkedinUrl?: string | null;
+        }>;
+        sourceNote?: string;
+      };
+      const leaders: RelatedContact[] = Array.isArray(parsed.leaders)
+        ? parsed.leaders
+            .filter((l): l is { name: string; jobTitle?: string; linkedinUrl?: string | null } =>
+              Boolean(l && typeof l.name === 'string' && l.name.trim()))
+            .slice(0, 6)
+            .map((l) => ({
+              name: l.name.trim(),
+              jobTitle: l.jobTitle?.trim() || undefined,
+              linkedinUrl: l.linkedinUrl?.trim() || undefined,
+            }))
+        : [];
+      orgProfile = {
+        orgType: parsed.orgType,
+        employeeCount:
+          typeof parsed.employeeCount === 'number' ? parsed.employeeCount : undefined,
+        employeeRange:
+          typeof parsed.employeeRange === 'string' && parsed.employeeRange.trim()
+            ? parsed.employeeRange.trim()
+            : undefined,
+        leaders: leaders.length > 0 ? leaders : undefined,
+        sourceNote: parsed.sourceNote?.trim() || undefined,
+        generatedAt: new Date().toISOString(),
+      };
+    } catch (err) {
+      console.warn('[synopsis] failed to parse org JSON', err);
+    }
+  }
+
   const nowIso = new Date().toISOString();
   const next: Lead = {
     ...lead,
     synopsis,
     synopsisGeneratedAt: nowIso,
+    orgProfile: orgProfile ?? lead.orgProfile,
   };
   const saved = await upsertLead(supabase, next);
   if (!saved) {
@@ -131,5 +210,11 @@ export async function POST(
     );
   }
 
-  return NextResponse.json({ ok: true, synopsis, cached: false, lead: saved });
+  return NextResponse.json({
+    ok: true,
+    synopsis,
+    orgProfile: orgProfile ?? lead.orgProfile,
+    cached: false,
+    lead: saved,
+  });
 }

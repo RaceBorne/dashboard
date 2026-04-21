@@ -111,6 +111,10 @@ export interface Lead {
   synopsis?: string;
   synopsisGeneratedAt?: string;
 
+  /** Structured org profile — headcount + leadership team. Generated
+   * alongside the synopsis so a single AI call covers both. */
+  orgProfile?: OrgProfile;
+
   // -- Prospect-tier extras (used only when tier === 'prospect') -------------
 
   /** Pipeline status for the prospect tier. Distinct from Lead.stage. */
@@ -126,6 +130,26 @@ export interface RelatedContact {
   email?: string;
   linkedinUrl?: string;
   phone?: string;
+}
+
+/**
+ * Structured company profile — employee count + management team / C-suite —
+ * scraped by the synopsis agent on first open. Optional everywhere: if the
+ * AI can't confidently infer a field, it stays undefined rather than
+ * fabricating. `leaders` holds either the management team (for clubs /
+ * partnerships) or the C-suite (for corporations), tagged by `orgType`.
+ */
+export interface OrgProfile {
+  orgType?: 'corporation' | 'club' | 'nonprofit' | 'practice' | 'other';
+  /** Best-guess exact headcount when known. */
+  employeeCount?: number;
+  /** Band (e.g. "11-50", "201-500") when a precise number isn't available. */
+  employeeRange?: string;
+  /** Founder(s) / owner(s) / president(s) — whoever holds ultimate accountability. */
+  leaders?: RelatedContact[];
+  /** Short note (1 line) on why the agent chose these figures. For audit only. */
+  sourceNote?: string;
+  generatedAt: string;
 }
 
 /** Default mapping from detailed source → coarse category. */
@@ -807,6 +831,8 @@ export interface Prospect {
   /** ~100-word summary of company/person/opportunity. Lazy-generated. */
   synopsis?: string;
   synopsisGeneratedAt?: string;
+  /** Structured org profile — headcount + leadership. Lazy-generated alongside synopsis. */
+  orgProfile?: OrgProfile;
   companyUrl?: string;
   linkedinUrl?: string;
   address?: string;
