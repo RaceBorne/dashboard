@@ -1856,12 +1856,12 @@ function SourceRunModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Source Prospects live progress"
     >
-      <div className="w-full sm:max-w-xl bg-evari-bg border border-evari-line/60 rounded-t-xl sm:rounded-xl shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div className="w-[600px] h-[400px] bg-evari-surface border border-evari-line/60 rounded-xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-evari-line/40">
           <div className="flex items-center gap-2 min-w-0">
@@ -1986,7 +1986,7 @@ function SourceRunModal({
         ) : null}
 
         {/* Event log */}
-        <div className="px-5 py-3 overflow-y-auto flex-1 min-h-[120px]">
+        <div className="px-5 py-3 overflow-y-auto flex-1 min-h-0">
           <ul className="space-y-1">
             {steps.map((s, i) => {
               const isLast = i === steps.length - 1;
