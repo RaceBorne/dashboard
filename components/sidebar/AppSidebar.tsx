@@ -246,9 +246,18 @@ export function AppSidebar() {
                     {navCount ? (
                       <span
                         className={cn(
-                          'inline-flex items-center justify-center h-5 min-w-[20px] px-1 text-[10px] tabular-nums rounded-full',
-                          // To-do is the only amber count in the nav — it's the
-                          // personal action list, everything else is pipeline state.
+                          // Circle at 1-2 digits (min-w === h === 20px); lozenges out
+                          // at 3/4/5+ digits with stepped padding so the number stays
+                          // readable all the way up to 100k+. Never truncate — Craig
+                          // wants the real number, not a '99+' placeholder.
+                          'inline-flex items-center justify-center h-5 min-w-[20px] text-[10px] tabular-nums rounded-full',
+                          navCount >= 10000
+                            ? 'px-2.5'
+                            : navCount >= 1000
+                              ? 'px-2'
+                              : navCount >= 100
+                                ? 'px-1.5'
+                                : 'px-1',
                           item.href === '/tasks'
                             ? 'bg-evari-warn text-evari-ink font-semibold'
                             : active
@@ -256,7 +265,7 @@ export function AppSidebar() {
                               : 'bg-evari-surface/60 text-evari-dimmer',
                         )}
                       >
-                        {navCount > 99 ? '99+' : navCount}
+                        {navCount.toLocaleString()}
                       </span>
                     ) : null}
                     {'warn' in item && item.warn ? (

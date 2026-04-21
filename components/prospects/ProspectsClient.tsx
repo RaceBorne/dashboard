@@ -935,9 +935,16 @@ function QualityPill({ score }: { score: number }) {
 
 function CountPill({ n }: { n: number }) {
   if (n === 0) return null;
+  const pad =
+    n >= 10000 ? 'px-2.5' : n >= 1000 ? 'px-2' : n >= 100 ? 'px-1.5' : 'px-1';
   return (
-    <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1 text-[10px] tabular-nums rounded-full bg-evari-surface/60 text-evari-dimmer">
-      {n > 99 ? '99+' : n}
+    <span
+      className={
+        'inline-flex items-center justify-center h-5 min-w-[20px] text-[10px] tabular-nums rounded-full bg-evari-surface/60 text-evari-dimmer ' +
+        pad
+      }
+    >
+      {n.toLocaleString()}
     </span>
   );
 }
