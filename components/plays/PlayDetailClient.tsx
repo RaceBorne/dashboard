@@ -7,8 +7,6 @@ import {
   ArrowLeft,
   BookOpenText,
   Check,
-  ChevronDown,
-  ChevronUp,
   ExternalLink,
   FileText,
   Inbox,
@@ -73,6 +71,15 @@ export function PlayDetailClient({
   play: Play;
 }) {
   const [play, setPlay] = useState<Play>(initialPlay);
+  // Accordion state for the Spitball chat: at most ONE assistant bubble is
+  // expanded at a time. Seeded with the newest assistant reply in the loaded
+  // chat (if any) so the thread opens on the most recent thought.
+  const [openMessageId, setOpenMessageId] = useState<string | null>(() => {
+    for (let i = initialPlay.chat.length - 1; i >= 0; i -= 1) {
+      if (initialPlay.chat[i].role === 'assistant') return initialPlay.chat[i].id;
+    }
+    return null;
+  });
   const [pane, setPane] = useState<Pane>('brief');
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -170,6 +177,8 @@ export function PlayDetailClient({
         at: new Date().toISOString(),
       };
       setPlay((prev) => ({ ...prev, chat: [...prev.chat, aiMsg] }));
+      // Newest reply opens; every other bubble snaps shut.
+      setOpenMessageId(aiMsg.id);
       if (voice.autoSpeak) voice.speak(data.markdown);
     } catch {
       // swallow
@@ -944,6 +953,10 @@ export function PlayDetailClient({
               <ChatMessageBubble
                 key={m.id}
                 message={m}
+                isOpen={openMessageId === m.id}
+                onToggle={() =>
+                  setOpenMessageId((cur) => (cur === m.id ? null : m.id))
+                }
                 onTogglePin={() => togglePinned(m.id)}
               />
             ))}
@@ -1019,36 +1032,72 @@ export function PlayDetailClient({
 }
 
 // =========================================================================
-// Chat message bubble with long-reply collapse.
+// Chat message bubble — click anywhere to toggle; accordion-style one-at-a-time.
 // =========================================================================
 
 function ChatMessageBubble({
   message,
+  isOpen,
+  onToggle,
   onTogglePin,
 }: {
   message: PlayChatMessage;
+  isOpen: boolean;
+  onToggle: () => void;
   onTogglePin: () => void;
 }) {
+  const isAssistant = message.role === 'assistant';
+
+  function handleClick() {
+    if (!isAssistant) return;
+    // Don't toggle when the user was selecting text inside the bubble.
+    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+    if (sel && sel.toString().length > 0) return;
+    onToggle();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (!isAssistant) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onToggle();
+    }
+  }
+
+  const preview = isAssistant ? buildPreview(message.content) : '';
+  const hasMore =
+    isAssistant && message.content.trim().length > preview.length;
+
   return (
     <div
+      role={isAssistant ? 'button' : undefined}
+      tabIndex={isAssistant ? 0 : undefined}
+      aria-expanded={isAssistant ? isOpen : undefined}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
       className={cn(
-        'rounded-md p-3 text-sm relative group',
-        message.role === 'user'
-          ? 'bg-evari-surfaceSoft ml-6'
-          : 'bg-evari-surface/60 mr-6',
+        'rounded-md p-3 text-sm relative group transition-colors',
+        isAssistant
+          ? 'bg-evari-surface/60 mr-6 cursor-pointer hover:bg-evari-surface/80'
+          : 'bg-evari-surfaceSoft ml-6',
       )}
     >
       <div className="flex items-center justify-between mb-1 text-[10px] text-evari-dimmer">
-        <span>{message.role === 'user' ? 'Craig' : 'Claude'}</span>
+        <span>{isAssistant ? 'Claude' : 'Craig'}</span>
         <div className="flex items-center gap-1">
-          {message.pinned && (
-            <Pin className="h-2.5 w-2.5 text-evari-gold" />
-          )}
+          {message.pinned && <Pin className="h-2.5 w-2.5 text-evari-gold" />}
           <span>{relativeTime(message.at)}</span>
         </div>
       </div>
-      {message.role === 'assistant' ? (
-        <CollapsibleAssistant content={message.content} />
+      {isAssistant ? (
+        isOpen ? (
+          <MessageResponse>{message.content}</MessageResponse>
+        ) : (
+          <p className="text-evari-text leading-relaxed whitespace-pre-wrap">
+            {preview}
+            {hasMore ? <span className="text-evari-dimmer"> ...</span> : null}
+          </p>
+        )
       ) : (
         <p className="text-evari-text leading-relaxed whitespace-pre-wrap selectable">
           {message.content}
@@ -1056,56 +1105,14 @@ function ChatMessageBubble({
       )}
       <button
         type="button"
-        onClick={onTogglePin}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTogglePin();
+        }}
         title={message.pinned ? 'Unpin' : 'Pin'}
         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-gold hover:bg-evari-surfaceSoft transition"
       >
         <Pin className="h-3 w-3" />
-      </button>
-    </div>
-  );
-}
-
-function CollapsibleAssistant({ content }: { content: string }) {
-  const lines = content.split('\n');
-  const nonEmpty = lines.filter((l) => l.trim()).length;
-  const isLong = nonEmpty > 6 || content.length > 500;
-  const [open, setOpen] = useState(!isLong);
-
-  if (!isLong) {
-    return <MessageResponse>{content}</MessageResponse>;
-  }
-
-  // Build a 2-to-3 line preview that always ends on a sentence boundary when
-  // possible so the summary reads like a natural intro, not a chopped string.
-  const preview = buildPreview(content);
-
-  return (
-    <div className="space-y-1.5">
-      {open ? (
-        <MessageResponse>{content}</MessageResponse>
-      ) : (
-        <p className="text-evari-text leading-relaxed whitespace-pre-wrap">
-          {preview}
-          <span className="text-evari-dimmer"> ...</span>
-        </p>
-      )}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="text-[10px] uppercase tracking-[0.12em] text-evari-gold hover:text-evari-text inline-flex items-center gap-1"
-      >
-        {open ? (
-          <>
-            <ChevronUp className="h-3 w-3" />
-            Collapse
-          </>
-        ) : (
-          <>
-            <ChevronDown className="h-3 w-3" />
-            Show full reply ({nonEmpty} lines)
-          </>
-        )}
       </button>
     </div>
   );
