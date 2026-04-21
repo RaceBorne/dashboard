@@ -36,6 +36,7 @@ import {
   StickyNote,
   User,
   Save as SaveIcon,
+  MapPin,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1126,24 +1127,7 @@ export function ProspectsClient({
                     onUseContact={(c) => void useContactAsLead(p, c)}
                     useContactPending={fieldSaving.has(p.id + ':use-contact')}
                   />
-                  {(p.linkedinUrl || p.address) && (
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] pt-1">
-{p.linkedinUrl && (
-                        <a
-                          href={p.linkedinUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-evari-gold hover:text-evari-text"
-                        >
-                          <ExternalLink className="h-2.5 w-2.5" />
-                          LinkedIn
-                        </a>
-                      )}
-                      {p.address && (
-                        <span className="text-evari-dim">{p.address}</span>
-                      )}
-                    </div>
-                  )}
+
                 </div>
               )}
 
@@ -1497,8 +1481,8 @@ function LeadFieldsBlock({
   );
 
   return (
-    <div className="space-y-1 pb-2 border-b border-evari-line/40">
-      <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-1">
+    <div className="space-y-1.5 pb-3 border-b border-evari-line/40">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-2">
         Contact
         {!hasRealEmail && (
           <span
@@ -1527,7 +1511,6 @@ function LeadFieldsBlock({
         label="Email"
         value={prospect.email ?? ''}
         placeholder="real@domain.com"
-        mono
         editing={editingField === 'email'}
         saving={fieldSaving.has(prospect.id + ':email')}
         editValue={editValue}
@@ -1558,7 +1541,6 @@ function LeadFieldsBlock({
         label="Phone"
         value={prospect.phone ?? ''}
         placeholder="+44 …"
-        mono
         editing={editingField === 'phone'}
         saving={fieldSaving.has(prospect.id + ':phone')}
         editValue={editValue}
@@ -1567,20 +1549,42 @@ function LeadFieldsBlock({
         onCancelEdit={onCancelEdit}
         onSave={(v) => onSave('phone', v)}
       />
+      {prospect.linkedinUrl && (
+        <a
+          href={prospect.linkedinUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="w-full flex items-start gap-2 text-[13px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-1 -mx-1"
+        >
+          <ExternalLink className="h-3 w-3 text-evari-dimmer mt-0.5 shrink-0" />
+          <span className="w-16 text-evari-dimmer shrink-0">LinkedIn</span>
+          <span className="flex-1 min-w-0 truncate text-evari-gold group-hover:text-evari-text">
+            {prospect.linkedinUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+          </span>
+        </a>
+      )}
       {prospect.companyUrl && (
         <a
           href={prospect.companyUrl}
           target="_blank"
           rel="noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="w-full flex items-start gap-2 text-[11px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-0.5 -mx-1"
+          className="w-full flex items-start gap-2 text-[13px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-1 -mx-1"
         >
           <ExternalLink className="h-3 w-3 text-evari-dimmer mt-0.5 shrink-0" />
-          <span className="w-12 text-evari-dimmer shrink-0">Website</span>
+          <span className="w-16 text-evari-dimmer shrink-0">Website</span>
           <span className="flex-1 min-w-0 truncate text-evari-gold group-hover:text-evari-text">
             {prospect.companyUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
           </span>
         </a>
+      )}
+      {prospect.address && (
+        <div className="w-full flex items-start gap-2 text-[13px] text-left px-1 py-1 -mx-1">
+          <MapPin className="h-3 w-3 text-evari-dimmer mt-0.5 shrink-0" />
+          <span className="w-16 text-evari-dimmer shrink-0">Address</span>
+          <span className="flex-1 min-w-0 text-evari-text">{prospect.address}</span>
+        </div>
       )}
       <LeadField
         icon={<StickyNote className="h-3 w-3 text-evari-dimmer" />}
@@ -1588,7 +1592,6 @@ function LeadFieldsBlock({
         value={prospect.notes ?? ''}
         placeholder="Anything to remember"
         multiline
-        bigger
         editing={editingField === 'notes'}
         saving={fieldSaving.has(prospect.id + ':notes')}
         editValue={editValue}
@@ -1606,9 +1609,7 @@ function LeadField({
   label,
   value,
   placeholder,
-  mono,
   multiline,
-  bigger,
   editing,
   saving,
   editValue,
@@ -1622,9 +1623,7 @@ function LeadField({
   label: string;
   value: string;
   placeholder: string;
-  mono?: boolean;
   multiline?: boolean;
-  bigger?: boolean;
   editing: boolean;
   saving: boolean;
   editValue: string;
@@ -1638,14 +1637,11 @@ function LeadField({
     const InputEl = multiline ? 'textarea' : 'input';
     return (
       <div
-        className={cn(
-          'flex items-start gap-2',
-          bigger ? 'text-[13px]' : 'text-[11px]',
-        )}
+        className="flex items-start gap-2 text-[13px]"
         onClick={(e) => e.stopPropagation()}
       >
         <span className="pt-1.5 shrink-0">{icon}</span>
-        <span className="w-12 pt-1 text-evari-dimmer shrink-0">{label}</span>
+        <span className="w-16 pt-1 text-evari-dimmer shrink-0">{label}</span>
         <InputEl
           autoFocus
           value={editValue}
@@ -1662,10 +1658,7 @@ function LeadField({
           onBlur={() => onSave(editValue)}
           placeholder={placeholder}
           rows={multiline ? 2 : undefined}
-          className={cn(
-            'flex-1 min-w-0 bg-evari-ink/60 rounded px-2 py-1 text-evari-text outline-none border border-evari-gold/50 focus:border-evari-gold',
-            mono && 'font-mono',
-          )}
+          className="flex-1 min-w-0 bg-evari-ink/60 rounded px-2 py-1 text-evari-text outline-none border border-evari-gold/50 focus:border-evari-gold"
         />
         {saving && (
           <Loader2 className="h-3 w-3 animate-spin text-evari-dim mt-1.5" />
@@ -1682,24 +1675,20 @@ function LeadField({
         e.stopPropagation();
         onStartEdit();
       }}
-      className={cn(
-        'w-full flex items-start gap-2 text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-0.5 -mx-1',
-        bigger ? 'text-[13px]' : 'text-[11px]',
-      )}
+      className="w-full flex items-start gap-2 text-[13px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-1 -mx-1"
     >
       <span className="pt-0.5 shrink-0">{icon}</span>
-      <span className="w-12 text-evari-dimmer shrink-0">{label}</span>
+      <span className="w-16 text-evari-dimmer shrink-0">{label}</span>
       <span
         className={cn(
           'flex-1 min-w-0 truncate',
           empty ? 'text-evari-dimmer italic' : 'text-evari-text',
-          mono && !empty && 'font-mono',
         )}
       >
         {empty ? placeholder : value}
       </span>
       {trailing}
-      <Pencil className="h-2.5 w-2.5 text-evari-dimmer opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
+      <Pencil className="h-3 w-3 text-evari-dimmer opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
     </button>
   );
 }
