@@ -20,29 +20,34 @@ export const dynamic = 'force-dynamic';
  *
  * Phases emitted (in order):
  *   planning           — asking Claude to derive a DataForSEO search plan
- *   plan-ready         — plan decided (includes { description, locationName, limit })
- *   searching          — DataForSEO call in flight
- *   search-done        — DataForSEO returned (includes { found, costUsd })
+ *   plan-ready         — plan decided (includes { queries: [{description, locationName, limit?}] })
+ *   searching          — DataForSEO call in flight (includes { query, index, total })
+ *   search-done        — one DataForSEO result chunk returned (includes { query, found, foundTotal, costUsd, costTotal })
+ *   all-searches-done  — every fan-out query finished (includes { foundTotal, uniqueTotal, costTotal })
  *   inserting          — writing Lead rows to Supabase (includes { total })
- *   inserted-progress  — progress tick (includes { done, total })
+ *   inserted-progress  — progress tick per row (includes { done, total, lead })
  *   done               — final success (includes { play, inserted, found, costUsd })
  *   error              — terminal failure (includes { message })
  *
  * Body: `{ candidates?: Lead[], search?: { description, locationName, limit } }`
  *  - If `candidates` is provided the route skips planning + DataForSEO and just
  *    inserts the pasted rows.
- *  - If `search` is provided it overrides the AI planner.
+ *  - If `search` is provided it overrides the AI planner (single query).
  */
 
-interface SearchPlan {
+interface SearchQuery {
   description: string;
   locationName: string;
   limit?: number;
 }
 
+interface SearchPlan {
+  queries: SearchQuery[];
+}
+
 interface CandidateBody {
   candidates?: Array<Partial<Lead>>;
-  search?: Partial<SearchPlan>;
+  search?: Partial<SearchQuery>;
 }
 
 export async function POST(
@@ -112,8 +117,8 @@ export async function POST(
           play,
           category,
           nowIso,
-          (done, total) =>
-            emit({ phase: 'inserted-progress', done, total }),
+          (done, total, lead) =>
+            emit({ phase: 'inserted-progress', done, total, lead }),
         );
         const run: PlaySourceRun = {
           at: nowIso,
@@ -146,14 +151,18 @@ export async function POST(
       let plan: SearchPlan;
       if (body.search?.description && body.search?.locationName) {
         plan = {
-          description: body.search.description,
-          locationName: body.search.locationName,
-          limit: body.search.limit ?? 50,
+          queries: [
+            {
+              description: body.search.description,
+              locationName: body.search.locationName,
+              limit: body.search.limit ?? 50,
+            },
+          ],
         };
         emit({
           phase: 'plan-ready',
           message: 'Using operator-supplied search plan',
-          plan,
+          queries: plan.queries,
         });
       } else {
         if (!hasAIGatewayCredentials()) {
@@ -172,7 +181,7 @@ export async function POST(
         }
         emit({
           phase: 'planning',
-          message: 'Asking Claude to derive a search plan from your scope…',
+          message: 'Asking Claude to derive a fan-out search plan from your scope…',
         });
         try {
           plan = await derivePlan(play);
@@ -192,54 +201,124 @@ export async function POST(
         emit({
           phase: 'plan-ready',
           message:
-            'Plan: "' + plan.description + '" in ' + plan.locationName,
-          plan,
+            'Plan: ' +
+            plan.queries.length +
+            ' fan-out queries — ' +
+            plan.queries.map((q) => '"' + q.description + '" (' + q.locationName + ')').join(', '),
+          queries: plan.queries,
         });
       }
 
-      emit({
-        phase: 'searching',
-        message: 'Calling DataForSEO business listings…',
-      });
-      let listings: BusinessListing[] = [];
-      let cost = 0;
-      try {
-        const res = await searchBusinessListings({
-          description: plan.description,
-          locationName: plan.locationName,
-          limit: Math.min(plan.limit ?? 50, cap),
+      // Fan out across every planned query, dedupe listings globally.
+      const seen = new Map<string, BusinessListing>();
+      let costTotal = 0;
+      let foundTotal = 0;
+      const primaryQuery = plan.queries[0];
+
+      for (let i = 0; i < plan.queries.length; i += 1) {
+        const q = plan.queries[i];
+        emit({
+          phase: 'searching',
+          message:
+            'Searching "' + q.description + '" in ' + q.locationName + '…',
+          query: q,
+          index: i + 1,
+          total: plan.queries.length,
         });
-        listings = res.listings;
-        cost = res.cost;
-      } catch (err) {
-        const msg = (err as Error).message;
+        try {
+          const res = await searchBusinessListings({
+            description: q.description,
+            locationName: q.locationName,
+            limit: Math.min(q.limit ?? 50, cap),
+          });
+          costTotal += res.cost;
+          foundTotal += res.listings.length;
+          for (const l of res.listings) {
+            const key = dedupeKey(l);
+            if (!seen.has(key)) seen.set(key, l);
+          }
+          emit({
+            phase: 'search-done',
+            message:
+              '"' +
+              q.description +
+              '" returned ' +
+              res.listings.length +
+              ' listing(s).',
+            query: q,
+            found: res.listings.length,
+            foundTotal,
+            uniqueTotal: seen.size,
+            costUsd: res.cost,
+            costTotal,
+            index: i + 1,
+            total: plan.queries.length,
+          });
+        } catch (err) {
+          const msg = (err as Error).message;
+          emit({
+            phase: 'search-done',
+            message: '"' + q.description + '" failed: ' + msg,
+            query: q,
+            found: 0,
+            foundTotal,
+            uniqueTotal: seen.size,
+            error: msg,
+            index: i + 1,
+            total: plan.queries.length,
+          });
+        }
+      }
+
+      const unique = Array.from(seen.values());
+      emit({
+        phase: 'all-searches-done',
+        message:
+          'All queries complete — ' +
+          unique.length +
+          ' unique prospect(s) across ' +
+          plan.queries.length +
+          ' search(es). Cost $' +
+          costTotal.toFixed(3) +
+          '.',
+        foundTotal,
+        uniqueTotal: unique.length,
+        costTotal,
+      });
+
+      if (unique.length === 0) {
         const run: PlaySourceRun = {
           at: nowIso,
           agent: 'dataforseo',
-          description: plan.description,
-          locationName: plan.locationName,
+          description: primaryQuery?.description,
+          locationName: primaryQuery?.locationName,
+          found: 0,
           inserted: 0,
-          error: 'DataForSEO call failed: ' + msg,
+          costUsd: costTotal,
           durationMs: Date.now() - startedAt,
         };
-        await stampRun(supabase, play, run);
-        fail('DataForSEO call failed: ' + msg, 502);
+        const saved = await stampRun(supabase, play, run);
+        emit({
+          phase: 'done',
+          message: 'No listings returned across ' + plan.queries.length + ' query variants.',
+          play: saved,
+          inserted: 0,
+          found: 0,
+          agent: 'dataforseo',
+          queries: plan.queries,
+          costUsd: costTotal,
+        });
+        controller.close();
         return;
       }
-      emit({
-        phase: 'search-done',
-        message:
-          'Found ' + listings.length + ' listing(s). Cost $' + cost.toFixed(3),
-        found: listings.length,
-        costUsd: cost,
-      });
 
-      const candidates: Array<Partial<Lead>> = listings.map((l) =>
+      const candidates: Array<Partial<Lead>> = unique.map((l) =>
         listingToLead(l, play, category),
       );
       emit({
         phase: 'inserting',
-        message: 'Writing ' + candidates.length + ' prospect row(s) to the funnel…',
+        message:
+          'Writing ' + candidates.length + ' unique prospect row(s) to the funnel…',
         total: candidates.length,
       });
       const inserted = await insertCandidates(
@@ -248,18 +327,18 @@ export async function POST(
         play,
         category,
         nowIso,
-        (done, total) =>
-          emit({ phase: 'inserted-progress', done, total }),
+        (done, total, lead) =>
+          emit({ phase: 'inserted-progress', done, total, lead }),
       );
 
       const run: PlaySourceRun = {
         at: nowIso,
         agent: 'dataforseo',
-        description: plan.description,
-        locationName: plan.locationName,
-        found: listings.length,
+        description: primaryQuery?.description,
+        locationName: primaryQuery?.locationName,
+        found: unique.length,
         inserted,
-        costUsd: cost,
+        costUsd: costTotal,
         durationMs: Date.now() - startedAt,
       };
       const saved = await stampRun(supabase, play, run);
@@ -267,10 +346,10 @@ export async function POST(
         phase: 'done',
         play: saved,
         inserted,
-        found: listings.length,
+        found: unique.length,
         agent: 'dataforseo',
-        plan,
-        costUsd: cost,
+        queries: plan.queries,
+        costUsd: costTotal,
       });
       controller.close();
     },
@@ -289,26 +368,39 @@ export async function POST(
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Ask Claude for a fan-out of 3–6 SHORT Google-style keywords, each pointing
+ * at a specific business vertical / role that would buy Evari bikes. Short
+ * keywords are the only thing DataForSEO's business listings endpoint
+ * actually returns useful results for — long descriptive phrases return zero.
+ */
 async function derivePlan(play: Play): Promise<SearchPlan> {
   const prompt = [
-    'You are translating a marketing Play into a DataForSEO Business Listings search.',
+    'You are translating an Evari outreach Play into a fan-out of DataForSEO Business Listings searches.',
+    '',
+    'DataForSEO Business Listings only returns useful results for SHORT Google-style keywords (2-4 words), like a search a human would type into Google Maps. Long descriptive phrases return ZERO results. Examples that work: "yacht broker London", "private knee clinic", "luxury bike shop", "boutique design studio". Examples that FAIL: "marine architecture naval design practices London Southampton Hamble Cowes UK".',
     '',
     'Play title: ' + play.title,
     'Category: ' + (play.category ?? play.title),
     'Strategy: ' + JSON.stringify(play.strategy ?? {}, null, 2),
     'Scope: ' + JSON.stringify(play.scope ?? {}, null, 2),
     '',
-    'Emit a single JSON object with exactly:',
+    'Emit a single JSON object with exactly this shape:',
     '{',
-    '  "description": string,    // keyword query in the tone of a Google search',
-    '  "locationName": string,   // DataForSEO location string (e.g. "United Kingdom")',
-    '  "limit": number           // how many to fetch (1-200, default 50)',
+    '  "queries": [',
+    '    { "description": string, "locationName": string, "limit": number },',
+    '    ...',
+    '  ]',
     '}',
     '',
     'Rules:',
-    '- The description should be concrete and geographic where possible.',
-    '- Prefer the most specific location that still returns a useful pool.',
-    '- If the Play is UK-focused, use "United Kingdom" unless a city is implied.',
+    '- Return between 3 and 6 queries.',
+    '- Each "description" must be 2-4 words MAX — a short Google-style business keyword. Never a sentence.',
+    '- Vary the angles: different verticals, different roles, different cities if the Play is geographic.',
+    '- locationName must be a DataForSEO location string (e.g. "United Kingdom", "London, England, United Kingdom", "Manchester, England, United Kingdom").',
+    '- Default locationName is "United Kingdom" unless the Play implies a specific region, in which case mix city-level and country-level queries.',
+    '- limit should be 25-50 per query.',
+    '- Never target generic bike shops. Prefer HNW / luxury-adjacent verticals consistent with the grounded brand brief.',
     '- Return raw JSON only — no prose, no markdown fences.',
   ].join('\n');
 
@@ -322,17 +414,39 @@ async function derivePlan(play: Play): Promise<SearchPlan> {
     .replace(/```\s*$/i, '')
     .trim();
   const parsed = JSON.parse(cleaned) as Record<string, unknown>;
-  const description = typeof parsed.description === 'string' ? parsed.description : '';
-  const locationName =
-    typeof parsed.locationName === 'string' ? parsed.locationName : 'United Kingdom';
-  const limit =
-    typeof parsed.limit === 'number' && parsed.limit > 0 && parsed.limit < 500
-      ? Math.floor(parsed.limit)
-      : 50;
-  if (!description) {
-    throw new Error('AI planner returned empty description');
+  const rawQueries = Array.isArray(parsed.queries) ? parsed.queries : [];
+  const queries: SearchQuery[] = [];
+  for (const q of rawQueries) {
+    if (!q || typeof q !== 'object') continue;
+    const rec = q as Record<string, unknown>;
+    const description =
+      typeof rec.description === 'string' ? rec.description.trim() : '';
+    const locationName =
+      typeof rec.locationName === 'string' && rec.locationName.trim().length > 0
+        ? rec.locationName.trim()
+        : 'United Kingdom';
+    const limit =
+      typeof rec.limit === 'number' && rec.limit > 0 && rec.limit <= 200
+        ? Math.floor(rec.limit)
+        : 50;
+    if (!description) continue;
+    // Hard guard — refuse anything longer than 6 words; short keywords only.
+    if (description.split(/\s+/).length > 6) continue;
+    queries.push({ description, locationName, limit });
   }
-  return { description, locationName, limit };
+  if (queries.length === 0) {
+    throw new Error(
+      'AI planner returned no usable short-keyword queries (needs 2-4 word Google-style keywords)',
+    );
+  }
+  return { queries };
+}
+
+function dedupeKey(l: BusinessListing): string {
+  if (l.placeId) return 'place:' + l.placeId;
+  if (l.cid) return 'cid:' + l.cid;
+  if (l.domain) return 'dom:' + l.domain.toLowerCase();
+  return 'title:' + l.title.toLowerCase().trim();
 }
 
 function listingToLead(
@@ -391,7 +505,11 @@ async function insertCandidates(
   play: Play,
   category: string,
   nowIso: string,
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (
+    done: number,
+    total: number,
+    lead: { id: string; fullName: string; companyName?: string },
+  ) => void,
 ): Promise<number> {
   let inserted = 0;
   const total = candidates.length;
@@ -427,11 +545,12 @@ async function insertCandidates(
     };
     const out = await upsertLead(supabase, lead);
     if (out) inserted += 1;
-    // Tick every 5 rows or on the last row so the UI shows motion without
-    // flooding the stream.
-    if (onProgress && (done % 5 === 0 || done === total)) {
-      onProgress(done, total);
-    }
+    // Tick every row so the counter in the UI modal visibly bumps up.
+    onProgress?.(done, total, {
+      id: lead.id,
+      fullName: lead.fullName,
+      companyName: lead.companyName,
+    });
   }
   return inserted;
 }

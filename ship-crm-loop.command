@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Double-click me in Finder to commit + push the CRM loop + Source Prospects agent.
+set -e
+cd "$(dirname "$0")"
+rm -f .git/HEAD.lock .git/index.lock .git/index.lock.stale .git/index.lock.stale3
+git add -A
+git reset HEAD ship-backend-perf.command ship-play-flow.command ship-crm-loop.command 2>/dev/null || true
+git commit -F .git/COMMIT_EDITMSG_CRM_LOOP
+git push
+echo ""
+echo "Shipped. Check https://github.com/RaceBorne/dashboard for the commit."

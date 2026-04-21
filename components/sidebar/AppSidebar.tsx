@@ -85,43 +85,74 @@ export function AppSidebar() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/dashboard/nav-counts')
-      .then((r) => r.json())
-      .then(
-        (d: {
+    let lastFetchAt = 0;
+    let queued = false;
+
+    async function refetch() {
+      // Throttle so a burst of inserted-progress events doesn't hammer the
+      // endpoint — at most one in-flight + one queued.
+      const now = Date.now();
+      if (now - lastFetchAt < 750) {
+        if (!queued) {
+          queued = true;
+          setTimeout(() => {
+            queued = false;
+            void refetch();
+          }, 800);
+        }
+        return;
+      }
+      lastFetchAt = now;
+      try {
+        const r = await fetch('/api/dashboard/nav-counts', {
+          cache: 'no-store',
+        });
+        const d: {
           plays?: number;
           prospectsActive?: number;
           leadsPipeline?: number;
           conversationsUnread?: number;
-        }) => {
-          if (cancelled) return;
-          if (
-            typeof d.plays === 'number' &&
-            typeof d.prospectsActive === 'number' &&
-            typeof d.leadsPipeline === 'number' &&
-            typeof d.conversationsUnread === 'number'
-          ) {
-            setPipelineCounts({
-              plays: d.plays,
-              prospectsActive: d.prospectsActive,
-              leadsPipeline: d.leadsPipeline,
-              conversationsUnread: d.conversationsUnread,
-            });
-          }
-        },
-      )
-      .catch(() => {
-        if (!cancelled) {
+        } = await r.json();
+        if (cancelled) return;
+        if (
+          typeof d.plays === 'number' &&
+          typeof d.prospectsActive === 'number' &&
+          typeof d.leadsPipeline === 'number' &&
+          typeof d.conversationsUnread === 'number'
+        ) {
           setPipelineCounts({
-            plays: 0,
-            prospectsActive: 0,
-            leadsPipeline: 0,
-            conversationsUnread: 0,
+            plays: d.plays,
+            prospectsActive: d.prospectsActive,
+            leadsPipeline: d.leadsPipeline,
+            conversationsUnread: d.conversationsUnread,
           });
         }
-      });
+      } catch {
+        if (!cancelled) {
+          setPipelineCounts((prev) =>
+            prev ?? {
+              plays: 0,
+              prospectsActive: 0,
+              leadsPipeline: 0,
+              conversationsUnread: 0,
+            },
+          );
+        }
+      }
+    }
+
+    void refetch();
+
+    // Any agent action that mutates pipeline counts dispatches this event
+    // (e.g. PlayDetailClient on each inserted-progress SSE tick).
+    function onDirty() {
+      void refetch();
+    }
+    window.addEventListener('evari:nav-counts-dirty', onDirty);
+
     return () => {
       cancelled = true;
+      window.removeEventListener('evari:nav-counts-dirty', onDirty);
     };
   }, []);
 

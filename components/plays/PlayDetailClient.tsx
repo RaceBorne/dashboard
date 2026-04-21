@@ -332,17 +332,39 @@ export function PlayDetailClient({
             at: Date.now(),
             message: typeof event.message === 'string' ? event.message : undefined,
             found: typeof event.found === 'number' ? event.found : undefined,
+            foundTotal:
+              typeof event.foundTotal === 'number' ? event.foundTotal : undefined,
+            uniqueTotal:
+              typeof event.uniqueTotal === 'number' ? event.uniqueTotal : undefined,
             costUsd: typeof event.costUsd === 'number' ? event.costUsd : undefined,
+            costTotal:
+              typeof event.costTotal === 'number' ? event.costTotal : undefined,
             total: typeof event.total === 'number' ? event.total : undefined,
             done: typeof event.done === 'number' ? event.done : undefined,
-            plan:
-              event.plan && typeof event.plan === 'object'
-                ? (event.plan as { description?: string; locationName?: string })
+            index: typeof event.index === 'number' ? event.index : undefined,
+            query:
+              event.query && typeof event.query === 'object'
+                ? (event.query as { description?: string; locationName?: string })
+                : undefined,
+            queries:
+              Array.isArray(event.queries)
+                ? (event.queries as Array<{ description?: string; locationName?: string }>)
+                : undefined,
+            lead:
+              event.lead && typeof event.lead === 'object'
+                ? (event.lead as { id?: string; fullName?: string; companyName?: string })
                 : undefined,
           };
           setSourceRunSteps((prev) => [...prev, step]);
           if (event.phase === 'done' && event.play) {
             setPlay(event.play as Play);
+          }
+          if (event.phase === 'inserted-progress' || event.phase === 'done') {
+            // Tell the sidebar to re-poll nav-counts so the Prospects
+            // pill bumps up in real time as rows land.
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('evari:nav-counts-dirty'));
+            }
           }
           if (event.phase === 'error') {
             setFlowError(event.message ?? 'Source Prospects failed');
@@ -726,7 +748,7 @@ export function PlayDetailClient({
               )}
 
               {(sourcingProspects || sourceRunSteps.length > 0) && (
-                <SourceRunLog
+                <SourceRunModal
                   steps={sourceRunSteps}
                   running={sourcingProspects}
                   onDismiss={() => setSourceRunSteps([])}
@@ -1705,21 +1727,34 @@ interface SourceRunStep {
   at: number;
   message?: string;
   found?: number;
+  foundTotal?: number;
+  uniqueTotal?: number;
   costUsd?: number;
+  costTotal?: number;
   total?: number;
   done?: number;
-  plan?: { description?: string; locationName?: string };
+  index?: number;
+  query?: { description?: string; locationName?: string };
+  queries?: Array<{ description?: string; locationName?: string }>;
+  lead?: { id?: string; fullName?: string; companyName?: string };
 }
 
 interface SourceRunServerEvent {
   phase: string;
   message?: string;
   found?: number;
+  foundTotal?: number;
+  uniqueTotal?: number;
   costUsd?: number;
+  costTotal?: number;
   total?: number;
   done?: number;
+  index?: number;
+  query?: unknown;
+  queries?: unknown;
   plan?: unknown;
   play?: unknown;
+  lead?: unknown;
 }
 
 const PHASE_LABEL: Record<string, string> = {
@@ -1735,11 +1770,13 @@ const PHASE_LABEL: Record<string, string> = {
 };
 
 /**
- * Live, streaming log of a Source Prospects run. Each SSE event becomes a
- * row with a check mark (or spinner for the phase in flight). The whole
- * panel is the obvious "it's working" visual device.
+ * Live modal overlay for a Source Prospects run. Gives Craig the obvious
+ * "the agent is scraping right now" UX he asked for: a big numeric counter
+ * for prospects inserted + found, a progress bar, and a running log of
+ * every phase. Auto-opens as soon as the run starts; can be dismissed
+ * once the run settles.
  */
-function SourceRunLog({
+function SourceRunModal({
   steps,
   running,
   onDismiss,
@@ -1750,82 +1787,292 @@ function SourceRunLog({
 }) {
   const finalPhase = steps[steps.length - 1]?.phase;
   const failed = steps.some((s) => s.phase === 'error');
+
+  // Derive counters from the stream. The most recent inserted-progress
+  // carries the running insert count; the latest search-done/all-searches
+  // -done events carry the found totals.
+  let inserted = 0;
+  let insertTotal = 0;
+  let foundTotal = 0;
+  let uniqueTotal = 0;
+  let costTotal = 0;
+  let latestLeadName: string | undefined;
+  let plannedQueryCount = 0;
+  let plannedQueries: Array<{ description?: string; locationName?: string }> = [];
+  let currentSearchIndex = 0;
+  for (const s of steps) {
+    if (s.phase === 'inserted-progress') {
+      if (typeof s.done === 'number') inserted = s.done;
+      if (typeof s.total === 'number') insertTotal = s.total;
+      if (s.lead?.fullName) latestLeadName = s.lead.fullName;
+    }
+    if (s.phase === 'inserting' && typeof s.total === 'number') {
+      insertTotal = s.total;
+    }
+    if (s.phase === 'search-done') {
+      if (typeof s.foundTotal === 'number') foundTotal = s.foundTotal;
+      if (typeof s.uniqueTotal === 'number') uniqueTotal = s.uniqueTotal;
+      if (typeof s.costTotal === 'number') costTotal = s.costTotal;
+    }
+    if (s.phase === 'all-searches-done') {
+      if (typeof s.foundTotal === 'number') foundTotal = s.foundTotal;
+      if (typeof s.uniqueTotal === 'number') uniqueTotal = s.uniqueTotal;
+      if (typeof s.costTotal === 'number') costTotal = s.costTotal;
+    }
+    if (s.phase === 'plan-ready' && Array.isArray(s.queries)) {
+      plannedQueries = s.queries;
+      plannedQueryCount = s.queries.length;
+    }
+    if (s.phase === 'searching' && typeof s.index === 'number') {
+      currentSearchIndex = s.index;
+    }
+  }
+
+  // Progress percentage — insert progress wins once we are inserting;
+  // before that, show search progress.
+  let progress = 0;
+  if (insertTotal > 0) {
+    progress = Math.min(100, Math.round((inserted / insertTotal) * 100));
+  } else if (plannedQueryCount > 0) {
+    progress = Math.min(
+      100,
+      Math.round((currentSearchIndex / plannedQueryCount) * 100),
+    );
+  }
+
+  const stateLabel = failed
+    ? 'failed'
+    : running
+      ? finalPhase === 'inserting' || finalPhase === 'inserted-progress'
+        ? 'writing to funnel'
+        : finalPhase === 'searching'
+          ? 'scraping'
+          : finalPhase === 'planning'
+            ? 'planning'
+            : 'running'
+      : finalPhase === 'done'
+        ? 'complete'
+        : 'idle';
+
   return (
     <div
-      className={cn(
-        'rounded-lg border p-3 space-y-1.5',
-        failed
-          ? 'border-evari-danger/40 bg-evari-danger/5'
-          : running
-            ? 'border-evari-gold/40 bg-evari-gold/5'
-            : 'border-evari-success/40 bg-evari-success/5',
-      )}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Source Prospects live progress"
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-[10px] uppercase tracking-[0.14em] font-medium flex items-center gap-1.5 text-evari-text">
-          {running ? (
-            <Loader2 className="h-3 w-3 animate-spin text-evari-gold" />
-          ) : failed ? (
-            <X className="h-3 w-3 text-evari-danger" />
-          ) : (
-            <Check className="h-3 w-3 text-evari-success" />
-          )}
-          Source Prospects —{' '}
-          {running
-            ? 'running'
-            : failed
-              ? 'failed'
-              : finalPhase === 'done'
-                ? 'complete'
-                : 'idle'}
-        </div>
-        {!running && (
+      <div className="w-full sm:max-w-xl bg-evari-bg border border-evari-line/60 rounded-t-xl sm:rounded-xl shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-evari-line/40">
+          <div className="flex items-center gap-2 min-w-0">
+            {running ? (
+              <Loader2 className="h-4 w-4 animate-spin text-evari-gold shrink-0" />
+            ) : failed ? (
+              <X className="h-4 w-4 text-evari-danger shrink-0" />
+            ) : (
+              <Check className="h-4 w-4 text-evari-success shrink-0" />
+            )}
+            <div className="min-w-0">
+              <div className="text-[11px] uppercase tracking-[0.16em] font-medium text-evari-dimmer">
+                Source Prospects
+              </div>
+              <div className="text-[13px] font-medium text-evari-text truncate">
+                {stateLabel}
+              </div>
+            </div>
+          </div>
           <button
             type="button"
             onClick={onDismiss}
-            title="Dismiss"
-            className="text-[10px] text-evari-dimmer hover:text-evari-text"
+            disabled={running}
+            title={running ? 'Run in progress — wait for it to finish' : 'Close'}
+            className={cn(
+              'text-[11px] px-2 py-1 rounded border border-evari-line/50',
+              running
+                ? 'opacity-40 cursor-not-allowed'
+                : 'text-evari-dim hover:text-evari-text hover:bg-evari-surfaceSoft',
+            )}
           >
-            dismiss
+            close
           </button>
-        )}
-      </div>
-      <ul className="space-y-1 pl-0.5">
-        {steps.map((s, i) => {
-          const isLast = i === steps.length - 1;
-          const iconStyle = running && isLast && s.phase !== 'error' && s.phase !== 'done';
-          const isError = s.phase === 'error';
-          return (
-            <li
-              key={i}
-              className="flex items-start gap-2 text-[11px] text-evari-text leading-snug"
-            >
-              <span className="shrink-0 w-3 h-3 mt-0.5 inline-flex items-center justify-center">
-                {iconStyle ? (
-                  <Loader2 className="h-3 w-3 animate-spin text-evari-gold" />
-                ) : isError ? (
-                  <X className="h-3 w-3 text-evari-danger" />
-                ) : (
-                  <Check className="h-3 w-3 text-evari-success" />
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="font-medium text-evari-text">
-                  {PHASE_LABEL[s.phase] ?? s.phase}
+        </div>
+
+        {/* Counter row — the big "it's working" number */}
+        <div className="px-5 pt-5 pb-3 grid grid-cols-3 gap-3">
+          <CounterCell
+            label="Inserted"
+            value={inserted}
+            suffix={insertTotal > 0 ? ' / ' + insertTotal : undefined}
+            accent="gold"
+            pulse={running && finalPhase === 'inserted-progress'}
+          />
+          <CounterCell
+            label="Unique found"
+            value={uniqueTotal}
+            accent="text"
+          />
+          <CounterCell
+            label="Raw listings"
+            value={foundTotal}
+            accent="dim"
+          />
+        </div>
+
+        {/* Progress bar */}
+        <div className="px-5">
+          <div className="h-1.5 rounded-full bg-evari-surfaceSoft overflow-hidden">
+            <div
+              className={cn(
+                'h-full transition-all duration-300',
+                failed
+                  ? 'bg-evari-danger'
+                  : running
+                    ? 'bg-evari-gold'
+                    : 'bg-evari-success',
+              )}
+              style={{ width: progress + '%' }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-evari-dimmer mt-1">
+            <span>
+              {insertTotal > 0
+                ? 'Writing row ' + inserted + ' of ' + insertTotal
+                : plannedQueryCount > 0
+                  ? 'Query ' + currentSearchIndex + ' of ' + plannedQueryCount
+                  : ''}
+            </span>
+            {costTotal > 0 ? (
+              <span>DataForSEO cost ${costTotal.toFixed(3)}</span>
+            ) : null}
+          </div>
+          {latestLeadName ? (
+            <div className="mt-1 text-[10px] text-evari-dim truncate">
+              Latest: <span className="text-evari-text">{latestLeadName}</span>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Fan-out query chips */}
+        {plannedQueries.length > 0 ? (
+          <div className="px-5 pt-3 flex flex-wrap gap-1.5">
+            {plannedQueries.map((q, i) => {
+              const isDone = i + 1 < currentSearchIndex;
+              const isActive = i + 1 === currentSearchIndex && running;
+              return (
+                <span
+                  key={i}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border',
+                    isDone
+                      ? 'bg-evari-success/10 text-evari-success border-evari-success/30'
+                      : isActive
+                        ? 'bg-evari-gold/15 text-evari-gold border-evari-gold/40'
+                        : 'bg-evari-surfaceSoft text-evari-dim border-evari-line/40',
+                  )}
+                >
+                  {isActive ? (
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                  ) : isDone ? (
+                    <Check className="h-2.5 w-2.5" />
+                  ) : null}
+                  {q.description}
+                  {q.locationName && q.locationName !== 'United Kingdom' ? (
+                    <span className="opacity-60">· {q.locationName}</span>
+                  ) : null}
                 </span>
-                {s.message ? (
-                  <span className="text-evari-dim"> — {s.message}</span>
-                ) : s.phase === 'inserted-progress' && s.done != null && s.total != null ? (
-                  <span className="text-evari-dim">
-                    {' '}
-                    — {s.done} / {s.total}
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Event log */}
+        <div className="px-5 py-3 overflow-y-auto flex-1 min-h-[120px]">
+          <ul className="space-y-1">
+            {steps.map((s, i) => {
+              const isLast = i === steps.length - 1;
+              const isError = s.phase === 'error';
+              const inFlight =
+                running && isLast && !isError && s.phase !== 'done';
+              return (
+                <li
+                  key={i}
+                  className="flex items-start gap-2 text-[11px] text-evari-text leading-snug"
+                >
+                  <span className="shrink-0 w-3 h-3 mt-0.5 inline-flex items-center justify-center">
+                    {inFlight ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-evari-gold" />
+                    ) : isError ? (
+                      <X className="h-3 w-3 text-evari-danger" />
+                    ) : (
+                      <Check className="h-3 w-3 text-evari-success" />
+                    )}
                   </span>
-                ) : null}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium text-evari-text">
+                      {PHASE_LABEL[s.phase] ?? s.phase}
+                    </span>
+                    {s.message ? (
+                      <span className="text-evari-dim"> — {s.message}</span>
+                    ) : s.phase === 'inserted-progress' &&
+                      s.done != null &&
+                      s.total != null ? (
+                      <span className="text-evari-dim">
+                        {' '}
+                        — {s.done} / {s.total}
+                        {s.lead?.fullName ? ' · ' + s.lead.fullName : ''}
+                      </span>
+                    ) : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One of the three big counters in the modal header. Pulses briefly when
+ * a new insert arrives so Craig can see the number move.
+ */
+function CounterCell({
+  label,
+  value,
+  suffix,
+  accent,
+  pulse,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  accent: 'gold' | 'text' | 'dim';
+  pulse?: boolean;
+}) {
+  const color =
+    accent === 'gold'
+      ? 'text-evari-gold'
+      : accent === 'text'
+        ? 'text-evari-text'
+        : 'text-evari-dim';
+  return (
+    <div className="rounded-lg border border-evari-line/40 bg-evari-surface/40 px-3 py-2">
+      <div className="text-[9px] uppercase tracking-[0.14em] text-evari-dimmer">
+        {label}
+      </div>
+      <div
+        className={cn(
+          'text-2xl font-semibold tabular-nums leading-tight transition-transform duration-200',
+          color,
+          pulse ? 'scale-[1.04]' : 'scale-100',
+        )}
+      >
+        {value}
+        {suffix ? (
+          <span className="text-xs text-evari-dimmer font-normal"> {suffix}</span>
+        ) : null}
+      </div>
     </div>
   );
 }
