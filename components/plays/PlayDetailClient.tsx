@@ -1,26 +1,31 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
+  Activity,
   ArrowLeft,
-  Send,
-  RefreshCw,
-  Sparkles,
-  Pin,
-  Plus,
+  BookOpenText,
+  Check,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   FileText,
-  Users,
+  Inbox,
   Mail,
-  Activity,
-  Target,
-  BookOpenText,
   Mic,
   MicOff,
+  Pencil,
+  Pin,
+  Plus,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Target,
+  Users,
   Volume2,
   VolumeX,
-  Inbox,
+  X,
 } from 'lucide-react';
 import { DraftsPane } from '@/components/plays/DraftsPane';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +40,7 @@ import type {
   Play,
   PlayChatMessage,
   PlayStage,
+  PlayStrategy,
 } from '@/lib/types';
 
 const STAGES: PlayStage[] = [
@@ -62,29 +68,59 @@ export function PlayDetailClient({
 }: {
   play: Play;
 }) {
-  const [play, setCampaign] = useState<Play>(initialPlay);
+  const [play, setPlay] = useState<Play>(initialPlay);
   const [pane, setPane] = useState<Pane>('brief');
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceChat();
 
-  function setStage(s: PlayStage) {
-    setCampaign((prev) => ({
-      ...prev,
-      stage: s,
-      activity: [
-        ...prev.activity,
-        {
-          id: 'a-' + Math.random().toString(36).slice(2, 9),
-          at: new Date().toISOString(),
-          summary: `Moved to ${s}`,
-          type: 'stage_change',
-        },
-      ],
-      updatedAt: new Date().toISOString(),
-    }));
+  // ----- PATCH helpers --------------------------------------------------
+
+  async function patchPlay(body: Record<string, unknown>): Promise<void> {
+    const res = await fetch('/api/plays/' + play.id, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      play?: Play;
+      error?: string;
+    };
+    if (!data.ok || !data.play) {
+      throw new Error(data.error || 'Save failed');
+    }
+    setPlay(data.play);
   }
+
+  async function saveTitle(next: string) {
+    await patchPlay({ title: next });
+  }
+
+  async function saveBrief(next: string) {
+    await patchPlay({ brief: next });
+  }
+
+  async function saveStrategy(patch: Partial<PlayStrategy>) {
+    await patchPlay({ strategy: patch });
+  }
+
+  // ----- Stage transitions ---------------------------------------------
+
+  async function setStage(s: PlayStage) {
+    if (s === play.stage) return;
+    // Optimistic update while the PATCH flies.
+    setPlay((prev) => ({ ...prev, stage: s }));
+    try {
+      await patchPlay({ stage: s });
+    } catch {
+      // Rollback on failure.
+      setPlay((prev) => ({ ...prev, stage: play.stage }));
+    }
+  }
+
+  // ----- Chat -----------------------------------------------------------
 
   async function sendChat(override?: string) {
     const text = (override ?? chatInput).trim();
@@ -95,7 +131,7 @@ export function PlayDetailClient({
       content: text,
       at: new Date().toISOString(),
     };
-    setCampaign((prev) => ({ ...prev, chat: [...prev.chat, userMsg] }));
+    setPlay((prev) => ({ ...prev, chat: [...prev.chat, userMsg] }));
     setChatInput('');
     setChatLoading(true);
     try {
@@ -117,7 +153,7 @@ export function PlayDetailClient({
         content: data.markdown,
         at: new Date().toISOString(),
       };
-      setCampaign((prev) => ({ ...prev, chat: [...prev.chat, aiMsg] }));
+      setPlay((prev) => ({ ...prev, chat: [...prev.chat, aiMsg] }));
       if (voice.autoSpeak) voice.speak(data.markdown);
     } catch {
       // swallow
@@ -151,13 +187,15 @@ export function PlayDetailClient({
   }
 
   function togglePinned(id: string) {
-    setCampaign((prev) => ({
+    setPlay((prev) => ({
       ...prev,
       chat: prev.chat.map((m) =>
         m.id === id ? { ...m, pinned: !m.pinned } : m,
       ),
     }));
   }
+
+  const strategy = play.strategy;
 
   return (
     <div className="flex gap-5 p-6 max-w-[1600px]">
@@ -174,14 +212,18 @@ export function PlayDetailClient({
         {/* Title + stage controls */}
         <div className="rounded-xl bg-evari-surface p-5 space-y-3">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-2 min-w-0">
+            <div className="flex items-start gap-2 min-w-0 flex-1">
               {play.pinned && (
                 <Pin className="h-4 w-4 text-evari-gold mt-0.5 shrink-0" />
               )}
-              <div className="min-w-0">
-                <h1 className="text-lg font-semibold text-evari-text">
-                  {play.title}
-                </h1>
+              <div className="min-w-0 flex-1">
+                <InlineText
+                  value={play.title}
+                  onSave={saveTitle}
+                  placeholder="Untitled strategy"
+                  displayClassName="text-lg font-semibold text-evari-text"
+                  label="title"
+                />
                 <div className="text-[11px] text-evari-dimmer mt-1">
                   Created {relativeTime(play.createdAt)} · updated{' '}
                   {relativeTime(play.updatedAt)}
@@ -209,7 +251,7 @@ export function PlayDetailClient({
                 <button
                   key={s}
                   type="button"
-                  onClick={() => setStage(s)}
+                  onClick={() => void setStage(s)}
                   disabled={active}
                   className={cn(
                     'text-[10px] capitalize px-2 py-0.5 rounded-full transition-colors',
@@ -275,34 +317,135 @@ export function PlayDetailClient({
         />
 
         {pane === 'brief' && (
-          <section className="rounded-xl bg-evari-surface p-5 space-y-3">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
-              Brief
-            </div>
-            <p className="text-sm text-evari-text leading-relaxed whitespace-pre-wrap selectable">
-              {play.brief}
-            </p>
-            {play.links && play.links.length > 0 && (
-              <div className="pt-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium mb-1.5">
-                  Connected
-                </div>
-                <ul className="space-y-1">
-                  {play.links.map((l) => (
-                    <li key={l.label}>
-                      <Link
-                        href={l.url}
-                        className="inline-flex items-center gap-1 text-xs text-evari-gold hover:text-evari-text"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        {l.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+          <div className="space-y-4">
+            {/* Brief block */}
+            <section className="rounded-xl bg-evari-surface p-5 space-y-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
+                Brief
               </div>
-            )}
-          </section>
+              <InlineText
+                value={play.brief}
+                onSave={saveBrief}
+                multiline
+                placeholder="A one-paragraph why for this strategy. Click to edit."
+                displayClassName="text-sm text-evari-text leading-relaxed whitespace-pre-wrap"
+                label="brief"
+              />
+              {play.links && play.links.length > 0 && (
+                <div className="pt-2">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium mb-1.5">
+                    Connected
+                  </div>
+                  <ul className="space-y-1">
+                    {play.links.map((l) => (
+                      <li key={l.label}>
+                        <Link
+                          href={l.url}
+                          className="inline-flex items-center gap-1 text-xs text-evari-gold hover:text-evari-text"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          {l.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+
+            {/* Strategy block */}
+            <section className="rounded-xl bg-evari-surface p-5 space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
+                  Strategy
+                </div>
+                {!strategy && (
+                  <span className="text-[10px] text-evari-dimmer italic">
+                    Start editing any field to create a strategy.
+                  </span>
+                )}
+              </div>
+
+              <StrategyField label="Hypothesis" hint="One-sentence why now.">
+                <InlineText
+                  value={strategy?.hypothesis ?? ''}
+                  onSave={(v) => saveStrategy({ hypothesis: v })}
+                  multiline
+                  placeholder="Click to write the one-sentence thesis for this play."
+                  displayClassName="text-sm text-evari-text leading-relaxed whitespace-pre-wrap"
+                  label="hypothesis"
+                />
+              </StrategyField>
+
+              <StrategyField label="Sector" hint="Market or sector label.">
+                <InlineText
+                  value={strategy?.sector ?? ''}
+                  onSave={(v) => saveStrategy({ sector: v })}
+                  placeholder="e.g. UK private knee-surgery clinics"
+                  displayClassName="text-sm text-evari-text"
+                  label="sector"
+                />
+              </StrategyField>
+
+              <StrategyField
+                label="Target persona"
+                hint="The job title we actually email. Not the famous one."
+              >
+                <InlineText
+                  value={strategy?.targetPersona ?? ''}
+                  onSave={(v) => saveStrategy({ targetPersona: v })}
+                  multiline
+                  placeholder="Click to name the person we are actually writing to."
+                  displayClassName="text-sm text-evari-text leading-relaxed whitespace-pre-wrap"
+                  label="targetPersona"
+                />
+              </StrategyField>
+
+              <StrategyField
+                label="Messaging angles"
+                hint="One to three angles to test."
+              >
+                <InlineList
+                  values={strategy?.messagingAngles ?? []}
+                  onSave={(v) => saveStrategy({ messagingAngles: v })}
+                  placeholder="Add a messaging angle..."
+                />
+              </StrategyField>
+
+              <StrategyField
+                label="Weekly target"
+                hint="How many new prospects per week."
+              >
+                <InlineNumber
+                  value={strategy?.weeklyTarget}
+                  onSave={(v) => saveStrategy({ weeklyTarget: v })}
+                  placeholder="Click to set a weekly target."
+                />
+              </StrategyField>
+
+              <StrategyField
+                label="Success metrics"
+                hint="How we know the play worked."
+              >
+                <InlineList
+                  values={strategy?.successMetrics ?? []}
+                  onSave={(v) => saveStrategy({ successMetrics: v })}
+                  placeholder="Add a success metric..."
+                />
+              </StrategyField>
+
+              <StrategyField
+                label="Disqualifiers"
+                hint="Why we would not contact someone who otherwise matches."
+              >
+                <InlineList
+                  values={strategy?.disqualifiers ?? []}
+                  onSave={(v) => saveStrategy({ disqualifiers: v })}
+                  placeholder="Add a disqualifier..."
+                />
+              </StrategyField>
+            </section>
+          </div>
         )}
 
         {pane === 'research' && (
@@ -310,7 +453,7 @@ export function PlayDetailClient({
             {play.research.length === 0 && (
               <EmptyState
                 label="No research notes yet."
-                hint="Ask Claude to scrape or look something up — pin the answer into this section."
+                hint="Ask Claude to scrape or look something up, then pin the answer into this section."
               />
             )}
             {play.research.map((r) => (
@@ -392,10 +535,10 @@ export function PlayDetailClient({
                     )}
                   </div>
                   <div className="col-span-3 min-w-0 text-xs text-evari-dim truncate">
-                    {t.org ?? '—'}
+                    {t.org ?? '-'}
                   </div>
                   <div className="col-span-3 min-w-0 text-xs font-mono text-evari-dim truncate">
-                    {t.email ?? '—'}
+                    {t.email ?? '-'}
                   </div>
                   <div className="col-span-2 text-right">
                     <Badge
@@ -487,10 +630,10 @@ export function PlayDetailClient({
         )}
       </main>
 
-      {/* Right: per-play chat */}
+      {/* Right: per-play chat. Pinned to the viewport, input always visible. */}
       <aside className="w-[420px] shrink-0">
-        <div className="sticky top-4 rounded-xl bg-evari-surface flex flex-col h-[calc(100vh-80px)]">
-          <div className="flex items-start gap-3 p-4">
+        <div className="sticky top-4 rounded-xl bg-evari-surface flex flex-col max-h-[calc(100vh-80px)] min-h-[480px] overflow-hidden">
+          <div className="flex items-start gap-3 p-4 shrink-0 border-b border-evari-line/40">
             <div className="h-8 w-8 rounded-lg bg-evari-surfaceSoft flex items-center justify-center shrink-0">
               <Sparkles className="h-4 w-4 text-evari-dim" />
             </div>
@@ -499,7 +642,7 @@ export function PlayDetailClient({
                 Spitball with Claude
               </div>
               <div className="text-[11px] text-evari-dim leading-snug">
-                Grounded in this strategy's brief, research, targets and prior
+                Grounded in this strategy brief, research, targets and prior
                 conversation.
               </div>
             </div>
@@ -512,8 +655,8 @@ export function PlayDetailClient({
                 }}
                 title={
                   voice.autoSpeak
-                    ? 'Speaker on — click to mute'
-                    : 'Speaker off — click to hear replies'
+                    ? 'Speaker on. Click to mute.'
+                    : 'Speaker off. Click to hear replies.'
                 }
                 className={cn(
                   'shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors',
@@ -533,7 +676,7 @@ export function PlayDetailClient({
 
           <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto px-4 space-y-2"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 space-y-2"
           >
             {play.chat.length === 0 && (
               <div className="text-xs text-evari-dimmer italic py-8 text-center">
@@ -541,98 +684,636 @@ export function PlayDetailClient({
               </div>
             )}
             {play.chat.map((m) => (
-              <div
+              <ChatMessageBubble
                 key={m.id}
-                className={cn(
-                  'rounded-md p-3 text-sm relative group',
-                  m.role === 'user'
-                    ? 'bg-evari-surfaceSoft ml-6'
-                    : 'bg-evari-surface/60 mr-6',
-                )}
-              >
-                <div className="flex items-center justify-between mb-1 text-[10px] text-evari-dimmer">
-                  <span>{m.role === 'user' ? 'Craig' : 'Claude'}</span>
-                  <div className="flex items-center gap-1">
-                    {m.pinned && (
-                      <Pin className="h-2.5 w-2.5 text-evari-gold" />
-                    )}
-                    <span>{relativeTime(m.at)}</span>
-                  </div>
-                </div>
-                {m.role === 'assistant' ? (
-                  <MessageResponse>{m.content}</MessageResponse>
-                ) : (
-                  <p className="text-evari-text leading-relaxed whitespace-pre-wrap selectable">
-                    {m.content}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => togglePinned(m.id)}
-                  title={m.pinned ? 'Unpin' : 'Pin'}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-gold hover:bg-evari-surfaceSoft transition"
-                >
-                  <Pin className="h-3 w-3" />
-                </button>
-              </div>
+                message={m}
+                onTogglePin={() => togglePinned(m.id)}
+              />
             ))}
+            {chatLoading && (
+              <div className="text-[11px] text-evari-dimmer italic py-2 pl-1 inline-flex items-center gap-1.5">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Claude is thinking...
+              </div>
+            )}
           </div>
 
-          <div className="p-3 flex items-center gap-2">
-            <Input
-              placeholder={voice.isListening ? 'Listening…' : 'Ask, draft, plan…'}
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  void sendChat();
-                }
-              }}
-              disabled={chatLoading}
-              className="flex-1"
-            />
-            {voice.isSpeaking ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={voice.stopSpeaking}
-                title="Stop Claude from reading out loud"
-              >
-                <VolumeX className="h-3 w-3" />
-              </Button>
-            ) : null}
-            {voice.micSupported ? (
-              <Button
-                variant={voice.isListening ? 'primary' : 'ghost'}
-                size="sm"
-                onClick={toggleMic}
+          {/* Input row. shrink-0 + border-t keeps it visible at the bottom of
+              the aside no matter how long the thread grows. */}
+          <div className="shrink-0 border-t border-evari-line/40 p-3 bg-evari-surface">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder={voice.isListening ? 'Listening...' : 'Ask, draft, plan...'}
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void sendChat();
+                  }
+                }}
                 disabled={chatLoading}
-                title={voice.isListening ? 'Stop listening' : 'Hold a conversation out loud'}
-                className={voice.isListening ? 'animate-pulse' : ''}
+                className="flex-1"
+              />
+              {voice.isSpeaking ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={voice.stopSpeaking}
+                  title="Stop Claude from reading out loud"
+                >
+                  <VolumeX className="h-3 w-3" />
+                </Button>
+              ) : null}
+              {voice.micSupported ? (
+                <Button
+                  variant={voice.isListening ? 'primary' : 'ghost'}
+                  size="sm"
+                  onClick={toggleMic}
+                  disabled={chatLoading}
+                  title={voice.isListening ? 'Stop listening' : 'Hold a conversation out loud'}
+                  className={voice.isListening ? 'animate-pulse' : ''}
+                >
+                  {voice.isListening ? (
+                    <MicOff className="h-3 w-3" />
+                  ) : (
+                    <Mic className="h-3 w-3" />
+                  )}
+                </Button>
+              ) : null}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void sendChat()}
+                disabled={chatLoading || !chatInput.trim()}
               >
-                {voice.isListening ? (
-                  <MicOff className="h-3 w-3" />
+                {chatLoading ? (
+                  <RefreshCw className="h-3 w-3 animate-spin" />
                 ) : (
-                  <Mic className="h-3 w-3" />
+                  <Send className="h-3 w-3" />
                 )}
               </Button>
-            ) : null}
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => void sendChat()}
-              disabled={chatLoading || !chatInput.trim()}
-            >
-              {chatLoading ? (
-                <RefreshCw className="h-3 w-3 animate-spin" />
-              ) : (
-                <Send className="h-3 w-3" />
-              )}
-            </Button>
+            </div>
           </div>
         </div>
       </aside>
+    </div>
+  );
+}
+
+// =========================================================================
+// Chat message bubble with long-reply collapse.
+// =========================================================================
+
+function ChatMessageBubble({
+  message,
+  onTogglePin,
+}: {
+  message: PlayChatMessage;
+  onTogglePin: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-md p-3 text-sm relative group',
+        message.role === 'user'
+          ? 'bg-evari-surfaceSoft ml-6'
+          : 'bg-evari-surface/60 mr-6',
+      )}
+    >
+      <div className="flex items-center justify-between mb-1 text-[10px] text-evari-dimmer">
+        <span>{message.role === 'user' ? 'Craig' : 'Claude'}</span>
+        <div className="flex items-center gap-1">
+          {message.pinned && (
+            <Pin className="h-2.5 w-2.5 text-evari-gold" />
+          )}
+          <span>{relativeTime(message.at)}</span>
+        </div>
+      </div>
+      {message.role === 'assistant' ? (
+        <CollapsibleAssistant content={message.content} />
+      ) : (
+        <p className="text-evari-text leading-relaxed whitespace-pre-wrap selectable">
+          {message.content}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={onTogglePin}
+        title={message.pinned ? 'Unpin' : 'Pin'}
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-gold hover:bg-evari-surfaceSoft transition"
+      >
+        <Pin className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+function CollapsibleAssistant({ content }: { content: string }) {
+  const lines = content.split('\n');
+  const nonEmpty = lines.filter((l) => l.trim()).length;
+  const isLong = nonEmpty > 6 || content.length > 500;
+  const [open, setOpen] = useState(!isLong);
+
+  if (!isLong) {
+    return <MessageResponse>{content}</MessageResponse>;
+  }
+
+  // Build a 2-to-3 line preview that always ends on a sentence boundary when
+  // possible so the summary reads like a natural intro, not a chopped string.
+  const preview = buildPreview(content);
+
+  return (
+    <div className="space-y-1.5">
+      {open ? (
+        <MessageResponse>{content}</MessageResponse>
+      ) : (
+        <p className="text-evari-text leading-relaxed whitespace-pre-wrap">
+          {preview}
+          <span className="text-evari-dimmer"> ...</span>
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-[10px] uppercase tracking-[0.12em] text-evari-gold hover:text-evari-text inline-flex items-center gap-1"
+      >
+        {open ? (
+          <>
+            <ChevronUp className="h-3 w-3" />
+            Collapse
+          </>
+        ) : (
+          <>
+            <ChevronDown className="h-3 w-3" />
+            Show full reply ({nonEmpty} lines)
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function buildPreview(content: string): string {
+  const trimmed = content.trim();
+  // Prefer the first paragraph if it's short enough.
+  const firstPara = trimmed.split(/\n\s*\n/)[0] ?? '';
+  if (firstPara.length <= 220) return firstPara;
+  // Otherwise the first sentence, then the next up to ~220 chars.
+  const sentenceMatch = firstPara.match(/^[^.!?]+[.!?]/);
+  if (sentenceMatch) return sentenceMatch[0].trim();
+  return firstPara.slice(0, 220);
+}
+
+// =========================================================================
+// Inline editors.
+// =========================================================================
+
+function InlineText({
+  value,
+  onSave,
+  placeholder,
+  displayClassName,
+  multiline,
+  label,
+}: {
+  value: string;
+  onSave: (next: string) => Promise<void> | void;
+  placeholder?: string;
+  displayClassName?: string;
+  multiline?: boolean;
+  label?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
+
+  async function commit() {
+    if (saving) return;
+    const next = draft.trim();
+    if (next === value.trim()) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(next);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    const hasValue = value.trim().length > 0;
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        aria-label={label ? `Edit ${label}` : 'Edit'}
+        className="group relative block w-full text-left cursor-text rounded px-1 -mx-1 hover:bg-evari-surfaceSoft/40 transition-colors"
+      >
+        <span
+          className={cn(
+            'block',
+            displayClassName,
+            !hasValue && 'text-evari-dimmer italic',
+          )}
+        >
+          {hasValue ? value : placeholder ?? 'Click to edit'}
+        </span>
+        <Pencil className="h-3 w-3 absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-evari-dimmer" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {multiline ? (
+        <Textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          autoFocus
+          rows={4}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setEditing(false);
+              setDraft(value);
+            }
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void commit();
+            }
+          }}
+          className="w-full text-sm"
+        />
+      ) : (
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setEditing(false);
+              setDraft(value);
+            }
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void commit();
+            }
+          }}
+          className="w-full text-sm"
+        />
+      )}
+      {error && (
+        <div className="text-[11px] text-evari-crit">{error}</div>
+      )}
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => void commit()}
+          disabled={saving}
+        >
+          {saving ? (
+            <RefreshCw className="h-3 w-3 animate-spin" />
+          ) : (
+            <Check className="h-3 w-3" />
+          )}
+          <span className="ml-1">Save</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setEditing(false);
+            setDraft(value);
+            setError(null);
+          }}
+          disabled={saving}
+        >
+          Cancel
+        </Button>
+        {multiline && (
+          <span className="text-[10px] text-evari-dimmer">
+            Cmd-Enter to save, Esc to cancel
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InlineList({
+  values,
+  onSave,
+  placeholder,
+}: {
+  values: string[];
+  onSave: (next: string[]) => Promise<void> | void;
+  placeholder?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string[]>(values);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editing) setDraft(values);
+  }, [values, editing]);
+
+  async function commit() {
+    const cleaned = draft.map((s) => s.trim()).filter(Boolean);
+    // No-op fast path.
+    if (
+      cleaned.length === values.length &&
+      cleaned.every((v, i) => v === values[i])
+    ) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(cleaned);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    const empty = values.length === 0;
+    return (
+      <div className="group relative">
+        {empty ? (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(['']);
+              setEditing(true);
+            }}
+            className="text-xs text-evari-dimmer italic hover:text-evari-text"
+          >
+            {placeholder ?? 'Click to add an item.'}
+          </button>
+        ) : (
+          <ul className="space-y-1.5">
+            {values.map((v, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-2 text-sm text-evari-text"
+              >
+                <span className="text-evari-dimmer shrink-0 mt-0.5">-</span>
+                <span className="flex-1 leading-relaxed whitespace-pre-wrap">
+                  {v}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          aria-label="Edit list"
+          className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 p-1 rounded text-evari-dimmer hover:text-evari-gold hover:bg-evari-surfaceSoft transition"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {draft.map((v, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <Input
+            value={v}
+            onChange={(e) =>
+              setDraft((d) => d.map((x, j) => (j === i ? e.target.value : x)))
+            }
+            autoFocus={i === draft.length - 1}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setDraft((d) => [...d, '']);
+              }
+              if (e.key === 'Escape') {
+                setEditing(false);
+                setDraft(values);
+              }
+            }}
+            className="flex-1"
+          />
+          <button
+            type="button"
+            onClick={() =>
+              setDraft((d) => d.filter((_, j) => j !== i))
+            }
+            aria-label="Remove item"
+            className="shrink-0 p-1 text-evari-dimmer hover:text-evari-crit rounded transition"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      {error && (
+        <div className="text-[11px] text-evari-crit">{error}</div>
+      )}
+      <div className="flex items-center gap-2 pt-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setDraft((d) => [...d, ''])}
+          disabled={saving}
+        >
+          <Plus className="h-3 w-3" />
+          <span className="ml-1">Add</span>
+        </Button>
+        <div className="flex-1" />
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => void commit()}
+          disabled={saving}
+        >
+          {saving ? (
+            <RefreshCw className="h-3 w-3 animate-spin" />
+          ) : (
+            <Check className="h-3 w-3" />
+          )}
+          <span className="ml-1">Save</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setEditing(false);
+            setDraft(values);
+            setError(null);
+          }}
+          disabled={saving}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function InlineNumber({
+  value,
+  onSave,
+  placeholder,
+}: {
+  value?: number;
+  onSave: (next: number | undefined) => Promise<void> | void;
+  placeholder?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string>(value === undefined ? '' : String(value));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editing) setDraft(value === undefined ? '' : String(value));
+  }, [value, editing]);
+
+  async function commit() {
+    const trimmed = draft.trim();
+    let next: number | undefined;
+    if (trimmed === '') {
+      next = undefined;
+    } else {
+      const n = Number(trimmed);
+      if (!Number.isFinite(n) || n < 0) {
+        setError('Must be a non-negative number.');
+        return;
+      }
+      next = Math.floor(n);
+    }
+    if (next === value) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(next);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="group relative block text-left cursor-text rounded px-1 -mx-1 hover:bg-evari-surfaceSoft/40 transition-colors"
+      >
+        <span
+          className={cn(
+            'text-sm',
+            value === undefined ? 'text-evari-dimmer italic' : 'text-evari-text',
+          )}
+        >
+          {value === undefined
+            ? placeholder ?? 'Click to set'
+            : `${value} / week`}
+        </span>
+        <Pencil className="h-3 w-3 absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-evari-dimmer" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Input
+        type="number"
+        min={0}
+        step={1}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        autoFocus
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setEditing(false);
+            setDraft(value === undefined ? '' : String(value));
+          }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            void commit();
+          }
+        }}
+        className="w-32 text-sm"
+      />
+      {error && <div className="text-[11px] text-evari-crit">{error}</div>}
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => void commit()}
+          disabled={saving}
+        >
+          {saving ? (
+            <RefreshCw className="h-3 w-3 animate-spin" />
+          ) : (
+            <Check className="h-3 w-3" />
+          )}
+          <span className="ml-1">Save</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setEditing(false);
+            setDraft(value === undefined ? '' : String(value));
+            setError(null);
+          }}
+          disabled={saving}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function StrategyField({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline gap-2">
+        <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+          {label}
+        </div>
+        {hint && (
+          <div className="text-[10px] text-evari-dimmer/70 italic">{hint}</div>
+        )}
+      </div>
+      {children}
     </div>
   );
 }

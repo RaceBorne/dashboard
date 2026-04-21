@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay } from '@/lib/dashboard/repository';
-import type { Play, PlayStage } from '@/lib/types';
+import type { Play, PlayStage, PlayStrategy } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,11 +9,17 @@ export const dynamic = 'force-dynamic';
 /**
  * PATCH /api/plays/[id]
  *
- * Partial-update a play from the /plays list. Only these fields are allowed
- * — detail-page edits (research, targets, messaging, chat) go through their
- * own routes and carry richer payloads.
+ * Partial-update a play from either the list view or the detail page.
  *
- * Body: { title?: string; brief?: string; stage?: PlayStage; pinned?: boolean }
+ * Supported fields:
+ *   title     — string, non-empty
+ *   brief     — string (one-paragraph "why")
+ *   stage     — PlayStage
+ *   pinned    — boolean
+ *   strategy  — Partial<PlayStrategy>, merged shallowly into existing strategy
+ *
+ * Richer sub-docs (research, targets, messaging, chat) still go through their
+ * own routes so this one stays tight.
  */
 const STAGES: PlayStage[] = [
   'idea',
@@ -23,6 +29,16 @@ const STAGES: PlayStage[] = [
   'live',
   'retired',
 ];
+
+type StrategyPatch = Partial<PlayStrategy>;
+
+interface PatchBody {
+  title?: string;
+  brief?: string;
+  stage?: PlayStage;
+  pinned?: boolean;
+  strategy?: StrategyPatch;
+}
 
 export async function PATCH(
   req: Request,
@@ -45,14 +61,9 @@ export async function PATCH(
     );
   }
 
-  let body: {
-    title?: string;
-    brief?: string;
-    stage?: PlayStage;
-    pinned?: boolean;
-  } = {};
+  let body: PatchBody = {};
   try {
-    body = (await req.json()) as typeof body;
+    body = (await req.json()) as PatchBody;
   } catch {
     return NextResponse.json(
       { ok: false, error: 'Invalid JSON body' },
@@ -85,6 +96,16 @@ export async function PATCH(
   }
   if (typeof body.pinned === 'boolean') {
     patch.pinned = body.pinned;
+  }
+  if (body.strategy && typeof body.strategy === 'object') {
+    const validated = validateStrategyPatch(body.strategy);
+    if ('error' in validated) {
+      return NextResponse.json(
+        { ok: false, error: validated.error },
+        { status: 400 },
+      );
+    }
+    patch.strategy = mergeStrategy(existing.strategy, validated.value);
   }
 
   if (Object.keys(patch).length === 0) {
@@ -160,11 +181,75 @@ export async function DELETE(
   return NextResponse.json({ ok: true });
 }
 
+// --------------------------------------------------------------------------
+// Strategy validation + merge — only accept fields that are part of the
+// PlayStrategy shape. Arrays get replaced wholesale (not appended) so the UI
+// can send the edited list back verbatim.
+// --------------------------------------------------------------------------
+function validateStrategyPatch(
+  input: StrategyPatch,
+): { value: StrategyPatch } | { error: string } {
+  const out: StrategyPatch = {};
+  const strKeys: Array<keyof PlayStrategy> = ['hypothesis', 'sector', 'targetPersona'];
+  for (const k of strKeys) {
+    if (input[k] !== undefined) {
+      if (typeof input[k] !== 'string') {
+        return { error: `strategy.${k} must be a string` };
+      }
+      (out[k] as string) = (input[k] as string).trim();
+    }
+  }
+  const arrStrKeys: Array<keyof PlayStrategy> = [
+    'messagingAngles',
+    'successMetrics',
+    'disqualifiers',
+  ];
+  for (const k of arrStrKeys) {
+    if (input[k] !== undefined) {
+      if (!Array.isArray(input[k])) {
+        return { error: `strategy.${k} must be an array of strings` };
+      }
+      const items = (input[k] as unknown[]).map((x) => String(x).trim()).filter(Boolean);
+      (out[k] as string[]) = items;
+    }
+  }
+  if (input.weeklyTarget !== undefined) {
+    if (input.weeklyTarget === null || input.weeklyTarget === ('' as unknown as number)) {
+      out.weeklyTarget = undefined;
+    } else {
+      const n = Number(input.weeklyTarget);
+      if (!Number.isFinite(n) || n < 0) {
+        return { error: 'strategy.weeklyTarget must be a non-negative number' };
+      }
+      out.weeklyTarget = Math.floor(n);
+    }
+  }
+  return { value: out };
+}
+
+function mergeStrategy(
+  existing: PlayStrategy | undefined,
+  patch: StrategyPatch,
+): PlayStrategy {
+  const base: PlayStrategy = existing ?? {
+    hypothesis: '',
+    sector: '',
+    targetPersona: '',
+    messagingAngles: [],
+    successMetrics: [],
+  };
+  return {
+    ...base,
+    ...patch,
+  };
+}
+
 function summariseEdit(patch: Partial<Play>, existing: Play): string {
   const bits: string[] = [];
   if (patch.title && patch.title !== existing.title) bits.push('renamed');
   if (patch.brief !== undefined && patch.brief !== existing.brief)
     bits.push('brief edited');
+  if (patch.strategy !== undefined) bits.push('strategy edited');
   if (patch.pinned !== undefined && patch.pinned !== existing.pinned)
     bits.push(patch.pinned ? 'pinned' : 'unpinned');
   return bits.length > 0 ? bits.join(' · ') : 'Edited';
