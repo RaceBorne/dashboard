@@ -46,13 +46,16 @@ export async function POST(
     );
   }
 
-  const play = await getPlay(supabase, id);
+  // Play + recent Gmail context are independent reads - fire them in
+  // parallel. Saves a Gmail round-trip on warm chat requests and is a
+  // no-op when Gmail isn't connected.
+  const [play, gmailContext] = await Promise.all([
+    getPlay(supabase, id),
+    safeGmailContext(),
+  ]);
   if (!play) {
     return NextResponse.json({ ok: false, error: 'not found' }, { status: 404 });
   }
-
-  // Recent customer context from Gmail (if connected).
-  const gmailContext = await safeGmailContext();
 
   const prompt = [
     `Play title: ${play.title}`,

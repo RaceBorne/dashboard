@@ -4,7 +4,7 @@ import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import {
   getPlay,
   getSender,
-  isSuppressed,
+  listSuppressions,
   listDraftsByPlay,
   listDraftsByStatus,
   listSenders,
@@ -59,6 +59,19 @@ export async function POST(req: Request) {
   }
 
   const sent = await listDraftsByStatus(supabase, 'sent');
+
+  // Pre-load the suppression list once. We used to query `isSuppressed`
+  // per sent-draft in the loop below (N extra round-trips); a single
+  // full-list fetch plus in-memory lookup is dramatically cheaper in
+  // the common case (few hundred suppressions, many sent drafts).
+  const allSuppressions = await listSuppressions(supabase);
+  const isEmailSuppressed = (email: string, playId: string) => {
+    const lower = email.trim().toLowerCase();
+    return allSuppressions.some((s) => {
+      if (s.email.trim().toLowerCase() !== lower) return false;
+      return !s.playId || s.playId === playId;
+    });
+  };
   if (sent.length === 0) {
     return NextResponse.json({ ok: true, generated: [], skipped: [] });
   }
@@ -161,7 +174,7 @@ export async function POST(req: Request) {
     }
 
     // Compliance: recipient may have opted out since the first touch landed.
-    if (await isSuppressed(supabase, prior.toEmail, play.id)) {
+    if (isEmailSuppressed(prior.toEmail, play.id)) {
       skipped.push({ draftId: prior.id, reason: 'suppressed' });
       continue;
     }

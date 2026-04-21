@@ -329,20 +329,28 @@ export async function upsertSender(
     .from('dashboard_outreach_senders')
     .upsert({ id: sender.id, payload: sender, updated_at: new Date().toISOString() });
 
-  // Enforce single default: if this sender was just made default, clear the
-  // flag on all others.
+  // Enforce single default: if this sender was just made default, clear
+  // the flag on the previous default. One targeted fetch (at most one
+  // other row with isDefault=true) and one update - replaces the old
+  // "list every sender, update each one in parallel" pattern.
   if (sender.isDefault) {
-    const others = await listSenders(supabase);
-    await Promise.all(
-      others
-        .filter((s) => s.id !== sender.id && s.isDefault)
-        .map((s) =>
+    const { data: priorDefaults } = await supabase
+      .from('dashboard_outreach_senders')
+      .select('payload')
+      .contains('payload', { isDefault: true });
+    const others = (priorDefaults as { payload: OutreachSender }[] | null)
+      ?.map((r) => r.payload)
+      .filter((s) => s.id !== sender.id) ?? [];
+    if (others.length > 0) {
+      await Promise.all(
+        others.map((s) =>
           supabase
             .from('dashboard_outreach_senders')
             .update({ payload: { ...s, isDefault: false, updatedAt: new Date().toISOString() } })
             .eq('id', s.id),
         ),
-    );
+      );
+    }
   }
 }
 
@@ -383,6 +391,38 @@ export async function isSuppressed(
     const e = r.payload;
     return !e.playId || e.playId === playId;
   });
+}
+
+/**
+ * Batch counterpart of `isSuppressed`. Takes a list of recipient emails and
+ * returns the subset that's suppressed (either globally or for the given
+ * play). Use this to avoid N+1 queries inside dry-run / follow-up loops.
+ *
+ * Empty input -> empty set, no query.
+ */
+export async function listSuppressedEmails(
+  supabase: SupabaseClient | null,
+  emails: string[],
+  playId?: string,
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!supabase || emails.length === 0) return out;
+  const lowers = Array.from(
+    new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean)),
+  );
+  if (lowers.length === 0) return out;
+  const { data, error } = await supabase
+    .from('dashboard_suppressions')
+    .select('payload')
+    .in('email', lowers);
+  if (error || !data?.length) return out;
+  for (const row of data as { payload: SuppressionEntry }[]) {
+    const e = row.payload;
+    if (!e.playId || e.playId === playId) {
+      out.add(e.email.trim().toLowerCase());
+    }
+  }
+  return out;
 }
 
 export async function addSuppression(

@@ -4,7 +4,7 @@ import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import {
   getPlay,
   getSender,
-  isSuppressed,
+  listSuppressedEmails,
   listDraftsByPlay,
   listSenders,
   upsertDraft,
@@ -113,6 +113,14 @@ export async function POST(
   const newDrafts: DraftMessage[] = [];
   const skipped: Array<{ targetId: string; reason: string }> = [];
 
+  // Batch suppression check: one query for every candidate, reused below via
+  // a Set lookup. Replaces an N-per-target round-trip to Supabase.
+  const suppressedEmails = await listSuppressedEmails(
+    supabase,
+    candidates.map((t) => t.email).filter((e): e is string => Boolean(e)),
+    play.id,
+  );
+
   for (const target of candidates) {
     if (newDrafts.length >= limit) {
       skipped.push({ targetId: target.id, reason: 'rate limit reached' });
@@ -122,7 +130,7 @@ export async function POST(
     const email = target.email!.trim().toLowerCase();
 
     // Skip suppressed addresses.
-    if (await isSuppressed(supabase, email, play.id)) {
+    if (suppressedEmails.has(email)) {
       skipped.push({ targetId: target.id, reason: 'suppressed' });
       continue;
     }
