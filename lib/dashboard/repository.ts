@@ -36,9 +36,17 @@ function byLastTouchProspect(a: Prospect, b: Prospect) {
   return new Date(tb).getTime() - new Date(ta).getTime();
 }
 
+/**
+ * Only rows promoted to the Leads CRM (tier='lead') — prospects stay on
+ * the /prospects surface. A missing tier filter here is what caused every
+ * sourced prospect to appear on the Leads page as if auto-promoted.
+ */
 export async function listLeads(supabase: SupabaseClient | null): Promise<Lead[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase.from('dashboard_leads').select('payload');
+  const { data, error } = await supabase
+    .from('dashboard_leads')
+    .select('payload')
+    .eq('tier', 'lead');
   if (error || !data?.length) return [];
   return (data as { payload: Lead }[]).map((r) => r.payload).sort(byLastTouchLead);
 }
@@ -144,21 +152,32 @@ export async function listLeadsByCategory(
   return (data as { payload: Lead }[]).map((r) => r.payload).sort(byLastTouchLead);
 }
 
-/** Upsert a Lead row. Ensures tier + timestamps defaults. */
+/**
+ * Upsert a Lead row. Ensures tier + timestamps defaults.
+ *
+ * IMPORTANT: The default tier is 'prospect' — nothing gets auto-promoted
+ * to the Leads CRM just because a row was re-saved. The only code that
+ * should set tier='lead' is the explicit /api/leads/[id]/promote route
+ * (or a manual Supabase edit). Force the payload and the DB column to
+ * agree so reads filtered on `tier` and reads of `payload.tier` can never
+ * disagree.
+ */
 export async function upsertLead(
   supabase: SupabaseClient | null,
   lead: Lead,
 ): Promise<Lead | undefined> {
   if (!supabase) return undefined;
   const normalised = ensureLeadTimestamps(lead);
+  const tier: 'prospect' | 'lead' = normalised.tier ?? 'prospect';
+  const payload: Lead = { ...normalised, tier };
   const { error } = await supabase
     .from('dashboard_leads')
-    .upsert({ id: normalised.id, payload: normalised, tier: normalised.tier ?? 'lead' });
+    .upsert({ id: normalised.id, payload, tier });
   if (error) {
     console.warn('[repository] upsertLead failed', error);
     return undefined;
   }
-  return normalised;
+  return payload;
 }
 
 export async function listTrafficDays(supabase: SupabaseClient | null): Promise<TrafficDay[]> {
