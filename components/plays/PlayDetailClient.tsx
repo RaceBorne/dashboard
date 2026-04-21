@@ -592,9 +592,17 @@ export function PlayDetailClient({
             {/* Strategy block */}
             <section className="rounded-xl bg-evari-surface p-5 space-y-5">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
+                  Strategy
+                </div>
+                <div className="flex items-center gap-3">
+                  {!strategy && (
+                    <span className="text-[10px] text-evari-dimmer italic">
+                      Commit from Spitball, or edit any field below.
+                    </span>
+                  )}
                   <Button
-                    variant="ghost"
+                    variant="primary"
                     size="sm"
                     onClick={() => void commitScope()}
                     disabled={committingScope || !strategy}
@@ -612,15 +620,7 @@ export function PlayDetailClient({
                     )}
                     Convert to scope
                   </Button>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
-                    Strategy
-                  </div>
                 </div>
-                {!strategy && (
-                  <span className="text-[10px] text-evari-dimmer italic">
-                    Commit from Spitball, or edit any field below.
-                  </span>
-                )}
               </div>
 
               <StrategyField label="Hypothesis" hint="One-sentence why now.">
@@ -706,7 +706,19 @@ export function PlayDetailClient({
             {/* Scope block — generated from Strategy. */}
             <section className="rounded-xl bg-evari-surface p-5 space-y-4">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
+                  Scope
+                </div>
+                <div className="flex items-center gap-3">
+                  {scope?.sourcedAt ? (
+                    <span className="text-[10px] text-evari-dimmer">
+                      {scope.sourcedCount ?? 0} sourced · {relativeTime(scope.sourcedAt)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-evari-dimmer italic">
+                      {scope ? 'Ready to source.' : 'Convert from Strategy to create a scope.'}
+                    </span>
+                  )}
                   <Button
                     variant="primary"
                     size="sm"
@@ -726,19 +738,7 @@ export function PlayDetailClient({
                     )}
                     Source prospects
                   </Button>
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
-                    Scope
-                  </div>
                 </div>
-                {scope?.sourcedAt ? (
-                  <span className="text-[10px] text-evari-dimmer">
-                    {scope.sourcedCount ?? 0} sourced · {relativeTime(scope.sourcedAt)}
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-evari-dimmer italic">
-                    {scope ? 'Ready to source.' : 'Convert from Strategy to create a scope.'}
-                  </span>
-                )}
               </div>
 
               {flowError && (
@@ -1010,7 +1010,7 @@ export function PlayDetailClient({
               </div>
             </div>
             <Button
-              variant="ghost"
+              variant="primary"
               size="sm"
               onClick={() => void commitStrategy()}
               disabled={committingStrategy || play.chat.length === 0}
