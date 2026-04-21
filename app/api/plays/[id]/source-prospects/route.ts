@@ -233,7 +233,13 @@ export async function POST(
           });
           costTotal += res.cost;
           foundTotal += res.listings.length;
+          const country = extractCountryToken(q.locationName);
+          let rejected = 0;
           for (const l of res.listings) {
+            if (country && !listingMatchesCountry(l, country)) {
+              rejected += 1;
+              continue;
+            }
             const key = dedupeKey(l);
             if (!seen.has(key)) seen.set(key, l);
           }
@@ -244,9 +250,15 @@ export async function POST(
               q.description +
               '" returned ' +
               res.listings.length +
-              ' listing(s).',
+              ' listing(s)' +
+              (rejected > 0
+                ? ' · ' + rejected + ' dropped as out-of-country'
+                : '') +
+              '.',
             query: q,
             found: res.listings.length,
+            rejected,
+            country,
             foundTotal,
             uniqueTotal: seen.size,
             costUsd: res.cost,
@@ -395,10 +407,12 @@ async function derivePlan(play: Play): Promise<SearchPlan> {
     '',
     'Rules:',
     '- Return between 3 and 6 queries.',
-    '- Each "description" must be 2-4 words MAX — a short Google-style business keyword. Never a sentence.',
-    '- Vary the angles: different verticals, different roles, different cities if the Play is geographic.',
-    '- locationName must be a DataForSEO location string (e.g. "United Kingdom", "London, England, United Kingdom", "Manchester, England, United Kingdom").',
-    '- Default locationName is "United Kingdom" unless the Play implies a specific region, in which case mix city-level and country-level queries.',
+    '- Each "description" must be 2-4 words MAX — a short Google-style BUSINESS-NAME keyword. Never a sentence.',
+    '- CRITICAL: DataForSEO matches the keyword against business NAMES + categories, NOT the people inside them. Keywords must be venue / organisation types. Forbidden words inside description: "secretary", "organiser", "organizer", "director", "manager", "owner", "founder", "head of", "committee", "CEO", "CTO". A person role will return zero results.',
+    '- GOOD keywords: "cycling club London", "road cycling club Surrey", "triathlon club Kent", "yacht broker Hamble", "private knee clinic". BAD: "cycling club secretary", "ride organiser", "committee member".',
+    '- Vary the angles: different verticals, different sub-types, different cities if the Play is geographic.',
+    '- locationName must be a DataForSEO location string. For a UK Play use "United Kingdom" as the country tail, plus city/region specifics like "London, England, United Kingdom", "Surrey, England, United Kingdom", "Kent, England, United Kingdom".',
+    '- EVERY query must stay in the Play\'s target country. Inspect play.scope.summary for geographic intent and mirror it. If the scope mentions "South East England", never emit locationName="United States" or "Canada".',
     '- limit should be 25-50 per query.',
     '- Never target generic bike shops. Prefer HNW / luxury-adjacent verticals consistent with the grounded brand brief.',
     '- Return raw JSON only — no prose, no markdown fences.',
@@ -440,6 +454,74 @@ async function derivePlan(play: Play): Promise<SearchPlan> {
     );
   }
   return { queries };
+}
+
+/**
+ * Best-effort country detector: reads a DataForSEO location_name like
+ * "Surrey, England, United Kingdom" and returns a lowercase country token
+ * ("united kingdom", "united states", "canada", etc.). Returns undefined
+ * for ambiguous / country-less strings so the caller can skip filtering.
+ */
+function extractCountryToken(locationName: string): string | undefined {
+  const raw = locationName.trim();
+  if (!raw) return undefined;
+  // Last comma segment is typically the country in DFS location strings.
+  const tail = raw.split(',').pop()?.trim().toLowerCase();
+  if (!tail) return undefined;
+  if (tail.length < 2) return undefined;
+  // Guard: if the string is bare city ("London") return undefined — we can't
+  // be sure which London, so no filtering.
+  if (!raw.includes(',')) {
+    const lower = raw.toLowerCase();
+    if (['united kingdom', 'uk', 'united states', 'usa', 'canada', 'australia', 'germany', 'france', 'spain', 'italy', 'ireland'].includes(lower)) {
+      return lower === 'uk' ? 'united kingdom' : lower === 'usa' ? 'united states' : lower;
+    }
+    return undefined;
+  }
+  return tail;
+}
+
+/**
+ * UK postcode — broad but strict enough: 1-2 letters, digit, optional alnum,
+ * space, digit, 2 letters. Examples matched: SW1A 1AA, BN7 2TJ, KT1 4DB.
+ */
+const UK_POSTCODE = /\b[A-Z]{1,2}[0-9][A-Z0-9]?\s?[0-9][A-Z]{2}\b/i;
+
+/**
+ * Does this listing plausibly live in `country`? We accept a match from any
+ * of: address text contains the country token; address matches the country's
+ * postcode pattern; domain TLD is the country's ccTLD.
+ *
+ * Over-conservative when the address is missing — we default to KEEP rather
+ * than reject so data-poor rows aren't silently dropped.
+ */
+function listingMatchesCountry(
+  l: BusinessListing,
+  country: string,
+): boolean {
+  const addr = (l.address ?? '').toLowerCase();
+  const domain = (l.domain ?? '').toLowerCase();
+
+  if (country === 'united kingdom') {
+    if (!addr && !domain) return true; // too little data — keep, let the operator decide
+    if (addr.includes('united kingdom') || /, ?uk\b/.test(addr) || /\buk$/i.test(addr)) return true;
+    if (/(england|scotland|wales|northern ireland)/.test(addr)) return true;
+    if (UK_POSTCODE.test(l.address ?? '')) return true;
+    if (domain.endsWith('.uk') || domain.endsWith('.co.uk')) return true;
+    return false;
+  }
+  if (country === 'united states') {
+    if (!addr && !domain) return true;
+    if (addr.includes('united states') || /, ?usa?\b/.test(addr)) return true;
+    // US state-code + zip — e.g. "CA 94103"
+    if (/,\s?[a-z]{2}\s+\d{5}/i.test(l.address ?? '')) return true;
+    if (domain.endsWith('.us')) return true;
+    return false;
+  }
+
+  // Generic fallback: token must appear somewhere in address.
+  if (!addr) return true;
+  return addr.includes(country);
 }
 
 function dedupeKey(l: BusinessListing): string {
