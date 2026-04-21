@@ -941,7 +941,7 @@ export function ProspectsClient({
                       )}
                     </button>
                     <div className="text-sm font-medium text-evari-text">
-                      {p.name}
+                      {displayRowTitle(p)}
                     </div>
                     <span
                       className={cn(
@@ -1476,9 +1476,7 @@ function LeadFieldsBlock({
   onCancelEdit: () => void;
   onSave: (field: 'name' | 'email' | 'phone' | 'notes', value: string) => void;
 }) {
-  const hasRealEmail = Boolean(
-    prospect.email && !prospect.emailInferred,
-  );
+  const hasRealEmail = Boolean(verifiedEmail(prospect));
 
   return (
     <div className="space-y-1.5 pb-3 border-b border-evari-line/40">
@@ -1496,37 +1494,30 @@ function LeadFieldsBlock({
       <LeadField
         icon={<User className="h-3 w-3 text-evari-dimmer" />}
         label="Name"
-        value={prospect.name}
+        value={personName(prospect)}
         placeholder="Who's the contact?"
         editing={editingField === 'name'}
         saving={fieldSaving.has(prospect.id + ':name')}
         editValue={editValue}
         setEditValue={setEditValue}
-        onStartEdit={() => onStartEdit('name', prospect.name)}
+        onStartEdit={() => onStartEdit('name', personName(prospect))}
         onCancelEdit={onCancelEdit}
         onSave={(v) => onSave('name', v)}
       />
       <LeadField
         icon={<Mail className="h-3 w-3 text-evari-dimmer" />}
         label="Email"
-        value={prospect.email ?? ''}
+        value={verifiedEmail(prospect)}
         placeholder="real@domain.com"
         editing={editingField === 'email'}
         saving={fieldSaving.has(prospect.id + ':email')}
         editValue={editValue}
         setEditValue={setEditValue}
-        onStartEdit={() => onStartEdit('email', prospect.email ?? '')}
+        onStartEdit={() => onStartEdit('email', verifiedEmail(prospect))}
         onCancelEdit={onCancelEdit}
         onSave={(v) => onSave('email', v)}
         trailing={
-          prospect.email && prospect.emailInferred ? (
-            <span
-              className="text-[9px] text-evari-warn"
-              title="Currently pattern-inferred — replace with a real one to promote."
-            >
-              inferred
-            </span>
-          ) : prospect.email ? (
+          verifiedEmail(prospect) ? (
             <span
               className="text-[9px] text-evari-success"
               title="Verified email on file."
@@ -1691,4 +1682,41 @@ function LeadField({
       <Pencil className="h-3 w-3 text-evari-dimmer opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
     </button>
   );
+}
+
+
+/**
+ * Row header title. Prefer the contact's real name once it's filled in;
+ * otherwise fall back to the company name (org) so sourced rows aren't
+ * anonymous while you're scanning the list.
+ */
+function displayRowTitle(p: Prospect): string {
+  const real = personName(p);
+  if (real) return real;
+  const org = (p.org ?? '').trim();
+  if (org) return org;
+  return p.name || 'Unnamed prospect';
+}
+
+/**
+ * The prospect's contact name, treated as empty when it's just the
+ * company / club name echoed into the fullName field (a relic of how
+ * the sourcing agent used to create rows).
+ */
+function personName(p: Prospect): string {
+  const name = (p.name ?? '').trim();
+  const org = (p.org ?? '').trim();
+  if (!name) return '';
+  if (org && name.toLowerCase() === org.toLowerCase()) return '';
+  return name;
+}
+
+/**
+ * Only return an email we'd actually be happy sending to — blank when
+ * it's pattern-inferred / a shared inbox / never filled in.
+ */
+function verifiedEmail(p: Prospect): string {
+  if (!p.email) return '';
+  if (p.emailInferred) return '';
+  return p.email;
 }

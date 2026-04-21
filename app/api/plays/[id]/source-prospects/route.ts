@@ -566,17 +566,19 @@ function listingToLead(
 ): Partial<Lead> {
   const slug = slugify(l.title) || Math.random().toString(36).slice(2, 10);
   const id = 'prospect-' + (play.id + '-' + slug).slice(0, 80);
-  const domain = l.domain || deriveDomain(l.url);
-  const inferredEmail = inferEmail(domain);
+  // fullName is intentionally left blank — the company's title isn't a
+  // person's name, and the operator (or the contact-enrichment pass) will
+  // fill in a real contact. Same for email: no inferred info@domain here,
+  // only verbatim real addresses added later.
   return {
     id,
-    fullName: l.title,
+    fullName: '',
     companyName: l.title,
     companyUrl: l.url,
     address: l.address,
     phone: l.phone,
-    email: inferredEmail ?? '',
-    emailInferred: Boolean(inferredEmail),
+    email: '',
+    emailInferred: false,
     sourceDetail:
       'DataForSEO: ' +
       (l.category ?? 'business listings') +
@@ -604,11 +606,6 @@ function deriveDomain(url: string | undefined): string | undefined {
   }
 }
 
-function inferEmail(domain: string | undefined): string | undefined {
-  if (!domain) return undefined;
-  return 'info@' + domain;
-}
-
 async function insertCandidates(
   supabase: NonNullable<ReturnType<typeof createSupabaseAdmin>>,
   candidates: Array<Partial<Lead>>,
@@ -629,7 +626,7 @@ async function insertCandidates(
     if (!c || typeof c !== 'object') continue;
     const lead: Lead = {
       id: c.id ?? 'prospect-' + Math.random().toString(36).slice(2, 12),
-      fullName: (c.fullName ?? '').toString().trim() || 'Unknown contact',
+      fullName: (c.fullName ?? '').toString().trim(),
       email: (c.email ?? '').toString().trim(),
       phone: c.phone,
       companyName: c.companyName,
