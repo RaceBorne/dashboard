@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay, upsertLead } from '@/lib/dashboard/repository';
 import {
@@ -7,7 +6,7 @@ import {
   type BusinessListing,
 } from '@/lib/integrations/dataforseo';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
-import type { Lead, Play } from '@/lib/types';
+import type { Lead, Play, PlaySourceRun } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,17 +14,24 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/plays/[id]/source-prospects
  *
- * Fills the Play's funnel with prospect rows. Two paths:
+ * Streams Server-Sent Events (SSE) so the UI can show step-by-step progress
+ * while the sourcing agent runs. Each event is a JSON object on a single
+ * `data:` line.
  *
- *   1. Paste-list — POST { candidates: Partial<Lead>[] } to seed rows manually.
- *      Capped at 500. Useful for testing or when a human has a list already.
+ * Phases emitted (in order):
+ *   planning           — asking Claude to derive a DataForSEO search plan
+ *   plan-ready         — plan decided (includes { description, locationName, limit })
+ *   searching          — DataForSEO call in flight
+ *   search-done        — DataForSEO returned (includes { found, costUsd })
+ *   inserting          — writing Lead rows to Supabase (includes { total })
+ *   inserted-progress  — progress tick (includes { done, total })
+ *   done               — final success (includes { play, inserted, found, costUsd })
+ *   error              — terminal failure (includes { message })
  *
- *   2. Auto-source (default when no candidates supplied) —
- *      Uses Claude to derive a DataForSEO business-listings search from the
- *      Play's scope + strategy, runs the search, converts each listing into a
- *      Lead row with tier='prospect'. If the AI gateway or DataForSEO isn't
- *      configured, falls back to returning a stub note so the UI can recover
- *      gracefully.
+ * Body: `{ candidates?: Lead[], search?: { description, locationName, limit } }`
+ *  - If `candidates` is provided the route skips planning + DataForSEO and just
+ *    inserts the pasted rows.
+ *  - If `search` is provided it overrides the AI planner.
  */
 
 interface SearchPlan {
@@ -36,7 +42,6 @@ interface SearchPlan {
 
 interface CandidateBody {
   candidates?: Array<Partial<Lead>>;
-  /** Optional override — if the user already knows what to search for. */
   search?: Partial<SearchPlan>;
 }
 
@@ -45,117 +50,238 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const supabase = createSupabaseAdmin();
-  if (!supabase) {
-    return NextResponse.json(
-      { ok: false, error: 'Supabase admin client unavailable' },
-      { status: 500 },
-    );
-  }
-  const play = await getPlay(supabase, id);
-  if (!play) {
-    return NextResponse.json({ ok: false, error: 'Play not found' }, { status: 404 });
-  }
-  if (!play.scope) {
-    return NextResponse.json(
-      { ok: false, error: 'Convert the strategy to a scope before sourcing prospects' },
-      { status: 400 },
-    );
-  }
+  const encoder = new TextEncoder();
+  const startedAt = Date.now();
 
-  const body = (await req.json().catch(() => ({}))) as CandidateBody;
-  const cap = 500;
-  const nowIso = new Date().toISOString();
-  const category = play.category ?? play.title;
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      function emit(event: Record<string, unknown>): void {
+        controller.enqueue(
+          encoder.encode('data: ' + JSON.stringify(event) + '\n\n'),
+        );
+      }
+      function fail(message: string, status: number = 500): void {
+        emit({ phase: 'error', message, status });
+        controller.close();
+      }
 
-  // --- Path 1: paste-list --------------------------------------------------
-  if (body.candidates && Array.isArray(body.candidates) && body.candidates.length > 0) {
-    const candidates = body.candidates.slice(0, cap);
-    const inserted = await insertCandidates(supabase, candidates, play, category, nowIso);
-    const saved = await stampScope(supabase, play, inserted, nowIso, 'paste');
-    return NextResponse.json({
-      ok: true,
-      play: saved,
-      inserted,
-      agent: 'paste',
-    });
-  }
+      const supabase = createSupabaseAdmin();
+      if (!supabase) {
+        fail('Supabase admin client unavailable');
+        return;
+      }
+      const play = await getPlay(supabase, id);
+      if (!play) {
+        fail('Play not found', 404);
+        return;
+      }
+      if (!play.scope) {
+        fail(
+          'Convert the strategy to a scope before sourcing prospects',
+          400,
+        );
+        return;
+      }
 
-  // --- Path 2: auto-source via DataForSEO ---------------------------------
-  if (!isDataForSeoConnected()) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
+      let body: CandidateBody = {};
+      try {
+        body = (await req.json()) as CandidateBody;
+      } catch {
+        // empty body is fine — auto-source path
+      }
+
+      const cap = 500;
+      const nowIso = new Date().toISOString();
+      const category = play.category ?? play.title;
+
+      // ---------------- Paste-list path ----------------------------------
+      if (
+        body.candidates &&
+        Array.isArray(body.candidates) &&
+        body.candidates.length > 0
+      ) {
+        const candidates = body.candidates.slice(0, cap);
+        emit({
+          phase: 'inserting',
+          message: 'Inserting ' + candidates.length + ' pasted candidate(s)…',
+          total: candidates.length,
+        });
+        const inserted = await insertCandidates(
+          supabase,
+          candidates,
+          play,
+          category,
+          nowIso,
+          (done, total) =>
+            emit({ phase: 'inserted-progress', done, total }),
+        );
+        const run: PlaySourceRun = {
+          at: nowIso,
+          agent: 'paste',
+          inserted,
+          durationMs: Date.now() - startedAt,
+        };
+        const saved = await stampRun(supabase, play, run);
+        emit({ phase: 'done', play: saved, inserted, agent: 'paste' });
+        controller.close();
+        return;
+      }
+
+      // ---------------- Auto-source path ---------------------------------
+      if (!isDataForSeoConnected()) {
+        const run: PlaySourceRun = {
+          at: nowIso,
+          agent: 'dataforseo',
+          inserted: 0,
+          error: 'DataForSEO not configured',
+          durationMs: Date.now() - startedAt,
+        };
+        await stampRun(supabase, play, run);
+        fail(
           'DataForSEO is not configured. Set DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD, or paste a candidate list.',
-      },
-      { status: 500 },
-    );
-  }
+        );
+        return;
+      }
 
-  let plan: SearchPlan;
-  if (body.search?.description && body.search?.locationName) {
-    plan = {
-      description: body.search.description,
-      locationName: body.search.locationName,
-      limit: body.search.limit ?? 50,
-    };
-  } else {
-    if (!hasAIGatewayCredentials()) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
+      let plan: SearchPlan;
+      if (body.search?.description && body.search?.locationName) {
+        plan = {
+          description: body.search.description,
+          locationName: body.search.locationName,
+          limit: body.search.limit ?? 50,
+        };
+        emit({
+          phase: 'plan-ready',
+          message: 'Using operator-supplied search plan',
+          plan,
+        });
+      } else {
+        if (!hasAIGatewayCredentials()) {
+          const run: PlaySourceRun = {
+            at: nowIso,
+            agent: 'dataforseo',
+            inserted: 0,
+            error: 'AI gateway not configured',
+            durationMs: Date.now() - startedAt,
+          };
+          await stampRun(supabase, play, run);
+          fail(
             'AI gateway not configured. Send { search: { description, locationName } } to bypass AI planning.',
-        },
-        { status: 500 },
-      );
-    }
-    try {
-      plan = await derivePlan(play);
-    } catch (err) {
-      return NextResponse.json(
-        { ok: false, error: 'Search planner failed: ' + (err as Error).message },
-        { status: 502 },
-      );
-    }
-  }
+          );
+          return;
+        }
+        emit({
+          phase: 'planning',
+          message: 'Asking Claude to derive a search plan from your scope…',
+        });
+        try {
+          plan = await derivePlan(play);
+        } catch (err) {
+          const msg = (err as Error).message;
+          const run: PlaySourceRun = {
+            at: nowIso,
+            agent: 'dataforseo',
+            inserted: 0,
+            error: 'Search planner failed: ' + msg,
+            durationMs: Date.now() - startedAt,
+          };
+          await stampRun(supabase, play, run);
+          fail('Search planner failed: ' + msg);
+          return;
+        }
+        emit({
+          phase: 'plan-ready',
+          message:
+            'Plan: "' + plan.description + '" in ' + plan.locationName,
+          plan,
+        });
+      }
 
-  let listings: BusinessListing[] = [];
-  let cost = 0;
-  try {
-    const res = await searchBusinessListings({
-      description: plan.description,
-      locationName: plan.locationName,
-      limit: Math.min(plan.limit ?? 50, cap),
-    });
-    listings = res.listings;
-    cost = res.cost;
-  } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: 'DataForSEO call failed: ' + (err as Error).message },
-      { status: 502 },
-    );
-  }
+      emit({
+        phase: 'searching',
+        message: 'Calling DataForSEO business listings…',
+      });
+      let listings: BusinessListing[] = [];
+      let cost = 0;
+      try {
+        const res = await searchBusinessListings({
+          description: plan.description,
+          locationName: plan.locationName,
+          limit: Math.min(plan.limit ?? 50, cap),
+        });
+        listings = res.listings;
+        cost = res.cost;
+      } catch (err) {
+        const msg = (err as Error).message;
+        const run: PlaySourceRun = {
+          at: nowIso,
+          agent: 'dataforseo',
+          description: plan.description,
+          locationName: plan.locationName,
+          inserted: 0,
+          error: 'DataForSEO call failed: ' + msg,
+          durationMs: Date.now() - startedAt,
+        };
+        await stampRun(supabase, play, run);
+        fail('DataForSEO call failed: ' + msg, 502);
+        return;
+      }
+      emit({
+        phase: 'search-done',
+        message:
+          'Found ' + listings.length + ' listing(s). Cost $' + cost.toFixed(3),
+        found: listings.length,
+        costUsd: cost,
+      });
 
-  const candidates: Array<Partial<Lead>> = listings.map((l) =>
-    listingToLead(l, play, category),
-  );
-  const inserted = await insertCandidates(supabase, candidates, play, category, nowIso);
-  const saved = await stampScope(supabase, play, inserted, nowIso, 'dataforseo', {
-    query: plan,
-    cost,
-    found: listings.length,
+      const candidates: Array<Partial<Lead>> = listings.map((l) =>
+        listingToLead(l, play, category),
+      );
+      emit({
+        phase: 'inserting',
+        message: 'Writing ' + candidates.length + ' prospect row(s) to the funnel…',
+        total: candidates.length,
+      });
+      const inserted = await insertCandidates(
+        supabase,
+        candidates,
+        play,
+        category,
+        nowIso,
+        (done, total) =>
+          emit({ phase: 'inserted-progress', done, total }),
+      );
+
+      const run: PlaySourceRun = {
+        at: nowIso,
+        agent: 'dataforseo',
+        description: plan.description,
+        locationName: plan.locationName,
+        found: listings.length,
+        inserted,
+        costUsd: cost,
+        durationMs: Date.now() - startedAt,
+      };
+      const saved = await stampRun(supabase, play, run);
+      emit({
+        phase: 'done',
+        play: saved,
+        inserted,
+        found: listings.length,
+        agent: 'dataforseo',
+        plan,
+        costUsd: cost,
+      });
+      controller.close();
+    },
   });
 
-  return NextResponse.json({
-    ok: true,
-    play: saved,
-    inserted,
-    found: listings.length,
-    agent: 'dataforseo',
-    query: plan,
-    costUsd: cost,
+  return new Response(stream, {
+    headers: {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+      'x-accel-buffering': 'no',
+    },
   });
 }
 
@@ -256,8 +382,6 @@ function deriveDomain(url: string | undefined): string | undefined {
 
 function inferEmail(domain: string | undefined): string | undefined {
   if (!domain) return undefined;
-  // Low-confidence first-touch inference. The UI marks these as inferred so
-  // the operator knows to verify before sending.
   return 'info@' + domain;
 }
 
@@ -267,9 +391,13 @@ async function insertCandidates(
   play: Play,
   category: string,
   nowIso: string,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<number> {
   let inserted = 0;
+  const total = candidates.length;
+  let done = 0;
   for (const c of candidates) {
+    done += 1;
     if (!c || typeof c !== 'object') continue;
     const lead: Lead = {
       id: c.id ?? 'prospect-' + Math.random().toString(36).slice(2, 12),
@@ -299,35 +427,40 @@ async function insertCandidates(
     };
     const out = await upsertLead(supabase, lead);
     if (out) inserted += 1;
+    // Tick every 5 rows or on the last row so the UI shows motion without
+    // flooding the stream.
+    if (onProgress && (done % 5 === 0 || done === total)) {
+      onProgress(done, total);
+    }
   }
   return inserted;
 }
 
-async function stampScope(
+async function stampRun(
   supabase: NonNullable<ReturnType<typeof createSupabaseAdmin>>,
   play: Play,
-  inserted: number,
-  nowIso: string,
-  agent: 'paste' | 'dataforseo',
-  meta?: Record<string, unknown>,
+  run: PlaySourceRun,
 ): Promise<Play> {
+  const nowIso = run.at;
   const category = play.category ?? play.title;
   const nextScope = {
     ...(play.scope ?? { summary: '', bullets: [], updatedAt: nowIso }),
     sourcedAt: nowIso,
-    sourcedCount: (play.scope?.sourcedCount ?? 0) + inserted,
+    sourcedCount: (play.scope?.sourcedCount ?? 0) + run.inserted,
+    lastSourceRun: run,
     updatedAt: nowIso,
   };
-  const summary =
-    inserted > 0
+  const summary = run.error
+    ? 'Source Prospects (' + run.agent + ') failed: ' + run.error
+    : run.inserted > 0
       ? 'Source Prospects (' +
-        agent +
+        run.agent +
         '): ' +
-        inserted +
+        run.inserted +
         ' row(s) added to funnel "' +
         category +
         '"'
-      : 'Source Prospects (' + agent + ') ran — no rows added';
+      : 'Source Prospects (' + run.agent + ') ran — no rows added';
   const next: Play = {
     ...play,
     scope: nextScope,
@@ -342,7 +475,6 @@ async function stampScope(
       },
     ],
   };
-  void meta; // reserved for future activity-meta persistence
   await supabase.from('dashboard_plays').update({ payload: next }).eq('id', next.id);
   return next;
 }

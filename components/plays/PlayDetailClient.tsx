@@ -39,8 +39,10 @@ import { cn, relativeTime } from '@/lib/utils';
 import { useVoiceChat } from '@/lib/hooks/useVoiceChat';
 import type {
   Play,
+  PlayAutoScanStatus,
   PlayChatMessage,
   PlayScope,
+  PlaySourceRun,
   PlayStage,
   PlayStrategy,
 } from '@/lib/types';
@@ -86,6 +88,8 @@ export function PlayDetailClient({
   const [committingStrategy, setCommittingStrategy] = useState(false);
   const [committingScope, setCommittingScope] = useState(false);
   const [sourcingProspects, setSourcingProspects] = useState(false);
+  // Live log of the streaming Source Prospects run. Each entry is one SSE event.
+  const [sourceRunSteps, setSourceRunSteps] = useState<SourceRunStep[]>([]);
   const [flowError, setFlowError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceChat();
@@ -287,30 +291,105 @@ export function PlayDetailClient({
     }
     setSourcingProspects(true);
     setFlowError(null);
+    // Fresh log — wipe any prior run steps.
+    setSourceRunSteps([{ phase: 'starting', at: Date.now(), message: 'Starting Source Prospects…' }]);
     try {
       const res = await fetch('/api/plays/' + play.id + '/source-prospects', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({}),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        play?: Play;
-        inserted?: number;
-        note?: string;
-        error?: string;
-      };
-      if (!data.ok || !data.play) {
-        throw new Error(data.error || 'Source Prospects failed');
+      if (!res.ok || !res.body) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || 'HTTP ' + res.status);
       }
-      setPlay(data.play);
-      if (data.note) setFlowError(data.note);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      // Read SSE chunks until the stream closes. Each SSE event ends with \n\n.
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let delimiter = buffer.indexOf('\n\n');
+        while (delimiter !== -1) {
+          const raw = buffer.slice(0, delimiter).trim();
+          buffer = buffer.slice(delimiter + 2);
+          delimiter = buffer.indexOf('\n\n');
+          if (!raw.startsWith('data:')) continue;
+          const payload = raw.slice(5).trim();
+          if (!payload) continue;
+          let event: SourceRunServerEvent | null = null;
+          try {
+            event = JSON.parse(payload) as SourceRunServerEvent;
+          } catch {
+            continue;
+          }
+          if (!event || typeof event.phase !== 'string') continue;
+          const step: SourceRunStep = {
+            phase: event.phase,
+            at: Date.now(),
+            message: typeof event.message === 'string' ? event.message : undefined,
+            found: typeof event.found === 'number' ? event.found : undefined,
+            costUsd: typeof event.costUsd === 'number' ? event.costUsd : undefined,
+            total: typeof event.total === 'number' ? event.total : undefined,
+            done: typeof event.done === 'number' ? event.done : undefined,
+            plan:
+              event.plan && typeof event.plan === 'object'
+                ? (event.plan as { description?: string; locationName?: string })
+                : undefined,
+          };
+          setSourceRunSteps((prev) => [...prev, step]);
+          if (event.phase === 'done' && event.play) {
+            setPlay(event.play as Play);
+          }
+          if (event.phase === 'error') {
+            setFlowError(event.message ?? 'Source Prospects failed');
+          }
+        }
+      }
     } catch (err) {
-      setFlowError(err instanceof Error ? err.message : 'Source Prospects failed');
+      const msg = err instanceof Error ? err.message : 'Source Prospects failed';
+      setFlowError(msg);
+      setSourceRunSteps((prev) => [
+        ...prev,
+        { phase: 'error', at: Date.now(), message: msg },
+      ]);
     } finally {
       setSourcingProspects(false);
     }
   }
+
+  // Poll /api/plays/[id] while the background auto-scan is running so the
+  // Scanning… pill self-resolves once it finishes. Polling stops as soon as
+  // status transitions to done/skipped/error.
+  const autoScanActive =
+    play.autoScan?.status === 'pending' || play.autoScan?.status === 'running';
+  useEffect(() => {
+    if (!autoScanActive) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch('/api/plays/' + play.id, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          play?: Play;
+        };
+        if (!cancelled && data.ok && data.play) {
+          setPlay(data.play);
+        }
+      } catch {
+        // swallow — next tick will retry
+      }
+    };
+    const handle = setInterval(() => void tick(), 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(handle);
+    };
+  }, [autoScanActive, play.id]);
 
   const strategy = play.strategy;
   const scope = play.scope;
@@ -342,9 +421,12 @@ export function PlayDetailClient({
                   displayClassName="text-lg font-semibold text-evari-text"
                   label="title"
                 />
-                <div className="text-[11px] text-evari-dimmer mt-1">
-                  Created {relativeTime(play.createdAt)} · updated{' '}
-                  {relativeTime(play.updatedAt)}
+                <div className="text-[11px] text-evari-dimmer mt-1 flex items-center gap-2">
+                  <span>
+                    Created {relativeTime(play.createdAt)} · updated{' '}
+                    {relativeTime(play.updatedAt)}
+                  </span>
+                  <AutoScanPill autoScan={play.autoScan} />
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-[11px]">
                   <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
@@ -641,6 +723,18 @@ export function PlayDetailClient({
                 <div className="text-[11px] text-evari-warn bg-evari-surfaceSoft rounded px-2.5 py-1.5">
                   {flowError}
                 </div>
+              )}
+
+              {(sourcingProspects || sourceRunSteps.length > 0) && (
+                <SourceRunLog
+                  steps={sourceRunSteps}
+                  running={sourcingProspects}
+                  onDismiss={() => setSourceRunSteps([])}
+                />
+              )}
+
+              {scope?.lastSourceRun && !sourcingProspects && (
+                <LastRunCard run={scope.lastSourceRun} />
               )}
 
               {scope ? (
@@ -1595,4 +1689,247 @@ function EmptyState({
       <div className="text-xs text-evari-dimmer mt-1">{hint}</div>
     </div>
   );
+}
+
+// =========================================================================
+// Source Prospects — visual devices
+// =========================================================================
+
+/**
+ * One parsed SSE event from /api/plays/[id]/source-prospects, normalised
+ * for the UI. The server emits a superset of fields per phase; we copy
+ * only the ones we render.
+ */
+interface SourceRunStep {
+  phase: string;
+  at: number;
+  message?: string;
+  found?: number;
+  costUsd?: number;
+  total?: number;
+  done?: number;
+  plan?: { description?: string; locationName?: string };
+}
+
+interface SourceRunServerEvent {
+  phase: string;
+  message?: string;
+  found?: number;
+  costUsd?: number;
+  total?: number;
+  done?: number;
+  plan?: unknown;
+  play?: unknown;
+}
+
+const PHASE_LABEL: Record<string, string> = {
+  starting: 'Starting',
+  planning: 'Asking Claude to plan the search',
+  'plan-ready': 'Search plan ready',
+  searching: 'Calling DataForSEO',
+  'search-done': 'DataForSEO returned',
+  inserting: 'Writing prospects to funnel',
+  'inserted-progress': 'Inserting',
+  done: 'Done',
+  error: 'Failed',
+};
+
+/**
+ * Live, streaming log of a Source Prospects run. Each SSE event becomes a
+ * row with a check mark (or spinner for the phase in flight). The whole
+ * panel is the obvious "it's working" visual device.
+ */
+function SourceRunLog({
+  steps,
+  running,
+  onDismiss,
+}: {
+  steps: SourceRunStep[];
+  running: boolean;
+  onDismiss: () => void;
+}) {
+  const finalPhase = steps[steps.length - 1]?.phase;
+  const failed = steps.some((s) => s.phase === 'error');
+  return (
+    <div
+      className={cn(
+        'rounded-lg border p-3 space-y-1.5',
+        failed
+          ? 'border-evari-danger/40 bg-evari-danger/5'
+          : running
+            ? 'border-evari-gold/40 bg-evari-gold/5'
+            : 'border-evari-success/40 bg-evari-success/5',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] uppercase tracking-[0.14em] font-medium flex items-center gap-1.5 text-evari-text">
+          {running ? (
+            <Loader2 className="h-3 w-3 animate-spin text-evari-gold" />
+          ) : failed ? (
+            <X className="h-3 w-3 text-evari-danger" />
+          ) : (
+            <Check className="h-3 w-3 text-evari-success" />
+          )}
+          Source Prospects —{' '}
+          {running
+            ? 'running'
+            : failed
+              ? 'failed'
+              : finalPhase === 'done'
+                ? 'complete'
+                : 'idle'}
+        </div>
+        {!running && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            title="Dismiss"
+            className="text-[10px] text-evari-dimmer hover:text-evari-text"
+          >
+            dismiss
+          </button>
+        )}
+      </div>
+      <ul className="space-y-1 pl-0.5">
+        {steps.map((s, i) => {
+          const isLast = i === steps.length - 1;
+          const iconStyle = running && isLast && s.phase !== 'error' && s.phase !== 'done';
+          const isError = s.phase === 'error';
+          return (
+            <li
+              key={i}
+              className="flex items-start gap-2 text-[11px] text-evari-text leading-snug"
+            >
+              <span className="shrink-0 w-3 h-3 mt-0.5 inline-flex items-center justify-center">
+                {iconStyle ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-evari-gold" />
+                ) : isError ? (
+                  <X className="h-3 w-3 text-evari-danger" />
+                ) : (
+                  <Check className="h-3 w-3 text-evari-success" />
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="font-medium text-evari-text">
+                  {PHASE_LABEL[s.phase] ?? s.phase}
+                </span>
+                {s.message ? (
+                  <span className="text-evari-dim"> — {s.message}</span>
+                ) : s.phase === 'inserted-progress' && s.done != null && s.total != null ? (
+                  <span className="text-evari-dim">
+                    {' '}
+                    — {s.done} / {s.total}
+                  </span>
+                ) : null}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Persistent "Last run" card — always renders as long as scope.lastSourceRun
+ * exists, so Craig can see the most recent run's numbers without diving
+ * into activity history.
+ */
+function LastRunCard({ run }: { run: PlaySourceRun }) {
+  const failed = Boolean(run.error);
+  return (
+    <div
+      className={cn(
+        'rounded-lg border p-3 space-y-1.5',
+        failed
+          ? 'border-evari-danger/30 bg-evari-danger/5'
+          : 'border-evari-line/40 bg-evari-surface/40',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] uppercase tracking-[0.14em] font-medium text-evari-dimmer flex items-center gap-1.5">
+          <Activity className="h-3 w-3" />
+          Last source run
+        </div>
+        <span className="text-[10px] text-evari-dimmer">{relativeTime(run.at)}</span>
+      </div>
+      <div className="text-[11px] text-evari-text leading-relaxed">
+        <span className="text-evari-dim">Agent:</span>{' '}
+        <span className="font-medium">{run.agent}</span>
+        {run.description ? (
+          <>
+            {' '}
+            · <span className="text-evari-dim">query:</span>{' '}
+            <span className="font-medium">"{run.description}"</span>
+          </>
+        ) : null}
+        {run.locationName ? (
+          <>
+            {' '}
+            <span className="text-evari-dim">in</span>{' '}
+            <span className="font-medium">{run.locationName}</span>
+          </>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-4 text-[11px] text-evari-dim">
+        {run.found != null ? (
+          <span>
+            <span className="text-evari-text font-medium">{run.found}</span>{' '}
+            found
+          </span>
+        ) : null}
+        <span>
+          <span className="text-evari-text font-medium">{run.inserted}</span>{' '}
+          inserted
+        </span>
+        {run.costUsd != null ? <span>\${run.costUsd.toFixed(3)}</span> : null}
+        {run.durationMs != null ? (
+          <span>{(run.durationMs / 1000).toFixed(1)}s</span>
+        ) : null}
+      </div>
+      {run.error ? (
+        <div className="text-[11px] text-evari-danger">{run.error}</div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Small status pill next to the Play title. Amber while the background
+ * auto-scan is running, green (briefly) when it just finished, nothing
+ * once the result is old news.
+ */
+function AutoScanPill({ autoScan }: { autoScan?: PlayAutoScanStatus }) {
+  if (!autoScan) return null;
+  if (autoScan.status === 'pending' || autoScan.status === 'running') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-evari-gold/15 text-evari-gold px-2 py-0.5 text-[10px] font-medium">
+        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+        Scanning landscape…
+      </span>
+    );
+  }
+  if (autoScan.status === 'done' && autoScan.finishedAt) {
+    const finished = new Date(autoScan.finishedAt).getTime();
+    if (Number.isFinite(finished) && Date.now() - finished < 5 * 60_000) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-evari-success/15 text-evari-success px-2 py-0.5 text-[10px] font-medium">
+          <Check className="h-2.5 w-2.5" />
+          {autoScan.inserted ?? 0} auto-sourced
+        </span>
+      );
+    }
+  }
+  if (autoScan.status === 'error') {
+    return (
+      <span
+        title={autoScan.error ?? 'Auto-scan failed'}
+        className="inline-flex items-center gap-1 rounded-full bg-evari-danger/15 text-evari-danger px-2 py-0.5 text-[10px] font-medium"
+      >
+        <X className="h-2.5 w-2.5" />
+        Auto-scan failed
+      </span>
+    );
+  }
+  return null;
 }

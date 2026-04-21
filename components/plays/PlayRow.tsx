@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Pencil, Trash2, Check, X, Pin } from 'lucide-react';
+import { Pencil, Trash2, Check, X, Pin, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn, relativeTime } from '@/lib/utils';
 import type { Play, PlayStage } from '@/lib/types';
@@ -264,6 +264,12 @@ export function PlayRow({ play }: Props) {
 }
 
 function RowMeta({ play }: { play: Play }) {
+  const scanning =
+    play.autoScan?.status === 'pending' || play.autoScan?.status === 'running';
+  const recentScan =
+    play.autoScan?.status === 'done' &&
+    play.autoScan.finishedAt &&
+    Date.now() - new Date(play.autoScan.finishedAt).getTime() < 5 * 60_000;
   return (
     <div className="flex items-center gap-3 mt-2 text-[10px] text-evari-dimmer tabular-nums">
       <span>{play.research.length} notes</span>
@@ -273,6 +279,17 @@ function RowMeta({ play }: { play: Play }) {
       <span>{play.messaging.length} messages</span>
       <span>·</span>
       <span>{play.chat.length} chat turns</span>
+      {scanning ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-evari-gold/15 text-evari-gold px-1.5 py-0.5 text-[9px] font-medium">
+          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+          scanning
+        </span>
+      ) : recentScan ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-evari-success/15 text-evari-success px-1.5 py-0.5 text-[9px] font-medium">
+          <Check className="h-2.5 w-2.5" />
+          {play.autoScan?.inserted ?? 0} auto-sourced
+        </span>
+      ) : null}
       <span className="ml-auto">updated {relativeTime(play.updatedAt)}</span>
     </div>
   );

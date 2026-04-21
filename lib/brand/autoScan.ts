@@ -4,12 +4,9 @@
  *
  * The Play POST route schedules this via Next.js `after()`. We don't block
  * the response on it — Craig gets the Play id immediately and the funnel
- * fills in asynchronously. If the gateway / DataForSEO is offline, we
- * quietly stamp the Play activity with a note and exit.
- *
- * This intentionally does NOT require a Play.scope — the whole point of
- * auto-scan is to surface candidates *before* strategy is committed, so
- * Craig has something concrete to react to in the Spitball chat.
+ * fills in asynchronously. Status transitions are persisted on
+ * `play.autoScan` so the UI can render a "Scanning…" pill that self-resolves
+ * once the scan finishes.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
@@ -19,7 +16,7 @@ import {
   type BusinessListing,
 } from '@/lib/integrations/dataforseo';
 import { upsertLead } from '@/lib/dashboard/repository';
-import type { Lead, Play } from '@/lib/types';
+import type { Lead, Play, PlayAutoScanStatus, PlaySourceRun } from '@/lib/types';
 
 interface SearchPlan {
   description: string;
@@ -44,12 +41,38 @@ export async function autoScanForPlay(
   play: Play,
   opts?: { limit?: number },
 ): Promise<AutoScanResult> {
+  const startedAt = new Date().toISOString();
+  await setStatus(supabase, play, {
+    status: 'running',
+    startedAt,
+  });
+
   if (!isDataForSeoConnected()) {
-    await stampActivity(supabase, play, 'Auto-scan skipped: DataForSEO not configured.');
+    await finish(
+      supabase,
+      play,
+      {
+        status: 'skipped',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        skipReason: 'DataForSEO not configured',
+      },
+      'Auto-scan skipped: DataForSEO not configured.',
+    );
     return { inserted: 0, found: 0, agent: 'skipped', skipReason: 'no-dataforseo' };
   }
   if (!hasAIGatewayCredentials()) {
-    await stampActivity(supabase, play, 'Auto-scan skipped: AI gateway not configured.');
+    await finish(
+      supabase,
+      play,
+      {
+        status: 'skipped',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        skipReason: 'AI gateway not configured',
+      },
+      'Auto-scan skipped: AI gateway not configured.',
+    );
     return { inserted: 0, found: 0, agent: 'skipped', skipReason: 'no-ai' };
   }
 
@@ -57,9 +80,15 @@ export async function autoScanForPlay(
   try {
     plan = await derivePlanFromPlay(play, opts?.limit ?? 25);
   } catch (err) {
-    await stampActivity(
+    await finish(
       supabase,
       play,
+      {
+        status: 'error',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        error: 'Plan failed: ' + (err as Error).message,
+      },
       'Auto-scan skipped: could not derive search plan — ' + (err as Error).message,
     );
     return { inserted: 0, found: 0, agent: 'skipped', skipReason: 'plan-failed' };
@@ -76,9 +105,17 @@ export async function autoScanForPlay(
     listings = res.listings;
     cost = res.cost;
   } catch (err) {
-    await stampActivity(
+    await finish(
       supabase,
       play,
+      {
+        status: 'error',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        description: plan.description,
+        locationName: plan.locationName,
+        error: 'DataForSEO call failed: ' + (err as Error).message,
+      },
       'Auto-scan skipped: DataForSEO call failed — ' + (err as Error).message,
     );
     return { inserted: 0, found: 0, agent: 'skipped', skipReason: 'dfs-failed' };
@@ -94,9 +131,20 @@ export async function autoScanForPlay(
     if (out) inserted += 1;
   }
 
-  await stampActivity(
+  const finishedAt = new Date().toISOString();
+  await finish(
     supabase,
     play,
+    {
+      status: 'done',
+      startedAt,
+      finishedAt,
+      inserted,
+      found: listings.length,
+      description: plan.description,
+      locationName: plan.locationName,
+      costUsd: cost,
+    },
     'Auto-scan sourced ' +
       inserted +
       ' candidate(s) for "' +
@@ -106,6 +154,17 @@ export async function autoScanForPlay(
       ' (DataForSEO, $' +
       cost.toFixed(3) +
       ').',
+    // Also stamp scope.lastSourceRun so the detail panel's "Last run" card
+    // shows the auto-scan result even before Craig runs Source Prospects.
+    {
+      at: finishedAt,
+      agent: 'auto-scan',
+      description: plan.description,
+      locationName: plan.locationName,
+      found: listings.length,
+      inserted,
+      costUsd: cost,
+    },
   );
 
   return {
@@ -226,14 +285,51 @@ function deriveDomain(url: string | undefined): string | undefined {
   }
 }
 
-async function stampActivity(
+/**
+ * Merge a new autoScan status into the Play row. Never touches
+ * `activity` / `scope` — call `finish()` for terminal transitions that need
+ * to stamp those too.
+ */
+async function setStatus(
   supabase: SupabaseClient,
   play: Play,
-  summary: string,
+  autoScan: PlayAutoScanStatus,
 ): Promise<void> {
-  const nowIso = new Date().toISOString();
   const next: Play = {
     ...play,
+    autoScan: { ...(play.autoScan ?? { status: 'pending' }), ...autoScan },
+    updatedAt: new Date().toISOString(),
+  };
+  await supabase.from('dashboard_plays').update({ payload: next }).eq('id', play.id);
+}
+
+/**
+ * Terminal status write + activity stamp. Optionally also writes
+ * `scope.lastSourceRun` so the UI's "Last run" card reflects the auto-scan.
+ */
+async function finish(
+  supabase: SupabaseClient,
+  play: Play,
+  autoScan: PlayAutoScanStatus,
+  summary: string,
+  lastSourceRun?: PlaySourceRun,
+): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const nextScope =
+    lastSourceRun && play.scope
+      ? {
+          ...play.scope,
+          sourcedAt: lastSourceRun.at,
+          sourcedCount:
+            (play.scope.sourcedCount ?? 0) + lastSourceRun.inserted,
+          lastSourceRun,
+          updatedAt: nowIso,
+        }
+      : play.scope;
+  const next: Play = {
+    ...play,
+    autoScan: { ...(play.autoScan ?? { status: 'pending' }), ...autoScan },
+    scope: nextScope,
     updatedAt: nowIso,
     activity: [
       ...play.activity,

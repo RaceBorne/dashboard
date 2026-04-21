@@ -42,6 +42,34 @@ interface PatchBody {
   scope?: Partial<PlayScope>;
 }
 
+/**
+ * GET /api/plays/[id]
+ *
+ * Fetch the full Play. Used by the client to poll for auto-scan completion
+ * so the "Scanning…" pill can self-resolve without a page refresh.
+ */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const supabase = createSupabaseAdmin();
+  if (!supabase) {
+    return NextResponse.json(
+      { ok: false, error: 'Supabase admin client unavailable' },
+      { status: 500 },
+    );
+  }
+  const play = await getPlay(supabase, id);
+  if (!play) {
+    return NextResponse.json(
+      { ok: false, error: 'Play not found' },
+      { status: 404 },
+    );
+  }
+  return NextResponse.json({ ok: true, play });
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },

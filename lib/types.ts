@@ -497,6 +497,26 @@ export interface Play {
 
   /** Scope — the bulleted plan produced from the committed Strategy. */
   scope?: PlayScope;
+
+  /**
+   * Auto-scan status for the kick-start landscape scan that runs in the
+   * background as soon as a Play is created. Powers the "Scanning…" pill
+   * on the Play card + detail header.
+   */
+  autoScan?: PlayAutoScanStatus;
+}
+
+export interface PlayAutoScanStatus {
+  status: 'pending' | 'running' | 'done' | 'skipped' | 'error';
+  startedAt?: string;
+  finishedAt?: string;
+  inserted?: number;
+  found?: number;
+  description?: string;
+  locationName?: string;
+  costUsd?: number;
+  skipReason?: string;
+  error?: string;
 }
 
 export interface PlayScope {
@@ -510,6 +530,24 @@ export interface PlayScope {
   /** Set when Source Prospects last ran for this scope. */
   sourcedAt?: string;
   sourcedCount?: number;
+  /**
+   * Full detail of the most recent Source Prospects run. Powers the persistent
+   * "Last run" card in the UI so Craig can see what the agent actually did.
+   */
+  lastSourceRun?: PlaySourceRun;
+}
+
+export interface PlaySourceRun {
+  at: string;
+  agent: 'paste' | 'dataforseo' | 'auto-scan';
+  description?: string;
+  locationName?: string;
+  found?: number;
+  inserted: number;
+  costUsd?: number;
+  error?: string;
+  skipReason?: string;
+  durationMs?: number;
 }
 
 // -- Play strategy + scrape brief --------------------------------------------

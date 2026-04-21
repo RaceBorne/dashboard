@@ -65,6 +65,9 @@ export async function POST(req: Request) {
         summary: 'Strategy created.',
       },
     ],
+    autoScan: {
+      status: 'pending',
+    },
   };
 
   const { error } = await supabase
