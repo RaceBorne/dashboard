@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   AuditFinding,
+  DraftMessage,
+  DraftMessageStatus,
   KeywordRow,
   LandingPageRow,
   Lead,
@@ -391,4 +393,77 @@ export async function addSuppression(
   await supabase
     .from('dashboard_suppressions')
     .upsert({ id: entry.id, payload: entry });
+}
+
+// -- Outreach drafts (Phase 2 dry-run queue) ---------------------------------
+//
+// Row shape: (id text PK, play_id text, status text, payload jsonb,
+// created_at, updated_at). The full DraftMessage always lives in `payload`;
+// the scalar columns are just there so the queue can filter without scanning
+// jsonb.
+
+function byUpdatedDraft(a: DraftMessage, b: DraftMessage) {
+  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+}
+
+export async function listDraftsByPlay(
+  supabase: SupabaseClient | null,
+  playId: string,
+): Promise<DraftMessage[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('dashboard_draft_messages')
+    .select('payload')
+    .eq('play_id', playId);
+  if (error || !data?.length) return [];
+  return (data as { payload: DraftMessage }[]).map((r) => r.payload).sort(byUpdatedDraft);
+}
+
+export async function listDraftsByStatus(
+  supabase: SupabaseClient | null,
+  status: DraftMessageStatus,
+): Promise<DraftMessage[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('dashboard_draft_messages')
+    .select('payload')
+    .eq('status', status);
+  if (error || !data?.length) return [];
+  return (data as { payload: DraftMessage }[]).map((r) => r.payload).sort(byUpdatedDraft);
+}
+
+export async function getDraft(
+  supabase: SupabaseClient | null,
+  id: string,
+): Promise<DraftMessage | undefined> {
+  if (!supabase) return undefined;
+  const { data, error } = await supabase
+    .from('dashboard_draft_messages')
+    .select('payload')
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  return (data as { payload: DraftMessage }).payload;
+}
+
+export async function upsertDraft(
+  supabase: SupabaseClient | null,
+  draft: DraftMessage,
+): Promise<void> {
+  if (!supabase) return;
+  await supabase.from('dashboard_draft_messages').upsert({
+    id: draft.id,
+    play_id: draft.playId,
+    status: draft.status,
+    payload: draft,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+export async function deleteDraft(
+  supabase: SupabaseClient | null,
+  id: string,
+): Promise<void> {
+  if (!supabase) return;
+  await supabase.from('dashboard_draft_messages').delete().eq('id', id);
 }

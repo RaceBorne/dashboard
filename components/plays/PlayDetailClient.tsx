@@ -20,7 +20,9 @@ import {
   MicOff,
   Volume2,
   VolumeX,
+  Inbox,
 } from 'lucide-react';
+import { DraftsPane } from '@/components/plays/DraftsPane';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,7 +55,7 @@ const STAGE_TONE: Record<PlayStage, string> = {
   retired: 'text-evari-dimmer bg-evari-surfaceSoft',
 };
 
-type Pane = 'brief' | 'research' | 'targets' | 'messaging' | 'activity';
+type Pane = 'brief' | 'research' | 'targets' | 'messaging' | 'drafts' | 'activity';
 
 export function PlayDetailClient({
   play: initialPlay,
@@ -260,6 +262,11 @@ export function PlayDetailClient({
               icon: <Mail className="h-3.5 w-3.5" />,
             },
             {
+              value: 'drafts',
+              label: 'Drafts',
+              icon: <Inbox className="h-3.5 w-3.5" />,
+            },
+            {
               value: 'activity',
               label: `Activity · ${play.activity.length}`,
               icon: <Activity className="h-3.5 w-3.5" />,
@@ -456,6 +463,8 @@ export function PlayDetailClient({
             </ul>
           </section>
         )}
+
+        {pane === 'drafts' && <DraftsPane play={play} />}
 
         {pane === 'activity' && (
           <section className="space-y-1">

@@ -506,15 +506,19 @@ export interface OutreachTemplate {
 
 export interface OutreachSender {
   id: string;
-  /** Full email address, e.g. craig.mcdonald@evari.cc. */
+  /** Full email address, e.g. craig@evari.cc. */
   email: string;
   /** Friendly "From" name, e.g. "Craig McDonald". */
   displayName: string;
   /** Job title to render below the name in the signature. */
   role?: string;
+  /** Phone number shown in the signature, e.g. "UK (M) +44 (0)7720 288398". */
+  phone?: string;
+  /** Website shown under the phone, e.g. "evari.cc". */
+  website?: string;
   /**
    * Signature HTML — may reference {{logoUrl}}, {{displayName}},
-   * {{role}}, {{email}}. Rendered at send time.
+   * {{role}}, {{email}}, {{phone}}, {{website}}. Rendered at send time.
    */
   signatureHtml: string;
   /** Optional company logo (data URL or external URL) used in signatures. */
@@ -544,6 +548,93 @@ export interface SuppressionEntry {
   /** Scope: if playId is set, suppression only applies to that play. */
   playId?: string;
   notes?: string;
+}
+
+// -- Outreach drafts (Phase 2 dry-run queue) ---------------------------------
+//
+// Every first-touch email the agent generates goes into `dashboard_draft_messages`
+// as a DraftMessage. Craig approves, edits, or rejects from the Drafts pane on
+// the Play detail page. Phase 3 adds the "approve → Gmail send" step; Phase 2
+// just fills the queue.
+
+export type DraftMessageStatus =
+  | 'draft'      // AI-generated, awaiting human review
+  | 'approved'   // Craig clicked approve, not yet dispatched
+  | 'sent'       // Gmail send succeeded (Phase 3)
+  | 'rejected'   // Craig killed it — never sending
+  | 'failed';    // Gmail send threw (Phase 3)
+
+export interface DraftMessage {
+  id: string;
+  playId: string;
+  /** Matches a PlayTarget.id inside the parent play when possible, so the
+   *  draft can be cross-referenced. If the target is ad-hoc (e.g. imported
+   *  from a scrape) the draft keeps the inline contact fields below. */
+  targetId?: string;
+  /** Sender this draft is written for — ties to OutreachSender.id. */
+  senderId: string;
+
+  /** Recipient contact — copied out of the target at draft time so edits to
+   *  the target later don't silently alter what we'd send. */
+  toName: string;
+  toOrg?: string;
+  toRole?: string;
+  toEmail: string;
+
+  subject: string;
+  /** Body is plain markdown-ish text — the send step renders it to HTML and
+   *  appends the signature at dispatch. Keeping the raw body here means Craig
+   *  can edit without fighting an inline editor. */
+  body: string;
+
+  status: DraftMessageStatus;
+  /** Short reason the agent picked this angle — surfaced in the UI so Craig
+   *  can judge whether to trust it without re-reading the whole email. */
+  rationale?: string;
+  /** Freeform reviewer notes — used for "rejected because …". */
+  reviewerNotes?: string;
+
+  /** Which AI model / provider generated this draft. Useful for A/Bing. */
+  generator?: {
+    model: string;
+    provider: 'gateway' | 'anthropic-direct';
+    /** Seconds of wall-clock the generation took. */
+    durationMs?: number;
+  };
+
+  createdAt: string;
+  updatedAt: string;
+  /** Populated by the send step in Phase 3. */
+  sentAt?: string;
+  /** Populated by the send step in Phase 3 — the Gmail thread id. */
+  gmailThreadId?: string;
+  /** Populated on failure — the last error message. */
+  lastError?: string;
+
+  // -- Phase 4 sequencing ----------------------------------------------------
+  /**
+   * 1-indexed position in the play's cadence. First-touch drafts get `1`
+   * (or undefined, treated as 1). Follow-ups produced by the follow-up
+   * scheduler get 2, 3, … up to `play.cadence.totalTouches`.
+   */
+  sequenceStep?: number;
+  /**
+   * For follow-ups: the draft this one is chasing. Lets us thread replies
+   * back to the original outreach and avoid regenerating the same follow-up.
+   */
+  previousDraftId?: string;
+  /** Gmail Message-Id of the most recent inbound reply (if any). */
+  lastReplyMessageId?: string;
+  /** ISO timestamp of the most recent inbound reply. */
+  lastReplyAt?: string;
+  /** AI classification of the most recent reply. */
+  lastReplyClassification?:
+    | 'positive'
+    | 'neutral'
+    | 'negative'
+    | 'unsubscribe'
+    | 'auto_reply'
+    | 'unknown';
 }
 
 // -- Prospects (testing layer between Plays and Leads) -------------------

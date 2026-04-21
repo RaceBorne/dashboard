@@ -32,7 +32,7 @@ Data:
 - migration 20260424120000_outreach_senders_suppressions.sql
 - repository gains listSenders/getSender/upsertSender/deleteSender and
   listSuppressions/isSuppressed/addSuppression
-- seeded default sender: craig.mcdonald@evari.cc
+- seeded default sender: craig@evari.cc
 
 API:
 - POST/GET /api/senders

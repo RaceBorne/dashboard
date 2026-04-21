@@ -3,7 +3,7 @@ import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay } from '@/lib/dashboard/repository';
 import { listCachedGmailThreads } from '@/lib/integrations/gmail';
-import type { GmailThreadSummary } from '@/lib/types';
+import type { GmailThreadSummary, Play, PlayChatMessage } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
@@ -13,32 +13,45 @@ interface ChatMessage {
 }
 
 /**
- * Per-play chat. Grounded in the play's brief, research notes,
- * existing targets, and prior chat history so every reply picks up where we
- * left off — even weeks later.
+ * POST /api/plays/[id]/chat
+ *
+ * Per-play "Spitball with Claude" chat. Grounded in the play's brief,
+ * research notes, targets, messaging, and prior chat history so every
+ * reply picks up where we left off — even weeks later.
+ *
+ * Persistence: each exchange (user prompt + assistant reply) is appended
+ * to `play.payload.chat` in `dashboard_plays` and `updatedAt` is bumped.
+ * The route returns the two authoritative message objects so the client
+ * can reconcile its optimistic state with server-assigned ids.
  */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const body = (await req.json()) as {
-    message: string;
+  const body = (await req.json().catch(() => ({}))) as {
+    message?: string;
     history?: ChatMessage[];
   };
   const message = (body.message ?? '').trim();
   if (!message) {
-    return NextResponse.json({ error: 'empty message' }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'empty message' }, { status: 400 });
   }
 
-  const play = await getPlay(createSupabaseAdmin(), id);
+  const supabase = createSupabaseAdmin();
+  if (!supabase) {
+    return NextResponse.json(
+      { ok: false, error: 'Supabase admin client unavailable' },
+      { status: 500 },
+    );
+  }
+
+  const play = await getPlay(supabase, id);
   if (!play) {
-    return NextResponse.json({ error: 'not found' }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not found' }, { status: 404 });
   }
 
-  // Recent customer context from Gmail (if connected). We pull 12 most recent
-  // threads total, biased toward support + klaviyo-reply since those are the
-  // ones with the richest "what are real customers actually saying" signal.
+  // Recent customer context from Gmail (if connected).
   const gmailContext = await safeGmailContext();
 
   const prompt = [
@@ -79,24 +92,61 @@ export async function POST(
 
   const task = `Help Craig develop this play. Be specific. Cite the research + targets above when it's relevant. If something needs doing (scraping, drafting, phone calls), name it and we add it to the task list. Keep replies punchy and decision-oriented. Markdown ok.`;
 
-  if (!hasAIGatewayCredentials()) {
-    return NextResponse.json({
-      mock: true,
-      markdown:
-        `**Offline — AI Gateway not wired.** I can see this play ("${play.title}", stage: ${play.stage}) and the ${play.research.length} research notes / ${play.targets.length} targets already in it. Once you run \`vercel link\` + \`vercel env pull\`, I'll reply here with real context.`,
-    });
+  const now = new Date().toISOString();
+  const userMsg: PlayChatMessage = {
+    id: 'c-' + Math.random().toString(36).slice(2, 10),
+    role: 'user',
+    content: message,
+    at: now,
+  };
+
+  // Build the reply — either mock (no gateway) or real AI Gateway.
+  let markdown: string;
+  let mock = false;
+  if (hasAIGatewayCredentials() === false) {
+    mock = true;
+    markdown =
+      `**Offline — AI Gateway not wired.** I can see this play ("${play.title}", stage: ${play.stage}) and the ${play.research.length} research notes / ${play.targets.length} targets already in it. Once you run \`vercel link\` + \`vercel env pull\`, I'll reply here with real context.`;
+  } else {
+    try {
+      markdown = await generateBriefing({ voice: 'analyst', task, prompt });
+    } catch {
+      mock = true;
+      markdown = 'Something went wrong calling the AI Gateway. Check the logs or try again.';
+    }
   }
 
-  try {
-    const text = await generateBriefing({ voice: 'analyst', task, prompt });
-    return NextResponse.json({ mock: false, markdown: text });
-  } catch {
-    return NextResponse.json({
-      mock: true,
-      markdown:
-        'Something went wrong calling the AI Gateway. Check the logs or try again.',
-    });
+  const assistantMsg: PlayChatMessage = {
+    id: 'c-' + Math.random().toString(36).slice(2, 10),
+    role: 'assistant',
+    content: markdown,
+    at: new Date().toISOString(),
+  };
+
+  // Persist the exchange. We swallow persistence errors so a DB hiccup
+  // never eats Craig's reply — the UI still gets the answer, it just
+  // won't survive a refresh in that rare case (and the error is logged).
+  const nextPlay: Play = {
+    ...play,
+    chat: [...play.chat, userMsg, assistantMsg],
+    updatedAt: assistantMsg.at,
+  };
+
+  const { error: writeErr } = await supabase
+    .from('dashboard_plays')
+    .update({ payload: nextPlay })
+    .eq('id', id);
+  if (writeErr) {
+    console.warn('[plays/chat] failed to persist chat exchange', writeErr);
   }
+
+  return NextResponse.json({
+    ok: true,
+    mock,
+    markdown,
+    userMessage: userMsg,
+    assistantMessage: assistantMsg,
+  });
 }
 
 /**

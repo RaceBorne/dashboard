@@ -50,6 +50,8 @@ export async function POST(req: Request) {
       email: body.email.trim().toLowerCase(),
       displayName: body.displayName.trim(),
       role: body.role?.trim() || undefined,
+      phone: body.phone?.trim() || undefined,
+      website: body.website?.trim() || undefined,
       signatureHtml: body.signatureHtml?.trim() || FALLBACK_SIGNATURE,
       logoUrl: body.logoUrl || undefined,
       isActive: body.isActive ?? true,

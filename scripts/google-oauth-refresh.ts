@@ -37,7 +37,8 @@ const REDIRECT_URI = `http://localhost:${PORT}/api/integrations/google/callback`
 const SCOPES = [
   'https://www.googleapis.com/auth/webmasters.readonly', // GSC
   'https://www.googleapis.com/auth/analytics.readonly', // GA4
-  'https://www.googleapis.com/auth/gmail.readonly', // Gmail
+  'https://www.googleapis.com/auth/gmail.readonly', // Gmail read
+  'https://www.googleapis.com/auth/gmail.send', // Gmail send
 ];
 
 const clientId = process.env.GOOGLE_CLIENT_ID;

@@ -372,3 +372,150 @@ export function groupGmailByCategory(
 }
 
 export { isGmailConnected };
+
+// -- Send --------------------------------------------------------------------
+
+export interface SendGmailMessageArgs {
+  /** From header — e.g. `"Craig McDonald" <craig@evari.cc>`. Must match the
+   *  Gmail account the refresh token was issued for (Gmail rewrites mismatches). */
+  from: string;
+  /** Single recipient or array; joined with `, ` for the To header. */
+  to: string | string[];
+  subject: string;
+  /** HTML body. A plain-text alternative is auto-generated. */
+  html: string;
+  /** Optional CC / BCC. */
+  cc?: string | string[];
+  bcc?: string | string[];
+  /** Optional in-reply-to / references — used when replying in an existing thread. */
+  inReplyTo?: string;
+  references?: string;
+  /** If set, Gmail threads this send under an existing thread. */
+  threadId?: string;
+}
+
+export interface SendGmailMessageResult {
+  id: string;
+  threadId: string;
+  labelIds?: string[];
+}
+
+/**
+ * Send an email via the Gmail API (`users.messages.send`).
+ *
+ * Uses the same Google OAuth refresh token as the read-only ingest; the token
+ * must have been issued with the `gmail.send` scope. Re-run
+ * `npx tsx scripts/google-oauth-refresh.ts` after updating the scope list.
+ *
+ * Builds a minimal RFC 2822 multipart/alternative message in-process (no extra
+ * deps), base64url-encodes it, and POSTs `{ raw, threadId? }`.
+ *
+ * Ref: https://developers.google.com/gmail/api/reference/rest/v1/users.messages/send
+ */
+export async function sendGmailMessage(
+  args: SendGmailMessageArgs,
+): Promise<SendGmailMessageResult> {
+  const accessToken = await getGoogleAccessToken();
+
+  const toHeader = Array.isArray(args.to) ? args.to.join(', ') : args.to;
+  const ccHeader = args.cc
+    ? Array.isArray(args.cc)
+      ? args.cc.join(', ')
+      : args.cc
+    : undefined;
+  const bccHeader = args.bcc
+    ? Array.isArray(args.bcc)
+      ? args.bcc.join(', ')
+      : args.bcc
+    : undefined;
+
+  const boundary = `evari-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+
+  const headers: string[] = [
+    `From: ${args.from}`,
+    `To: ${toHeader}`,
+  ];
+  if (ccHeader) headers.push(`Cc: ${ccHeader}`);
+  if (bccHeader) headers.push(`Bcc: ${bccHeader}`);
+  headers.push(`Subject: ${encodeHeader(args.subject)}`);
+  if (args.inReplyTo) headers.push(`In-Reply-To: ${args.inReplyTo}`);
+  if (args.references) headers.push(`References: ${args.references}`);
+  headers.push('MIME-Version: 1.0');
+  headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+
+  const textBody = htmlToPlainText(args.html);
+
+  const body = [
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    textBody,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    args.html,
+    '',
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+
+  const mime = headers.join('\r\n') + '\r\n' + body;
+  const raw = Buffer.from(mime, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  const res = await fetch(
+    'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(
+        args.threadId ? { raw, threadId: args.threadId } : { raw },
+      ),
+    },
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gmail send failed: ${res.status} ${errText}`);
+  }
+
+  return (await res.json()) as SendGmailMessageResult;
+}
+
+/** Encode non-ASCII subjects as RFC 2047 base64. Leaves ASCII-only alone. */
+function encodeHeader(s: string): string {
+  if (/^[\x20-\x7e]*$/.test(s)) return s;
+  const b64 = Buffer.from(s, 'utf8').toString('base64');
+  return `=?UTF-8?B?${b64}?=`;
+}
+
+/** Very small HTML→text fallback for the plain-text alternative part. Not
+ *  meant to be beautiful — Gmail only shows it when HTML can't render. */
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
