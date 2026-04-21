@@ -1,0 +1,209 @@
+{
+  "id": "brand_brief",
+  "version": 1,
+  "sourceUrl": "https://evari.cc",
+  "updatedAt": "2026-04-21T00:00:00.000Z",
+  "refreshCadence": "weekly",
+  "company": {
+    "name": "Evari",
+    "legalName": "Evari Bikes Limited",
+    "companiesHouseNumber": "11232971",
+    "founded": 2018,
+    "headquarters": "Hertford, United Kingdom",
+    "developedAt": "Silverstone engineering labs, UK",
+    "founder": "Craig McDonald",
+    "founderBackground": "Product designer and filmmaker; grew up racing BMX, 20 years in architecture, product design, and visual effects.",
+    "branding": "Greenspace",
+    "engineeringPartner": "Cambridge Design Technology (CDT)",
+    "awards": [
+      "Eurobike Startup Award winner",
+      "Eurobike 2022 Innovation Award nominee"
+    ],
+    "exhibits": [
+      "Salon Prive at Blenheim Palace (alongside McLaren Automotive, Bugatti, Ferrari)"
+    ]
+  },
+  "oneLiner": "British-designed, hand-built carbon-fibre electric bikes that bring road speed, gravel capability, and fully-integrated electronics into a single uncompromising all-road machine.",
+  "positioning": {
+    "summary": "Evari is a premium British e-mobility brand. Every 856 is hand-built in the UK from monocoque carbon fibre with aerospace-grade titanium components. Lights, motor, battery, computer and brake hoses are routed inside the frame so nothing breaks the silhouette. The bikes are the natural companion to a McLaren, a Riva, or a weekend in the Highlands \u2014 not a commodity.",
+    "pillars": [
+      "British design + British build",
+      "Monocoque carbon + titanium craft",
+      "Total electronic integration (no visible cables, no bolt-on clutter)",
+      "Sustainable mobility as a lifestyle upgrade",
+      "Sold like a luxury object, not a utility appliance"
+    ],
+    "notFor": [
+      "Budget commuters looking for a cheap e-bike",
+      "Delivery-rider / utility use cases",
+      "Aggressive off-road mountain-bike customers"
+    ]
+  },
+  "voice": {
+    "tone": [
+      "Confident, understated, British",
+      "Design-led \u2014 talks about materials, engineering and ride feel, not horsepower",
+      "Precise numbers over marketing adjectives (85 Nm, 17.8 kg, 90 km eco range)",
+      "Never shouty, never discount-led, never tech-bro"
+    ],
+    "do": [
+      "Lead with the object, not the feature list",
+      "Use craft language: hand-built, machined, integrated, bespoke",
+      "Reference the collaborators when relevant (Bosch, DT Swiss, Rohloff, Classified)",
+      "Write for an audience that already appreciates good things"
+    ],
+    "dont": [
+      "Don't use exclamation marks",
+      "Don't use emoji in outbound copy",
+      "Don't compare on price",
+      "Don't lead with 'eco' \u2014 sustainability is implicit, not a sales pitch"
+    ]
+  },
+  "products": {
+    "sole": "856",
+    "family": [
+      {
+        "model": "856",
+        "transmission": "DT Swiss Single Speed",
+        "finish": "Core \u2014 solid gloss colours (Graphite Grey, Skandium White)",
+        "audience": "The purist \u2014 clean, single-speed, understated"
+      },
+      {
+        "model": "856ST",
+        "transmission": "DT Swiss Single Speed",
+        "finish": "Entry to the family \u2014 solid gloss (Carmine Red)",
+        "priceApprox": "From ~\u00a37,000 / ~$9,000",
+        "audience": "The first Evari \u2014 lowest barrier to entry"
+      },
+      {
+        "model": "856CS",
+        "transmission": "Rohloff E14 14-speed hub",
+        "finish": "Custom Studio \u2014 metallic gloss (Topanga Orange) in collaboration with Kustomflow",
+        "audience": "The collector \u2014 colour + finish + components pushed further"
+      },
+      {
+        "model": "856CS+",
+        "transmission": "Classified Powershift (dual-speed Bluetooth-controlled rear hub) layered on Rohloff",
+        "finish": "Custom Studio",
+        "audience": "The technologist \u2014 full gear range, wireless shifting"
+      },
+      {
+        "model": "856 EXP",
+        "transmission": "Adventure-tuned",
+        "finish": "Adventure Edition",
+        "audience": "The adventurer \u2014 longer tours, gravel, UK backcountry"
+      },
+      {
+        "model": "Bespoke",
+        "transmission": "Customer choice",
+        "finish": "One-of-one commission",
+        "audience": "The patron \u2014 fully bespoke build"
+      }
+    ],
+    "sharedSpecs": {
+      "frame": "Monocoque carbon fibre frame, fork, seatpost, rims, handlebars, stem",
+      "hardware": "Aerospace-grade titanium bolts, snubber, and belt tensioner",
+      "weight": "17.8 kg",
+      "motor": "Bosch Performance Line CX mid-drive, 85 Nm",
+      "assistModes": 6,
+      "turbo": "Up to 340% power boost in turbo",
+      "battery": "Bosch PowerTube 500 (integrated)",
+      "rangeEco": "Up to 90 km",
+      "rangeMixed": "~70 km",
+      "integration": "Lights, motor, battery, computer display, and brake hoses all routed internally",
+      "buildLocation": "Hand-built in the UK with UK-sourced components"
+    }
+  },
+  "collections": [
+    {
+      "name": "Core",
+      "description": "Pure Evari performance \u2014 the reference 856 in solid gloss colourways."
+    },
+    {
+      "name": "Custom Studio (CS)",
+      "description": "Colour, finish, and components pushed further. Built in collaboration with Kustomflow."
+    },
+    {
+      "name": "Bespoke",
+      "description": "One-of-one commissions \u2014 the ultimate expression of individuality."
+    }
+  ],
+  "audiences": {
+    "primary": [
+      {
+        "label": "Design-conscious UK commuter (HNW)",
+        "description": "35\u201360, London / Home Counties, earns well, already owns a road bike, values objects that look as good parked as they do ridden."
+      },
+      {
+        "label": "Luxury lifestyle buyer",
+        "description": "Overlaps with supercar, yacht, watch, and art collectors. Discovered us at Salon Prive / Blenheim."
+      },
+      {
+        "label": "Adventure tourer",
+        "description": "Buys the 856 EXP for multi-day UK + European touring. Wants titanium + carbon durability with long range."
+      },
+      {
+        "label": "Design-forward professional (architect, creative director, product designer)",
+        "description": "Appreciates British industrial design. The bike is a daily object, not a hobby."
+      }
+    ],
+    "accountExamples": [
+      "Private members' clubs (Soho House, 5 Hertford Street, The Conduit)",
+      "Luxury car dealerships (McLaren, Bentley, Aston Martin, Rolls-Royce)",
+      "Yacht brokerages and charter agencies",
+      "Private UK medical clinics with HNW patient bases",
+      "Architecture and design studios in London",
+      "Concierge and lifestyle management firms",
+      "Specialist cycling retailers that already carry premium brands"
+    ]
+  },
+  "differentiators": [
+    "100% hand-built in the UK with UK-sourced parts",
+    "Monocoque carbon + titanium construction (not aluminium, not bonded)",
+    "Total cable integration \u2014 nothing breaks the silhouette",
+    "Bosch CX drivetrain with 6 modes and 340% turbo",
+    "Classified Powershift option \u2014 Bluetooth wireless shifting",
+    "Collector-grade finishes through Custom Studio",
+    "Bespoke commission programme"
+  ],
+  "partners": [
+    "Bosch (drivetrain + battery)",
+    "DT Swiss (single-speed hub)",
+    "Rohloff (E14 speed hub)",
+    "Classified (Powershift)",
+    "Kustomflow (Custom Studio finishes)",
+    "Silverstone engineering labs"
+  ],
+  "pricing": {
+    "positioning": "Premium \u2014 entry from ~\u00a37,000 / ~$9,000 (856ST). Custom Studio and Bespoke on application.",
+    "tone": "Never lead on price. Lead on object, then on build."
+  },
+  "messagingAnchors": [
+    "\"Hand-built in the UK.\"",
+    "\"Monocoque carbon. Aerospace titanium. Total integration.\"",
+    "\"Road speed meets gravel capability.\"",
+    "\"The e-bike that begs to go faster.\" (third-party \u2014 Cycling Electric)",
+    "\"Designed for riders who already own good things.\""
+  ],
+  "outreachRules": {
+    "whenWritingCopy": [
+      "Always call the product the '856' (never 'our e-bike' or 'our product')",
+      "Spell the company 'Evari' (E-V-A-R-I). Never 'Ivari', 'Evary', or 'EVari'",
+      "Use British spelling (colour, tyre, centre, organisation)",
+      "Default location references to the UK unless the Play targets elsewhere",
+      "Reference the company name in full as 'Evari' on first mention, then 'the 856' or 'Evari' thereafter"
+    ],
+    "whenSourcingProspects": [
+      "Target HNW / luxury-adjacent audiences \u2014 not mass-market commuter or utility buyers",
+      "Geographic default: United Kingdom (London, Home Counties, Cotswolds, Highlands)",
+      "Consider co-location with existing luxury categories (supercars, yachts, watches, private members clubs)",
+      "Avoid bike shops as targets unless they are top-tier premium specialists"
+    ]
+  },
+  "socialLinks": {
+    "website": "https://evari.cc",
+    "linkedin": "https://www.linkedin.com/company/evari-bikes",
+    "facebook": "https://www.facebook.com/evaribikes",
+    "instagramHandle": "@evaribikes"
+  }
+}

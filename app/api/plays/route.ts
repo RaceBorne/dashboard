@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { autoScanForPlay } from '@/lib/brand/autoScan';
 import type { Play } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -14,8 +15,12 @@ export const dynamic = 'force-dynamic';
  * which the client uses to navigate to `/plays/{id}`.
  *
  * Accepts optional body:
- *   { title?: string, brief?: string }
- * — both default to placeholder strings that the user can edit on the detail page.
+ *   { title?: string, brief?: string, category?: string }
+ *
+ * After responding, schedules an auto-scan via `after()` so the funnel
+ * is pre-populated with candidate companies by the time Craig opens
+ * the detail page. The scan is non-blocking — the client gets the id
+ * immediately and the funnel fills in asynchronously.
  */
 export async function POST(req: Request) {
   const supabase = createSupabaseAdmin();
@@ -26,7 +31,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { title?: string; brief?: string } = {};
+  let body: { title?: string; brief?: string; category?: string } = {};
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -35,9 +40,11 @@ export async function POST(req: Request) {
 
   const now = new Date().toISOString();
   const id = generatePlayId();
+  const title = (body.title ?? '').trim() || 'Untitled strategy';
+  const category = (body.category ?? '').trim() || undefined;
   const play: Play = {
     id,
-    title: (body.title ?? '').trim() || 'Untitled strategy',
+    title,
     brief:
       (body.brief ?? '').trim() ||
       'A one-paragraph "why" for this strategy. Edit me.',
@@ -49,6 +56,7 @@ export async function POST(req: Request) {
     targets: [],
     messaging: [],
     chat: [],
+    category,
     activity: [
       {
         id: `act-${Date.now()}`,
@@ -69,6 +77,19 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+
+  // Auto-scan the landscape for this Play in the background. We don't
+  // block the response on it — Craig gets the id immediately and the
+  // funnel fills in over the next few seconds. Anything that goes wrong
+  // inside autoScanForPlay stamps the Play activity and returns quietly.
+  after(async () => {
+    try {
+      await autoScanForPlay(supabase, play);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[plays] auto-scan failed:', (err as Error).message);
+    }
+  });
 
   return NextResponse.json({ ok: true, id });
 }

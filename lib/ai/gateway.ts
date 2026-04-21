@@ -20,6 +20,7 @@ import { generateText, streamText } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
 import { anthropic } from '@ai-sdk/anthropic';
 import { loadEvariCopySkill } from './skill';
+import { getBrandBriefForPrompt } from '@/lib/brand/brandBrief';
 
 // Default to Haiku 4.5 — cheap, fast, plenty smart for our copy tasks.
 // Gateway model string uses the `provider/model` format; the direct SDK
@@ -50,6 +51,11 @@ export async function buildSystemPrompt({ voice = 'evari', task }: SystemPromptO
   sections.push(
     `You are an assistant inside the Evari Dashboard, a private operations cockpit for the founder of Evari Speed Bikes (evari.cc). The audience for everything you produce is Craig, the founder.`,
   );
+
+  // Brand grounding: every call gets the brief so the AI never asks Craig
+  // to explain who Evari is, what the product is, or who the customer is.
+  const brandBrief = await getBrandBriefForPrompt();
+  sections.push(brandBrief);
 
   sections.push(`Today's task: ${task}`);
 

@@ -389,6 +389,70 @@ export async function searchBusinessListings(opts: {
 }
 
 // ============================================================================
+// Web Search (used by the Spitball chat tool-calling loop)
+// ============================================================================
+
+export interface WebSearchHit {
+  rank: number;
+  title: string;
+  url: string;
+  domain?: string;
+  snippet?: string;
+}
+
+interface SerpLiveItemLite {
+  type?: string;
+  rank_absolute?: number;
+  title?: string;
+  url?: string;
+  domain?: string;
+  description?: string;
+}
+
+/**
+ * Lightweight web search for agent tool-calls. Uses DataForSEO organic SERP.
+ * Returns the top N organic results as {title,url,domain,snippet}.
+ *
+ * Cheaper than calling ingestSerp — no DB writes, single round-trip.
+ */
+export async function webSearchQuery(opts: {
+  query: string;
+  locationCode?: number;
+  languageCode?: string;
+  limit?: number;
+}): Promise<{ hits: WebSearchHit[]; cost: number }> {
+  const limit = Math.min(Math.max(opts.limit ?? 10, 1), 30);
+  const { tasks, cost } = await dfsPost<{ items?: SerpLiveItemLite[] }>(
+    '/serp/google/organic/live/advanced',
+    [
+      {
+        keyword: opts.query,
+        location_code: opts.locationCode ?? 2826,
+        language_code: opts.languageCode ?? 'en',
+        depth: limit,
+      },
+    ],
+  );
+  const hits: WebSearchHit[] = [];
+  for (const t of tasks) {
+    for (const it of t.items ?? []) {
+      if (it.type && it.type !== 'organic') continue;
+      if (!it.title || !it.url) continue;
+      hits.push({
+        rank: it.rank_absolute ?? hits.length + 1,
+        title: it.title,
+        url: it.url,
+        domain: it.domain,
+        snippet: it.description,
+      });
+      if (hits.length >= limit) break;
+    }
+    if (hits.length >= limit) break;
+  }
+  return { hits, cost };
+}
+
+// ============================================================================
 // Backlinks Ingest
 // ============================================================================
 
