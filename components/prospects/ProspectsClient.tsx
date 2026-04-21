@@ -1198,7 +1198,7 @@ export function ProspectsClient({
               )}
 
               {p.notes && (
-                <div className="text-[11px] text-evari-dimmer italic">
+                <div className="text-[13px] text-evari-dimmer italic">
                   {p.notes}
                 </div>
               )}
@@ -1584,6 +1584,7 @@ function LeadFieldsBlock({
         value={prospect.notes ?? ''}
         placeholder="Anything to remember"
         multiline
+        bigger
         editing={editingField === 'notes'}
         saving={fieldSaving.has(prospect.id + ':notes')}
         editValue={editValue}
@@ -1603,6 +1604,7 @@ function LeadField({
   placeholder,
   mono,
   multiline,
+  bigger,
   editing,
   saving,
   editValue,
@@ -1618,6 +1620,7 @@ function LeadField({
   placeholder: string;
   mono?: boolean;
   multiline?: boolean;
+  bigger?: boolean;
   editing: boolean;
   saving: boolean;
   editValue: string;
@@ -1631,7 +1634,10 @@ function LeadField({
     const InputEl = multiline ? 'textarea' : 'input';
     return (
       <div
-        className="flex items-start gap-2 text-[11px]"
+        className={cn(
+          'flex items-start gap-2',
+          bigger ? 'text-[13px]' : 'text-[11px]',
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         <span className="pt-1.5 shrink-0">{icon}</span>
@@ -1672,7 +1678,10 @@ function LeadField({
         e.stopPropagation();
         onStartEdit();
       }}
-      className="w-full flex items-start gap-2 text-[11px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-0.5 -mx-1"
+      className={cn(
+        'w-full flex items-start gap-2 text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-0.5 -mx-1',
+        bigger ? 'text-[13px]' : 'text-[11px]',
+      )}
     >
       <span className="pt-0.5 shrink-0">{icon}</span>
       <span className="w-12 text-evari-dimmer shrink-0">{label}</span>
