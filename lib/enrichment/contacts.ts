@@ -181,26 +181,14 @@ export async function enrichContacts(
     };
   }
 
-  // 3. Infer missing emails from the site's dominant pattern
-  onProgress?.('inferring');
-  const pattern = dominantEmailPattern(extracted, domain);
-  const withEmails = extracted.map((c) =>
-    c.email
-      ? c
-      : pattern
-        ? {
-            ...c,
-            email: applyPattern(pattern, c.name, domain),
-            emailSource: 'inferred' as const,
-            confidence: 'low' as const,
-          }
-        : c,
-  );
-
-  // Dedupe by (lowercased name, lowercased email).
+  // 3. No inference. If the site doesn't publish a person's email
+  //    verbatim, we leave it blank. Guessing firstname.lastname@domain
+  //    ends up bouncing / hitting spam traps / damaging sender rep —
+  //    and the operator can add one manually in the Contact block.
+  //    Dedupe by (lowercased name, lowercased email).
   const seen = new Set<string>();
   const deduped: CompanyContact[] = [];
-  for (const c of withEmails) {
+  for (const c of extracted) {
     const key = (c.name.toLowerCase().trim() + '|' + (c.email ?? '').toLowerCase()).trim();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -208,14 +196,12 @@ export async function enrichContacts(
     if (deduped.length >= MAX_CONTACTS_PER_COMPANY) break;
   }
 
-  const verbatim = deduped.filter((c) => c.email && c.emailSource !== 'inferred').length;
-  const inferred = deduped.filter((c) => c.emailSource === 'inferred').length;
+  const verbatim = deduped.filter((c) => c.email).length;
   const noEmail = deduped.filter((c) => !c.email).length;
 
   onProgress?.('done', {
     total: deduped.length,
     verbatim,
-    inferred,
     noEmail,
   });
 
@@ -233,12 +219,8 @@ export async function enrichContacts(
       ' contact(s) — ' +
       verbatim +
       ' with verbatim emails, ' +
-      inferred +
-      ' inferred (pattern: ' +
-      (pattern ?? 'none') +
-      '), ' +
       noEmail +
-      ' name-only.',
+      ' name-only. Missing emails are intentionally left blank — add one in the Contact block to make the prospect sendable.',
   };
 }
 
@@ -452,84 +434,6 @@ async function extractContactsWithAI(
     if (out.length >= MAX_CONTACTS_PER_COMPANY) break;
   }
   return out;
-}
-
-// ---------------------------------------------------------------------------
-// Email pattern inference
-// ---------------------------------------------------------------------------
-
-type EmailPattern =
-  | 'firstname'
-  | 'lastname'
-  | 'firstname.lastname'
-  | 'firstinitial.lastname'
-  | 'firstname.lastinitial'
-  | 'firstnamelastname';
-
-/**
- * Inspect verbatim-scraped emails (@ the target domain) and infer the
- * dominant local-part format. Returns undefined when there's no signal.
- */
-function dominantEmailPattern(
-  contacts: CompanyContact[],
-  domain: string,
-): EmailPattern | undefined {
-  const counts: Record<EmailPattern, number> = {
-    firstname: 0,
-    lastname: 0,
-    'firstname.lastname': 0,
-    'firstinitial.lastname': 0,
-    'firstname.lastinitial': 0,
-    firstnamelastname: 0,
-  };
-  for (const c of contacts) {
-    if (!c.email || !c.name) continue;
-    if (c.emailSource === 'inferred') continue;
-    const [local, mailDomain] = c.email.toLowerCase().split('@');
-    if (!mailDomain || !sameDomain(mailDomain, domain)) continue;
-    if (isGenericEmail(c.email)) continue;
-    const nameParts = c.name.toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/);
-    if (nameParts.length < 2) continue;
-    const first = nameParts[0];
-    const last = nameParts[nameParts.length - 1];
-
-    if (local === first) counts.firstname += 1;
-    else if (local === last) counts.lastname += 1;
-    else if (local === first + '.' + last) counts['firstname.lastname'] += 1;
-    else if (local === first[0] + '.' + last) counts['firstinitial.lastname'] += 1;
-    else if (local === first + '.' + last[0]) counts['firstname.lastinitial'] += 1;
-    else if (local === first + last) counts.firstnamelastname += 1;
-  }
-  let best: EmailPattern | undefined;
-  let bestN = 0;
-  for (const [k, n] of Object.entries(counts)) {
-    if (n > bestN) {
-      best = k as EmailPattern;
-      bestN = n;
-    }
-  }
-  return bestN >= 1 ? best : undefined;
-}
-
-function applyPattern(pattern: EmailPattern, name: string, domain: string): string {
-  const cleaned = name.toLowerCase().replace(/[^a-z\s]/g, '').trim();
-  const parts = cleaned.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'info@' + domain;
-  const first = parts[0];
-  const last = parts.length > 1 ? parts[parts.length - 1] : '';
-  let local = first;
-  if (pattern === 'firstname') local = first;
-  else if (pattern === 'lastname') local = last || first;
-  else if (pattern === 'firstname.lastname') local = last ? first + '.' + last : first;
-  else if (pattern === 'firstinitial.lastname') local = last ? first[0] + '.' + last : first;
-  else if (pattern === 'firstname.lastinitial') local = last ? first + '.' + last[0] : first;
-  else if (pattern === 'firstnamelastname') local = last ? first + last : first;
-  return local + '@' + domain;
-}
-
-function sameDomain(a: string, b: string): boolean {
-  const clean = (x: string) => x.replace(/^www\./, '').toLowerCase();
-  return clean(a) === clean(b);
 }
 
 function deriveDomain(url: string | undefined): string | undefined {
