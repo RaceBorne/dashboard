@@ -56,6 +56,62 @@ const FETCH_TIMEOUT_MS = 8_000;
 /** Hard upper bound on contacts returned per company. */
 const MAX_CONTACTS_PER_COMPANY = 20;
 
+/**
+ * Local-parts that are NEVER a named person's mailbox — they're shared
+ * inboxes / role accounts. We aggressively reject these because the AI
+ * otherwise hands out `info@clubname.com` to every committee member it
+ * spots on the contact page, which is both wrong and misleading.
+ */
+const GENERIC_LOCALS = new Set<string>([
+  'info',
+  'contact',
+  'hello',
+  'hi',
+  'enquiries',
+  'enquiry',
+  'inquiries',
+  'inquiry',
+  'admin',
+  'administration',
+  'office',
+  'reception',
+  'mail',
+  'email',
+  'hq',
+  'team',
+  'support',
+  'help',
+  'ops',
+  'sales',
+  'marketing',
+  'membership',
+  'members',
+  'secretary',
+  'treasurer',
+  'press',
+  'media',
+  'bookings',
+  'events',
+  'feedback',
+  'general',
+  'club',
+  'webmaster',
+  'noreply',
+  'no-reply',
+  'donotreply',
+]);
+
+/** True when an email looks like a shared/role inbox rather than a person. */
+function isGenericEmail(email: string | undefined): boolean {
+  if (!email) return false;
+  const local = email.split('@')[0]?.toLowerCase() ?? '';
+  if (!local) return false;
+  if (GENERIC_LOCALS.has(local)) return true;
+  // Also catch things like "info.dental" or "membership-london".
+  const stem = local.split(/[.\-_]/)[0];
+  return GENERIC_LOCALS.has(stem);
+}
+
 export interface EnrichResult {
   contacts: CompanyContact[];
   scrapedPaths: string[];
@@ -327,7 +383,9 @@ async function extractContactsWithAI(
     '- Prioritise: senior roles first; then anyone whose title suggests decision-making on purchasing, partnerships, sponsorships, or equipment.',
     '- Skip admin / reception / generic "contact us" entries unless they\'re the only entry.',
     '- Title should match the text as written (e.g. "Head of Product", "Club Secretary", "Consultant Orthopaedic Surgeon"). If no title is visible, use null.',
-    '- Email: ONLY include an email address if it appears VERBATIM in the source text as the person\'s own email. Do not guess. Do not combine a name with the domain. If unsure, use null.',
+    '- Email: ONLY include an email address if it appears VERBATIM in the source text AND it is clearly THIS SPECIFIC PERSON\'s mailbox (e.g. written next to their name / in their bio). Never attach a shared inbox to a named person.',
+    '- Shared inboxes such as info@, contact@, hello@, enquiries@, admin@, office@, reception@, mail@, membership@, secretary@, treasurer@, events@, press@, bookings@, sales@, support@, help@ are NEVER a person\'s email. If that is the only email on the page, leave email as null for every person.',
+    '- Do not guess. Do not combine a name with the domain. If unsure, use null.',
     '- Department: one of "leadership" | "design" | "product" | "engineering" | "marketing" | "sales" | "operations" | "medical" | "community" | "events" | "finance" | "other" — pick the best fit.',
     '- Seniority: one of "exec" | "senior" | "mid" | "junior" | "other" — pick the best fit.',
     '',
@@ -375,8 +433,11 @@ async function extractContactsWithAI(
     if (!name) continue;
     const jobTitle = typeof r.jobTitle === 'string' && r.jobTitle.trim() ? r.jobTitle.trim() : undefined;
     const rawEmail = typeof r.email === 'string' ? r.email.trim().toLowerCase() : '';
-    // Guard: reject anything that isn't a vaguely-email-shaped string.
-    const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : undefined;
+    // Guard: reject anything that isn't a vaguely-email-shaped string,
+    // and reject shared inboxes (info@, contact@, hello@, ...) that the AI
+    // sometimes hands out to every named person on the contact page.
+    const shaped = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : undefined;
+    const email = shaped && !isGenericEmail(shaped) ? shaped : undefined;
     const department = typeof r.department === 'string' && r.department.trim() ? r.department.trim().toLowerCase() : undefined;
     const seniority = typeof r.seniority === 'string' && r.seniority.trim() ? r.seniority.trim().toLowerCase() : undefined;
     out.push({
@@ -426,6 +487,7 @@ function dominantEmailPattern(
     if (c.emailSource === 'inferred') continue;
     const [local, mailDomain] = c.email.toLowerCase().split('@');
     if (!mailDomain || !sameDomain(mailDomain, domain)) continue;
+    if (isGenericEmail(c.email)) continue;
     const nameParts = c.name.toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/);
     if (nameParts.length < 2) continue;
     const first = nameParts[0];
