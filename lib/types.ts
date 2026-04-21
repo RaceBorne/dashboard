@@ -133,6 +133,48 @@ export interface RelatedContact {
 }
 
 /**
+ * CompanyContact — richer than RelatedContact; used for the enriched
+ * "contacts at this company" list. Captures how we got the email so the UI
+ * can warn the operator when it's an inferred pattern guess vs. a real
+ * address scraped from the company's own site.
+ */
+export type CompanyContactDepartment =
+  | 'leadership'
+  | 'design'
+  | 'product'
+  | 'engineering'
+  | 'marketing'
+  | 'sales'
+  | 'operations'
+  | 'medical'
+  | 'community'
+  | 'events'
+  | 'finance'
+  | 'other';
+
+export type CompanyContactSeniority = 'exec' | 'senior' | 'mid' | 'junior' | 'other';
+
+export interface CompanyContact {
+  name: string;
+  jobTitle?: string;
+  email?: string;
+  /**
+   * How we got the email. 'scraped' = appeared verbatim on the company site.
+   * 'mailto' = from a mailto: link. 'inferred' = pattern-guessed from other
+   * emails on the same domain. 'ai' = the AI surfaced it without a source
+   * (treat with caution). Undefined when there's no email at all.
+   */
+  emailSource?: 'scraped' | 'mailto' | 'inferred' | 'ai';
+  confidence?: 'high' | 'medium' | 'low';
+  department?: CompanyContactDepartment;
+  seniority?: CompanyContactSeniority;
+  linkedinUrl?: string;
+  phone?: string;
+  /** Where the name/title/email was found on the company's site. */
+  sourceUrl?: string;
+}
+
+/**
  * Structured company profile — employee count + management team / C-suite —
  * scraped by the synopsis agent on first open. Optional everywhere: if the
  * AI can't confidently infer a field, it stays undefined rather than
@@ -147,6 +189,17 @@ export interface OrgProfile {
   employeeRange?: string;
   /** Founder(s) / owner(s) / president(s) — whoever holds ultimate accountability. */
   leaders?: RelatedContact[];
+  /**
+   * Richer enriched list — up to 20 contactable people at the company.
+   * Populated by the contact-enrichment endpoint (website scrape + AI pass).
+   * Separate from `leaders` so the synopsis AI call can't accidentally
+   * overwrite genuinely-scraped contacts with its LLM-best-guesses.
+   */
+  contacts?: CompanyContact[];
+  /** Operator-facing note on how contacts were sourced. */
+  contactsSourceNote?: string;
+  /** ISO timestamp of last contact enrichment run. */
+  contactsEnrichedAt?: string;
   /** Short note (1 line) on why the agent chose these figures. For audit only. */
   sourceNote?: string;
   generatedAt: string;

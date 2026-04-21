@@ -29,13 +29,16 @@ import {
   Check,
   Users2,
   Briefcase,
+  Mail,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn, relativeTime } from '@/lib/utils';
-import type { Prospect, ProspectStatus } from '@/lib/types';
+import type { CompanyContact, Prospect, ProspectStatus } from '@/lib/types';
 
 const STATUSES: { key: ProspectStatus; label: string; icon: React.ReactNode }[] =
   [
@@ -79,6 +82,9 @@ export function ProspectsClient({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [synopsisLoading, setSynopsisLoading] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set());
+  const [contactsLoading, setContactsLoading] = useState<Set<string>>(new Set());
+  const [contactPhase, setContactPhase] = useState<Record<string, string>>({});
+  const [contactAttempted, setContactAttempted] = useState<Set<string>>(new Set());
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [busyCategory, setBusyCategory] = useState<string | null>(null);
@@ -346,6 +352,9 @@ export function ProspectsClient({
       else next.add(p.id);
       return next;
     });
+    if (!isOpen) {
+      void enrichContactsFor(p);
+    }
     if (!isOpen && !p.synopsis && !synopsisLoading.has(p.id)) {
       mark(p.id, 'synopsis', true);
       try {
@@ -377,6 +386,103 @@ export function ProspectsClient({
       } finally {
         mark(p.id, 'synopsis', false);
       }
+    }
+  }
+
+
+  async function enrichContactsFor(p: Prospect, force = false) {
+    if (contactsLoading.has(p.id)) return;
+    if (!force && p.orgProfile?.contacts && p.orgProfile.contacts.length > 0) return;
+    setContactsLoading((prev) => {
+      const next = new Set(prev);
+      next.add(p.id);
+      return next;
+    });
+    setContactAttempted((prev) => {
+      const next = new Set(prev);
+      next.add(p.id);
+      return next;
+    });
+    setContactPhase((prev) => ({ ...prev, [p.id]: 'starting…' }));
+    try {
+      const res = await fetch(
+        '/api/leads/' + p.id + '/enrich-contacts' + (force ? '?regenerate=1' : ''),
+        { method: 'POST' },
+      );
+      if (!res.ok || !res.body) throw new Error('enrich failed ' + res.status);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split('\n\n');
+        buf = events.pop() ?? '';
+        for (const raw of events) {
+          const line = raw.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          let evt: Record<string, unknown>;
+          try {
+            evt = JSON.parse(payload);
+          } catch {
+            continue;
+          }
+          const phase = String(evt.phase ?? '');
+          if (phase === 'scraping') {
+            setContactPhase((prev) => ({ ...prev, [p.id]: 'scraping website…' }));
+          } else if (phase === 'scraped-page') {
+            const url = typeof evt.url === 'string' ? evt.url : '';
+            setContactPhase((prev) => ({
+              ...prev,
+              [p.id]: 'scraped ' + shortPath(url),
+            }));
+          } else if (phase === 'extracting') {
+            setContactPhase((prev) => ({ ...prev, [p.id]: 'asking AI to extract people…' }));
+          } else if (phase === 'inferring') {
+            setContactPhase((prev) => ({ ...prev, [p.id]: 'inferring missing emails…' }));
+          } else if (phase === 'done') {
+            const contacts = Array.isArray(evt.contacts)
+              ? (evt.contacts as CompanyContact[])
+              : [];
+            const sourceNote = typeof evt.sourceNote === 'string' ? evt.sourceNote : undefined;
+            setProspects((prev) =>
+              prev.map((x) =>
+                x.id === p.id
+                  ? {
+                      ...x,
+                      orgProfile: {
+                        ...(x.orgProfile ?? { generatedAt: new Date().toISOString() }),
+                        contacts,
+                        contactsSourceNote: sourceNote,
+                        contactsEnrichedAt: new Date().toISOString(),
+                      },
+                    }
+                  : x,
+              ),
+            );
+            setContactPhase((prev) => {
+              const next = { ...prev };
+              delete next[p.id];
+              return next;
+            });
+          } else if (phase === 'error') {
+            const msg = typeof evt.message === 'string' ? evt.message : 'failed';
+            setContactPhase((prev) => ({ ...prev, [p.id]: 'error: ' + msg }));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('contact enrichment failed', err);
+      setContactPhase((prev) => ({ ...prev, [p.id]: 'error' }));
+    } finally {
+      setContactsLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(p.id);
+        return next;
+      });
     }
   }
 
@@ -855,6 +961,13 @@ export function ProspectsClient({
                       No synopsis yet.
                     </p>
                   )}
+                  <ContactsBlock
+                    prospect={p}
+                    loading={contactsLoading.has(p.id)}
+                    phase={contactPhase[p.id]}
+                    attempted={contactAttempted.has(p.id)}
+                    onRefresh={() => void enrichContactsFor(p, true)}
+                  />
                   {(p.companyUrl || p.linkedinUrl || p.address) && (
                     <div className="flex flex-wrap items-center gap-3 text-[11px] pt-1">
                       {p.companyUrl && (
@@ -1010,5 +1123,173 @@ function CountPill({ n }: { n: number }) {
     >
       {n.toLocaleString()}
     </span>
+  );
+}
+
+
+function shortPath(url: string): string {
+  try {
+    const u = new URL(url);
+    const tail = u.pathname === '/' || u.pathname === '' ? 'home' : u.pathname;
+    return tail;
+  } catch {
+    return url;
+  }
+}
+
+function ContactsBlock({
+  prospect,
+  loading,
+  phase,
+  attempted,
+  onRefresh,
+}: {
+  prospect: Prospect;
+  loading: boolean;
+  phase?: string;
+  attempted: boolean;
+  onRefresh: () => void;
+}) {
+  const contacts = prospect.orgProfile?.contacts ?? [];
+  const hasContacts = contacts.length > 0;
+  const sourceNote = prospect.orgProfile?.contactsSourceNote;
+  const enrichedAt = prospect.orgProfile?.contactsEnrichedAt;
+
+  return (
+    <div className="space-y-1.5 pt-2 border-t border-evari-line/40">
+      <div className="flex items-center gap-2">
+        <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium inline-flex items-center gap-1.5">
+          <Mail className="h-3 w-3" />
+          People at this company
+          {hasContacts && (
+            <span className="text-evari-dim font-normal normal-case tracking-normal">
+              ({contacts.length})
+            </span>
+          )}
+          {loading && <Loader2 className="h-3 w-3 animate-spin text-evari-dim" />}
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRefresh();
+          }}
+          disabled={loading}
+          className="ml-auto text-[10px] text-evari-dim hover:text-evari-text px-1.5 py-0.5 rounded hover:bg-evari-surfaceSoft disabled:opacity-40"
+          title="Re-scan the company website"
+        >
+          {hasContacts ? 'Re-scan' : 'Scan'}
+        </button>
+      </div>
+
+      {loading && phase && (
+        <div className="text-[10px] text-evari-dim italic">{phase}</div>
+      )}
+
+      {hasContacts ? (
+        <ul className="space-y-1">
+          {contacts.map((c, i) => (
+            <ContactRow key={(c.email ?? c.name) + i} c={c} />
+          ))}
+        </ul>
+      ) : loading ? (
+        <p className="text-[11px] text-evari-dim italic">
+          Scraping the site and asking Claude to pull out names, titles, and emails…
+        </p>
+      ) : attempted ? (
+        <p className="text-[11px] text-evari-dimmer italic">
+          No contactable people surfaced. The site may not list any publicly.
+        </p>
+      ) : (
+        <p className="text-[11px] text-evari-dimmer italic">
+          Expand the row to auto-scan, or click Scan above.
+        </p>
+      )}
+
+      {hasContacts && sourceNote && (
+        <div className="text-[10px] text-evari-dimmer pt-1">
+          {sourceNote}
+          {enrichedAt && <> · {relativeTime(enrichedAt)}</>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContactRow({ c }: { c: CompanyContact }) {
+  const label =
+    c.emailSource === 'scraped'
+      ? 'scraped'
+      : c.emailSource === 'mailto'
+        ? 'mailto'
+        : c.emailSource === 'inferred'
+          ? 'inferred'
+          : c.emailSource === 'ai'
+            ? 'ai'
+            : undefined;
+  const tone =
+    c.emailSource === 'scraped' || c.emailSource === 'mailto'
+      ? 'bg-evari-success/20 text-evari-success'
+      : c.emailSource === 'inferred'
+        ? 'bg-evari-warn/20 text-evari-warn'
+        : 'bg-evari-surfaceSoft text-evari-dim';
+  return (
+    <li className="flex items-baseline gap-2 text-[11px] leading-snug">
+      <span className="font-medium text-evari-text">{c.name}</span>
+      {c.jobTitle && <span className="text-evari-dim">— {c.jobTitle}</span>}
+      {c.email ? (
+        <a
+          href={'mailto:' + c.email}
+          onClick={(e) => e.stopPropagation()}
+          className="font-mono text-[10px] text-evari-gold hover:text-evari-text truncate"
+          title={c.email}
+        >
+          {c.email}
+        </a>
+      ) : (
+        <span className="text-[10px] text-evari-dimmer italic">no email</span>
+      )}
+      {label && (
+        <span
+          className={cn(
+            'inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wider px-1 py-0.5 rounded-full',
+            tone,
+          )}
+          title={
+            label === 'scraped' || label === 'mailto'
+              ? 'Email appears verbatim on the company site.'
+              : label === 'inferred'
+                ? 'Pattern-inferred from other emails on this domain — verify before sending.'
+                : 'AI surfaced this without a verifiable source — verify before sending.'
+          }
+        >
+          {label === 'scraped' || label === 'mailto' ? (
+            <ShieldCheck className="h-2.5 w-2.5" />
+          ) : (
+            <ShieldAlert className="h-2.5 w-2.5" />
+          )}
+          {label}
+        </span>
+      )}
+      {c.confidence && (
+        <span
+          className="text-[9px] text-evari-dimmer"
+          title={'Confidence: ' + c.confidence}
+        >
+          · {c.confidence}
+        </span>
+      )}
+      {c.linkedinUrl && (
+        <a
+          href={c.linkedinUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-evari-gold hover:text-evari-text"
+        >
+          <ExternalLink className="h-2.5 w-2.5" />
+        </a>
+      )}
+    </li>
   );
 }
