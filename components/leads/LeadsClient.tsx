@@ -39,6 +39,7 @@ import { cn, relativeTime } from '@/lib/utils';
 import type { Lead, LeadNote, LeadStage } from '@/lib/types';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
+import { ProjectRail } from '@/components/nav/ProjectRail';
 import { leadToDiscoveredCompany } from '@/lib/dashboard/leadViews';
 
 type ManualBucket = 'person' | 'decision_maker' | 'generic';
@@ -592,128 +593,8 @@ export function LeadsClient({ initialLeads }: Props) {
         <FunnelRibbon stage="leads" playId={playId} />
       ) : null}
       <div className="flex gap-4 flex-1 min-h-0">
-      {/* Column 1: folder sidebar */}
-      <aside className="w-[340px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
-        <div className="shrink-0 px-4 pt-4 pb-2">
-          <div className="text-[11px] uppercase tracking-wide text-evari-dimmer mb-2">
-            Folders
-          </div>
-          <button
-            type="button"
-            onClick={() => setActiveFolder(null)}
-            className={cn(
-              'w-full inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-left',
-              activeFolder === null
-                ? 'bg-evari-accent/10 text-evari-accent font-medium'
-                : 'text-evari-text hover:bg-evari-surfaceSoft',
-            )}
-          >
-            <Inbox className="h-3.5 w-3.5" />
-            <span className="flex-1 truncate">All leads</span>
-            <span className="text-[11px] text-evari-dim">{leads.length}</span>
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-2 pb-3">
-          <ul className="space-y-0.5">
-            {folderKeys.map((k) => {
-              const active = activeFolder === k;
-              const isRenaming = renamingFolder === k;
-              return (
-                <li key={k} className="group flex items-center gap-1">
-                  {isRenaming ? (
-                    <div className="flex-1 flex items-center gap-1 px-2">
-                      <Input
-                        autoFocus
-                        value={folderRenameValue}
-                        onChange={(e) => setFolderRenameValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            void renameFolder(k, folderRenameValue);
-                          } else if (e.key === 'Escape') {
-                            setRenamingFolder(null);
-                          }
-                        }}
-                        className="h-7 text-[12px]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void renameFolder(k, folderRenameValue)}
-                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-accent hover:bg-evari-surfaceSoft"
-                        disabled={busyFolder === k}
-                      >
-                        {busyFolder === k ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setActiveFolder(k)}
-                        className={cn(
-                          'flex-1 inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-left',
-                          active
-                            ? 'bg-evari-accent/10 text-evari-accent font-medium'
-                            : 'text-evari-text hover:bg-evari-surfaceSoft',
-                        )}
-                      >
-                        <Folder className="h-3.5 w-3.5" />
-                        <span className="flex-1 truncate">{k}</span>
-                        <span className="text-[11px] text-evari-dim">
-                          {folderCounts[k]}
-                        </span>
-                      </button>
-                      {k !== UNCATEGORISED ? (
-                        <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRenamingFolder(k);
-                              setFolderRenameValue(k);
-                            }}
-                            className="h-6 w-6 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
-                            title="Rename folder"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void deleteFolder(k)}
-                            className="h-6 w-6 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft"
-                            title="Delete folder"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                </li>
-              );
-            })}
-            {folderKeys.length === 0 ? (
-              <li className="px-2.5 py-2 text-[12px] text-evari-dim">
-                No leads yet — promote prospects from the{' '}
-                <a href="/prospects" className="underline hover:text-evari-text">
-                  Prospects
-                </a>{' '}
-                tab.
-              </li>
-            ) : null}
-          </ul>
-        </div>
-
-        <div className="shrink-0 px-3 pb-3 pt-2 border-t border-evari-line/30">
-          <a
-            href="/prospects"
-            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dim w-full justify-center"
-          >
-            <FolderPlus className="h-3 w-3" />
-            Promote from Prospects
-          </a>
-        </div>
-      </aside>
+      {/* Column 1: projects rail */}
+      <ProjectRail activePlayId={playId} />
 
       {/* Columns 2 + 3 — always 50/50 */}
       <div className="flex-1 min-w-0 h-full flex gap-4">

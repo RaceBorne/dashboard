@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
+import { ProjectRail } from '@/components/nav/ProjectRail';
 import {
   Building2,
   BadgeCheck,
@@ -565,6 +566,7 @@ export function DiscoverClient({ plays }: Props) {
         ) : null;
       })()}
       <div className="flex gap-4 flex-1 min-h-0">
+      <ProjectRail activePlayId={playId} />
       {/* Left: filters */}
       <aside className="w-[380px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
         <DiscoverFilters

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
+import { ProjectRail } from '@/components/nav/ProjectRail';
 import {
   Activity,
   ArrowLeft,
@@ -394,6 +395,7 @@ export function PlayDetailClient({
     <div className="p-6 max-w-[1600px] space-y-4">
       <FunnelRibbon stage="strategy" playId={play.id} play={play} />
       <div className="flex gap-5">
+      <ProjectRail activePlayId={play.id} />
       {/* Left: workbook */}
       <main className="flex-1 min-w-0 space-y-5">
         <Link

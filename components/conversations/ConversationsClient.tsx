@@ -20,6 +20,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn, relativeTime } from '@/lib/utils';
 import type { Lead, Thread } from '@/lib/types';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
+import { ProjectRail } from '@/components/nav/ProjectRail';
 
 interface Props {
  threads: Thread[];
@@ -151,7 +152,8 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
      <FunnelRibbon stage="conversations" playId={playId} />
     </div>
    ) : null}
-   <div className="flex-1 flex min-h-0 overflow-hidden">
+   <div className="flex-1 flex min-h-0 overflow-hidden gap-4 p-4">
+    <ProjectRail activePlayId={playId} />
    {/* Pane 1 — thread list */}
    <aside className="w-[340px] shrink-0 bg-evari-carbon flex flex-col">
     <div className="px-4 py-3 flex items-center justify-between">
