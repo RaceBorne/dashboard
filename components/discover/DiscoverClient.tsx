@@ -5,6 +5,7 @@ import {
   Building2,
   BadgeCheck,
   Check,
+  ChevronDown,
   Loader2,
   Search,
   Sparkles,
@@ -15,6 +16,7 @@ import {
   X,
   ArrowRight,
   ArrowUp,
+  UserSearch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
@@ -78,6 +80,10 @@ export function DiscoverClient({ plays }: Props) {
   // search, we blank the results + panel and render a centered prompt.
   const [hasSearched, setHasSearched] = useState(false);
   const [heroPrompt, setHeroPrompt] = useState('');
+
+  // Bulk select — mirrors the Save all / Find all people actions on the
+  // results header. Checkbox per row; master checkbox toggles the visible set.
+  const [companyChecked, setCompanyChecked] = useState<Set<string>>(new Set());
 
   const filtersSummary = useMemo(() => summariseFilters(filters), [filters]);
 
@@ -246,6 +252,14 @@ export function DiscoverClient({ plays }: Props) {
     return n;
   }, [emailPicksByDomain]);
 
+  const totalEmailsVisible = useMemo(() => {
+    let n = 0;
+    for (const c of cards) {
+      if (typeof c.emailCount === 'number') n += c.emailCount;
+    }
+    return n;
+  }, [cards]);
+
   async function sendToProspects() {
     if (!playId || totalPicked === 0) return;
     setSending(true);
@@ -364,30 +378,64 @@ export function DiscoverClient({ plays }: Props) {
       {hasSearched ? (
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Toolbar */}
-        <div className="h-12 shrink-0 border-b border-evari-line/40 bg-evari-surface px-4 flex items-center gap-3">
-          <div className="flex items-center gap-2 text-[12px] text-evari-dim">
-            <Search className="h-3.5 w-3.5" />
+        <div className="shrink-0 border-b border-evari-line/40 bg-evari-surface px-5 py-3 flex items-center gap-3">
+          <h2 className="text-[15px] font-semibold text-evari-text">
             {searching ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Loader2 className="h-3 w-3 animate-spin" />
+              <span className="inline-flex items-center gap-2 text-evari-dim">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Searching…
               </span>
             ) : (
-              <span>
-                {cards.length.toLocaleString()} companies
-                {source ? <span className="text-evari-dimmer"> · {source}</span> : null}
-              </span>
+              <>
+                {cards.length.toLocaleString()} companies match your filters
+              </>
             )}
-          </div>
-          <div className="flex-1 text-[11px] text-evari-dimmer truncate">{filtersSummary}</div>
+          </h2>
+          <div className="flex-1" />
           <button
             type="button"
             onClick={() => void doSearch(filters)}
             disabled={searching}
-            className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 px-2.5 py-1 text-[11px] text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-40"
+            title="Re-run with current filters"
           >
             <Sparkles className="h-3 w-3" />
             Rerun
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const next = new Set(companyChecked);
+              if (next.size === cards.length) next.clear();
+              else for (const c of cards) next.add(c.domain);
+              setCompanyChecked(next);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-text hover:bg-evari-surface/80"
+          >
+            {companyChecked.size > 0 && companyChecked.size === cards.length
+              ? 'Unselect all'
+              : companyChecked.size > 0
+                ? `${companyChecked.size} selected`
+                : 'Save all companies'}
+            <ChevronDown className="h-3 w-3 text-evari-dimmer" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              // "Find all people" — pre-select every known email across all
+              // visible companies, so the operator can send them in one click.
+              const next = new Map<string, Set<string>>();
+              for (const c of cards) {
+                const co = companyByDomain.get(c.domain);
+                const emails = (co?.emails ?? []).map((e) => e.address);
+                if (emails.length > 0) next.set(c.domain, new Set(emails));
+              }
+              setEmailPicksByDomain(next);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-evari-accent px-3 py-1.5 text-[12px] font-medium text-evari-ink hover:bg-evari-accent/90"
+          >
+            <UserSearch className="h-3 w-3" />
+            Find all people · {totalEmailsVisible} results
           </button>
         </div>
 
@@ -464,60 +512,88 @@ export function DiscoverClient({ plays }: Props) {
           <ul className="divide-y divide-evari-line/30">
             {cards.map((c) => {
               const picks = emailPicksByDomain.get(c.domain);
+              const checked = companyChecked.has(c.domain);
               return (
                 <li
                   key={c.domain}
                   className={cn(
-                    'flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors',
+                    'group flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors',
                     selected === c.domain
                       ? 'bg-evari-surfaceSoft'
                       : 'hover:bg-evari-surface/60',
                   )}
                   onClick={() => void selectCard(c.domain)}
                 >
-                  <div className="h-8 w-8 shrink-0 rounded-md bg-evari-surfaceSoft flex items-center justify-center overflow-hidden">
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCompanyChecked((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(c.domain)) next.delete(c.domain);
+                        else next.add(c.domain);
+                        return next;
+                      });
+                    }}
+                    className={cn(
+                      'h-4 w-4 shrink-0 rounded-[4px] border flex items-center justify-center transition-colors',
+                      checked
+                        ? 'bg-evari-accent border-evari-accent'
+                        : 'border-evari-dimmer group-hover:border-evari-dim',
+                    )}
+                  >
+                    {checked ? <Check className="h-2.5 w-2.5 text-evari-ink" /> : null}
+                  </span>
+                  <div className="h-11 w-11 shrink-0 rounded-md bg-evari-surfaceSoft border border-evari-line/30 flex items-center justify-center overflow-hidden">
                     {c.logoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={c.logoUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
-                      <Building2 className="h-4 w-4 text-evari-dimmer" />
+                      <Building2 className="h-5 w-5 text-evari-dimmer" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[12px] font-medium text-evari-text truncate">
+                    <div className="flex items-baseline gap-2 min-w-0">
+                      <span className="text-[14px] font-semibold text-evari-text truncate">
                         {c.name}
                       </span>
+                      <span className="text-[12px] text-evari-dimmer truncate">
+                        {c.domain}
+                      </span>
                       {c.enriched ? (
-                        <BadgeCheck className="h-3 w-3 text-evari-success shrink-0" />
+                        <BadgeCheck className="h-3.5 w-3.5 text-evari-success shrink-0" />
                       ) : null}
                     </div>
-                    <div className="flex items-center gap-3 text-[10px] text-evari-dimmer">
-                      <span className="truncate">{c.domain}</span>
-                      {c.category ? <span className="truncate">· {c.category}</span> : null}
-                      {c.hqLabel ? (
-                        <span className="inline-flex items-center gap-0.5">
-                          · <MapPin className="h-2.5 w-2.5" /> {c.hqLabel}
+                    <div className="flex items-center gap-4 text-[11px] text-evari-dim mt-1">
+                      {c.employeeBand ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Users2 className="h-3 w-3 text-evari-dimmer" />
+                          {c.employeeBand}
                         </span>
                       ) : null}
-                      {c.employeeBand ? (
-                        <span className="inline-flex items-center gap-0.5">
-                          · <Users2 className="h-2.5 w-2.5" /> {c.employeeBand}
+                      {c.category ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Building2 className="h-3 w-3 text-evari-dimmer" />
+                          {c.category}
+                        </span>
+                      ) : null}
+                      {c.hqLabel ? (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-evari-dimmer" />
+                          {c.hqLabel}
                         </span>
                       ) : null}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-evari-dim">
-                    {typeof c.emailCount === 'number' && c.emailCount > 0 ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        {c.emailCount}
+                  <div className="flex items-center gap-2">
+                    {picks && picks.size > 0 ? (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-evari-accent/15 text-evari-accent px-2 py-1 text-[11px] font-medium">
+                        <Check className="h-3 w-3" />
+                        {picks.size} picked
                       </span>
                     ) : null}
-                    {picks && picks.size > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-evari-accent">
-                        <Check className="h-3 w-3" />
-                        {picks.size}
+                    {typeof c.emailCount === 'number' && c.emailCount > 0 ? (
+                      <span className="inline-flex items-center rounded-md bg-evari-surfaceSoft/70 text-evari-dim px-2.5 py-1 text-[11px]">
+                        {c.emailCount} email{c.emailCount === 1 ? ' address' : ' addresses'}
                       </span>
                     ) : null}
                   </div>
