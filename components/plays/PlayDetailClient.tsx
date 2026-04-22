@@ -391,7 +391,7 @@ export function PlayDetailClient({
   const scope = play.scope;
 
   return (
-    <div className="flex flex-col gap-3 p-4 max-w-[1600px]">
+    <div className="flex flex-col gap-3 p-6 max-w-[1600px]">
       <FunnelRibbon stage="strategy" playId={play.id} play={play} />
       <div className="flex gap-5">
       <ProjectRail activePlayId={play.id} />

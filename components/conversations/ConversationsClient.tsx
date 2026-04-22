@@ -135,7 +135,7 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
  }
 
  return (
-  <div className="flex flex-col gap-3 p-4 flex-1 min-h-0 overflow-hidden bg-evari-ink">
+  <div className="flex flex-col gap-3 p-6 flex-1 min-h-0 overflow-hidden bg-evari-ink">
    <FunnelRibbon stage="conversations" playId={playId ?? ''} />
    <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
     <ProjectRail activePlayId={playId} />
