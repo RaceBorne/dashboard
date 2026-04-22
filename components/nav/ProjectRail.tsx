@@ -6,17 +6,18 @@
  * Leads, Conversations).
  *
  * Every stage is scoped to a single project. This rail is how you pick
- * which project you're looking at. Clicking a project preserves the
+ * which project you are looking at. Clicking a project preserves the
  * current stage, so switching projects on /prospects stays on /prospects
  * with a new ?playId.
  *
- * Replaces the old per-page "Folders" column — a play is now the
- * top-level grouping for all CRM rows.
+ * Collapsible: mirrors AppSidebar exactly. w-14 icon-only / w-[260px]
+ * full layout, persisted via localStorage so it stays where the user
+ * left it. Default is expanded so first-time users see project titles.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { Plus, Loader2, Rocket } from 'lucide-react';
+import { Plus, Loader2, Rocket, PanelLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type PlayLite = { id: string; title: string; updatedAt: string };
@@ -29,6 +30,8 @@ const STAGE_PATHS = [
   '/leads',
   '/conversations',
 ] as const;
+
+const LS_KEY = 'evari.project-rail.collapsed';
 
 interface Props {
   /**
@@ -45,8 +48,33 @@ export function ProjectRail({ activePlayId, className }: Props) {
   const searchParams = useSearchParams();
   const [plays, setPlays] = useState<PlayLite[] | null>(null);
   const [creating, setCreating] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
-  // Figure out which play is selected from the URL if the caller didn't
+  // Hydrate collapsed state from localStorage on mount.
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(LS_KEY);
+      if (v === '1') setCollapsed(true);
+    } catch {
+      // localStorage unavailable — default to expanded.
+    }
+    setHydrated(true);
+  }, []);
+
+  // Persist when it changes.
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(LS_KEY, collapsed ? '1' : '0');
+    } catch {
+      // Non-fatal.
+    }
+  }, [collapsed, hydrated]);
+
+  const toggle = useCallback(() => setCollapsed((c) => !c), []);
+
+  // Figure out which play is selected from the URL if the caller did not
   // pass one in.
   const resolvedActiveId = useMemo(() => {
     if (activePlayId !== undefined) return activePlayId;
@@ -55,7 +83,7 @@ export function ProjectRail({ activePlayId, className }: Props) {
     return searchParams?.get('playId') ?? null;
   }, [activePlayId, pathname, searchParams]);
 
-  // If we're on a stage page we build project links that preserve the
+  // If we are on a stage page we build project links that preserve the
   // current stage — clicking a project on /prospects lands on
   // /prospects?playId=<new>.
   const currentStagePath = useMemo(() => {
@@ -125,29 +153,71 @@ export function ProjectRail({ activePlayId, className }: Props) {
   return (
     <aside
       className={cn(
-        'w-[260px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col',
+        'shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col transition-[width] duration-200 ease-out',
+        collapsed ? 'w-14' : 'w-[260px]',
         className,
       )}
+      aria-label="Projects"
     >
-      <div className="px-4 pt-3 pb-2 text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
-        Projects
+      {/* Header: section label (when expanded) + collapse toggle */}
+      <div
+        className={cn(
+          'pt-3 pb-2 flex items-center',
+          collapsed ? 'px-2 justify-center' : 'px-4 justify-between gap-2',
+        )}
+      >
+        {!collapsed ? (
+          <span className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
+            Projects
+          </span>
+        ) : null}
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={collapsed ? 'Expand projects' : 'Collapse projects'}
+          title={collapsed ? 'Expand projects' : 'Collapse projects'}
+          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft/60 transition-colors"
+        >
+          <PanelLeft className="h-4 w-4" />
+        </button>
       </div>
-      <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
+
+      {/* Project list */}
+      <div
+        className={cn(
+          'flex-1 overflow-y-auto pb-2 space-y-0.5',
+          collapsed ? 'px-1.5' : 'px-2',
+        )}
+      >
         {plays === null ? (
-          <div className="px-3 py-2 text-[11px] text-evari-dimmer">Loading…</div>
+          collapsed ? (
+            <div className="px-1 py-2 flex justify-center">
+              <Loader2 className="h-4 w-4 animate-spin text-evari-dimmer" />
+            </div>
+          ) : (
+            <div className="px-3 py-2 text-[11px] text-evari-dimmer">Loading…</div>
+          )
         ) : plays.length === 0 ? (
-          <div className="px-3 py-2 text-[11px] text-evari-dimmer">
-            No projects yet. Create one below.
-          </div>
+          collapsed ? null : (
+            <div className="px-3 py-2 text-[11px] text-evari-dimmer">
+              No projects yet. Create one below.
+            </div>
+          )
         ) : (
           plays.map((play) => {
             const active = resolvedActiveId === play.id;
+            const title = play.title || 'Untitled strategy';
             return (
               <Link
                 key={play.id}
                 href={projectHref(play.id)}
+                title={collapsed ? title : undefined}
+                aria-label={collapsed ? title : undefined}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors',
+                  'flex items-center rounded-md text-sm transition-colors',
+                  collapsed
+                    ? 'justify-center h-9 w-9 mx-auto'
+                    : 'gap-2.5 px-3 py-1.5',
                   active
                     ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                     : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
@@ -159,21 +229,33 @@ export function ProjectRail({ activePlayId, className }: Props) {
                     active ? 'text-evari-gold' : 'text-evari-dimmer',
                   )}
                 />
-                <span className="flex-1 truncate">
-                  {play.title || 'Untitled strategy'}
-                </span>
+                {!collapsed ? (
+                  <span className="flex-1 truncate">{title}</span>
+                ) : null}
               </Link>
             );
           })
         )}
       </div>
-      <div className="border-t border-evari-line/40 p-2">
+
+      {/* Footer: New project */}
+      <div
+        className={cn(
+          'border-t border-evari-line/40',
+          collapsed ? 'p-1.5' : 'p-2',
+        )}
+      >
         <button
           type="button"
           onClick={() => void createProject()}
           disabled={creating}
+          title={collapsed ? (creating ? 'Creating…' : 'New project') : undefined}
+          aria-label={collapsed ? 'New project' : undefined}
           className={cn(
-            'flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm w-full text-left transition-colors',
+            'flex items-center rounded-md text-sm w-full transition-colors',
+            collapsed
+              ? 'justify-center h-9 w-9 mx-auto'
+              : 'gap-2.5 px-3 py-1.5 text-left',
             creating
               ? 'text-evari-dimmer cursor-wait'
               : 'text-evari-dim hover:bg-evari-surfaceSoft hover:text-evari-text',
@@ -184,9 +266,11 @@ export function ProjectRail({ activePlayId, className }: Props) {
           ) : (
             <Plus className="h-4 w-4 shrink-0 text-evari-dimmer" />
           )}
-          <span className="flex-1">
-            {creating ? 'Creating…' : 'New project'}
-          </span>
+          {!collapsed ? (
+            <span className="flex-1">
+              {creating ? 'Creating…' : 'New project'}
+            </span>
+          ) : null}
         </button>
       </div>
     </aside>
