@@ -2,12 +2,14 @@
 
 /**
  * FunnelRibbon — the persistent "you are here" strip shown at the top of
- * every stage page inside a Venture's funnel: Ventures → Strategy →
- * Discovery → Prospects → Leads → Conversations.
+ * every stage page inside a Venture's funnel: Ventures then Strategy then
+ * Discovery then Prospects then Leads then Conversations.
  *
  * Ventures (the list) is the left-most chip. The remaining chips drill
- * into a single venture's funnel — they need a playId and render as
- * disabled spans when no venture is selected (i.e. on /ventures).
+ * into a single venture's funnel — they need a playId to navigate
+ * meaningfully. When no playId is present (we are on the list page) the
+ * downstream chips fall back to /ventures so they behave like normal
+ * links that simply keep you on the list until you pick a venture.
  *
  * The consumer can pass a pre-loaded Play object to avoid a double fetch
  * (Discover and PlayDetail already have it). When no play is passed the
@@ -31,42 +33,40 @@ interface StageDef {
   key: FunnelStage;
   label: string;
   /**
-   * Given a playId (or empty string when no venture is selected) return
-   * the route for this chip. Stages that depend on a playId return an
-   * empty string when it's missing — the ribbon renders those chips as
-   * disabled spans in that case.
+   * Given a playId (possibly empty on the list page) return the route
+   * for this chip. Stages that depend on a playId fall back to
+   * /ventures when no venture is selected — that keeps every chip a
+   * real, clickable link.
    */
   href: (playId: string) => string;
-  /** True if this chip can be navigated to without a playId. */
-  standalone?: boolean;
 }
 
 const STAGES: StageDef[] = [
-  { key: 'ventures', label: 'Ventures', href: () => '/ventures', standalone: true },
+  { key: 'ventures', label: 'Ventures', href: () => '/ventures' },
   {
     key: 'strategy',
     label: 'Strategy',
-    href: (id) => (id ? `/ventures/${id}` : ''),
+    href: (id) => (id ? `/ventures/${id}` : '/ventures'),
   },
   {
     key: 'discovery',
     label: 'Discovery',
-    href: (id) => (id ? `/discover?playId=${id}` : ''),
+    href: (id) => (id ? `/discover?playId=${id}` : '/ventures'),
   },
   {
     key: 'prospects',
     label: 'Prospects',
-    href: (id) => (id ? `/prospects?playId=${id}` : ''),
+    href: (id) => (id ? `/prospects?playId=${id}` : '/ventures'),
   },
   {
     key: 'leads',
     label: 'Leads',
-    href: (id) => (id ? `/leads?playId=${id}` : ''),
+    href: (id) => (id ? `/leads?playId=${id}` : '/ventures'),
   },
   {
     key: 'conversations',
     label: 'Conversations',
-    href: (id) => (id ? `/conversations?playId=${id}` : ''),
+    href: (id) => (id ? `/conversations?playId=${id}` : '/ventures'),
   },
 ];
 
@@ -75,7 +75,8 @@ interface Props {
   /**
    * Empty string is allowed — used on /ventures (the list page) when no
    * specific venture is selected. In that mode only the Ventures chip is
-   * active; stage-dependent chips render as muted spans.
+   * the active stage; downstream chips still render as real links (they
+   * route back to /ventures).
    */
   playId: string;
   /**
@@ -131,36 +132,22 @@ export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
             const active = idx === currentIdx;
             const passed = idx < currentIdx;
             const href = s.href(playId);
-            const disabled = !href && !s.standalone;
-            const classes = cn(
-              'inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
-              active
-                ? 'bg-evari-gold text-evari-goldInk shadow-sm'
-                : disabled
-                  ? 'text-evari-dimmer/70 cursor-not-allowed'
-                  : passed
-                    ? 'text-evari-text hover:bg-evari-surfaceSoft'
-                    : 'text-evari-dim hover:bg-evari-surfaceSoft hover:text-evari-text',
-            );
             return (
               <div key={s.key} className="flex items-center">
-                {disabled ? (
-                  <span
-                    aria-disabled="true"
-                    title="Pick a venture to continue"
-                    className={classes}
-                  >
-                    {s.label}
-                  </span>
-                ) : (
-                  <Link
-                    href={href}
-                    aria-current={active ? 'step' : undefined}
-                    className={classes}
-                  >
-                    {s.label}
-                  </Link>
-                )}
+                <Link
+                  href={href}
+                  aria-current={active ? 'step' : undefined}
+                  className={cn(
+                    'inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
+                    active
+                      ? 'bg-evari-gold text-evari-goldInk shadow-sm'
+                      : passed
+                        ? 'text-evari-text hover:bg-evari-surfaceSoft'
+                        : 'text-evari-dim hover:bg-evari-surfaceSoft hover:text-evari-text',
+                  )}
+                >
+                  {s.label}
+                </Link>
                 {idx < STAGES.length - 1 ? (
                   <ChevronRight className="h-3 w-3 text-evari-dimmer/60 mx-0.5" />
                 ) : null}

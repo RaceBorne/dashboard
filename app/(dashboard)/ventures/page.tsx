@@ -39,19 +39,20 @@ export default async function VenturesPage() {
       />
 
       {/*
-        Layout mirrors the other stage pages: FunnelRibbon up top (Ventures
-        chip active, others disabled because no venture is selected yet),
-        then the hero, then the compact list at the bottom.
+        Layout: the original generous clearspace (p-6 + space-y-6). Ribbon
+        mounts at the top so the Ventures chip is visible in the funnel;
+        hero is the primary action; the existing ventures list lives
+        below as a smaller, secondary section.
       */}
-      <div className="flex flex-col gap-3 p-4">
+      <div className="p-6 space-y-6">
         <FunnelRibbon stage="ventures" playId="" />
 
         {/* Hero — big, the primary action on this page. */}
         <VentureHero />
 
-        {/* Existing ventures — demoted to a compact section below. */}
+        {/* Existing ventures — smaller section below the hero. */}
         {total > 0 ? (
-          <section className="space-y-3 pt-2">
+          <section className="space-y-4">
             <div className="flex items-baseline gap-2 px-1">
               <h3 className="text-[11px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
                 Your ventures
@@ -65,12 +66,12 @@ export default async function VenturesPage() {
               const items = byStage.get(s.key) ?? [];
               if (items.length === 0) return null;
               return (
-                <div key={s.key} className="space-y-1.5">
-                  <div className="flex items-center gap-2 px-1">
-                    <h4 className="text-[12px] font-medium text-evari-text capitalize">
+                <div key={s.key} className="space-y-2">
+                  <div className="flex items-center gap-3 px-1">
+                    <h4 className="text-sm font-medium text-evari-text capitalize">
                       {s.label}
                     </h4>
-                    <span className="text-[10px] text-evari-dimmer">
+                    <span className="text-[11px] text-evari-dimmer">
                       {s.hint} · {items.length}
                     </span>
                   </div>
@@ -84,7 +85,7 @@ export default async function VenturesPage() {
             })}
           </section>
         ) : (
-          <div className="px-1 pt-2 text-[12px] text-evari-dimmer">
+          <div className="px-1 text-[12px] text-evari-dimmer">
             No ventures yet. Fill in the box above to start your first one.
           </div>
         )}
