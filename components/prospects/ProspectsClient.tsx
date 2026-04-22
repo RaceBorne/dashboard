@@ -569,7 +569,7 @@ export function ProspectsClient({ initialLeads }: Props) {
   // --- Render --------------------------------------------------------------
 
   return (
-    <div className="flex flex-col gap-3 p-4 h-[calc(100vh-56px)] bg-evari-ink">
+    <div className="flex flex-col gap-[52px] px-6 pt-[52px] pb-[52px] h-[calc(100vh-56px)] bg-evari-ink">
       <FunnelRibbon stage="prospects" playId={playId ?? ''} />
       <div className="flex gap-4 flex-1 min-h-0">
       {/* Column 1: projects rail */}
