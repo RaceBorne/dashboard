@@ -623,7 +623,7 @@ export function PlayDetailClient({
                     }}
                     title={
                       strategy
-                        ? 'Find prospects in Discover seeded from this strategy.'
+                        ? 'Load up Discovery with this strategy and fire the search.'
                         : 'Commit a strategy first.'
                     }
                     className={[
@@ -634,7 +634,7 @@ export function PlayDetailClient({
                     ].join(' ')}
                   >
                     <UserSearch className="h-3 w-3" />
-                    Find prospects
+                    Load Up Discovery
                   </Link>
                 </div>
               </div>

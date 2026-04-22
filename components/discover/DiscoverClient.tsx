@@ -98,14 +98,15 @@ export function DiscoverClient({ plays }: Props) {
 
   const filtersSummary = useMemo(() => summariseFilters(filters), [filters]);
 
-  // No auto-search on mount — the pristine hero shows first. The operator
-  // triggers a search by typing filters, hitting the AI refine box, or
-  // picking a suggestion on the hero.
+  // No auto-search on mount — the pristine hero shows first for the
+  // unseeded case. The operator triggers a search by typing filters,
+  // hitting the AI refine box, or picking a suggestion on the hero.
   // --- One-shot seed from ?playId=. When the user lands on Discover from
-  //     a Play's "Find prospects" button we fetch that Play, preload its
-  //     strategyShort into the hero prompt, and pin the save-destination
-  //     play so any send-to-prospects gets the right playId. Further edits
-  //     in Discover don't flow back to the Play.
+  //     a Play's "Load Up Discovery" button we fetch that Play, preload
+  //     its strategyShort into the hero prompt, pin the save-destination
+  //     play so any send-to-prospects gets the right playId, and then
+  //     auto-fire runHero so the search streams in immediately. Further
+  //     edits in Discover don't flow back to the Play.
   const searchParams = useSearchParams();
   const seededPlayIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -122,11 +123,16 @@ export function DiscoverClient({ plays }: Props) {
           play?: { strategyShort?: string };
         };
         const short = data?.play?.strategyShort?.trim();
-        if (short) setHeroPrompt(short);
+        if (!short) return;
+        setHeroPrompt(short);
+        // Kick the Discover agent with the seeded prompt. runHero opens
+        // the save-destination picker and streams results into `cards`.
+        void runHero(short);
       } catch {
         // Non-fatal: user can still type a prompt manually.
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
 
