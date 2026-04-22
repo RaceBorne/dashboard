@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import {
   Building2,
   BadgeCheck,
@@ -27,6 +28,7 @@ import type {
   DiscoverCard,
   DiscoveredCompany,
   DiscoverFilters as DiscoverFiltersType,
+  Play,
 } from '@/lib/types';
 
 interface PlayOption {
@@ -96,6 +98,10 @@ export function DiscoverClient({ plays }: Props) {
   // effect below doesn't loop when we update it.
   const autoSavedRef = useRef<Set<string>>(new Set());
 
+  // The Play this Discover run is bound to — fetched during the seed
+  // effect so FunnelRibbon can show its title without a second fetch.
+  const [linkedPlay, setLinkedPlay] = useState<Play | null>(null);
+
   const filtersSummary = useMemo(() => summariseFilters(filters), [filters]);
 
   // No auto-search on mount — the pristine hero shows first for the
@@ -120,8 +126,9 @@ export function DiscoverClient({ plays }: Props) {
         const res = await fetch(`/api/plays/${pid}`);
         const data = (await res.json()) as {
           ok?: boolean;
-          play?: { strategyShort?: string };
+          play?: Play;
         };
+        if (data?.play) setLinkedPlay(data.play);
         const short = data?.play?.strategyShort?.trim();
         if (!short) return;
         setHeroPrompt(short);
@@ -134,6 +141,16 @@ export function DiscoverClient({ plays }: Props) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // --- Gate cold Discover. Every search must start from a Strategy, so
+  //     if the user lands without ?playId= we bounce them to /plays.
+  const router = useRouter();
+  useEffect(() => {
+    const pid = searchParams?.get('playId') ?? null;
+    if (!pid) {
+      router.replace('/plays');
+    }
+  }, [searchParams, router]);
 
 
   const doSearch = useCallback(async (f: DiscoverFiltersType) => {
@@ -537,7 +554,11 @@ export function DiscoverClient({ plays }: Props) {
   const selectedEmails = (selectedCompany?.emails ?? []).map((e) => e.address);
 
   return (
-    <div className="flex gap-4 p-4 h-[calc(100vh-56px)] bg-evari-ink">
+    <div className="flex flex-col gap-3 p-4 h-[calc(100vh-56px)] bg-evari-ink">
+      {playId ? (
+        <FunnelRibbon stage="discovery" playId={playId} play={linkedPlay} />
+      ) : null}
+      <div className="flex gap-4 flex-1 min-h-0">
       {/* Left: filters */}
       <aside className="w-[380px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
         <DiscoverFilters
@@ -938,6 +959,7 @@ export function DiscoverClient({ plays }: Props) {
           <EmptyDetailsPlaceholder onOpenPicker={() => setSaveSetupOpen(true)} hasSearched={hasSearched} />
       )}
       </section>
+      </div>
       </div>
     </div>
   );

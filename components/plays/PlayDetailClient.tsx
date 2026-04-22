@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import {
   Activity,
   ArrowLeft,
@@ -430,7 +431,9 @@ export function PlayDetailClient({
   const scope = play.scope;
 
   return (
-    <div className="flex gap-5 p-6 max-w-[1600px]">
+    <div className="p-6 max-w-[1600px] space-y-4">
+      <FunnelRibbon stage="strategy" playId={play.id} play={play} />
+      <div className="flex gap-5">
       {/* Left: workbook */}
       <main className="flex-1 min-w-0 space-y-5">
         <Link
@@ -1054,6 +1057,7 @@ export function PlayDetailClient({
           </div>
         </div>
       </aside>
+      </div>
     </div>
   );
 }
