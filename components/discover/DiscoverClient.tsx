@@ -523,11 +523,11 @@ export function DiscoverClient({ plays }: Props) {
       {hasSearched ? (
       <div
         className={cn(
-          'flex-1 min-w-0 grid gap-4 transition-[grid-template-columns] duration-500 ease-in-out',
+          'flex-1 min-w-0 h-full grid gap-4 transition-[grid-template-columns] duration-500 ease-in-out',
           selected ? 'grid-cols-[1fr_1fr]' : 'grid-cols-[1fr_0fr]',
         )}
       >
-      <main className="min-w-0 rounded-xl bg-evari-surface flex flex-col overflow-hidden">
+      <main className="min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="shrink-0 border-b border-evari-line/30 px-5 py-3 flex items-center gap-3">
           <h2 className="text-[15px] font-semibold text-evari-text">
@@ -694,12 +694,12 @@ export function DiscoverClient({ plays }: Props) {
                   >
                     {checked ? <Check className="h-2.5 w-2.5 text-evari-ink" /> : null}
                   </span>
-                  <div className="h-11 w-11 shrink-0 rounded-md bg-evari-surfaceSoft border border-evari-line/40 flex items-center justify-center overflow-hidden">
+                  <div className="h-11 w-11 shrink-0 rounded-md bg-white border border-evari-line/40 flex items-center justify-center overflow-hidden p-1">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={c.logoUrl ?? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(c.domain)}&sz=128`}
                       alt=""
-                      className={c.logoUrl ? 'h-full w-full object-cover' : 'h-6 w-6 object-contain'}
+                      className="max-h-full max-w-full object-contain"
                     />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -754,7 +754,7 @@ export function DiscoverClient({ plays }: Props) {
           </ul>
         </div>
       </main>
-      <section className="min-w-0 rounded-xl bg-evari-surface overflow-hidden">
+      <section className="min-w-0 h-full rounded-xl bg-evari-surface overflow-hidden">
         <div
           className={cn(
             'h-full transition-transform duration-500 ease-in-out',
@@ -763,6 +763,7 @@ export function DiscoverClient({ plays }: Props) {
         >
         {selected ? (
           <CompanyPanel
+            key={selected}
             domain={selected}
             company={selectedCompany}
             loading={enrichingDomain === selected}
