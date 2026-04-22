@@ -521,13 +521,13 @@ export function DiscoverClient({ plays }: Props) {
           column collapses to 0fr; on selection it expands to 1fr and the
           detail panel translates in from the right. */}
       {hasSearched ? (
-      <div
+      <div className="flex-1 min-w-0 h-full flex gap-4">
+      <main
         className={cn(
-          'flex-1 min-w-0 h-full grid gap-4 transition-[grid-template-columns] duration-500 ease-in-out',
-          selected ? 'grid-cols-[1fr_1fr]' : 'grid-cols-[1fr_0fr]',
+          'min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden transition-[flex-basis] duration-300 ease-in-out',
+          selected ? 'basis-1/2 flex-1' : 'basis-full flex-1',
         )}
       >
-      <main className="min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="shrink-0 border-b border-evari-line/30 px-5 py-3 flex items-center gap-3">
           <h2 className="text-[15px] font-semibold text-evari-text">
@@ -754,14 +754,8 @@ export function DiscoverClient({ plays }: Props) {
           </ul>
         </div>
       </main>
-      <section className="min-w-0 h-full rounded-xl bg-evari-surface overflow-hidden">
-        <div
-          className={cn(
-            'h-full transition-transform duration-500 ease-in-out',
-            selected ? 'translate-x-0' : 'translate-x-full',
-          )}
-        >
-        {selected ? (
+      {selected ? (
+      <section className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface overflow-hidden">
           <CompanyPanel
             key={selected}
             domain={selected}
@@ -797,16 +791,8 @@ export function DiscoverClient({ plays }: Props) {
               ) : null
             }
           />
-        ) : (
-          <div className="h-full flex items-center justify-center px-10">
-            <div className="text-center text-[12px] text-evari-dimmer">
-              <Building2 className="h-6 w-6 mx-auto mb-2 opacity-40" />
-              Pick a company to see details, emails, and signals.
-            </div>
-          </div>
-        )}
-        </div>
       </section>
+      ) : null}
       </div>
       ) : null}
     </div>
