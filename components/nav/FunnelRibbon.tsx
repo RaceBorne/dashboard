@@ -2,12 +2,12 @@
 
 /**
  * FunnelRibbon — the persistent "you are here" strip shown at the top of
- * every stage page inside a Play's funnel: Strategy → Discovery → Prospects
- * → Leads → Conversations.
+ * every stage page inside a Venture's funnel: Ventures → Strategy →
+ * Discovery → Prospects → Leads → Conversations.
  *
- * Each stage narrows the previous, and every stage page operates on the
- * subset that belongs to the given play. The ribbon makes that hierarchy
- * visible and one-click navigable.
+ * Ventures (the list) is the left-most chip. The remaining chips drill
+ * into a single venture's funnel — they need a playId and render as
+ * disabled spans when no venture is selected (i.e. on /ventures).
  *
  * The consumer can pass a pre-loaded Play object to avoid a double fetch
  * (Discover and PlayDetail already have it). When no play is passed the
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import type { Play } from '@/lib/types';
 
 export type FunnelStage =
+  | 'ventures'
   | 'strategy'
   | 'discovery'
   | 'prospects'
@@ -29,23 +30,53 @@ export type FunnelStage =
 interface StageDef {
   key: FunnelStage;
   label: string;
+  /**
+   * Given a playId (or empty string when no venture is selected) return
+   * the route for this chip. Stages that depend on a playId return an
+   * empty string when it's missing — the ribbon renders those chips as
+   * disabled spans in that case.
+   */
   href: (playId: string) => string;
+  /** True if this chip can be navigated to without a playId. */
+  standalone?: boolean;
 }
 
 const STAGES: StageDef[] = [
-  { key: 'strategy', label: 'Strategy', href: (id) => `/ventures/${id}` },
-  { key: 'discovery', label: 'Discovery', href: (id) => `/discover?playId=${id}` },
-  { key: 'prospects', label: 'Prospects', href: (id) => `/prospects?playId=${id}` },
-  { key: 'leads', label: 'Leads', href: (id) => `/leads?playId=${id}` },
+  { key: 'ventures', label: 'Ventures', href: () => '/ventures', standalone: true },
+  {
+    key: 'strategy',
+    label: 'Strategy',
+    href: (id) => (id ? `/ventures/${id}` : ''),
+  },
+  {
+    key: 'discovery',
+    label: 'Discovery',
+    href: (id) => (id ? `/discover?playId=${id}` : ''),
+  },
+  {
+    key: 'prospects',
+    label: 'Prospects',
+    href: (id) => (id ? `/prospects?playId=${id}` : ''),
+  },
+  {
+    key: 'leads',
+    label: 'Leads',
+    href: (id) => (id ? `/leads?playId=${id}` : ''),
+  },
   {
     key: 'conversations',
     label: 'Conversations',
-    href: (id) => `/conversations?playId=${id}`,
+    href: (id) => (id ? `/conversations?playId=${id}` : ''),
   },
 ];
 
 interface Props {
   stage: FunnelStage;
+  /**
+   * Empty string is allowed — used on /ventures (the list page) when no
+   * specific venture is selected. In that mode only the Ventures chip is
+   * active; stage-dependent chips render as muted spans.
+   */
   playId: string;
   /**
    * Optional pre-loaded Play. When omitted the ribbon fetches the play
@@ -77,16 +108,19 @@ export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
   }, [playId, play]);
 
   const currentIdx = STAGES.findIndex((s) => s.key === stage);
+  const onList = stage === 'ventures' || !playId;
 
   return (
     <div className="shrink-0 rounded-xl bg-evari-surface border border-evari-line/40 px-4 h-[52px] flex items-center">
       <div className="flex items-center justify-between gap-4 w-full">
         <div className="min-w-0 flex-1 flex items-baseline gap-2">
           <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium shrink-0">
-            Venture
+            {onList ? 'Module' : 'Venture'}
           </span>
           <span className="text-[13px] font-semibold text-evari-text truncate">
-            {play?.title ?? (playId ? 'Loading venture…' : 'No venture linked')}
+            {onList
+              ? 'All ventures'
+              : (play?.title ?? (playId ? 'Loading venture…' : 'No venture linked'))}
           </span>
         </div>
         <nav
@@ -96,22 +130,37 @@ export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
           {STAGES.map((s, idx) => {
             const active = idx === currentIdx;
             const passed = idx < currentIdx;
+            const href = s.href(playId);
+            const disabled = !href && !s.standalone;
+            const classes = cn(
+              'inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
+              active
+                ? 'bg-evari-gold text-evari-goldInk shadow-sm'
+                : disabled
+                  ? 'text-evari-dimmer/70 cursor-not-allowed'
+                  : passed
+                    ? 'text-evari-text hover:bg-evari-surfaceSoft'
+                    : 'text-evari-dim hover:bg-evari-surfaceSoft hover:text-evari-text',
+            );
             return (
               <div key={s.key} className="flex items-center">
-                <Link
-                  href={s.href(playId)}
-                  aria-current={active ? 'step' : undefined}
-                  className={cn(
-                    'inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
-                    active
-                      ? 'bg-evari-gold text-evari-goldInk shadow-sm'
-                      : passed
-                        ? 'text-evari-text hover:bg-evari-surfaceSoft'
-                        : 'text-evari-dim hover:bg-evari-surfaceSoft hover:text-evari-text',
-                  )}
-                >
-                  {s.label}
-                </Link>
+                {disabled ? (
+                  <span
+                    aria-disabled="true"
+                    title="Pick a venture to continue"
+                    className={classes}
+                  >
+                    {s.label}
+                  </span>
+                ) : (
+                  <Link
+                    href={href}
+                    aria-current={active ? 'step' : undefined}
+                    className={classes}
+                  >
+                    {s.label}
+                  </Link>
+                )}
                 {idx < STAGES.length - 1 ? (
                   <ChevronRight className="h-3 w-3 text-evari-dimmer/60 mx-0.5" />
                 ) : null}
