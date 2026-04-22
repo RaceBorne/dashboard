@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
+  Compass,
   Inbox,
   MessageSquare,
   TrendingUp,
@@ -30,6 +31,7 @@ const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
   { href: '/plays', label: 'Strategy', icon: Rocket, group: 'pipeline' },
+  { href: '/discover', label: 'Discover', icon: Compass, group: 'pipeline' },
   { href: '/prospects', label: 'Prospects', icon: Flag, group: 'pipeline' },
   { href: '/leads', label: 'Leads', icon: Inbox, group: 'pipeline' },
   { href: '/conversations', label: 'Conversations', icon: MessageSquare, group: 'pipeline' },

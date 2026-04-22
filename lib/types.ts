@@ -1021,3 +1021,134 @@ export interface IntegrationStatus {
   /** Individual scopes / sub-APIs that come with this connection. */
   capabilities?: IntegrationCapability[];
 }
+
+// ---------------------------------------------------------------------------
+// Discover — second pipeline surface for finding companies + emails without
+// a Play. Rows cache under dashboard_discovered_companies, keyed on domain.
+// ---------------------------------------------------------------------------
+
+export interface DiscoverHQ {
+  city?: string;
+  region?: string;
+  country?: string;
+  /** Full human-readable address when we have one. */
+  full?: string;
+}
+
+export interface DiscoverSocials {
+  linkedin?: string;
+  facebook?: string;
+  instagram?: string;
+  twitter?: string;
+  youtube?: string;
+  tiktok?: string;
+}
+
+export type DiscoverSignalType =
+  | 'hire'
+  | 'news'
+  | 'event'
+  | 'launch'
+  | 'hiring'
+  | 'investment'
+  | 'press'
+  | 'other';
+
+export interface DiscoverSignal {
+  type: DiscoverSignalType;
+  title: string;
+  url?: string;
+  /** ISO date when known. */
+  date?: string;
+  summary?: string;
+}
+
+export type DiscoverEmailBucket = 'support' | 'sales' | 'media' | 'generic' | 'personal';
+
+export interface DiscoverEmail {
+  address: string;
+  bucket?: DiscoverEmailBucket;
+  /** Optional display label ("Support", "Accounts", ...) */
+  label?: string;
+  /** Named person tied to the address when we know one. */
+  name?: string;
+  jobTitle?: string;
+  source?: 'scraped' | 'mailto' | 'inferred' | 'ai';
+  confidence?: 'high' | 'medium' | 'low';
+  sourceUrl?: string;
+  /** How many places on the open web we saw this address. */
+  sourceCount?: number;
+  /** True once an SMTP/provider check has been run. */
+  verified?: boolean;
+}
+
+export interface DiscoveredCompany {
+  /** Primary key. Lowercased, no protocol, no www. e.g. "e-typeclub.com". */
+  domain: string;
+  name: string;
+  description?: string;
+  logoUrl?: string;
+  /** Industry / category label shown on the card ("Sports Teams and Clubs"). */
+  category?: string;
+  /** Our own orgType taxonomy (matches OrgProfile.orgType). */
+  orgType?: 'corporation' | 'club' | 'nonprofit' | 'practice' | 'other';
+  /** Headcount band as a human-readable string ("11-50", "201-500"). */
+  employeeBand?: string;
+  /** Best-guess exact headcount when we have it. */
+  employeeCount?: number;
+  foundedYear?: number;
+  hq?: DiscoverHQ;
+  phone?: string;
+  socials?: DiscoverSocials;
+  technologies?: string[];
+  signals?: DiscoverSignal[];
+  emails?: DiscoverEmail[];
+  /** Arbitrary keyword tags (used for filtering + similarity). */
+  keywords?: string[];
+  /** URLs we pulled enrichment data from. */
+  sources?: string[];
+  /** ISO timestamp of last enrichment. */
+  enrichedAt?: string;
+}
+
+/**
+ * Filter state for /discover. Each filter group uses include/exclude chips.
+ * Mirrors the left column of the reference UI.
+ */
+export interface DiscoverFilterGroup {
+  include: string[];
+  exclude: string[];
+}
+
+export interface DiscoverFilters {
+  location?: DiscoverFilterGroup;
+  industry?: DiscoverFilterGroup;
+  keywords?: DiscoverFilterGroup;
+  companyName?: DiscoverFilterGroup;
+  companyType?: DiscoverFilterGroup;
+  /** "Find companies like these" — list of seed domains. */
+  similarTo?: string[];
+  /** Headcount band filter. Any match if empty. */
+  sizeBands?: string[];
+  /** Year-founded window. */
+  foundedYearMin?: number;
+  foundedYearMax?: number;
+  /** Required technologies ("Shopify", "HubSpot", ...). */
+  technologies?: string[];
+  /** Only companies we've already saved to the pool. */
+  savedOnly?: boolean;
+}
+
+/** Thin company card row returned by /api/discover/search. */
+export interface DiscoverCard {
+  domain: string;
+  name: string;
+  logoUrl?: string;
+  category?: string;
+  employeeBand?: string;
+  hqLabel?: string;
+  /** Whether we have a cached enrichment (so the right panel can paint instantly). */
+  enriched?: boolean;
+  /** Count of known emails, to show on the card. */
+  emailCount?: number;
+}
