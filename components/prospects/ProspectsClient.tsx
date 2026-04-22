@@ -30,6 +30,7 @@ import {
   Users2,
   Briefcase,
   Mail,
+  MailSearch,
   ShieldCheck,
   ShieldAlert,
   Phone,
@@ -87,6 +88,13 @@ export function ProspectsClient({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [synopsisLoading, setSynopsisLoading] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set());
+  const [huntProspectId, setHuntProspectId] = useState<string | null>(null);
+  const [huntLoading, setHuntLoading] = useState(false);
+  const [huntLog, setHuntLog] = useState<string[]>([]);
+  const [huntCandidates, setHuntCandidates] = useState<HuntCandidate[]>([]);
+  const [huntSelected, setHuntSelected] = useState<Set<string>>(new Set());
+  const [huntError, setHuntError] = useState<string | null>(null);
+  const [huntAppending, setHuntAppending] = useState(false);
   const [contactsLoading, setContactsLoading] = useState<Set<string>>(new Set());
   const [contactPhase, setContactPhase] = useState<Record<string, string>>({});
   const [contactAttempted, setContactAttempted] = useState<Set<string>>(new Set());
@@ -626,6 +634,164 @@ export function ProspectsClient({
     }
   }
 
+  async function huntContactsFor(p: Prospect) {
+    setHuntProspectId(p.id);
+    setHuntLoading(true);
+    setHuntLog(['starting contact hunt…']);
+    setHuntCandidates([]);
+    setHuntSelected(new Set());
+    setHuntError(null);
+
+    try {
+      const res = await fetch('/api/leads/' + p.id + '/hunt-contacts', {
+        method: 'POST',
+      });
+      if (!res.ok || !res.body) {
+        throw new Error('hunt failed ' + res.status);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split('\n\n');
+        buf = events.pop() ?? '';
+        for (const raw of events) {
+          const line = raw.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          let evt: Record<string, unknown>;
+          try {
+            evt = JSON.parse(payload);
+          } catch {
+            continue;
+          }
+          const phase = String(evt.phase ?? '');
+          if (phase === 'planning') {
+            setHuntLog((prev) => [...prev, 'planning searches…']);
+          } else if (phase === 'searching') {
+            const q = typeof evt.query === 'string' ? evt.query : '';
+            setHuntLog((prev) => [...prev, 'searching: ' + q]);
+          } else if (phase === 'search-done') {
+            const q = typeof evt.query === 'string' ? evt.query : '';
+            const hits = typeof evt.hits === 'number' ? evt.hits : undefined;
+            setHuntLog((prev) => [
+              ...prev,
+              '  → ' + (hits !== undefined ? hits + ' hits' : 'done') + ' · ' + q,
+            ]);
+          } else if (phase === 'fetching') {
+            const u = typeof evt.url === 'string' ? evt.url : '';
+            setHuntLog((prev) => [...prev, 'fetching ' + shortPath(u)]);
+          } else if (phase === 'all-searches-done') {
+            setHuntLog((prev) => [...prev, 'scoring candidates…']);
+          } else if (phase === 'done') {
+            const candidates = Array.isArray(evt.candidates)
+              ? (evt.candidates as HuntCandidate[])
+              : [];
+            setHuntCandidates(candidates);
+            // Select every candidate by default — operator can uncheck.
+            setHuntSelected(
+              new Set(candidates.map((c) => candidateKey(c)).filter((k) => k)),
+            );
+            setHuntLog((prev) => [
+              ...prev,
+              'done · ' + candidates.length + ' candidate' + (candidates.length === 1 ? '' : 's'),
+            ]);
+          } else if (phase === 'error') {
+            const msg = typeof evt.message === 'string' ? evt.message : 'failed';
+            setHuntError(msg);
+            setHuntLog((prev) => [...prev, 'error: ' + msg]);
+          }
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Hunt failed';
+      setHuntError(msg);
+      setHuntLog((prev) => [...prev, 'error: ' + msg]);
+    } finally {
+      setHuntLoading(false);
+    }
+  }
+
+  function toggleHuntPick(key: string) {
+    setHuntSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  async function appendHuntedContacts() {
+    const pid = huntProspectId;
+    if (!pid) return;
+    const picked = huntCandidates.filter((c) =>
+      huntSelected.has(candidateKey(c)),
+    );
+    if (picked.length === 0) {
+      closeHuntModal();
+      return;
+    }
+    setHuntAppending(true);
+    try {
+      const res = await fetch('/api/leads/' + pid + '/append-contacts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contacts: picked.map((c) => ({
+            name: c.name || c.email || 'Unknown',
+            jobTitle: c.jobTitle,
+            email: c.email,
+            emailSource: c.email ? 'scraped' : undefined,
+            confidence: c.confidence ?? 'medium',
+            sourceUrl: c.sourceUrl,
+          })),
+          sourceNote: 'open-web hunt',
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        contacts?: CompanyContact[];
+        error?: string;
+      };
+      if (!data.ok) throw new Error(data.error || 'append failed');
+      const contacts = Array.isArray(data.contacts) ? data.contacts : [];
+      setProspects((prev) =>
+        prev.map((x) =>
+          x.id === pid
+            ? {
+                ...x,
+                orgProfile: {
+                  ...(x.orgProfile ?? { generatedAt: new Date().toISOString() }),
+                  contacts,
+                  contactsEnrichedAt: new Date().toISOString(),
+                },
+              }
+            : x,
+        ),
+      );
+      closeHuntModal();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Append failed';
+      setHuntError(msg);
+    } finally {
+      setHuntAppending(false);
+    }
+  }
+
+  function closeHuntModal() {
+    setHuntProspectId(null);
+    setHuntCandidates([]);
+    setHuntSelected(new Set());
+    setHuntLog([]);
+    setHuntError(null);
+    setHuntLoading(false);
+    setHuntAppending(false);
+  }
+
   const allSelected = activeStatuses.size === STATUSES.length;
   const noneSelected = activeStatuses.size === 0;
 
@@ -992,6 +1158,25 @@ export function ProspectsClient({
                   )}
                 </div>
                 <div className="shrink-0 flex items-center gap-1">
+                  {p.status !== 'archived' && p.status !== 'bounced' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void huntContactsFor(p);
+                      }}
+                      disabled={huntLoading && huntProspectId === p.id}
+                      title="Scrape the open web for more @domain contacts"
+                    >
+                      {huntLoading && huntProspectId === p.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <MailSearch className="h-3 w-3" />
+                      )}
+                      Find contacts
+                    </Button>
+                  )}
                   {p.status !== 'qualified' &&
                     p.status !== 'archived' &&
                     p.status !== 'bounced' && (
@@ -1202,6 +1387,29 @@ export function ProspectsClient({
           </div>
         )}
       </main>
+
+      {huntProspectId && (
+        <HuntContactsModal
+          prospect={prospects.find((x) => x.id === huntProspectId) ?? null}
+          loading={huntLoading}
+          log={huntLog}
+          candidates={huntCandidates}
+          selected={huntSelected}
+          error={huntError}
+          appending={huntAppending}
+          onToggle={toggleHuntPick}
+          onClose={closeHuntModal}
+          onConfirm={() => void appendHuntedContacts()}
+          onSelectAll={() =>
+            setHuntSelected(
+              new Set(
+                huntCandidates.map((c) => candidateKey(c)).filter((k) => k),
+              ),
+            )
+          }
+          onSelectNone={() => setHuntSelected(new Set())}
+        />
+      )}
     </div>
   );
 }
@@ -1764,4 +1972,228 @@ function verifiedEmail(p: Prospect): string {
   if (!p.email) return '';
   if (p.emailInferred) return '';
   return p.email;
+}
+// ---------------------------------------------------------------------------
+// Hunt-contacts modal
+// ---------------------------------------------------------------------------
+
+interface HuntCandidate {
+  name: string;
+  jobTitle?: string;
+  email?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  sourceUrl?: string;
+  sourceTitle?: string;
+  snippet?: string;
+}
+
+function candidateKey(c: HuntCandidate): string {
+  const e = (c.email ?? '').trim().toLowerCase();
+  if (e) return 'e:' + e;
+  const n = (c.name ?? '').trim().toLowerCase();
+  return n ? 'n:' + n : '';
+}
+
+function HuntContactsModal({
+  prospect,
+  loading,
+  log,
+  candidates,
+  selected,
+  error,
+  appending,
+  onToggle,
+  onClose,
+  onConfirm,
+  onSelectAll,
+  onSelectNone,
+}: {
+  prospect: Prospect | null;
+  loading: boolean;
+  log: string[];
+  candidates: HuntCandidate[];
+  selected: Set<string>;
+  error: string | null;
+  appending: boolean;
+  onToggle: (key: string) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+  onSelectAll: () => void;
+  onSelectNone: () => void;
+}) {
+  if (!prospect) return null;
+  const pickedCount = selected.size;
+  const showPicker = !loading && candidates.length > 0;
+  const showEmpty = !loading && !error && candidates.length === 0 && log.length > 1;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto p-4 py-10"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl rounded-lg bg-evari-surface border border-evari-line/40 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 p-4 border-b border-evari-line/30">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+              Open-web contact hunt
+            </div>
+            <div className="mt-0.5 text-sm font-medium text-evari-text truncate">
+              {prospect.org || prospect.name}
+            </div>
+            {prospect.companyUrl && (
+              <div className="text-[11px] font-mono text-evari-dimmer truncate">
+                {prospect.companyUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          {loading && (
+            <div className="flex items-center gap-2 text-[12px] text-evari-dim">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Hunting the open web for @domain contacts…
+            </div>
+          )}
+
+          {(loading || log.length > 0) && (
+            <div className="rounded-md bg-evari-ink/50 p-3 max-h-40 overflow-y-auto font-mono text-[11px] text-evari-dim leading-relaxed">
+              {log.map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-md bg-evari-danger/15 border border-evari-danger/40 p-3 text-[12px] text-evari-danger">
+              {error}
+            </div>
+          )}
+
+          {showEmpty && (
+            <div className="rounded-md bg-evari-surfaceSoft p-4 text-[12px] text-evari-dim text-center">
+              No new @domain contacts turned up on the open web. The AI couldn\'t find named addresses that weren\'t already in your list.
+            </div>
+          )}
+
+          {showPicker && (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] text-evari-dim">
+                  Found {candidates.length} candidate{candidates.length === 1 ? '' : 's'} · {pickedCount} picked
+                </div>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={onSelectAll}
+                    className="text-evari-gold hover:text-evari-text"
+                  >
+                    All
+                  </button>
+                  <span className="text-evari-dimmer">·</span>
+                  <button
+                    type="button"
+                    onClick={onSelectNone}
+                    className="text-evari-dim hover:text-evari-text"
+                  >
+                    None
+                  </button>
+                </div>
+              </div>
+
+              <ul className="max-h-[50vh] overflow-y-auto divide-y divide-evari-line/20 rounded-md bg-evari-ink/30">
+                {candidates.map((c) => {
+                  const key = candidateKey(c);
+                  const checked = selected.has(key);
+                  return (
+                    <li
+                      key={key || c.name + c.email}
+                      className="flex items-start gap-3 p-3 hover:bg-evari-surfaceSoft/40"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => onToggle(key)}
+                        className="mt-1 h-3.5 w-3.5 accent-evari-gold"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="text-[13px] font-medium text-evari-text">
+                            {c.name || '(no name)'}
+                          </span>
+                          {c.jobTitle && (
+                            <span className="text-[11px] text-evari-dim">— {c.jobTitle}</span>
+                          )}
+                          {c.confidence && (
+                            <span className="text-[9px] uppercase tracking-wider text-evari-dimmer">
+                              {c.confidence}
+                            </span>
+                          )}
+                        </div>
+                        {c.email && (
+                          <div className="font-mono text-[11px] text-evari-gold truncate mt-0.5">
+                            {c.email}
+                          </div>
+                        )}
+                        {c.snippet && (
+                          <div className="text-[11px] text-evari-dim italic mt-1 line-clamp-2">
+                            {c.snippet}
+                          </div>
+                        )}
+                        {c.sourceUrl && (
+                          <a
+                            href={c.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1 inline-flex items-center gap-1 text-[10px] text-evari-dimmer hover:text-evari-gold"
+                          >
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            {c.sourceTitle || shortPath(c.sourceUrl)}
+                          </a>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 p-3 border-t border-evari-line/30">
+          <Button size="sm" variant="ghost" onClick={onClose} disabled={appending}>
+            Cancel
+          </Button>
+          {showPicker && (
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={onConfirm}
+              disabled={appending || pickedCount === 0}
+            >
+              {appending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+              Add {pickedCount} contact{pickedCount === 1 ? '' : 's'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
