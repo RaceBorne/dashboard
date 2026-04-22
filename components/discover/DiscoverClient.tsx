@@ -296,7 +296,7 @@ export function DiscoverClient({ plays }: Props) {
   return (
     <div className="flex h-[calc(100vh-56px)]">
       {/* Left: filters */}
-      <aside className="w-[560px] shrink-0 border-r border-evari-line/40 bg-evari-surface overflow-hidden">
+      <aside className="w-[300px] shrink-0 border-r border-evari-line/40 bg-evari-surface overflow-hidden">
         <DiscoverFilters
           filters={filters}
           onChange={(next) => {
@@ -374,9 +374,17 @@ export function DiscoverClient({ plays }: Props) {
         </div>
       ) : null}
 
-      {/* Middle: results */}
+      {/* Middle + right — animated grid. When nothing is selected the right
+          column collapses to 0fr; on selection it expands to 1fr and the
+          detail panel translates in from the right. */}
       {hasSearched ? (
-      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <div
+        className={cn(
+          'flex-1 min-w-0 grid transition-[grid-template-columns] duration-500 ease-in-out',
+          selected ? 'grid-cols-[1fr_1fr]' : 'grid-cols-[1fr_0fr]',
+        )}
+      >
+      <main className="min-w-0 flex flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="shrink-0 border-b border-evari-line/40 bg-evari-surface px-5 py-3 flex items-center gap-3">
           <h2 className="text-[15px] font-semibold text-evari-text">
@@ -603,12 +611,13 @@ export function DiscoverClient({ plays }: Props) {
           </ul>
         </div>
       </main>
-
-      ) : null}
-
-      {/* Right: detail panel */}
-      {hasSearched ? (
-      <section className="w-[480px] shrink-0">
+      <section className="min-w-0 overflow-hidden">
+        <div
+          className={cn(
+            'h-full transition-transform duration-500 ease-in-out',
+            selected ? 'translate-x-0' : 'translate-x-full',
+          )}
+        >
         {selected ? (
           <CompanyPanel
             domain={selected}
@@ -644,7 +653,9 @@ export function DiscoverClient({ plays }: Props) {
             </div>
           </div>
         )}
+        </div>
       </section>
+      </div>
       ) : null}
     </div>
   );
