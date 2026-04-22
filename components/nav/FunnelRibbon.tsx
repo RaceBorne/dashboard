@@ -33,7 +33,7 @@ interface StageDef {
 }
 
 const STAGES: StageDef[] = [
-  { key: 'strategy', label: 'Strategy', href: (id) => `/plays/${id}` },
+  { key: 'strategy', label: 'Strategy', href: (id) => `/ventures/${id}` },
   { key: 'discovery', label: 'Discovery', href: (id) => `/discover?playId=${id}` },
   { key: 'prospects', label: 'Prospects', href: (id) => `/prospects?playId=${id}` },
   { key: 'leads', label: 'Leads', href: (id) => `/leads?playId=${id}` },
@@ -83,10 +83,10 @@ export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
       <div className="flex items-center justify-between gap-4 w-full">
         <div className="min-w-0 flex-1 flex items-baseline gap-2">
           <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium shrink-0">
-            Strategy
+            Venture
           </span>
           <span className="text-[13px] font-semibold text-evari-text truncate">
-            {play?.title ?? (playId ? 'Loading strategy…' : 'No strategy linked')}
+            {play?.title ?? (playId ? 'Loading venture…' : 'No venture linked')}
           </span>
         </div>
         <nav

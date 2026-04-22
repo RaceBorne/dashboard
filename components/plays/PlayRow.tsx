@@ -181,7 +181,7 @@ export function PlayRow({ play }: Props) {
           </div>
         ) : (
           <Link
-            href={'/plays/' + play.id}
+            href={'/ventures/' + play.id}
             className="flex-1 min-w-0 rounded-md"
           >
             <div className="flex items-start justify-between gap-3 mb-1.5">
@@ -246,7 +246,7 @@ export function PlayRow({ play }: Props) {
             type="button"
             onClick={handleDelete}
             disabled={busy}
-            title="Delete strategy"
+            title="Delete venture"
             className="inline-flex items-center justify-center h-7 w-7 rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft transition-colors"
           >
             <Trash2 className="h-3.5 w-3.5" />

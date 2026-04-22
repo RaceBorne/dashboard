@@ -91,9 +91,9 @@ export const DASHBOARD_MAP: DashboardSection[] = [
     ],
   },
   {
-    label: 'Pipeline',
+    label: 'Ventures',
     pages: [
-      { href: '/plays', label: 'Plays', blurb: 'Outbound campaigns you run — medical, retreat hotels, boat owners, etc.' },
+      { href: '/ventures', label: 'Ventures', blurb: 'Strategic bets you’re exploring — new products, new markets, new lead sources.' },
       { href: '/prospects', label: 'Prospects', blurb: 'Pre-lead outbound suspects being tested. Promote to leads when they bite.' },
       { href: '/leads', label: 'Leads', blurb: 'Active sales pipeline with stages, source attribution, estimated value.' },
       { href: '/conversations', label: 'Conversations', blurb: 'Gmail threads + AI-drafted replies in a three-pane viewer.' },

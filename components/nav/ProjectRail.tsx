@@ -96,7 +96,7 @@ export function ProjectRail({ activePlayId, className }: Props) {
 
   function projectHref(id: string): string {
     if (currentStagePath) return currentStagePath + '?playId=' + id;
-    return '/plays/' + id;
+    return '/ventures/' + id;
   }
 
   async function createProject() {
@@ -113,7 +113,7 @@ export function ProjectRail({ activePlayId, className }: Props) {
         id?: string;
       };
       if (body.ok && body.id) {
-        window.location.href = '/plays/' + body.id;
+        window.location.href = '/ventures/' + body.id;
       } else {
         setCreating(false);
       }

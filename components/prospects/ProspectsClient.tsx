@@ -85,7 +85,7 @@ export function ProspectsClient({ initialLeads }: Props) {
   useEffect(() => {
     if (!searchParams) return;
     if (!searchParams.get('playId')) {
-      router.replace('/plays');
+      router.replace('/ventures');
     }
   }, [searchParams, router]);
 

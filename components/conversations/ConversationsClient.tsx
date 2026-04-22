@@ -39,7 +39,7 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
  useEffect(() => {
    if (!searchParams) return;
    if (!searchParams.get('playId')) {
-     router.replace('/plays');
+     router.replace('/ventures');
    }
  }, [searchParams, router]);
 

@@ -26,12 +26,14 @@ import { useTheme } from '@/components/theme/ThemeProvider';
 
 // Pages that live inside the pipeline — used to keep the Pipeline link
 // highlighted across every stage page, not only /plays.
-const PIPELINE_PREFIXES = ['/plays', '/discover', '/prospects', '/leads', '/conversations'];
+// Every URL that counts as “inside the Ventures module”. Used to keep
+// the Ventures sidebar entry highlighted across every stage page.
+const VENTURE_PREFIXES = ['/ventures', '/plays', '/discover', '/prospects', '/leads', '/conversations'];
 
 const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
-  { href: '/plays', label: 'Pipeline', icon: Rocket, group: 'pipeline' },
+  { href: '/ventures', label: 'Ventures', icon: Rocket, group: 'pipeline' },
   { href: '/traffic', label: 'Traffic', icon: TrendingUp, group: 'web' },
   { href: '/seo', label: 'SEO Health', icon: Search, group: 'web', warn: true },
   { href: '/pages', label: 'Pages', icon: FileText, group: 'web' },
@@ -48,7 +50,7 @@ const NAV = [
 
 const GROUP_LABELS: Record<string, string> = {
   today: 'Today',
-  pipeline: 'Pipeline',
+  pipeline: 'Ventures',
   web: 'Website',
   broadcast: 'Broadcast',
   marketing: 'Marketing',
@@ -195,7 +197,7 @@ export function AppSidebar() {
               {items.map((item) => {
                 const active =
                   item.group === 'pipeline'
-                    ? PIPELINE_PREFIXES.some((px) => pathname === px || pathname.startsWith(px + '/') || pathname.startsWith(px + '?'))
+                    ? VENTURE_PREFIXES.some((px) => pathname === px || pathname.startsWith(px + '/') || pathname.startsWith(px + '?'))
                     : item.href === '/'
                       ? pathname === '/'
                       : pathname.startsWith(item.href);

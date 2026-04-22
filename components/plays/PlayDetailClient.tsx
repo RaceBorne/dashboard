@@ -6,7 +6,6 @@ import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { ProjectRail } from '@/components/nav/ProjectRail';
 import {
   Activity,
-  ArrowLeft,
   Check,
   ExternalLink,
   FileText,
@@ -396,16 +395,162 @@ export function PlayDetailClient({
       <FunnelRibbon stage="strategy" playId={play.id} play={play} />
       <div className="flex gap-5">
       <ProjectRail activePlayId={play.id} />
-      {/* Left: workbook */}
-      <main className="flex-1 min-w-0 space-y-5">
-        <Link
-          href="/plays"
-          className="inline-flex items-center gap-1 text-xs text-evari-dim hover:text-evari-text"
-        >
-          <ArrowLeft className="h-3 w-3" />
-          Back to strategy
-        </Link>
+      {/* Centre: Spitball chat — the live workspace where the venture
+          gets shaped. Moved from the right column so the primary
+          interaction sits in the middle of vision. */}
+      <main className="flex-1 min-w-0">
+        <div className="sticky top-4 rounded-xl bg-evari-surface flex flex-col max-h-[calc(100vh-80px)] min-h-[480px] overflow-hidden">
+          <div className="flex items-start gap-3 p-4 shrink-0 border-b border-evari-line/40">
+            <div className="h-8 w-8 rounded-lg bg-evari-surfaceSoft flex items-center justify-center shrink-0">
+              <Sparkles className="h-4 w-4 text-evari-dim" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-evari-text">
+                Spitball with Claude
+              </div>
+              <div className="text-[11px] text-evari-dim leading-snug">
+                Grounded in this strategy brief, research, targets and prior
+                conversation.
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void commitStrategy()}
+              disabled={committingStrategy || play.chat.length === 0}
+              title={
+                play.chat.length === 0
+                  ? 'Chat with Claude first.'
+                  : 'Commit the current chat into a structured Strategy.'
+              }
+              className="shrink-0 text-[11px] uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+            >
+              {committingStrategy ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+              Commit to strategy
+            </Button>
+            {voice.speakerSupported ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (voice.autoSpeak) voice.stopSpeaking();
+                  voice.setAutoSpeak(!voice.autoSpeak);
+                }}
+                title={
+                  voice.autoSpeak
+                    ? 'Speaker on. Click to mute.'
+                    : 'Speaker off. Click to hear replies.'
+                }
+                className={cn(
+                  'shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors',
+                  voice.autoSpeak
+                    ? 'text-evari-gold bg-evari-surfaceSoft'
+                    : 'text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft',
+                )}
+              >
+                {voice.autoSpeak ? (
+                  <Volume2 className="h-3.5 w-3.5" />
+                ) : (
+                  <VolumeX className="h-3.5 w-3.5" />
+                )}
+              </button>
+            ) : null}
+          </div>
 
+          <div
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 space-y-2"
+          >
+            {play.chat.length === 0 && (
+              <div className="text-xs text-evari-dimmer italic py-8 text-center">
+                No conversation yet. Start one below.
+              </div>
+            )}
+            {play.chat.map((m) => (
+              <ChatMessageBubble
+                key={m.id}
+                message={m}
+                isOpen={openMessageId === m.id}
+                onToggle={() =>
+                  setOpenMessageId((cur) => (cur === m.id ? null : m.id))
+                }
+                onTogglePin={() => togglePinned(m.id)}
+              />
+            ))}
+            {chatLoading && (
+              <div className="text-[11px] text-evari-dimmer italic py-2 pl-1 inline-flex items-center gap-1.5">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Claude is thinking...
+              </div>
+            )}
+          </div>
+
+          {/* Input row. shrink-0 + border-t keeps it visible at the bottom of
+              the aside no matter how long the thread grows. */}
+          <div className="shrink-0 border-t border-evari-line/40 p-3 bg-evari-surface">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder={voice.isListening ? 'Listening...' : 'Ask, draft, plan...'}
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void sendChat();
+                  }
+                }}
+                disabled={chatLoading}
+                className="flex-1"
+              />
+              {voice.isSpeaking ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={voice.stopSpeaking}
+                  title="Stop Claude from reading out loud"
+                >
+                  <VolumeX className="h-3 w-3" />
+                </Button>
+              ) : null}
+              {voice.micSupported ? (
+                <Button
+                  variant={voice.isListening ? 'primary' : 'ghost'}
+                  size="sm"
+                  onClick={toggleMic}
+                  disabled={chatLoading}
+                  title={voice.isListening ? 'Stop listening' : 'Hold a conversation out loud'}
+                  className={voice.isListening ? 'animate-pulse' : ''}
+                >
+                  {voice.isListening ? (
+                    <MicOff className="h-3 w-3" />
+                  ) : (
+                    <Mic className="h-3 w-3" />
+                  )}
+                </Button>
+              ) : null}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void sendChat()}
+                disabled={chatLoading || !chatInput.trim()}
+              >
+                {chatLoading ? (
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Send className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Right: workbook — the living artifact. Brief, strategy,
+          notes. Narrow by design so the chat stays primary. */}
+      <aside className="w-[560px] shrink-0 space-y-5">
         {/* Title + stage controls */}
         <div className="rounded-xl bg-evari-surface p-5 space-y-3">
           <div className="flex items-start justify-between gap-4">
@@ -611,158 +756,8 @@ export function PlayDetailClient({
             </section>
 
         </div>
-      </main>
-
-      {/* Right: per-play chat. Pinned to the viewport, input always visible. */}
-      <aside className="w-[420px] shrink-0">
-        <div className="sticky top-4 rounded-xl bg-evari-surface flex flex-col max-h-[calc(100vh-80px)] min-h-[480px] overflow-hidden">
-          <div className="flex items-start gap-3 p-4 shrink-0 border-b border-evari-line/40">
-            <div className="h-8 w-8 rounded-lg bg-evari-surfaceSoft flex items-center justify-center shrink-0">
-              <Sparkles className="h-4 w-4 text-evari-dim" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-evari-text">
-                Spitball with Claude
-              </div>
-              <div className="text-[11px] text-evari-dim leading-snug">
-                Grounded in this strategy brief, research, targets and prior
-                conversation.
-              </div>
-            </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => void commitStrategy()}
-              disabled={committingStrategy || play.chat.length === 0}
-              title={
-                play.chat.length === 0
-                  ? 'Chat with Claude first.'
-                  : 'Commit the current chat into a structured Strategy.'
-              }
-              className="shrink-0 text-[11px] uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
-            >
-              {committingStrategy ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Check className="h-3 w-3" />
-              )}
-              Commit to strategy
-            </Button>
-            {voice.speakerSupported ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (voice.autoSpeak) voice.stopSpeaking();
-                  voice.setAutoSpeak(!voice.autoSpeak);
-                }}
-                title={
-                  voice.autoSpeak
-                    ? 'Speaker on. Click to mute.'
-                    : 'Speaker off. Click to hear replies.'
-                }
-                className={cn(
-                  'shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors',
-                  voice.autoSpeak
-                    ? 'text-evari-gold bg-evari-surfaceSoft'
-                    : 'text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft',
-                )}
-              >
-                {voice.autoSpeak ? (
-                  <Volume2 className="h-3.5 w-3.5" />
-                ) : (
-                  <VolumeX className="h-3.5 w-3.5" />
-                )}
-              </button>
-            ) : null}
-          </div>
-
-          <div
-            ref={scrollRef}
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 space-y-2"
-          >
-            {play.chat.length === 0 && (
-              <div className="text-xs text-evari-dimmer italic py-8 text-center">
-                No conversation yet. Start one below.
-              </div>
-            )}
-            {play.chat.map((m) => (
-              <ChatMessageBubble
-                key={m.id}
-                message={m}
-                isOpen={openMessageId === m.id}
-                onToggle={() =>
-                  setOpenMessageId((cur) => (cur === m.id ? null : m.id))
-                }
-                onTogglePin={() => togglePinned(m.id)}
-              />
-            ))}
-            {chatLoading && (
-              <div className="text-[11px] text-evari-dimmer italic py-2 pl-1 inline-flex items-center gap-1.5">
-                <RefreshCw className="h-3 w-3 animate-spin" />
-                Claude is thinking...
-              </div>
-            )}
-          </div>
-
-          {/* Input row. shrink-0 + border-t keeps it visible at the bottom of
-              the aside no matter how long the thread grows. */}
-          <div className="shrink-0 border-t border-evari-line/40 p-3 bg-evari-surface">
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder={voice.isListening ? 'Listening...' : 'Ask, draft, plan...'}
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    void sendChat();
-                  }
-                }}
-                disabled={chatLoading}
-                className="flex-1"
-              />
-              {voice.isSpeaking ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={voice.stopSpeaking}
-                  title="Stop Claude from reading out loud"
-                >
-                  <VolumeX className="h-3 w-3" />
-                </Button>
-              ) : null}
-              {voice.micSupported ? (
-                <Button
-                  variant={voice.isListening ? 'primary' : 'ghost'}
-                  size="sm"
-                  onClick={toggleMic}
-                  disabled={chatLoading}
-                  title={voice.isListening ? 'Stop listening' : 'Hold a conversation out loud'}
-                  className={voice.isListening ? 'animate-pulse' : ''}
-                >
-                  {voice.isListening ? (
-                    <MicOff className="h-3 w-3" />
-                  ) : (
-                    <Mic className="h-3 w-3" />
-                  )}
-                </Button>
-              ) : null}
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void sendChat()}
-                disabled={chatLoading || !chatInput.trim()}
-              >
-                {chatLoading ? (
-                  <RefreshCw className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Send className="h-3 w-3" />
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
       </aside>
+
       </div>
     </div>
   );
