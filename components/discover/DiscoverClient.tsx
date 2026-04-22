@@ -74,6 +74,7 @@ export function DiscoverClient({ plays }: Props) {
   // search, we blank the results + panel and render a centered prompt.
   const [hasSearched, setHasSearched] = useState(false);
   const [heroPrompt, setHeroPrompt] = useState('');
+  const [filtersResetKey, setFiltersResetKey] = useState(0);
 
   // Bulk select — mirrors the Save all / Find all people actions on the
   // results header. Checkbox per row; master checkbox toggles the visible set.
@@ -292,6 +293,7 @@ export function DiscoverClient({ plays }: Props) {
       {/* Left: filters */}
       <aside className="w-[380px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
         <DiscoverFilters
+          key={filtersResetKey}
           filters={filters}
           onChange={(next) => {
             setFilters(next);
@@ -300,7 +302,14 @@ export function DiscoverClient({ plays }: Props) {
           onAiRefine={handleAiRefine}
           onClearAll={() => {
             setFilters(EMPTY_FILTERS);
-            if (hasSearched) void doSearch(EMPTY_FILTERS);
+            setCards([]);
+            setSelected(null);
+            setSearchError(null);
+            setSource(null);
+            setHeroPrompt('');
+            setCompanyChecked(new Set());
+            setHasSearched(false);
+            setFiltersResetKey((k) => k + 1);
           }}
           aiBusy={aiBusy}
         />
