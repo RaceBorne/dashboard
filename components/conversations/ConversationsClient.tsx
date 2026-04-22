@@ -314,7 +314,7 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
         </div>
         {lead && (
          <Link
-          href={'/leads/' + lead.id}
+          href={'/leads?id=' + lead.id}
           className="text-xs text-evari-dim hover:text-evari-text inline-flex items-center gap-1 shrink-0"
          >
           Lead profile <ChevronRight className="h-3 w-3" />

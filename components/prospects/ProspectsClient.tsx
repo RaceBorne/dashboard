@@ -1,157 +1,129 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+/**
+ * ProspectsClient — Discover-style layout.
+ *
+ * Three columns:
+ *   1. Folder sidebar (categories + Uncategorised + All)
+ *   2. Prospect list (compact row per prospect: favicon, name, org, status)
+ *   3. CompanyPanel (Discover's detail panel, rendering the selected row
+ *      via leadToDiscoveredCompany)
+ *
+ * The row panel mirrors /discover exactly — we re-use the same CompanyPanel
+ * component, wiring "Find emails & details" to the existing hunt-contacts
+ * SSE endpoint and a primary action bar for promote / delete / open thread.
+ */
+
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search as SearchIcon,
-  ArrowUpDown,
   X,
-  Inbox,
-  Flag,
-  Rocket,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  MailX,
-  Clock,
-  CircleHelp,
-  ThumbsUp,
-  Meh,
-  ThumbsDown,
-  Archive,
-  UserCheck,
-  Trash2,
-  ArrowUpRight,
   Folder,
+  FolderPlus,
   Loader2,
-  Sparkles,
-  ExternalLink,
-  Pencil,
   Check,
+  Trash2,
   Users2,
-  Briefcase,
-  Mail,
-  MailSearch,
-  ShieldCheck,
-  ShieldAlert,
-  Phone,
-  StickyNote,
-  User,
-  Save as SaveIcon,
   MapPin,
+  Pencil,
+  Rocket,
+  ExternalLink,
+  Inbox,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn, relativeTime } from '@/lib/utils';
-import type { CompanyContact, Prospect, ProspectStatus } from '@/lib/types';
-
-const STATUSES: { key: ProspectStatus; label: string; icon: React.ReactNode }[] =
-  [
-    { key: 'pending', label: 'Pending', icon: <CircleHelp className="h-3.5 w-3.5" /> },
-    { key: 'sent', label: 'Sent', icon: <Clock className="h-3.5 w-3.5" /> },
-    { key: 'replied_positive', label: 'Replied — positive', icon: <ThumbsUp className="h-3.5 w-3.5" /> },
-    { key: 'replied_neutral', label: 'Replied — neutral', icon: <Meh className="h-3.5 w-3.5" /> },
-    { key: 'replied_negative', label: 'Replied — negative', icon: <ThumbsDown className="h-3.5 w-3.5" /> },
-    { key: 'no_reply', label: 'No reply', icon: <Clock className="h-3.5 w-3.5" /> },
-    { key: 'bounced', label: 'Bounced', icon: <MailX className="h-3.5 w-3.5" /> },
-    { key: 'qualified', label: 'Qualified', icon: <Flag className="h-3.5 w-3.5" /> },
-    { key: 'archived', label: 'Archived', icon: <Archive className="h-3.5 w-3.5" /> },
-  ];
+import type { Lead, ProspectStatus } from '@/lib/types';
+import { CompanyPanel } from '@/components/discover/CompanyPanel';
+import { leadToDiscoveredCompany } from '@/lib/dashboard/leadViews';
 
 const STATUS_TONE: Record<ProspectStatus, string> = {
-  pending: 'text-evari-dim bg-evari-surfaceSoft',
-  sent: 'bg-sky-400 text-evari-ink',
-  replied_positive: 'bg-evari-success text-evari-ink',
-  replied_neutral: 'text-evari-dim bg-evari-surfaceSoft',
-  replied_negative: 'bg-evari-danger text-white',
-  no_reply: 'bg-evari-warn text-evari-goldInk',
-  bounced: 'bg-evari-danger text-white',
-  qualified: 'bg-evari-gold text-evari-goldInk',
-  archived: 'text-evari-dimmer bg-evari-surfaceSoft',
+  pending: 'bg-evari-surfaceSoft text-evari-dim',
+  sent: 'bg-sky-400/20 text-sky-700',
+  replied_positive: 'bg-evari-success/20 text-evari-success',
+  replied_neutral: 'bg-evari-surfaceSoft text-evari-dim',
+  replied_negative: 'bg-evari-danger/15 text-evari-danger',
+  no_reply: 'bg-evari-warn/20 text-evari-goldInk',
+  bounced: 'bg-evari-danger/15 text-evari-danger',
+  qualified: 'bg-evari-gold/25 text-evari-goldInk',
+  archived: 'bg-evari-surfaceSoft text-evari-dimmer',
 };
 
-type SortKey = 'quality' | 'recent' | 'oldest' | 'status';
+const STATUS_LABEL: Record<ProspectStatus, string> = {
+  pending: 'Pending',
+  sent: 'Sent',
+  replied_positive: 'Replied (+)',
+  replied_neutral: 'Replied',
+  replied_negative: 'Replied (-)',
+  no_reply: 'No reply',
+  bounced: 'Bounced',
+  qualified: 'Qualified',
+  archived: 'Archived',
+};
 
-export function ProspectsClient({
-  initialProspects,
-}: {
-  initialProspects: Prospect[];
-}) {
-  const [prospects, setProspects] = useState<Prospect[]>(initialProspects);
-  const [activeStatuses, setActiveStatuses] = useState<Set<ProspectStatus>>(
-    new Set(STATUSES.map((s) => s.key)),
-  );
-  const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set());
+const UNCATEGORISED = 'Uncategorised';
+
+interface Props {
+  initialLeads: Lead[];
+}
+
+export function ProspectsClient({ initialLeads }: Props) {
+  const [leads, setLeads] = useState<Lead[]>(initialLeads);
+  const [activeFolder, setActiveFolder] = useState<string | null>(null); // null = All
   const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState<SortKey>('quality');
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [synopsisLoading, setSynopsisLoading] = useState<Set<string>>(new Set());
-  const [actionLoading, setActionLoading] = useState<Set<string>>(new Set());
-  const [huntProspectId, setHuntProspectId] = useState<string | null>(null);
-  const [huntLoading, setHuntLoading] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Hunt / enrich streaming state — keyed on lead id so the panel can show
+  // live log output while a run is in progress.
+  const [huntingId, setHuntingId] = useState<string | null>(null);
   const [huntLog, setHuntLog] = useState<string[]>([]);
-  const [huntCandidates, setHuntCandidates] = useState<HuntCandidate[]>([]);
-  const [huntSelected, setHuntSelected] = useState<Set<string>>(new Set());
-  const [huntError, setHuntError] = useState<string | null>(null);
-  const [huntAppending, setHuntAppending] = useState(false);
-  const [contactsLoading, setContactsLoading] = useState<Set<string>>(new Set());
-  const [contactPhase, setContactPhase] = useState<Record<string, string>>({});
-  const [contactAttempted, setContactAttempted] = useState<Set<string>>(new Set());
-  const [editingField, setEditingField] = useState<
-    { id: string; field: 'name' | 'email' | 'phone' | 'notes' } | null
-  >(null);
-  const [editValue, setEditValue] = useState('');
-  const [fieldSaving, setFieldSaving] = useState<Set<string>>(new Set());
-  const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-  const [busyCategory, setBusyCategory] = useState<string | null>(null);
+  const [enrichPassById, setEnrichPassById] = useState<Record<string, number>>({});
+
+  // Folder rename/delete.
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [folderRenameValue, setFolderRenameValue] = useState('');
+  const [busyFolder, setBusyFolder] = useState<string | null>(null);
+
+  // Per-lead action state for primary actions.
+  const [actionBusy, setActionBusy] = useState<Record<string, string>>({});
+
   const confirm = useConfirm();
+  const streamAbort = useRef<AbortController | null>(null);
 
-  // --- Derived ------------------------------------------------------------
-  const statusCounts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const s of STATUSES) c[s.key] = 0;
-    for (const p of prospects) c[p.status] = (c[p.status] ?? 0) + 1;
-    return c;
-  }, [prospects]);
+  // --- Derived: folder counts + filtered list ------------------------------
 
-  const categoryCounts = useMemo(() => {
+  const folderCounts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const p of prospects) {
-      const key = (p.category ?? '').trim() || 'Uncategorised';
+    for (const l of leads) {
+      const key = (l.category ?? '').trim() || UNCATEGORISED;
       c[key] = (c[key] ?? 0) + 1;
     }
     return c;
-  }, [prospects]);
+  }, [leads]);
 
-  const categoryKeys = useMemo(
-    () =>
-      Object.keys(categoryCounts).sort((a, b) => {
-        if (a === 'Uncategorised') return 1;
-        if (b === 'Uncategorised') return -1;
-        return a.localeCompare(b);
-      }),
-    [categoryCounts],
-  );
+  const folderKeys = useMemo(() => {
+    return Object.keys(folderCounts).sort((a, b) => {
+      if (a === UNCATEGORISED) return 1;
+      if (b === UNCATEGORISED) return -1;
+      return a.localeCompare(b);
+    });
+  }, [folderCounts]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const catFilterOn = activeCategories.size > 0;
-    return prospects.filter((p) => {
-      if (!activeStatuses.has(p.status)) return false;
-      if (catFilterOn) {
-        const key = (p.category ?? '').trim() || 'Uncategorised';
-        if (!activeCategories.has(key)) return false;
+    return leads.filter((l) => {
+      if (activeFolder) {
+        const key = (l.category ?? '').trim() || UNCATEGORISED;
+        if (key !== activeFolder) return false;
       }
       if (q) {
         const hay = [
-          p.name,
-          p.org ?? '',
-          p.email ?? '',
-          p.role ?? '',
-          p.sourceDetail ?? '',
-          p.category ?? '',
+          l.fullName,
+          l.companyName ?? '',
+          l.email,
+          l.address ?? '',
+          l.category ?? '',
         ]
           .join(' ')
           .toLowerCase();
@@ -159,2041 +131,572 @@ export function ProspectsClient({
       }
       return true;
     });
-  }, [prospects, search, activeStatuses, activeCategories]);
+  }, [leads, activeFolder, search]);
 
-  const sorted = useMemo(() => {
-    const out = [...filtered];
-    switch (sortBy) {
-      case 'quality':
-        out.sort((a, b) => (b.qualityScore ?? 0) - (a.qualityScore ?? 0));
-        break;
-      case 'recent':
-        out.sort((a, b) => +new Date(b.lastTouchAt ?? b.createdAt) - +new Date(a.lastTouchAt ?? a.createdAt));
-        break;
-      case 'oldest':
-        out.sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
-        break;
-      case 'status':
-        out.sort((a, b) => a.status.localeCompare(b.status));
-        break;
+  // Keep selection pointed at a valid row.
+  useEffect(() => {
+    if (!selectedId) return;
+    if (!filtered.some((l) => l.id === selectedId)) {
+      setSelectedId(null);
     }
-    return out;
-  }, [filtered, sortBy]);
+  }, [filtered, selectedId]);
 
-  // --- Mutations ----------------------------------------------------------
-  function toggleStatus(s: ProspectStatus) {
-    setActiveStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s);
-      else next.add(s);
-      return next;
-    });
-  }
+  const selected = selectedId ? leads.find((l) => l.id === selectedId) ?? null : null;
+  const selectedCompany = useMemo(
+    () => (selected ? leadToDiscoveredCompany(selected) : null),
+    [selected],
+  );
 
-  function toggleCategory(key: string) {
-    setActiveCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
+  // --- Actions -------------------------------------------------------------
 
-  function updateStatus(id: string, status: ProspectStatus) {
-    setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
-  }
-
-  function mark(id: string, set: 'action' | 'synopsis', on: boolean) {
-    const setter = set === 'action' ? setActionLoading : setSynopsisLoading;
-    setter((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }
-
-  async function promoteToLead(p: Prospect) {
-    const ok = await confirm({
-      title: 'Promote ' + p.name + ' to Lead?',
-      description:
-        'Flips this row from the Prospect tier to the Lead tier. It will ' +
-        'disappear from this view and appear on /leads under the ' +
-        '"' + (p.category ?? 'Uncategorised') + '" funnel.',
-      confirmLabel: 'Promote',
-    });
-    if (!ok) return;
-    mark(p.id, 'action', true);
+  async function promoteLead(id: string) {
+    setActionBusy((m) => ({ ...m, [id]: 'promote' }));
     try {
-      const res = await fetch('/api/leads/' + p.id + '/promote', {
-        method: 'POST',
-      });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!data.ok) throw new Error(data.error || 'Promote failed');
-      // The Lead is no longer tier=prospect — drop it from this list.
-      setProspects((prev) => prev.filter((x) => x.id !== p.id));
+      const res = await fetch(`/api/leads/${id}/promote`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Promote failed (${res.status})`);
+      // Remove from prospects list.
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      window.dispatchEvent(new Event('evari:nav-counts-dirty'));
     } catch (err) {
-      console.warn('promote failed', err);
-      updateStatus(p.id, 'qualified');
+      console.error('promote', err);
     } finally {
-      mark(p.id, 'action', false);
+      setActionBusy((m) => {
+        const next = { ...m };
+        delete next[id];
+        return next;
+      });
     }
   }
 
-  async function archive(p: Prospect) {
+  async function deleteLead(id: string) {
     const ok = await confirm({
-      title: 'Archive prospect?',
-      description: p.name + ' will be moved to archived. Their outreach history stays on record.',
-      confirmLabel: 'Archive',
+      title: 'Delete this prospect?',
+      description: 'This removes the row from the CRM. You can always re-save it from Discover.',
+      confirmLabel: 'Delete',
       tone: 'danger',
     });
     if (!ok) return;
-    mark(p.id, 'action', true);
+    setActionBusy((m) => ({ ...m, [id]: 'delete' }));
     try {
-      const res = await fetch('/api/leads/' + p.id, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ prospectStatus: 'archived' }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!data.ok) throw new Error(data.error || 'Archive failed');
-      updateStatus(p.id, 'archived');
+      const res = await fetch(`/api/leads/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      window.dispatchEvent(new Event('evari:nav-counts-dirty'));
     } catch (err) {
-      console.warn('archive failed', err);
-      updateStatus(p.id, 'archived');
+      console.error('delete', err);
     } finally {
-      mark(p.id, 'action', false);
+      setActionBusy((m) => {
+        const next = { ...m };
+        delete next[id];
+        return next;
+      });
     }
   }
 
-
-  async function commitCategoryRename() {
-    const from = renamingCategory;
-    const to = renameValue.trim();
-    if (!from) return;
-    if (!to || to === from) {
-      setRenamingCategory(null);
-      setRenameValue('');
+  async function renameFolder(original: string, next: string) {
+    const cleaned = next.trim();
+    if (!cleaned || cleaned === original) {
+      setRenamingFolder(null);
       return;
     }
-    setBusyCategory(from);
+    setBusyFolder(original);
     try {
       const res = await fetch('/api/leads/category', {
         method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ from, to, tier: 'prospect' }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: original, to: cleaned }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        renamed?: number;
-        error?: string;
-      };
-      if (res.ok) {
-        setProspects((prev) =>
-          prev.map((p) =>
-            ((p.category ?? '').trim() || 'Uncategorised') === from
-              ? { ...p, category: to }
-              : p,
-          ),
-        );
-        setActiveCategories((prev) => {
-          if (!prev.has(from)) return prev;
-          const next = new Set(prev);
-          next.delete(from);
-          next.add(to);
-          return next;
-        });
-      } else {
-        console.warn('rename folder failed', data.error);
-      }
+      if (!res.ok) throw new Error(`Rename failed (${res.status})`);
+      setLeads((prev) =>
+        prev.map((l) =>
+          (l.category ?? '') === original ? { ...l, category: cleaned } : l,
+        ),
+      );
+      if (activeFolder === original) setActiveFolder(cleaned);
     } catch (err) {
-      console.warn('rename folder failed', err);
+      console.error('rename folder', err);
     } finally {
-      setBusyCategory(null);
-      setRenamingCategory(null);
-      setRenameValue('');
+      setBusyFolder(null);
+      setRenamingFolder(null);
     }
   }
 
-  async function deleteCategory(category: string) {
-    const count = categoryCounts[category] ?? 0;
+  async function deleteFolder(name: string) {
+    const count = folderCounts[name] ?? 0;
     const ok = await confirm({
-      title: 'Delete "' + category + '" folder?',
-      description:
-        'Permanently deletes ' +
-        count +
-        ' prospect' +
-        (count === 1 ? '' : 's') +
-        ' in this folder. This cannot be undone.',
+      title: `Delete folder "${name}"?`,
+      description: `This moves ${count} prospect${count === 1 ? '' : 's'} to Uncategorised.`,
       confirmLabel: 'Delete folder',
       tone: 'danger',
     });
     if (!ok) return;
-    setBusyCategory(category);
-    try {
-      const res = await fetch('/api/leads/category', {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ category, tier: 'prospect' }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        deleted?: number;
-        error?: string;
-      };
-      if (res.ok) {
-        setProspects((prev) =>
-          prev.filter(
-            (p) =>
-              ((p.category ?? '').trim() || 'Uncategorised') !== category,
-          ),
-        );
-        setActiveCategories((prev) => {
-          if (!prev.has(category)) return prev;
-          const next = new Set(prev);
-          next.delete(category);
-          return next;
-        });
-      } else {
-        console.warn('delete folder failed', data.error);
-      }
-    } catch (err) {
-      console.warn('delete folder failed', err);
-    } finally {
-      setBusyCategory(null);
-    }
-  }
-
-  async function toggleExpand(p: Prospect) {
-    const isOpen = expandedIds.has(p.id);
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (isOpen) next.delete(p.id);
-      else next.add(p.id);
-      return next;
-    });
-    if (!isOpen) {
-      void enrichContactsFor(p);
-    }
-    if (!isOpen && !p.synopsis && !synopsisLoading.has(p.id)) {
-      mark(p.id, 'synopsis', true);
-      try {
-        const res = await fetch('/api/leads/' + p.id + '/synopsis', {
-          method: 'POST',
-        });
-        const data = (await res.json().catch(() => ({}))) as {
-          ok?: boolean;
-          synopsis?: string;
-          orgProfile?: Prospect['orgProfile'];
-          error?: string;
-        };
-        if (data.ok && data.synopsis) {
-          setProspects((prev) =>
-            prev.map((x) =>
-              x.id === p.id
-                ? {
-                    ...x,
-                    synopsis: data.synopsis,
-                    synopsisGeneratedAt: new Date().toISOString(),
-                    orgProfile: data.orgProfile ?? x.orgProfile,
-                  }
-                : x,
-            ),
-          );
-        }
-      } catch (err) {
-        console.warn('synopsis failed', err);
-      } finally {
-        mark(p.id, 'synopsis', false);
-      }
-    }
-  }
-
-
-
-  async function saveField(
-    p: Prospect,
-    field: 'name' | 'email' | 'phone' | 'notes',
-    value: string,
-  ) {
-    const trimmed = value.trim();
-    // No-op if unchanged
-    const current =
-      field === 'name'
-        ? p.name
-        : field === 'email'
-          ? p.email ?? ''
-          : field === 'phone'
-            ? p.phone ?? ''
-            : p.notes ?? '';
-    if (trimmed === (current ?? '').trim()) {
-      setEditingField(null);
-      return;
-    }
-    const key = p.id + ':' + field;
-    setFieldSaving((prev) => {
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
-    try {
-      const body: Record<string, unknown> = {};
-      if (field === 'name') body.fullName = trimmed;
-      else if (field === 'email') {
-        body.email = trimmed;
-        body.emailInferred = false;
-      } else if (field === 'phone') body.phone = trimmed;
-      else body.notes = trimmed;
-      const res = await fetch('/api/leads/' + p.id, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        promoted?: boolean;
-        error?: string;
-      };
-      if (!data.ok) throw new Error(data.error || 'Save failed');
-
-      if (data.promoted) {
-        // Prospect flipped to Lead — drop from this view.
-        setProspects((prev) => prev.filter((x) => x.id !== p.id));
-      } else {
-        setProspects((prev) =>
-          prev.map((x) =>
-            x.id === p.id
-              ? {
-                  ...x,
-                  ...(field === 'name' && { name: trimmed }),
-                  ...(field === 'email' && {
-                    email: trimmed,
-                    emailInferred: false,
-                  }),
-                  ...(field === 'phone' && { phone: trimmed }),
-                  ...(field === 'notes' && { notes: trimmed }),
-                }
-              : x,
-          ),
-        );
-      }
-    } catch (err) {
-      console.warn('save field failed', err);
-    } finally {
-      setFieldSaving((prev) => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-      setEditingField(null);
-    }
-  }
-
-  async function useContactAsLead(p: Prospect, c: CompanyContact) {
-    if (!c.email) return;
-    const key = p.id + ':use-contact';
-    setFieldSaving((prev) => {
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
-    try {
-      const res = await fetch('/api/leads/' + p.id, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          fullName: c.name,
-          email: c.email,
-          emailInferred: c.emailSource === 'inferred',
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        promoted?: boolean;
-        error?: string;
-      };
-      if (!data.ok) throw new Error(data.error || 'Use contact failed');
-      if (data.promoted) {
-        setProspects((prev) => prev.filter((x) => x.id !== p.id));
-      } else {
-        setProspects((prev) =>
-          prev.map((x) =>
-            x.id === p.id
-              ? {
-                  ...x,
-                  name: c.name,
-                  email: c.email,
-                  emailInferred: c.emailSource === 'inferred',
-                }
-              : x,
-          ),
-        );
-      }
-    } catch (err) {
-      console.warn('use contact failed', err);
-    } finally {
-      setFieldSaving((prev) => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-    }
-  }
-
-  async function enrichContactsFor(p: Prospect, force = false) {
-    if (contactsLoading.has(p.id)) return;
-    if (!force && p.orgProfile?.contacts && p.orgProfile.contacts.length > 0) return;
-    setContactsLoading((prev) => {
-      const next = new Set(prev);
-      next.add(p.id);
-      return next;
-    });
-    setContactAttempted((prev) => {
-      const next = new Set(prev);
-      next.add(p.id);
-      return next;
-    });
-    setContactPhase((prev) => ({ ...prev, [p.id]: 'starting…' }));
+    setBusyFolder(name);
     try {
       const res = await fetch(
-        '/api/leads/' + p.id + '/enrich-contacts' + (force ? '?regenerate=1' : ''),
-        { method: 'POST' },
+        `/api/leads/category?name=${encodeURIComponent(name)}`,
+        { method: 'DELETE' },
       );
-      if (!res.ok || !res.body) throw new Error('enrich failed ' + res.status);
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const events = buf.split('\n\n');
-        buf = events.pop() ?? '';
-        for (const raw of events) {
-          const line = raw.trim();
-          if (!line.startsWith('data:')) continue;
-          const payload = line.slice(5).trim();
-          if (!payload) continue;
-          let evt: Record<string, unknown>;
-          try {
-            evt = JSON.parse(payload);
-          } catch {
-            continue;
-          }
-          const phase = String(evt.phase ?? '');
-          if (phase === 'scraping') {
-            setContactPhase((prev) => ({ ...prev, [p.id]: 'scraping website…' }));
-          } else if (phase === 'scraped-page') {
-            const url = typeof evt.url === 'string' ? evt.url : '';
-            setContactPhase((prev) => ({
-              ...prev,
-              [p.id]: 'scraped ' + shortPath(url),
-            }));
-          } else if (phase === 'extracting') {
-            setContactPhase((prev) => ({ ...prev, [p.id]: 'asking AI to extract people…' }));
-          } else if (phase === 'inferring') {
-            setContactPhase((prev) => ({ ...prev, [p.id]: 'inferring missing emails…' }));
-          } else if (phase === 'done') {
-            const contacts = Array.isArray(evt.contacts)
-              ? (evt.contacts as CompanyContact[])
-              : [];
-            const sourceNote = typeof evt.sourceNote === 'string' ? evt.sourceNote : undefined;
-            setProspects((prev) =>
-              prev.map((x) =>
-                x.id === p.id
-                  ? {
-                      ...x,
-                      orgProfile: {
-                        ...(x.orgProfile ?? { generatedAt: new Date().toISOString() }),
-                        contacts,
-                        contactsSourceNote: sourceNote,
-                        contactsEnrichedAt: new Date().toISOString(),
-                      },
-                    }
-                  : x,
-              ),
-            );
-            setContactPhase((prev) => {
-              const next = { ...prev };
-              delete next[p.id];
-              return next;
-            });
-          } else if (phase === 'error') {
-            const msg = typeof evt.message === 'string' ? evt.message : 'failed';
-            setContactPhase((prev) => ({ ...prev, [p.id]: 'error: ' + msg }));
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('contact enrichment failed', err);
-      setContactPhase((prev) => ({ ...prev, [p.id]: 'error' }));
-    } finally {
-      setContactsLoading((prev) => {
-        const next = new Set(prev);
-        next.delete(p.id);
-        return next;
-      });
-    }
-  }
-
-  async function huntContactsFor(p: Prospect) {
-    setHuntProspectId(p.id);
-    setHuntLoading(true);
-    setHuntLog(['starting contact hunt…']);
-    setHuntCandidates([]);
-    setHuntSelected(new Set());
-    setHuntError(null);
-
-    try {
-      const res = await fetch('/api/leads/' + p.id + '/hunt-contacts', {
-        method: 'POST',
-      });
-      if (!res.ok || !res.body) {
-        throw new Error('hunt failed ' + res.status);
-      }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const events = buf.split('\n\n');
-        buf = events.pop() ?? '';
-        for (const raw of events) {
-          const line = raw.trim();
-          if (!line.startsWith('data:')) continue;
-          const payload = line.slice(5).trim();
-          if (!payload) continue;
-          let evt: Record<string, unknown>;
-          try {
-            evt = JSON.parse(payload);
-          } catch {
-            continue;
-          }
-          const phase = String(evt.phase ?? '');
-          if (phase === 'planning') {
-            setHuntLog((prev) => [...prev, 'planning searches…']);
-          } else if (phase === 'searching') {
-            const q = typeof evt.query === 'string' ? evt.query : '';
-            setHuntLog((prev) => [...prev, 'searching: ' + q]);
-          } else if (phase === 'search-done') {
-            const q = typeof evt.query === 'string' ? evt.query : '';
-            const hits = typeof evt.hits === 'number' ? evt.hits : undefined;
-            setHuntLog((prev) => [
-              ...prev,
-              '  → ' + (hits !== undefined ? hits + ' hits' : 'done') + ' · ' + q,
-            ]);
-          } else if (phase === 'fetching') {
-            const u = typeof evt.url === 'string' ? evt.url : '';
-            setHuntLog((prev) => [...prev, 'fetching ' + shortPath(u)]);
-          } else if (phase === 'all-searches-done') {
-            setHuntLog((prev) => [...prev, 'scoring candidates…']);
-          } else if (phase === 'done') {
-            const candidates = Array.isArray(evt.candidates)
-              ? (evt.candidates as HuntCandidate[])
-              : [];
-            setHuntCandidates(candidates);
-            // Select every candidate by default — operator can uncheck.
-            setHuntSelected(
-              new Set(candidates.map((c) => candidateKey(c)).filter((k) => k)),
-            );
-            setHuntLog((prev) => [
-              ...prev,
-              'done · ' + candidates.length + ' candidate' + (candidates.length === 1 ? '' : 's'),
-            ]);
-          } else if (phase === 'error') {
-            const msg = typeof evt.message === 'string' ? evt.message : 'failed';
-            setHuntError(msg);
-            setHuntLog((prev) => [...prev, 'error: ' + msg]);
-          }
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Hunt failed';
-      setHuntError(msg);
-      setHuntLog((prev) => [...prev, 'error: ' + msg]);
-    } finally {
-      setHuntLoading(false);
-    }
-  }
-
-  function toggleHuntPick(key: string) {
-    setHuntSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  async function appendHuntedContacts() {
-    const pid = huntProspectId;
-    if (!pid) return;
-    const picked = huntCandidates.filter((c) =>
-      huntSelected.has(candidateKey(c)),
-    );
-    if (picked.length === 0) {
-      closeHuntModal();
-      return;
-    }
-    setHuntAppending(true);
-    try {
-      const res = await fetch('/api/leads/' + pid + '/append-contacts', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          contacts: picked.map((c) => ({
-            name: c.name || c.email || 'Unknown',
-            jobTitle: c.jobTitle,
-            email: c.email,
-            emailSource: c.email ? 'scraped' : undefined,
-            confidence: c.confidence ?? 'medium',
-            sourceUrl: c.sourceUrl,
-          })),
-          sourceNote: 'open-web hunt',
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        contacts?: CompanyContact[];
-        error?: string;
-      };
-      if (!data.ok) throw new Error(data.error || 'append failed');
-      const contacts = Array.isArray(data.contacts) ? data.contacts : [];
-      setProspects((prev) =>
-        prev.map((x) =>
-          x.id === pid
-            ? {
-                ...x,
-                orgProfile: {
-                  ...(x.orgProfile ?? { generatedAt: new Date().toISOString() }),
-                  contacts,
-                  contactsEnrichedAt: new Date().toISOString(),
-                },
-              }
-            : x,
-        ),
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      setLeads((prev) =>
+        prev.map((l) => ((l.category ?? '') === name ? { ...l, category: undefined } : l)),
       );
-      closeHuntModal();
+      if (activeFolder === name) setActiveFolder(null);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Append failed';
-      setHuntError(msg);
+      console.error('delete folder', err);
     } finally {
-      setHuntAppending(false);
+      setBusyFolder(null);
     }
   }
 
-  function closeHuntModal() {
-    setHuntProspectId(null);
-    setHuntCandidates([]);
-    setHuntSelected(new Set());
+  // --- Enrich contacts (SSE stream) ---------------------------------------
+  // Scrape the prospect's own website + run an AI extraction pass to populate
+  // orgProfile.contacts. The Discover CompanyPanel's "Find emails & details"
+  // CTA triggers this via `onEnrich`.
+
+  async function enrichContacts(leadId: string) {
+    if (huntingId) return;
+    streamAbort.current?.abort();
+    const ac = new AbortController();
+    streamAbort.current = ac;
+    setHuntingId(leadId);
     setHuntLog([]);
-    setHuntError(null);
-    setHuntLoading(false);
-    setHuntAppending(false);
+
+    try {
+      const res = await fetch(`/api/leads/${leadId}/enrich-contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regenerate: true }),
+        signal: ac.signal,
+      });
+      if (!res.ok || !res.body) throw new Error(`Enrich failed (${res.status})`);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const frames = buf.split('\n\n');
+        buf = frames.pop() ?? '';
+        for (const frame of frames) {
+          const line = frame.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          try {
+            const msg = JSON.parse(payload) as {
+              phase?: string;
+              message?: string;
+              lead?: Lead;
+            };
+            if (msg.phase && msg.phase !== 'done' && msg.phase !== 'error') {
+              setHuntLog((prev) => [
+                ...prev,
+                msg.message ? `${msg.phase}: ${msg.message}` : msg.phase!,
+              ]);
+            }
+            if (msg.phase === 'done' && msg.lead) {
+              setLeads((prev) => prev.map((l) => (l.id === leadId ? msg.lead! : l)));
+            }
+            if (msg.phase === 'error') {
+              setHuntLog((prev) => [...prev, `error: ${msg.message ?? 'failed'}`]);
+            }
+          } catch {
+            setHuntLog((prev) => [...prev, payload]);
+          }
+        }
+      }
+
+      setEnrichPassById((prev) => ({ ...prev, [leadId]: (prev[leadId] ?? 0) + 1 }));
+    } catch (err) {
+      if ((err as { name?: string }).name === 'AbortError') return;
+      console.error('enrich-contacts', err);
+    } finally {
+      if (streamAbort.current === ac) streamAbort.current = null;
+      setHuntingId((cur) => (cur === leadId ? null : cur));
+    }
   }
 
-  const allSelected = activeStatuses.size === STATUSES.length;
-  const noneSelected = activeStatuses.size === 0;
+  // --- Render --------------------------------------------------------------
 
   return (
-    <div className="flex gap-5 p-6">
-      {/* Left filter sidebar */}
-      <aside className="w-72 shrink-0">
-        <div className="sticky top-4 space-y-5">
-          {/* All prospects */}
-          <div>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveStatuses(new Set(STATUSES.map((s) => s.key)));
-                setSearch('');
-              }}
-              className={cn(
-                'w-full flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors text-left',
-                allSelected && !search
-                  ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                  : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
-              )}
-            >
-              <Inbox className="h-4 w-4 shrink-0" />
-              <span className="flex-1">All prospects</span>
-              <CountPill n={prospects.length} />
-            </button>
+    <div className="flex gap-4 p-4 h-[calc(100vh-56px)] bg-evari-ink">
+      {/* Column 1: folder sidebar */}
+      <aside className="w-[260px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
+        <div className="shrink-0 px-4 pt-4 pb-2">
+          <div className="text-[11px] uppercase tracking-wide text-evari-dimmer mb-2">
+            Folders
           </div>
+          <button
+            type="button"
+            onClick={() => setActiveFolder(null)}
+            className={cn(
+              'w-full inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-left',
+              activeFolder === null
+                ? 'bg-evari-accent/10 text-evari-accent font-medium'
+                : 'text-evari-text hover:bg-evari-surfaceSoft',
+            )}
+          >
+            <Inbox className="h-3.5 w-3.5" />
+            <span className="flex-1 truncate">All prospects</span>
+            <span className="text-[11px] text-evari-dim">{leads.length}</span>
+          </button>
+        </div>
 
-          {/* Status section */}
-          <div>
-            <div className="flex items-center justify-between px-1 pb-1.5">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium">
-                Status
-              </div>
-              <div className="inline-flex items-center gap-0.5 text-[10px]">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setActiveStatuses(new Set(STATUSES.map((s) => s.key)))
-                  }
-                  disabled={allSelected}
-                  className={cn(
-                    'px-1.5 py-0.5 rounded transition-colors',
-                    allSelected
-                      ? 'text-evari-text bg-evari-surfaceSoft'
-                      : 'text-evari-dim hover:text-evari-text hover:bg-evari-surfaceSoft',
-                  )}
-                >
-                  All
-                </button>
-                <span className="text-evari-dimmer">·</span>
-                <button
-                  type="button"
-                  onClick={() => setActiveStatuses(new Set())}
-                  disabled={noneSelected}
-                  className={cn(
-                    'px-1.5 py-0.5 rounded transition-colors',
-                    noneSelected
-                      ? 'text-evari-text bg-evari-surfaceSoft'
-                      : 'text-evari-dim hover:text-evari-text hover:bg-evari-surfaceSoft',
-                  )}
-                >
-                  None
-                </button>
-              </div>
-            </div>
-            <div className="space-y-0.5">
-              {STATUSES.map((s) => {
-                const count = statusCounts[s.key] ?? 0;
-                if (count === 0) return null;
-                const active = activeStatuses.has(s.key);
-                return (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => toggleStatus(s.key)}
-                    className={cn(
-                      'w-full flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors text-left',
-                      active
-                        ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                        : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'shrink-0',
-                        active ? 'text-evari-text' : 'text-evari-dimmer',
-                      )}
-                    >
-                      {s.icon}
-                    </span>
-                    <span className="flex-1 truncate">{s.label}</span>
-                    <CountPill n={count} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {categoryKeys.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between px-1 pb-1.5">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium">
-                  Funnel
-                </div>
-                {activeCategories.size > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveCategories(new Set())}
-                    className="text-[10px] text-evari-dim hover:text-evari-text px-1.5 py-0.5 rounded hover:bg-evari-surfaceSoft"
-                  >
-                    clear
-                  </button>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                {categoryKeys.map((key) => {
-                  const count = categoryCounts[key];
-                  const active = activeCategories.has(key);
-                  const renaming = renamingCategory === key;
-                  const busy = busyCategory === key;
-                  return (
-                    <div
-                      key={key}
-                      className={cn(
-                        'group relative flex items-center rounded-md transition-colors',
-                        active
-                          ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                          : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
-                      )}
-                    >
-                      {renaming ? (
-                        <div className="flex-1 flex items-center gap-2 px-2.5 py-1 text-sm">
-                          <Folder className="h-3.5 w-3.5 shrink-0 text-evari-dimmer" />
-                          <input
-                            autoFocus
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') void commitCategoryRename();
-                              if (e.key === 'Escape') {
-                                setRenamingCategory(null);
-                                setRenameValue('');
-                              }
-                            }}
-                            onBlur={() => void commitCategoryRename()}
-                            className="flex-1 min-w-0 bg-transparent text-sm text-evari-text outline-none border-b border-evari-gold/60 focus:border-evari-gold"
-                          />
-                          {busy && (
-                            <Loader2 className="h-3 w-3 animate-spin text-evari-dim" />
-                          )}
-                        </div>
-                      ) : (
-                        <>
-                          {/* Left slot — folder icon at rest, edit+delete on hover. */}
-                          {/* Fixed width so the name column doesn't shift when hovering. */}
-                          <div className="w-[52px] shrink-0 pl-2.5 flex items-center">
-                            <div className="group-hover:hidden">
-                              <Folder
-                                className={cn(
-                                  'h-3.5 w-3.5',
-                                  active ? 'text-evari-text' : 'text-evari-dimmer',
-                                )}
-                              />
-                            </div>
-                            <div className="hidden group-hover:flex items-center gap-0.5">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRenamingCategory(key);
-                                  setRenameValue(key);
-                                }}
-                                disabled={busy || key === 'Uncategorised'}
-                                title={
-                                  key === 'Uncategorised'
-                                    ? 'Cannot rename Uncategorised'
-                                    : 'Rename folder'
-                                }
-                                className="h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 disabled:opacity-30 disabled:cursor-not-allowed"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void deleteCategory(key);
-                                }}
-                                disabled={busy}
-                                title="Delete folder + all prospects inside"
-                                className="h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-surface/60 disabled:opacity-30"
-                              >
-                                {busy ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3 w-3" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
+        <div className="flex-1 overflow-y-auto px-2 pb-3">
+          <ul className="space-y-0.5">
+            {folderKeys.map((k) => {
+              const active = activeFolder === k;
+              const isRenaming = renamingFolder === k;
+              return (
+                <li key={k} className="group flex items-center gap-1">
+                  {isRenaming ? (
+                    <div className="flex-1 flex items-center gap-1 px-2">
+                      <Input
+                        autoFocus
+                        value={folderRenameValue}
+                        onChange={(e) => setFolderRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void renameFolder(k, folderRenameValue);
+                          } else if (e.key === 'Escape') {
+                            setRenamingFolder(null);
+                          }
+                        }}
+                        className="h-7 text-[12px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void renameFolder(k, folderRenameValue)}
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-accent hover:bg-evari-surfaceSoft"
+                        disabled={busyFolder === k}
+                      >
+                        {busyFolder === k ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setActiveFolder(k)}
+                        className={cn(
+                          'flex-1 inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-left',
+                          active
+                            ? 'bg-evari-accent/10 text-evari-accent font-medium'
+                            : 'text-evari-text hover:bg-evari-surfaceSoft',
+                        )}
+                      >
+                        <Folder className="h-3.5 w-3.5" />
+                        <span className="flex-1 truncate">{k}</span>
+                        <span className="text-[11px] text-evari-dim">
+                          {folderCounts[k]}
+                        </span>
+                      </button>
+                      {k !== UNCATEGORISED ? (
+                        <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
                           <button
                             type="button"
-                            onClick={() => toggleCategory(key)}
-                            className="flex-1 min-w-0 flex items-center gap-2 py-1.5 pr-2.5 text-sm text-left"
+                            onClick={() => {
+                              setRenamingFolder(k);
+                              setFolderRenameValue(k);
+                            }}
+                            className="h-6 w-6 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
+                            title="Rename folder"
                           >
-                            <span className="flex-1 truncate">{key}</span>
-                            <CountPill n={count} />
+                            <Pencil className="h-3 w-3" />
                           </button>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                          <button
+                            type="button"
+                            onClick={() => void deleteFolder(k)}
+                            className="h-6 w-6 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft"
+                            title="Delete folder"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </li>
+              );
+            })}
+            {folderKeys.length === 0 ? (
+              <li className="px-2.5 py-2 text-[12px] text-evari-dim">
+                No folders yet — save a run from{' '}
+                <a href="/discover" className="underline hover:text-evari-text">
+                  Discover
+                </a>
+                .
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="shrink-0 px-3 pb-3 pt-2 border-t border-evari-line/30">
+          <a
+            href="/discover"
+            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dim w-full justify-center"
+          >
+            <FolderPlus className="h-3 w-3" />
+            New folder via Discover
+          </a>
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 min-w-0 space-y-5">
-        <div className="rounded-xl bg-evari-surface p-5 space-y-2">
-          <div className="text-sm font-medium text-evari-text">
-            Testing layer
-          </div>
-          <p className="text-sm text-evari-dim leading-relaxed max-w-3xl">
-            Targets from Campaigns who've had a first-touch outreach. They sit
-            here while signals come back — delivery, opens, replies, sentiment
-            — and only graduate to <strong className="text-evari-text">Leads</strong>{' '}
-            once they pass the quality bar. Keeps the Leads pipeline clean.
-          </p>
-        </div>
+      {/* Column 2 + 3 — always 50/50 */}
+      <div className="flex-1 min-w-0 h-full flex gap-4">
+        {/* Column 2: list */}
+        <main className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden">
+          <header className="shrink-0 border-b border-evari-line/30 px-4 py-3 flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] font-semibold text-evari-text truncate">
+                {activeFolder ?? 'All prospects'}
+              </div>
+              <div className="text-[11.5px] text-evari-dim">
+                {filtered.length} prospect{filtered.length === 1 ? '' : 's'}
+              </div>
+            </div>
+            <div className="relative w-48 shrink-0">
+              <SearchIcon className="h-3.5 w-3.5 text-evari-dimmer absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search prospects"
+                className="h-8 pl-7 pr-7 text-[12.5px]"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              ) : null}
+            </div>
+          </header>
 
-        {/* Search + sort */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-evari-dimmer" />
-            <Input
-              placeholder="Search name, org, email, source…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8"
+          <div className="flex-1 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center px-8 text-center">
+                <Inbox className="h-8 w-8 text-evari-dimmer mb-3" />
+                <div className="text-[14px] font-semibold text-evari-text mb-1">
+                  {leads.length === 0 ? 'No prospects yet' : 'No matches'}
+                </div>
+                <div className="text-[12px] text-evari-dim max-w-xs">
+                  {leads.length === 0
+                    ? 'Run a search in Discover and save it to a folder to start populating Prospects.'
+                    : 'Try a different folder or clear the search above.'}
+                </div>
+              </div>
+            ) : (
+              <ul className="divide-y divide-evari-line/40">
+                {filtered.map((l) => (
+                  <ProspectRow
+                    key={l.id}
+                    lead={l}
+                    active={selectedId === l.id}
+                    onSelect={() => setSelectedId(l.id)}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+        </main>
+
+        {/* Column 3: CompanyPanel */}
+        <section className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface overflow-hidden">
+          {selected && selectedCompany ? (
+            <CompanyPanel
+              key={selected.id}
+              domain={selectedCompany.domain}
+              company={selectedCompany}
+              loading={huntingId === selected.id}
+              log={huntingId === selected.id ? huntLog : []}
+              enrichPassCount={enrichPassById[selected.id] ?? (selected.orgProfile?.contactsEnrichedAt ? 1 : 0)}
+              onEnrich={() => void enrichContacts(selected.id)}
+              actions={
+                <ProspectPanelActions
+                  lead={selected}
+                  busy={actionBusy[selected.id]}
+                  onPromote={() => void promoteLead(selected.id)}
+                  onDelete={() => void deleteLead(selected.id)}
+                />
+              }
             />
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <ArrowUpDown className="h-3.5 w-3.5 text-evari-dimmer" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortKey)}
-              className="bg-evari-surfaceSoft rounded-md px-2 py-1.5 text-xs text-evari-text focus:outline-none focus:ring-1 focus:ring-evari-gold/50"
-            >
-              <option value="quality">Highest quality</option>
-              <option value="recent">Most recent touch</option>
-              <option value="oldest">Oldest</option>
-              <option value="status">By status</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between px-1 text-[11px] text-evari-dim">
-          <span>
-            Showing {sorted.length} of {prospects.length}
-          </span>
-          {(!allSelected || search) && (
-            <button
-              type="button"
-              onClick={() => {
-                setActiveStatuses(new Set(STATUSES.map((s) => s.key)));
-                setSearch('');
-              }}
-              className="inline-flex items-center gap-1 text-evari-dim hover:text-evari-text"
-            >
-              <X className="h-3 w-3" />
-              reset filters
-            </button>
+          ) : (
+            <EmptyPanel />
           )}
-        </div>
-
-        {/* Prospect rows */}
-        <ul className="space-y-1">
-          {sorted.map((p) => {
-            const expanded = expandedIds.has(p.id);
-            const loadingSynopsis = synopsisLoading.has(p.id);
-            const loadingAction = actionLoading.has(p.id);
-            return (
-            <li
-              key={p.id}
-              className="bg-evari-surface/60 rounded-md p-4"
-            >
-              <div
-                className="flex items-start justify-between gap-3 cursor-pointer"
-                onClick={() => void toggleExpand(p)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    void toggleExpand(p);
-                  }
-                }}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void toggleExpand(p);
-                      }}
-                      title={expanded ? 'Collapse' : 'Expand'}
-                      className="h-5 w-5 -ml-1 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
-                    >
-                      {expanded ? (
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                    <div className="text-sm font-medium text-evari-text">
-                      {displayRowTitle(p)}
-                    </div>
-                    <span
-                      className={cn(
-                        'text-[10px] uppercase tracking-wider font-semibold rounded-full px-2 py-0.5',
-                        STATUS_TONE[p.status],
-                      )}
-                    >
-                      {p.status.replace(/_/g, ' ')}
-                    </span>
-                    {p.category && (
-                      <span
-                        className="inline-flex items-center gap-1 text-[10px] text-evari-dim bg-evari-surfaceSoft rounded-full px-2 py-0.5"
-                        title={'Funnel: ' + p.category}
-                      >
-                        <Folder className="h-2.5 w-2.5" />
-                        {p.category}
-                      </span>
-                    )}
-                    <QualityPill score={p.qualityScore ?? 0} />
-                  </div>
-                  <div className="text-xs text-evari-dim mt-0.5">
-                    {p.role}
-                    {p.org ? ' · ' + p.org : ''}
-                    {p.email ? (
-                      <span className="font-mono text-evari-dimmer">
-                        {' · ' + p.email}
-                        {p.emailInferred && (
-                          <span
-                            className="ml-1 text-evari-warn"
-                            title="Email was inferred — verify before sending"
-                          >
-                            (inferred)
-                          </span>
-                        )}
-                      </span>
-                    ) : null}
-                  </div>
-                  {p.sourceDetail && (
-                    <div className="text-[10px] text-evari-dimmer mt-1">
-                      from {p.sourceDetail}
-                    </div>
-                  )}
-                </div>
-                <div className="shrink-0 flex items-center gap-1">
-                  {p.status !== 'archived' && p.status !== 'bounced' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void huntContactsFor(p);
-                      }}
-                      disabled={huntLoading && huntProspectId === p.id}
-                      title="Scrape the open web for more @domain contacts"
-                    >
-                      {huntLoading && huntProspectId === p.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <MailSearch className="h-3 w-3" />
-                      )}
-                      Find contacts
-                    </Button>
-                  )}
-                  {p.status !== 'qualified' &&
-                    p.status !== 'archived' &&
-                    p.status !== 'bounced' && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void promoteToLead(p);
-                        }}
-                        disabled={loadingAction}
-                      >
-                        {loadingAction ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <UserCheck className="h-3 w-3" />
-                        )}
-                        Promote to Lead
-                      </Button>
-                    )}
-                  {p.status !== 'archived' && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void archive(p);
-                      }}
-                      disabled={loadingAction}
-                      className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft disabled:opacity-50"
-                      title="Archive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div
-                className={cn(
-                  'grid overflow-hidden transition-[grid-template-rows,margin-top,opacity] duration-[800ms] ease-in-out',
-                  expanded
-                    ? 'grid-rows-[1fr] mt-3 opacity-100'
-                    : 'grid-rows-[0fr] mt-0 opacity-0',
-                )}
-                aria-hidden={!expanded}
-              >
-                <div className="min-h-0">
-                  <div className="rounded-md bg-evari-ink/40 p-3 space-y-3">
-                  {p.orgProfile && (
-                    <div className="space-y-1.5 pb-2 border-b border-evari-line/40">
-                      <div className="flex items-center gap-3 text-[11px] text-evari-dim">
-                        {p.orgProfile.orgType && (
-                          <span className="inline-flex items-center gap-1 capitalize">
-                            <Briefcase className="h-3 w-3 text-evari-dimmer" />
-                            {p.orgProfile.orgType}
-                          </span>
-                        )}
-                        {(p.orgProfile.employeeCount ?? p.orgProfile.employeeRange) && (
-                          <span className="inline-flex items-center gap-1">
-                            <Users2 className="h-3 w-3 text-evari-dimmer" />
-                            {p.orgProfile.employeeCount
-                              ? p.orgProfile.employeeCount.toLocaleString() + ' employees'
-                              : p.orgProfile.employeeRange + ' employees'}
-                          </span>
-                        )}
-                      </div>
-                      {p.orgProfile.leaders && p.orgProfile.leaders.length > 0 && (
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-1">
-                            {p.orgProfile.orgType === 'club' ||
-                            p.orgProfile.orgType === 'nonprofit'
-                              ? 'Management team'
-                              : p.orgProfile.orgType === 'practice'
-                                ? 'Partners'
-                                : 'C-suite'}
-                          </div>
-                          <ul className="space-y-0.5">
-                            {p.orgProfile.leaders.map((l, i) => (
-                              <li
-                                key={l.name + i}
-                                className="text-[11px] text-evari-text flex items-baseline gap-1.5"
-                              >
-                                <span className="font-medium">{l.name}</span>
-                                {l.jobTitle && (
-                                  <span className="text-evari-dim">— {l.jobTitle}</span>
-                                )}
-                                {l.linkedinUrl && (
-                                  <a
-                                    href={l.linkedinUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-evari-gold hover:text-evari-text"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <ExternalLink className="h-2.5 w-2.5" />
-                                  </a>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <LeadFieldsBlock
-                    prospect={p}
-                    editingField={
-                      editingField && editingField.id === p.id
-                        ? editingField.field
-                        : null
-                    }
-                    editValue={editValue}
-                    setEditValue={setEditValue}
-                    fieldSaving={fieldSaving}
-                    onStartEdit={(field, value) => {
-                      setEditingField({ id: p.id, field });
-                      setEditValue(value ?? '');
-                    }}
-                    onCancelEdit={() => setEditingField(null)}
-                    onSave={(field, value) => void saveField(p, field, value)}
-                  />
-                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-                    <Sparkles className="h-3 w-3" />
-                    Synopsis
-                    {loadingSynopsis && (
-                      <Loader2 className="h-3 w-3 animate-spin text-evari-dim" />
-                    )}
-                  </div>
-                  {p.synopsis ? (
-                    <p className="text-xs text-evari-text leading-relaxed whitespace-pre-wrap">
-                      {p.synopsis}
-                    </p>
-                  ) : loadingSynopsis ? (
-                    <p className="text-xs text-evari-dim italic">
-                      Claude is reading what we know and drafting a summary…
-                    </p>
-                  ) : (
-                    <p className="text-xs text-evari-dimmer italic">
-                      No synopsis yet.
-                    </p>
-                  )}
-                  <ContactsBlock
-                    prospect={p}
-                    loading={contactsLoading.has(p.id)}
-                    phase={contactPhase[p.id]}
-                    attempted={contactAttempted.has(p.id)}
-                    onRefresh={() => void enrichContactsFor(p, true)}
-                    onUseContact={(c) => void useContactAsLead(p, c)}
-                    useContactPending={fieldSaving.has(p.id + ':use-contact')}
-                  />
-
-                  </div>
-                </div>
-              </div>
-
-              {/* Signals strip */}
-              <div className="flex items-center gap-2 text-[11px] flex-wrap">
-                <Signal label="Valid" on={p.signals?.emailValid} />
-                <Signal label="Opened" on={p.signals?.opened} />
-                <Signal label="Clicked" on={p.signals?.clicked} />
-                <Signal label="Replied" on={p.signals?.replied} />
-                {p.signals?.sentiment && (
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full',
-                      p.signals.sentiment === 'positive'
-                        ? 'bg-evari-success text-evari-ink'
-                        : p.signals.sentiment === 'negative'
-                          ? 'bg-evari-danger text-white'
-                          : 'bg-evari-surfaceSoft text-evari-dim',
-                    )}
-                  >
-                    {p.signals.sentiment === 'positive' ? (
-                      <ThumbsUp className="h-2.5 w-2.5" />
-                    ) : p.signals.sentiment === 'negative' ? (
-                      <ThumbsDown className="h-2.5 w-2.5" />
-                    ) : (
-                      <Meh className="h-2.5 w-2.5" />
-                    )}
-                    {p.signals.sentiment}
-                  </span>
-                )}
-                <span className="ml-auto text-evari-dimmer tabular-nums">
-                  {p.lastTouchAt ? relativeTime(p.lastTouchAt) : 'never'}
-                </span>
-              </div>
-
-              {/* Outreach excerpt */}
-              {p.outreach[0]?.replyExcerpt && (
-                <div className="mt-3 rounded-md bg-evari-ink/60 p-3 text-xs italic text-evari-dim leading-relaxed">
-                  {p.outreach[0].replyExcerpt}
-                </div>
-              )}
-
-              {p.notes && (
-                <div className="mt-3 text-[13px] text-evari-dimmer italic">
-                  {p.notes}
-                </div>
-              )}
-            </li>
-            );
-          })}
-        </ul>
-
-        {sorted.length === 0 && (
-          <div className="rounded-md bg-evari-surface/60 p-10 text-center">
-            <div className="text-sm text-evari-dim">No prospects match.</div>
-          </div>
-        )}
-      </main>
-
-      {huntProspectId && (
-        <HuntContactsModal
-          prospect={prospects.find((x) => x.id === huntProspectId) ?? null}
-          loading={huntLoading}
-          log={huntLog}
-          candidates={huntCandidates}
-          selected={huntSelected}
-          error={huntError}
-          appending={huntAppending}
-          onToggle={toggleHuntPick}
-          onClose={closeHuntModal}
-          onConfirm={() => void appendHuntedContacts()}
-          onSelectAll={() =>
-            setHuntSelected(
-              new Set(
-                huntCandidates.map((c) => candidateKey(c)).filter((k) => k),
-              ),
-            )
-          }
-          onSelectNone={() => setHuntSelected(new Set())}
-        />
-      )}
-    </div>
-  );
-}
-
-function Signal({ label, on }: { label: string; on?: boolean }) {
-  if (on === undefined) return null;
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px]',
-        on
-          ? 'bg-evari-success text-evari-ink'
-          : 'bg-evari-surfaceSoft text-evari-dimmer',
-      )}
-    >
-      {on ? <CheckCircle2 className="h-2.5 w-2.5" /> : null}
-      {label}
-    </span>
-  );
-}
-
-function QualityPill({ score }: { score: number }) {
-  const barColor =
-    score >= 75
-      ? 'bg-evari-success'
-      : score >= 50
-        ? 'bg-evari-gold'
-        : score > 0
-          ? 'bg-evari-dim'
-          : 'bg-evari-danger';
-  const numberColor =
-    score >= 75
-      ? 'text-evari-success'
-      : score >= 50
-        ? 'text-evari-gold'
-        : score > 0
-          ? 'text-evari-dim'
-          : 'text-evari-danger';
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-evari-surfaceSoft tabular-nums"
-      title={`Quality score ${score} / 100`}
-    >
-      <span className={cn('leading-none', numberColor)}>{score}</span>
-      <span className="text-evari-dimmer font-normal">/100</span>
-      <span className="w-8 h-1 rounded-full bg-evari-surface/60 overflow-hidden shrink-0">
-        <span
-          className={cn('block h-full rounded-full transition-all', barColor)}
-          style={{ width: Math.max(2, Math.min(100, score)) + '%' }}
-        />
-      </span>
-    </span>
-  );
-}
-
-function CountPill({ n }: { n: number }) {
-  if (n === 0) return null;
-  const pad =
-    n >= 10000 ? 'px-2.5' : n >= 1000 ? 'px-2' : n >= 100 ? 'px-1.5' : 'px-1';
-  return (
-    <span
-      className={
-        'inline-flex items-center justify-center h-5 min-w-[20px] text-[10px] tabular-nums rounded-full bg-evari-surface/60 text-evari-dimmer ' +
-        pad
-      }
-    >
-      {n.toLocaleString()}
-    </span>
-  );
-}
-
-
-function shortPath(url: string): string {
-  try {
-    const u = new URL(url);
-    const tail = u.pathname === '/' || u.pathname === '' ? 'home' : u.pathname;
-    return tail;
-  } catch {
-    return url;
-  }
-}
-
-function ContactsBlock({
-  prospect,
-  loading,
-  phase,
-  attempted,
-  onRefresh,
-  onUseContact,
-  useContactPending,
-}: {
-  prospect: Prospect;
-  loading: boolean;
-  phase?: string;
-  attempted: boolean;
-  onRefresh: () => void;
-  onUseContact: (c: CompanyContact) => void;
-  useContactPending: boolean;
-}) {
-  const contacts = prospect.orgProfile?.contacts ?? [];
-  const hasContacts = contacts.length > 0;
-  const sourceNote = prospect.orgProfile?.contactsSourceNote;
-  const enrichedAt = prospect.orgProfile?.contactsEnrichedAt;
-
-  return (
-    <div className="space-y-1.5 pt-2 border-t border-evari-line/40">
-      <div className="flex items-center gap-2">
-        <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium inline-flex items-center gap-1.5">
-          <Mail className="h-3 w-3" />
-          People at this company
-          {hasContacts && (
-            <span className="text-evari-dim font-normal normal-case tracking-normal">
-              ({contacts.length})
-            </span>
-          )}
-          {loading && <Loader2 className="h-3 w-3 animate-spin text-evari-dim" />}
-        </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRefresh();
-          }}
-          disabled={loading}
-          className="ml-auto text-[10px] text-evari-dim hover:text-evari-text px-1.5 py-0.5 rounded hover:bg-evari-surfaceSoft disabled:opacity-40"
-          title="Re-scan the company website"
-        >
-          {hasContacts ? 'Re-scan' : 'Scan'}
-        </button>
+        </section>
       </div>
-
-      {loading && phase && (
-        <div className="text-[10px] text-evari-dim italic">{phase}</div>
-      )}
-
-      {hasContacts ? (
-        <ul className="space-y-1">
-          {contacts.map((c, i) => (
-            <ContactRow
-              key={(c.email ?? c.name) + i}
-              c={c}
-              onUse={c.email ? () => onUseContact(c) : undefined}
-              pending={useContactPending}
-            />
-          ))}
-        </ul>
-      ) : loading ? (
-        <p className="text-[11px] text-evari-dim italic">
-          Scraping the site and asking Claude to pull out names, titles, and emails…
-        </p>
-      ) : attempted ? (
-        <p className="text-[11px] text-evari-dimmer italic">
-          No contactable people surfaced. The site may not list any publicly.
-        </p>
-      ) : (
-        <p className="text-[11px] text-evari-dimmer italic">
-          Expand the row to auto-scan, or click Scan above.
-        </p>
-      )}
-
-      {hasContacts && sourceNote && (
-        <div className="text-[10px] text-evari-dimmer pt-1">
-          {sourceNote}
-          {enrichedAt && <> · {relativeTime(enrichedAt)}</>}
-        </div>
-      )}
     </div>
   );
 }
 
-function ContactRow({
-  c,
-  onUse,
-  pending,
+// ---------------------------------------------------------------------------
+// Row
+// ---------------------------------------------------------------------------
+
+function ProspectRow({
+  lead,
+  active,
+  onSelect,
 }: {
-  c: CompanyContact;
-  onUse?: () => void;
-  pending: boolean;
+  lead: Lead;
+  active: boolean;
+  onSelect: () => void;
 }) {
-  const label =
-    c.emailSource === 'scraped'
-      ? 'scraped'
-      : c.emailSource === 'mailto'
-        ? 'mailto'
-        : c.emailSource === 'inferred'
-          ? 'inferred'
-          : c.emailSource === 'ai'
-            ? 'ai'
-            : undefined;
-  const tone =
-    c.emailSource === 'scraped' || c.emailSource === 'mailto'
-      ? 'bg-evari-success/20 text-evari-success'
-      : c.emailSource === 'inferred'
-        ? 'bg-evari-warn/20 text-evari-warn'
-        : 'bg-evari-surfaceSoft text-evari-dim';
+  const domain = useMemo(() => deriveDomainForIcon(lead), [lead]);
+  const orgLabel = lead.companyName ?? lead.email.split('@')[1] ?? '—';
+  const status = lead.prospectStatus ?? 'pending';
+
   return (
-    <li className="flex items-baseline gap-2 text-[11px] leading-snug">
-      <span className="font-medium text-evari-text">{c.name}</span>
-      {c.jobTitle && <span className="text-evari-dim">— {c.jobTitle}</span>}
-      {c.email ? (
-        <a
-          href={'mailto:' + c.email}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="font-mono text-[10px] text-evari-gold hover:text-evari-text truncate"
-          title={c.email}
-        >
-          {c.email}
-        </a>
-      ) : (
-        <span className="text-[10px] text-evari-dimmer italic">no email</span>
+    <li
+      onClick={onSelect}
+      className={cn(
+        'group flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors',
+        active
+          ? 'bg-evari-accent/5 border-l-2 border-evari-accent -ml-[2px] pl-[calc(1.25rem-2px)]'
+          : 'hover:bg-evari-surface/60',
       )}
-      {label && (
+    >
+      <div className="h-11 w-11 shrink-0 rounded-md bg-white border border-evari-line/40 flex items-center justify-center overflow-hidden p-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`}
+          alt=""
+          className="max-h-full max-w-full object-contain"
+        />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="text-[14px] font-semibold text-evari-text truncate">
+            {lead.fullName || orgLabel}
+          </span>
+          <span className="text-[12px] text-evari-dimmer truncate">{orgLabel}</span>
+        </div>
+        <div className="flex items-center gap-4 text-[11px] text-evari-dim mt-1">
+          {lead.orgProfile?.employeeRange ? (
+            <span className="inline-flex items-center gap-1">
+              <Users2 className="h-3 w-3 text-evari-dimmer" />
+              {lead.orgProfile.employeeRange}
+            </span>
+          ) : null}
+          {lead.address ? (
+            <span className="inline-flex items-center gap-1 truncate max-w-[180px]">
+              <MapPin className="h-3 w-3 text-evari-dimmer" />
+              {lead.address}
+            </span>
+          ) : null}
+          {lead.lastTouchAt ? (
+            <span className="text-evari-dimmer">{relativeTime(lead.lastTouchAt)}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
         <span
           className={cn(
-            'inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wider px-1 py-0.5 rounded-full',
-            tone,
+            'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium',
+            STATUS_TONE[status],
           )}
-          title={
-            label === 'scraped' || label === 'mailto'
-              ? 'Email appears verbatim on the company site.'
-              : label === 'inferred'
-                ? 'Pattern-inferred from other emails on this domain — verify before sending.'
-                : 'AI surfaced this without a verifiable source — verify before sending.'
-          }
         >
-          {label === 'scraped' || label === 'mailto' ? (
-            <ShieldCheck className="h-2.5 w-2.5" />
-          ) : (
-            <ShieldAlert className="h-2.5 w-2.5" />
-          )}
-          {label}
+          {STATUS_LABEL[status]}
         </span>
-      )}
-      {c.confidence && (
-        <span
-          className="text-[9px] text-evari-dimmer"
-          title={'Confidence: ' + c.confidence}
-        >
-          · {c.confidence}
-        </span>
-      )}
-      {c.linkedinUrl && (
-        <a
-          href={c.linkedinUrl}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="text-evari-gold hover:text-evari-text"
-        >
-          <ExternalLink className="h-2.5 w-2.5" />
-        </a>
-      )}
-      {onUse && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onUse();
-          }}
-          disabled={pending}
-          title="Use this person as the lead contact — fills name + email and promotes."
-          className="ml-auto text-[9px] text-evari-gold hover:text-evari-text px-1.5 py-0.5 rounded border border-evari-gold/40 hover:border-evari-gold disabled:opacity-40"
-        >
-          {pending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : 'Use'}
-        </button>
-      )}
+      </div>
     </li>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Right-panel action row (promote / delete / open)
+// ---------------------------------------------------------------------------
 
-function LeadFieldsBlock({
-  prospect,
-  editingField,
-  editValue,
-  setEditValue,
-  fieldSaving,
-  onStartEdit,
-  onCancelEdit,
-  onSave,
+function ProspectPanelActions({
+  lead,
+  busy,
+  onPromote,
+  onDelete,
 }: {
-  prospect: Prospect;
-  editingField: 'name' | 'email' | 'phone' | 'notes' | null;
-  editValue: string;
-  setEditValue: (v: string) => void;
-  fieldSaving: Set<string>;
-  onStartEdit: (field: 'name' | 'email' | 'phone' | 'notes', current: string) => void;
-  onCancelEdit: () => void;
-  onSave: (field: 'name' | 'email' | 'phone' | 'notes', value: string) => void;
+  lead: Lead;
+  busy: string | undefined;
+  onPromote: () => void;
+  onDelete: () => void;
 }) {
-  const hasRealEmail = Boolean(verifiedEmail(prospect));
-
   return (
-    <div className="space-y-1.5 pb-3 border-b border-evari-line/40">
-      <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-2">
-        Contact
-        {!hasRealEmail && (
-          <span
-            className="ml-2 text-[9px] normal-case tracking-normal text-evari-warn"
-            title="Add a real email to promote this row to a Lead."
-          >
-            add an email to promote to Lead
-          </span>
-        )}
-      </div>
-      <LeadField
-        icon={<User className="h-3 w-3 text-evari-dimmer" />}
-        label="Name"
-        value={personName(prospect)}
-        placeholder="Who's the contact?"
-        editing={editingField === 'name'}
-        saving={fieldSaving.has(prospect.id + ':name')}
-        editValue={editValue}
-        setEditValue={setEditValue}
-        onStartEdit={() => onStartEdit('name', personName(prospect))}
-        onCancelEdit={onCancelEdit}
-        onSave={(v) => onSave('name', v)}
-      />
-      <LeadField
-        icon={<Mail className="h-3 w-3 text-evari-dimmer" />}
-        label="Email"
-        value={verifiedEmail(prospect)}
-        placeholder="real@domain.com"
-        editing={editingField === 'email'}
-        saving={fieldSaving.has(prospect.id + ':email')}
-        editValue={editValue}
-        setEditValue={setEditValue}
-        onStartEdit={() => onStartEdit('email', verifiedEmail(prospect))}
-        onCancelEdit={onCancelEdit}
-        onSave={(v) => onSave('email', v)}
-        externalHref={
-          verifiedEmail(prospect) ? 'mailto:' + verifiedEmail(prospect) : undefined
-        }
-        trailing={
-          verifiedEmail(prospect) ? (
-            <span
-              className="text-[9px] text-evari-success"
-              title="Verified email on file."
-            >
-              verified
-            </span>
-          ) : null
-        }
-      />
-      <LeadField
-        icon={<Phone className="h-3 w-3 text-evari-dimmer" />}
-        label="Phone"
-        value={prospect.phone ?? ''}
-        placeholder="+44 …"
-        editing={editingField === 'phone'}
-        saving={fieldSaving.has(prospect.id + ':phone')}
-        editValue={editValue}
-        setEditValue={setEditValue}
-        onStartEdit={() => onStartEdit('phone', prospect.phone ?? '')}
-        onCancelEdit={onCancelEdit}
-        onSave={(v) => onSave('phone', v)}
-        externalHref={
-          prospect.phone ? 'tel:' + prospect.phone.replace(/\s+/g, '') : undefined
-        }
-      />
-      {prospect.linkedinUrl && (
-        <a
-          href={prospect.linkedinUrl}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="w-full flex items-start gap-2 text-[13px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-1 -mx-1"
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        onClick={onPromote}
+        disabled={!!busy}
+        className="flex-1 inline-flex items-center justify-center gap-1.5 bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90"
+      >
+        {busy === 'promote' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+        Promote to Lead
+      </Button>
+      {lead.threadId ? (
+        <Button
+          type="button"
+          variant="outline"
+          asChild
+          className="shrink-0"
         >
-          <ExternalLink className="h-3 w-3 text-evari-dimmer mt-0.5 shrink-0" />
-          <span className="w-16 text-evari-dimmer shrink-0">LinkedIn</span>
-          <span className="flex-1 min-w-0 truncate text-evari-gold group-hover:text-evari-text">
-            {prospect.linkedinUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-          </span>
-        </a>
-      )}
-      {prospect.companyUrl && (
-        <a
-          href={prospect.companyUrl}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="w-full flex items-start gap-2 text-[13px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-1 -mx-1"
-        >
-          <ExternalLink className="h-3 w-3 text-evari-dimmer mt-0.5 shrink-0" />
-          <span className="w-16 text-evari-dimmer shrink-0">Website</span>
-          <span className="flex-1 min-w-0 truncate text-evari-gold group-hover:text-evari-text">
-            {prospect.companyUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-          </span>
-        </a>
-      )}
-      {prospect.address && (
-        <div className="w-full flex items-start gap-2 text-[13px] text-left px-1 py-1 -mx-1">
-          <MapPin className="h-3 w-3 text-evari-dimmer mt-0.5 shrink-0" />
-          <span className="w-16 text-evari-dimmer shrink-0">Address</span>
-          <span className="flex-1 min-w-0 text-evari-text">{prospect.address}</span>
-        </div>
-      )}
-      <LeadField
-        icon={<StickyNote className="h-3 w-3 text-evari-dimmer" />}
-        label="Notes"
-        value={prospect.notes ?? ''}
-        placeholder="Anything to remember"
-        multiline
-        editing={editingField === 'notes'}
-        saving={fieldSaving.has(prospect.id + ':notes')}
-        editValue={editValue}
-        setEditValue={setEditValue}
-        onStartEdit={() => onStartEdit('notes', prospect.notes ?? '')}
-        onCancelEdit={onCancelEdit}
-        onSave={(v) => onSave('notes', v)}
-      />
+          <a href={`/inbox/${lead.threadId}`} className="inline-flex items-center gap-1.5">
+            <ExternalLink className="h-3.5 w-3.5" />
+            Thread
+          </a>
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onDelete}
+        disabled={!!busy}
+        className="shrink-0 text-evari-danger hover:text-evari-danger"
+      >
+        {busy === 'delete' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+      </Button>
     </div>
   );
 }
 
-function LeadField({
-  icon,
-  label,
-  value,
-  placeholder,
-  multiline,
-  editing,
-  saving,
-  editValue,
-  setEditValue,
-  onStartEdit,
-  onCancelEdit,
-  onSave,
-  trailing,
-  externalHref,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  placeholder: string;
-  multiline?: boolean;
-  editing: boolean;
-  saving: boolean;
-  editValue: string;
-  setEditValue: (v: string) => void;
-  onStartEdit: () => void;
-  onCancelEdit: () => void;
-  onSave: (v: string) => void;
-  trailing?: React.ReactNode;
-  externalHref?: string;
-}) {
-  if (editing) {
-    const InputEl = multiline ? 'textarea' : 'input';
-    return (
-      <div
-        className="flex items-start gap-2 text-[13px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className="pt-1.5 shrink-0">{icon}</span>
-        <span className="w-16 pt-1 text-evari-dimmer shrink-0">{label}</span>
-        <InputEl
-          autoFocus
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !multiline) {
-              e.preventDefault();
-              onSave(editValue);
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              onCancelEdit();
-            }
-          }}
-          onBlur={() => onSave(editValue)}
-          placeholder={placeholder}
-          rows={multiline ? 2 : undefined}
-          className="flex-1 min-w-0 bg-evari-ink/60 rounded px-2 py-1 text-evari-text outline-none border border-evari-gold/50 focus:border-evari-gold"
-        />
-        {saving && (
-          <Loader2 className="h-3 w-3 animate-spin text-evari-dim mt-1.5" />
-        )}
+// ---------------------------------------------------------------------------
+// Empty detail placeholder
+// ---------------------------------------------------------------------------
+
+function EmptyPanel() {
+  return (
+    <div className="h-full flex flex-col items-center justify-center px-8 text-center">
+      <div className="h-12 w-12 rounded-full bg-evari-surfaceSoft inline-flex items-center justify-center mb-4">
+        <Folder className="h-5 w-5 text-evari-dimmer" />
       </div>
-    );
+      <div className="text-[14px] font-semibold text-evari-text mb-1">
+        Pick a prospect
+      </div>
+      <div className="text-[12px] text-evari-dim max-w-sm">
+        Click any row on the left to see company details, contacts, and run
+        actions. Hunt for decision-makers or promote straight to Leads when
+        they&apos;re ready.
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function deriveDomainForIcon(lead: Lead): string {
+  const url = lead.companyUrl ?? '';
+  if (url) {
+    const d = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+    if (d) return d;
   }
-
-  const empty = !value.trim();
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={(e) => {
-        e.stopPropagation();
-        onStartEdit();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onStartEdit();
-        }
-      }}
-      className="w-full flex items-start gap-2 text-[13px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-1 -mx-1 cursor-pointer"
-    >
-      <span className="pt-0.5 shrink-0">{icon}</span>
-      <span className="w-16 text-evari-dimmer shrink-0">{label}</span>
-      <span
-        className={cn(
-          'flex-1 min-w-0 truncate',
-          empty ? 'text-evari-dimmer italic' : 'text-evari-text',
-        )}
-      >
-        {empty ? placeholder : value}
-      </span>
-      {trailing}
-      {externalHref && !empty && (
-        <a
-          href={externalHref}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          title={'Open ' + label.toLowerCase() + ' in a new window'}
-          className="h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 shrink-0"
-        >
-          <ExternalLink className="h-3 w-3" />
-        </a>
-      )}
-      <Pencil className="h-3 w-3 text-evari-dimmer opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
-    </div>
-  );
-}
-
-
-/**
- * Row header title. Prefer the contact's real name once it's filled in;
- * otherwise fall back to the company name (org) so sourced rows aren't
- * anonymous while you're scanning the list.
- */
-function displayRowTitle(p: Prospect): string {
-  const real = personName(p);
-  if (real) return real;
-  const org = (p.org ?? '').trim();
-  if (org) return org;
-  return p.name || 'Unnamed prospect';
-}
-
-/**
- * The prospect's contact name, treated as empty when it's just the
- * company / club name echoed into the fullName field (a relic of how
- * the sourcing agent used to create rows).
- */
-function personName(p: Prospect): string {
-  const name = (p.name ?? '').trim();
-  const org = (p.org ?? '').trim();
-  if (!name) return '';
-  if (org && name.toLowerCase() === org.toLowerCase()) return '';
-  return name;
-}
-
-/**
- * Only return an email we'd actually be happy sending to — blank when
- * it's pattern-inferred / a shared inbox / never filled in.
- */
-function verifiedEmail(p: Prospect): string {
-  if (!p.email) return '';
-  if (p.emailInferred) return '';
-  return p.email;
-}
-// ---------------------------------------------------------------------------
-// Hunt-contacts modal
-// ---------------------------------------------------------------------------
-
-interface HuntCandidate {
-  name: string;
-  jobTitle?: string;
-  email?: string;
-  confidence?: 'high' | 'medium' | 'low';
-  sourceUrl?: string;
-  sourceTitle?: string;
-  snippet?: string;
-}
-
-function candidateKey(c: HuntCandidate): string {
-  const e = (c.email ?? '').trim().toLowerCase();
-  if (e) return 'e:' + e;
-  const n = (c.name ?? '').trim().toLowerCase();
-  return n ? 'n:' + n : '';
-}
-
-function HuntContactsModal({
-  prospect,
-  loading,
-  log,
-  candidates,
-  selected,
-  error,
-  appending,
-  onToggle,
-  onClose,
-  onConfirm,
-  onSelectAll,
-  onSelectNone,
-}: {
-  prospect: Prospect | null;
-  loading: boolean;
-  log: string[];
-  candidates: HuntCandidate[];
-  selected: Set<string>;
-  error: string | null;
-  appending: boolean;
-  onToggle: (key: string) => void;
-  onClose: () => void;
-  onConfirm: () => void;
-  onSelectAll: () => void;
-  onSelectNone: () => void;
-}) {
-  if (!prospect) return null;
-  const pickedCount = selected.size;
-  const showPicker = !loading && candidates.length > 0;
-  const showEmpty = !loading && !error && candidates.length === 0 && log.length > 1;
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto p-4 py-10"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-2xl rounded-lg bg-evari-surface border border-evari-line/40 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 p-4 border-b border-evari-line/30">
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
-              Open-web contact hunt
-            </div>
-            <div className="mt-0.5 text-sm font-medium text-evari-text truncate">
-              {prospect.org || prospect.name}
-            </div>
-            {prospect.companyUrl && (
-              <div className="text-[11px] font-mono text-evari-dimmer truncate">
-                {prospect.companyUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
-            title="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="p-4 space-y-3">
-          {loading && (
-            <div className="flex items-center gap-2 text-[12px] text-evari-dim">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Hunting the open web for @domain contacts…
-            </div>
-          )}
-
-          {(loading || log.length > 0) && (
-            <div className="rounded-md bg-evari-ink/50 p-3 max-h-40 overflow-y-auto font-mono text-[11px] text-evari-dim leading-relaxed">
-              {log.map((line, i) => (
-                <div key={i}>{line}</div>
-              ))}
-            </div>
-          )}
-
-          {error && (
-            <div className="rounded-md bg-evari-danger/15 border border-evari-danger/40 p-3 text-[12px] text-evari-danger">
-              {error}
-            </div>
-          )}
-
-          {showEmpty && (
-            <div className="rounded-md bg-evari-surfaceSoft p-4 text-[12px] text-evari-dim text-center">
-              No new @domain contacts turned up on the open web. The AI couldn\'t find named addresses that weren\'t already in your list.
-            </div>
-          )}
-
-          {showPicker && (
-            <>
-              <div className="flex items-center justify-between">
-                <div className="text-[11px] text-evari-dim">
-                  Found {candidates.length} candidate{candidates.length === 1 ? '' : 's'} · {pickedCount} picked
-                </div>
-                <div className="flex items-center gap-2 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={onSelectAll}
-                    className="text-evari-gold hover:text-evari-text"
-                  >
-                    All
-                  </button>
-                  <span className="text-evari-dimmer">·</span>
-                  <button
-                    type="button"
-                    onClick={onSelectNone}
-                    className="text-evari-dim hover:text-evari-text"
-                  >
-                    None
-                  </button>
-                </div>
-              </div>
-
-              <ul className="max-h-[50vh] overflow-y-auto divide-y divide-evari-line/20 rounded-md bg-evari-ink/30">
-                {candidates.map((c) => {
-                  const key = candidateKey(c);
-                  const checked = selected.has(key);
-                  return (
-                    <li
-                      key={key || c.name + c.email}
-                      className="flex items-start gap-3 p-3 hover:bg-evari-surfaceSoft/40"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => onToggle(key)}
-                        className="mt-1 h-3.5 w-3.5 accent-evari-gold"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="text-[13px] font-medium text-evari-text">
-                            {c.name || '(no name)'}
-                          </span>
-                          {c.jobTitle && (
-                            <span className="text-[11px] text-evari-dim">— {c.jobTitle}</span>
-                          )}
-                          {c.confidence && (
-                            <span className="text-[9px] uppercase tracking-wider text-evari-dimmer">
-                              {c.confidence}
-                            </span>
-                          )}
-                        </div>
-                        {c.email && (
-                          <div className="font-mono text-[11px] text-evari-gold truncate mt-0.5">
-                            {c.email}
-                          </div>
-                        )}
-                        {c.snippet && (
-                          <div className="text-[11px] text-evari-dim italic mt-1 line-clamp-2">
-                            {c.snippet}
-                          </div>
-                        )}
-                        {c.sourceUrl && (
-                          <a
-                            href={c.sourceUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-1 inline-flex items-center gap-1 text-[10px] text-evari-dimmer hover:text-evari-gold"
-                          >
-                            <ExternalLink className="h-2.5 w-2.5" />
-                            {c.sourceTitle || shortPath(c.sourceUrl)}
-                          </a>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center justify-end gap-2 p-3 border-t border-evari-line/30">
-          <Button size="sm" variant="ghost" onClick={onClose} disabled={appending}>
-            Cancel
-          </Button>
-          {showPicker && (
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={onConfirm}
-              disabled={appending || pickedCount === 0}
-            >
-              {appending ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Check className="h-3 w-3" />
-              )}
-              Add {pickedCount} contact{pickedCount === 1 ? '' : 's'}
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  const at = lead.email.indexOf('@');
+  if (at > -1) return lead.email.slice(at + 1).toLowerCase();
+  return 'unknown.local';
 }

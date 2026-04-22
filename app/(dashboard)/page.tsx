@@ -81,7 +81,7 @@ export default async function BriefingPage() {
                   {hotLeads.map((l) => (
                     <li key={l.id} className="bg-evari-surface/70 rounded-md">
                       <Link
-                        href={`/leads/${l.id}`}
+                        href={`/leads?id=${l.id}`}
                         className="flex items-center gap-4 px-3 py-2.5 hover:bg-evari-surface rounded-md transition-colors"
                       >
                         <div className="h-8 w-8 rounded-full bg-evari-edge flex items-center justify-center text-xs text-evari-dim font-medium uppercase shrink-0">

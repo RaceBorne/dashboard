@@ -1,276 +1,135 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import Link from 'next/link';
+/**
+ * LeadsClient — Discover-style layout.
+ *
+ * Three columns:
+ *   1. Folder sidebar (categories + Uncategorised + All)
+ *   2. Lead list (compact row per lead: favicon, name, org, stage)
+ *   3. CompanyPanel (Discover's detail panel, rendering the selected lead
+ *      via leadToDiscoveredCompany)
+ *
+ * Row panel mirrors /discover exactly — we re-use the same CompanyPanel,
+ * wiring "Find emails & details" to enrich-contacts SSE and a primary
+ * action bar for open thread / move-to-prospect / delete.
+ */
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
-  Pencil,
-  Trash2,
   Search as SearchIcon,
-  ArrowUpDown,
   X,
-  Users,
-  Layers,
-  Inbox,
   Folder,
+  FolderPlus,
   Loader2,
+  Check,
+  Trash2,
+  Users2,
+  MapPin,
+  Pencil,
+  ArrowDownLeft,
+  ExternalLink,
+  Inbox,
 } from 'lucide-react';
-import { StageBadge } from '@/components/leads/StageBadge';
-import {
-  SourceBadge,
-  SOURCE_CATEGORY_META,
-  SOURCE_CATEGORY_ORDER,
-} from '@/components/leads/SourceBadge';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { formatGBP, relativeTime, cn } from '@/lib/utils';
-import {
-  sourceCategoryFor,
-  type Lead,
-  type LeadStage,
-  type LeadSourceCategory,
-} from '@/lib/types';
+import { cn, relativeTime } from '@/lib/utils';
+import type { Lead, LeadStage } from '@/lib/types';
+import { CompanyPanel } from '@/components/discover/CompanyPanel';
+import { leadToDiscoveredCompany } from '@/lib/dashboard/leadViews';
 
-const STAGES: LeadStage[] = [
-  'new',
-  'contacted',
-  'discovery',
-  'configuring',
-  'quoted',
-  'won',
-  'lost',
-  'cold',
-];
+const STAGE_TONE: Record<LeadStage, string> = {
+  new: 'bg-evari-surfaceSoft text-evari-dim',
+  contacted: 'bg-sky-400/20 text-sky-700',
+  discovery: 'bg-indigo-400/20 text-indigo-700',
+  configuring: 'bg-evari-gold/20 text-evari-goldInk',
+  quoted: 'bg-evari-accent/20 text-evari-accent',
+  won: 'bg-evari-success/20 text-evari-success',
+  lost: 'bg-evari-danger/15 text-evari-danger',
+  cold: 'bg-evari-surfaceSoft text-evari-dimmer',
+};
 
-type SortKey = 'newest' | 'oldest' | 'lastTouch' | 'value' | 'stage';
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'newest', label: 'Newest first' },
-  { value: 'oldest', label: 'Oldest first' },
-  { value: 'lastTouch', label: 'Last touch' },
-  { value: 'value', label: 'Highest value' },
-  { value: 'stage', label: 'By stage' },
-];
+const STAGE_LABEL: Record<LeadStage, string> = {
+  new: 'New',
+  contacted: 'Contacted',
+  discovery: 'Discovery',
+  configuring: 'Configuring',
+  quoted: 'Quoted',
+  won: 'Won',
+  lost: 'Lost',
+  cold: 'Cold',
+};
 
-export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
+const UNCATEGORISED = 'Uncategorised';
+
+interface Props {
+  initialLeads: Lead[];
+}
+
+export function LeadsClient({ initialLeads }: Props) {
+  const searchParams = useSearchParams();
+  const deepLinkId = searchParams?.get('id') ?? null;
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
-  const [editing, setEditing] = useState<Lead | null>(null);
-  const confirm = useConfirm();
-
-  // --- Filter state --------------------------------------------------------
-  // Default: every option ticked = everything visible. Click to exclude.
-  // "All" ticks every option. "None" unticks every option (clean slate).
+  const [activeFolder, setActiveFolder] = useState<string | null>(null); // null = All
   const [search, setSearch] = useState('');
-  const [activeCategories, setActiveCategories] = useState<
-    Set<LeadSourceCategory>
-  >(new Set(SOURCE_CATEGORY_ORDER));
-  const [activeStages, setActiveStages] = useState<Set<LeadStage>>(
-    new Set(STAGES),
-  );
-  const [activeFunnel, setActiveFunnel] = useState<Set<string>>(new Set());
-  const [renamingFunnel, setRenamingFunnel] = useState<string | null>(null);
-  const [funnelRenameValue, setFunnelRenameValue] = useState('');
-  const [busyFunnel, setBusyFunnel] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<SortKey>('newest');
+  const [selectedId, setSelectedId] = useState<string | null>(deepLinkId);
 
-  function toggleCategory(c: LeadSourceCategory) {
-    setActiveCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(c)) next.delete(c);
-      else next.add(c);
-      return next;
-    });
-  }
-  function toggleStage(s: LeadStage) {
-    setActiveStages((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s);
-      else next.add(s);
-      return next;
-    });
-  }
-  function toggleFunnel(k: string) {
-    setActiveFunnel((prev) => {
-      const next = new Set(prev);
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
-      return next;
-    });
-  }
-  async function commitFunnelRename() {
-    const from = renamingFunnel;
-    const to = funnelRenameValue.trim();
-    if (!from) return;
-    if (!to || to === from) {
-      setRenamingFunnel(null);
-      setFunnelRenameValue('');
-      return;
-    }
-    setBusyFunnel(from);
-    try {
-      const res = await fetch('/api/leads/category', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ from, to, tier: 'lead' }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        renamed?: number;
-        error?: string;
-      };
-      if (res.ok) {
-        setLeads((prev) =>
-          prev.map((l) =>
-            ((l.category ?? '').trim() || 'Uncategorised') === from
-              ? { ...l, category: to }
-              : l,
-          ),
-        );
-        setActiveFunnel((prev) => {
-          if (!prev.has(from)) return prev;
-          const next = new Set(prev);
-          next.delete(from);
-          next.add(to);
-          return next;
-        });
-      } else {
-        console.warn('rename folder failed', data.error);
-      }
-    } catch (err) {
-      console.warn('rename folder failed', err);
-    } finally {
-      setBusyFunnel(null);
-      setRenamingFunnel(null);
-      setFunnelRenameValue('');
-    }
-  }
-  async function deleteFunnel(category: string) {
-    const count = leads.filter(
-      (l) => ((l.category ?? '').trim() || 'Uncategorised') === category,
-    ).length;
-    const ok = await confirm({
-      title: 'Delete "' + category + '" folder?',
-      description:
-        'Permanently deletes ' +
-        count +
-        ' lead' +
-        (count === 1 ? '' : 's') +
-        ' in this folder. This cannot be undone.',
-      confirmLabel: 'Delete folder',
-      tone: 'danger',
-    });
-    if (!ok) return;
-    setBusyFunnel(category);
-    try {
-      const res = await fetch('/api/leads/category', {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ category, tier: 'lead' }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        deleted?: number;
-        error?: string;
-      };
-      if (res.ok) {
-        setLeads((prev) =>
-          prev.filter(
-            (l) =>
-              ((l.category ?? '').trim() || 'Uncategorised') !== category,
-          ),
-        );
-        setActiveFunnel((prev) => {
-          if (!prev.has(category)) return prev;
-          const next = new Set(prev);
-          next.delete(category);
-          return next;
-        });
-      } else {
-        console.warn('delete folder failed', data.error);
-      }
-    } catch (err) {
-      console.warn('delete folder failed', err);
-    } finally {
-      setBusyFunnel(null);
-    }
-  }
-  function allSourcesOn() {
-    setActiveCategories(new Set(SOURCE_CATEGORY_ORDER));
-  }
-  function allSourcesOff() {
-    setActiveCategories(new Set());
-  }
-  function allStagesOn() {
-    setActiveStages(new Set(STAGES));
-  }
-  function allStagesOff() {
-    setActiveStages(new Set());
-  }
-  function resetFilters() {
-    setSearch('');
-    allSourcesOn();
-    allStagesOn();
-  }
+  // Honour ?id=X in the URL so links from Home / Conversations can deep-link
+  // straight to a specific lead with the panel pre-opened.
+  useEffect(() => {
+    if (!deepLinkId) return;
+    if (!initialLeads.some((l) => l.id === deepLinkId)) return;
+    setSelectedId(deepLinkId);
+  }, [deepLinkId, initialLeads]);
 
-  // --- Derived -------------------------------------------------------------
-  const categoryCounts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const k of SOURCE_CATEGORY_ORDER) c[k] = 0;
-    for (const l of leads) {
-      const cat = l.sourceCategory ?? sourceCategoryFor(l.source);
-      c[cat] = (c[cat] ?? 0) + 1;
-    }
-    return c;
-  }, [leads]);
+  const [huntingId, setHuntingId] = useState<string | null>(null);
+  const [huntLog, setHuntLog] = useState<string[]>([]);
+  const [enrichPassById, setEnrichPassById] = useState<Record<string, number>>({});
 
-  const stageCounts = useMemo(() => {
-    return STAGES.reduce<Record<string, number>>((a, s) => {
-      a[s] = leads.filter((l) => l.stage === s).length;
-      return a;
-    }, {});
-  }, [leads]);
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [folderRenameValue, setFolderRenameValue] = useState('');
+  const [busyFolder, setBusyFolder] = useState<string | null>(null);
 
-  const funnelCounts = useMemo(() => {
+  const [actionBusy, setActionBusy] = useState<Record<string, string>>({});
+
+  const confirm = useConfirm();
+  const streamAbort = useRef<AbortController | null>(null);
+
+  // --- Derived ------------------------------------------------------------
+
+  const folderCounts = useMemo(() => {
     const c: Record<string, number> = {};
     for (const l of leads) {
-      const key = (l.category ?? '').trim() || 'Uncategorised';
+      const key = (l.category ?? '').trim() || UNCATEGORISED;
       c[key] = (c[key] ?? 0) + 1;
     }
     return c;
   }, [leads]);
 
-  const funnelKeys = useMemo(
-    () =>
-      Object.keys(funnelCounts).sort((a, b) => {
-        if (a === 'Uncategorised') return 1;
-        if (b === 'Uncategorised') return -1;
-        return a.localeCompare(b);
-      }),
-    [funnelCounts],
-  );
+  const folderKeys = useMemo(() => {
+    return Object.keys(folderCounts).sort((a, b) => {
+      if (a === UNCATEGORISED) return 1;
+      if (b === UNCATEGORISED) return -1;
+      return a.localeCompare(b);
+    });
+  }, [folderCounts]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return leads.filter((l) => {
-      const cat = l.sourceCategory ?? sourceCategoryFor(l.source);
-      if (!activeCategories.has(cat)) return false;
-      if (!activeStages.has(l.stage)) return false;
-      if (activeFunnel.size > 0) {
-        const key = (l.category ?? '').trim() || 'Uncategorised';
-        if (!activeFunnel.has(key)) return false;
+      if (activeFolder) {
+        const key = (l.category ?? '').trim() || UNCATEGORISED;
+        if (key !== activeFolder) return false;
       }
       if (q) {
         const hay = [
           l.fullName,
+          l.companyName ?? '',
           l.email,
-          l.location ?? '',
-          l.productInterest ?? '',
-          l.sourceDetail ?? '',
-          l.tags.join(' '),
+          l.address ?? '',
+          l.category ?? '',
+          l.jobTitle ?? '',
         ]
           .join(' ')
           .toLowerCase();
@@ -278,783 +137,587 @@ export function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) {
       }
       return true;
     });
-  }, [leads, search, activeCategories, activeStages, activeFunnel]);
+  }, [leads, activeFolder, search]);
 
-  const sorted = useMemo(() => {
-    const stageOrder: Record<string, number> = {
-      new: 0,
-      configuring: 1,
-      discovery: 2,
-      quoted: 3,
-      contacted: 4,
-      won: 5,
-      cold: 6,
-      lost: 7,
-    };
-    const out = [...filtered];
-    switch (sortBy) {
-      case 'newest':
-        out.sort(
-          (a, b) => +new Date(b.firstSeenAt) - +new Date(a.firstSeenAt),
-        );
-        break;
-      case 'oldest':
-        out.sort(
-          (a, b) => +new Date(a.firstSeenAt) - +new Date(b.firstSeenAt),
-        );
-        break;
-      case 'lastTouch':
-        out.sort(
-          (a, b) => +new Date(b.lastTouchAt) - +new Date(a.lastTouchAt),
-        );
-        break;
-      case 'value':
-        out.sort(
-          (a, b) => (b.estimatedValue ?? 0) - (a.estimatedValue ?? 0),
-        );
-        break;
-      case 'stage':
-        out.sort((a, b) => {
-          if (stageOrder[a.stage] !== stageOrder[b.stage])
-            return stageOrder[a.stage] - stageOrder[b.stage];
-          return (b.estimatedValue ?? 0) - (a.estimatedValue ?? 0);
-        });
-        break;
+  useEffect(() => {
+    if (!selectedId) return;
+    if (!filtered.some((l) => l.id === selectedId)) {
+      setSelectedId(null);
     }
-    return out;
-  }, [filtered, sortBy]);
+  }, [filtered, selectedId]);
 
-  const totalValue = leads
-    .filter((l) => !['won', 'lost', 'cold'].includes(l.stage))
-    .reduce((sum, l) => sum + (l.estimatedValue ?? 0), 0);
+  const selected = selectedId ? leads.find((l) => l.id === selectedId) ?? null : null;
+  const selectedCompany = useMemo(
+    () => (selected ? leadToDiscoveredCompany(selected) : null),
+    [selected],
+  );
 
-  // --- Mutations -----------------------------------------------------------
-  async function deleteLead(lead: Lead) {
+  // --- Actions ------------------------------------------------------------
+
+  async function moveToProspect(id: string) {
     const ok = await confirm({
-      title: 'Delete lead?',
-      description: `${lead.fullName} will be removed permanently.`,
+      title: 'Move back to Prospect?',
+      description: 'This removes the lead from the Leads CRM and returns it to the Prospect pool.',
+      confirmLabel: 'Move to Prospect',
+    });
+    if (!ok) return;
+    setActionBusy((m) => ({ ...m, [id]: 'demote' }));
+    try {
+      const res = await fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: 'prospect' }),
+      });
+      if (!res.ok) throw new Error(`Demote failed (${res.status})`);
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      window.dispatchEvent(new Event('evari:nav-counts-dirty'));
+    } catch (err) {
+      console.error('demote', err);
+    } finally {
+      setActionBusy((m) => {
+        const next = { ...m };
+        delete next[id];
+        return next;
+      });
+    }
+  }
+
+  async function deleteLead(id: string) {
+    const ok = await confirm({
+      title: 'Delete this lead?',
+      description: 'This removes the row from the CRM and cannot be undone.',
       confirmLabel: 'Delete',
       tone: 'danger',
     });
     if (!ok) return;
-    setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+    setActionBusy((m) => ({ ...m, [id]: 'delete' }));
+    try {
+      const res = await fetch(`/api/leads/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      window.dispatchEvent(new Event('evari:nav-counts-dirty'));
+    } catch (err) {
+      console.error('delete', err);
+    } finally {
+      setActionBusy((m) => {
+        const next = { ...m };
+        delete next[id];
+        return next;
+      });
+    }
   }
 
-  function updateLead(
-    id: string,
-    changes: Partial<
-      Pick<
-        Lead,
-        | 'fullName'
-        | 'email'
-        | 'phone'
-        | 'stage'
-        | 'estimatedValue'
-        | 'productInterest'
-        | 'location'
-        | 'sourceDetail'
-      >
-    >,
-  ) {
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? { ...l, ...changes, lastTouchAt: new Date().toISOString() }
-          : l,
-      ),
-    );
-    setEditing(null);
+  async function renameFolder(original: string, next: string) {
+    const cleaned = next.trim();
+    if (!cleaned || cleaned === original) {
+      setRenamingFolder(null);
+      return;
+    }
+    setBusyFolder(original);
+    try {
+      const res = await fetch('/api/leads/category', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: original, to: cleaned, tier: 'lead' }),
+      });
+      if (!res.ok) throw new Error(`Rename failed (${res.status})`);
+      setLeads((prev) =>
+        prev.map((l) =>
+          (l.category ?? '') === original ? { ...l, category: cleaned } : l,
+        ),
+      );
+      if (activeFolder === original) setActiveFolder(cleaned);
+    } catch (err) {
+      console.error('rename folder', err);
+    } finally {
+      setBusyFolder(null);
+      setRenamingFolder(null);
+    }
   }
 
-  const allSourcesSelected = activeCategories.size === SOURCE_CATEGORY_ORDER.length;
-  const allStagesSelected = activeStages.size === STAGES.length;
-  const filtersActive = !allSourcesSelected || !allStagesSelected;
+  async function deleteFolder(name: string) {
+    const count = folderCounts[name] ?? 0;
+    const ok = await confirm({
+      title: `Delete folder "${name}"?`,
+      description: `This deletes ${count} lead${count === 1 ? '' : 's'} in this folder. This cannot be undone.`,
+      confirmLabel: 'Delete folder',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setBusyFolder(name);
+    try {
+      const res = await fetch('/api/leads/category', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: name, tier: 'lead' }),
+      });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      setLeads((prev) =>
+        prev.filter((l) => ((l.category ?? '').trim() || UNCATEGORISED) !== name),
+      );
+      if (activeFolder === name) setActiveFolder(null);
+    } catch (err) {
+      console.error('delete folder', err);
+    } finally {
+      setBusyFolder(null);
+    }
+  }
+
+  async function enrichContacts(leadId: string) {
+    if (huntingId) return;
+    streamAbort.current?.abort();
+    const ac = new AbortController();
+    streamAbort.current = ac;
+    setHuntingId(leadId);
+    setHuntLog([]);
+
+    try {
+      const res = await fetch(`/api/leads/${leadId}/enrich-contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regenerate: true }),
+        signal: ac.signal,
+      });
+      if (!res.ok || !res.body) throw new Error(`Enrich failed (${res.status})`);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const frames = buf.split('\n\n');
+        buf = frames.pop() ?? '';
+        for (const frame of frames) {
+          const line = frame.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          try {
+            const msg = JSON.parse(payload) as {
+              phase?: string;
+              message?: string;
+              lead?: Lead;
+            };
+            if (msg.phase && msg.phase !== 'done' && msg.phase !== 'error') {
+              setHuntLog((prev) => [
+                ...prev,
+                msg.message ? `${msg.phase}: ${msg.message}` : msg.phase!,
+              ]);
+            }
+            if (msg.phase === 'done' && msg.lead) {
+              setLeads((prev) => prev.map((l) => (l.id === leadId ? msg.lead! : l)));
+            }
+            if (msg.phase === 'error') {
+              setHuntLog((prev) => [...prev, `error: ${msg.message ?? 'failed'}`]);
+            }
+          } catch {
+            setHuntLog((prev) => [...prev, payload]);
+          }
+        }
+      }
+
+      setEnrichPassById((prev) => ({ ...prev, [leadId]: (prev[leadId] ?? 0) + 1 }));
+    } catch (err) {
+      if ((err as { name?: string }).name === 'AbortError') return;
+      console.error('enrich-contacts', err);
+    } finally {
+      if (streamAbort.current === ac) streamAbort.current = null;
+      setHuntingId((cur) => (cur === leadId ? null : cur));
+    }
+  }
+
+  // --- Render -------------------------------------------------------------
 
   return (
-    <div className="flex gap-5 p-6">
-      {/* Left filter sidebar — matches Tasks page pattern */}
-      <aside className="w-56 shrink-0">
-        <div className="sticky top-4 space-y-5">
-          {/* All leads entry — resets both sections to "all on" */}
-          <div>
-            <button
-              type="button"
-              onClick={resetFilters}
-              className={cn(
-                'w-full flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors text-left',
-                !filtersActive
-                  ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                  : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
-              )}
-            >
-              <Inbox className="h-4 w-4 shrink-0" />
-              <span className="flex-1">All leads</span>
-              <CountPill n={leads.length} />
-            </button>
+    <div className="flex gap-4 p-4 h-[calc(100vh-56px)] bg-evari-ink">
+      {/* Column 1: folder sidebar */}
+      <aside className="w-[260px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
+        <div className="shrink-0 px-4 pt-4 pb-2">
+          <div className="text-[11px] uppercase tracking-wide text-evari-dimmer mb-2">
+            Folders
           </div>
-
-          {/* Source section */}
-          <FilterSection
-            label="Source"
-            icon={<Users className="h-3 w-3" />}
-            onAllOn={allSourcesOn}
-            onAllOff={allSourcesOff}
-            allSelected={allSourcesSelected}
-            noneSelected={activeCategories.size === 0}
+          <button
+            type="button"
+            onClick={() => setActiveFolder(null)}
+            className={cn(
+              'w-full inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-left',
+              activeFolder === null
+                ? 'bg-evari-accent/10 text-evari-accent font-medium'
+                : 'text-evari-text hover:bg-evari-surfaceSoft',
+            )}
           >
-            {SOURCE_CATEGORY_ORDER.map((c) => {
-              const count = categoryCounts[c] ?? 0;
-              if (count === 0) return null;
-              const meta = SOURCE_CATEGORY_META[c];
-              const Icon = meta.Icon;
-              const active = activeCategories.has(c);
-              return (
-                <FilterRow
-                  key={c}
-                  icon={<Icon className="h-4 w-4" />}
-                  label={meta.label}
-                  count={count}
-                  active={active}
-                  onClick={() => toggleCategory(c)}
-                />
-              );
-            })}
-          </FilterSection>
+            <Inbox className="h-3.5 w-3.5" />
+            <span className="flex-1 truncate">All leads</span>
+            <span className="text-[11px] text-evari-dim">{leads.length}</span>
+          </button>
+        </div>
 
-          {/* Stage section */}
-          <FilterSection
-            label="Stage"
-            icon={<Layers className="h-3 w-3" />}
-            onAllOn={allStagesOn}
-            onAllOff={allStagesOff}
-            allSelected={allStagesSelected}
-            noneSelected={activeStages.size === 0}
-          >
-            {STAGES.map((s) => {
-              const count = stageCounts[s] ?? 0;
-              if (count === 0) return null;
-              const active = activeStages.has(s);
+        <div className="flex-1 overflow-y-auto px-2 pb-3">
+          <ul className="space-y-0.5">
+            {folderKeys.map((k) => {
+              const active = activeFolder === k;
+              const isRenaming = renamingFolder === k;
               return (
-                <FilterRow
-                  key={s}
-                  icon={<StageDot stage={s} />}
-                  label={s}
-                  capitalize
-                  count={count}
-                  active={active}
-                  onClick={() => toggleStage(s)}
-                />
-              );
-            })}
-          </FilterSection>
-
-          {funnelKeys.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between px-1 pb-1.5">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium">
-                  Funnel
-                </div>
-                {activeFunnel.size > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveFunnel(new Set())}
-                    className="text-[10px] text-evari-dim hover:text-evari-text px-1.5 py-0.5 rounded hover:bg-evari-surfaceSoft"
-                  >
-                    clear
-                  </button>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                {funnelKeys.map((key) => {
-                  const count = funnelCounts[key];
-                  const active = activeFunnel.has(key);
-                  const renaming = renamingFunnel === key;
-                  const busy = busyFunnel === key;
-                  return (
-                    <div
-                      key={key}
-                      className={cn(
-                        'group relative flex items-center rounded-md transition-colors',
-                        active
-                          ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                          : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
-                      )}
-                    >
-                      {renaming ? (
-                        <div className="flex-1 flex items-center gap-2 px-3 py-1 text-sm">
-                          <Folder className="h-3.5 w-3.5 shrink-0 text-evari-dimmer" />
-                          <input
-                            autoFocus
-                            value={funnelRenameValue}
-                            onChange={(e) => setFunnelRenameValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') void commitFunnelRename();
-                              if (e.key === 'Escape') {
-                                setRenamingFunnel(null);
-                                setFunnelRenameValue('');
-                              }
-                            }}
-                            onBlur={() => void commitFunnelRename()}
-                            className="flex-1 min-w-0 bg-transparent text-sm text-evari-text outline-none border-b border-evari-gold/60 focus:border-evari-gold"
-                          />
-                          {busy && (
-                            <Loader2 className="h-3 w-3 animate-spin text-evari-dim" />
-                          )}
-                        </div>
-                      ) : (
-                        <>
+                <li key={k} className="group flex items-center gap-1">
+                  {isRenaming ? (
+                    <div className="flex-1 flex items-center gap-1 px-2">
+                      <Input
+                        autoFocus
+                        value={folderRenameValue}
+                        onChange={(e) => setFolderRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void renameFolder(k, folderRenameValue);
+                          } else if (e.key === 'Escape') {
+                            setRenamingFolder(null);
+                          }
+                        }}
+                        className="h-7 text-[12px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void renameFolder(k, folderRenameValue)}
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-accent hover:bg-evari-surfaceSoft"
+                        disabled={busyFolder === k}
+                      >
+                        {busyFolder === k ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setActiveFolder(k)}
+                        className={cn(
+                          'flex-1 inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-left',
+                          active
+                            ? 'bg-evari-accent/10 text-evari-accent font-medium'
+                            : 'text-evari-text hover:bg-evari-surfaceSoft',
+                        )}
+                      >
+                        <Folder className="h-3.5 w-3.5" />
+                        <span className="flex-1 truncate">{k}</span>
+                        <span className="text-[11px] text-evari-dim">
+                          {folderCounts[k]}
+                        </span>
+                      </button>
+                      {k !== UNCATEGORISED ? (
+                        <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-1">
                           <button
                             type="button"
-                            onClick={() => toggleFunnel(key)}
-                            className="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-1.5 text-sm text-left"
+                            onClick={() => {
+                              setRenamingFolder(k);
+                              setFolderRenameValue(k);
+                            }}
+                            className="h-6 w-6 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
+                            title="Rename folder"
                           >
-                            <Folder
-                              className={cn(
-                                'h-3.5 w-3.5 shrink-0',
-                                active ? 'text-evari-text' : 'text-evari-dimmer',
-                              )}
-                            />
-                            <span className="flex-1 truncate">{key}</span>
-                            <CountPill n={count} />
+                            <Pencil className="h-3 w-3" />
                           </button>
-                          <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRenamingFunnel(key);
-                                setFunnelRenameValue(key);
-                              }}
-                              disabled={busy || key === 'Uncategorised'}
-                              title={
-                                key === 'Uncategorised'
-                                  ? 'Cannot rename Uncategorised'
-                                  : 'Rename folder'
-                              }
-                              className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void deleteFunnel(key);
-                              }}
-                              disabled={busy}
-                              title="Delete folder + all leads inside"
-                              className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-surface/60 disabled:opacity-30"
-                            >
-                              {busy ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3 w-3" />
-                              )}
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                          <button
+                            type="button"
+                            onClick={() => void deleteFolder(k)}
+                            className="h-6 w-6 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft"
+                            title="Delete folder"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </li>
+              );
+            })}
+            {folderKeys.length === 0 ? (
+              <li className="px-2.5 py-2 text-[12px] text-evari-dim">
+                No leads yet — promote prospects from the{' '}
+                <a href="/prospects" className="underline hover:text-evari-text">
+                  Prospects
+                </a>{' '}
+                tab.
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="shrink-0 px-3 pb-3 pt-2 border-t border-evari-line/30">
+          <a
+            href="/prospects"
+            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dim w-full justify-center"
+          >
+            <FolderPlus className="h-3 w-3" />
+            Promote from Prospects
+          </a>
         </div>
       </aside>
 
-      {/* Main list */}
-      <main className="flex-1 min-w-0 space-y-5">
-        {/* Pipeline summary */}
-        <div className="rounded-xl bg-evari-surface p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-              Open pipeline
+      {/* Columns 2 + 3 — always 50/50 */}
+      <div className="flex-1 min-w-0 h-full flex gap-4">
+        {/* Column 2: list */}
+        <main className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden">
+          <header className="shrink-0 border-b border-evari-line/30 px-4 py-3 flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] font-semibold text-evari-text truncate">
+                {activeFolder ?? 'All leads'}
+              </div>
+              <div className="text-[11.5px] text-evari-dim">
+                {filtered.length} lead{filtered.length === 1 ? '' : 's'}
+              </div>
             </div>
-            <div className="text-sm font-mono tabular-nums text-evari-text">
-              {formatGBP(totalValue)}
-            </div>
-          </div>
-          <div className="flex gap-1.5">
-            {STAGES.filter((s) => !['lost', 'cold'].includes(s)).map((s) => {
-              const total = leads.filter(
-                (l) => !['lost', 'cold'].includes(l.stage),
-              ).length;
-              const pct = total ? (stageCounts[s] / total) * 100 : 0;
-              return (
-                <div
-                  key={s}
-                  className="flex-1 h-2 rounded-full bg-evari-edge overflow-hidden"
-                  title={s + ': ' + stageCounts[s]}
+            <div className="relative w-48 shrink-0">
+              <SearchIcon className="h-3.5 w-3.5 text-evari-dimmer absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search leads"
+                className="h-8 pl-7 pr-7 text-[12.5px]"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text"
                 >
-                  <div
-                    className="h-full bg-evari-gold"
-                    style={{ width: pct + '%' }}
+                  <X className="h-3 w-3" />
+                </button>
+              ) : null}
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center px-8 text-center">
+                <Inbox className="h-8 w-8 text-evari-dimmer mb-3" />
+                <div className="text-[14px] font-semibold text-evari-text mb-1">
+                  {leads.length === 0 ? 'No leads yet' : 'No matches'}
+                </div>
+                <div className="text-[12px] text-evari-dim max-w-xs">
+                  {leads.length === 0
+                    ? 'Promote a Prospect once they have a verified email to start your Leads CRM.'
+                    : 'Try a different folder or clear the search above.'}
+                </div>
+              </div>
+            ) : (
+              <ul className="divide-y divide-evari-line/40">
+                {filtered.map((l) => (
+                  <LeadRow
+                    key={l.id}
+                    lead={l}
+                    active={selectedId === l.id}
+                    onSelect={() => setSelectedId(l.id)}
                   />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Search + sort + result count */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-evari-dimmer" />
-            <Input
-              placeholder="Search name, email, location, interest, source, tag…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8"
-            />
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <ArrowUpDown className="h-3.5 w-3.5 text-evari-dimmer" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortKey)}
-              className="bg-evari-surfaceSoft rounded-md px-2 py-1.5 text-xs text-evari-text focus:outline-none focus:ring-1 focus:ring-evari-gold/50"
-            >
-              {SORT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between px-1 text-[11px] text-evari-dim gap-3">
-          <span className="shrink-0">
-            Showing {sorted.length} of {leads.length}
-          </span>
-          {filtersActive && (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="inline-flex items-center gap-1 text-evari-dim hover:text-evari-text shrink-0"
-            >
-              <X className="h-3 w-3" />
-              reset filters
-            </button>
-          )}
-        </div>
-
-        {/* List */}
-        <div className="space-y-1">
-          <div className="grid grid-cols-12 gap-3 px-4 py-2.5 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-            <div className="col-span-4">Lead</div>
-            <div className="col-span-3">Interest</div>
-            <div className="col-span-2">Source</div>
-            <div className="col-span-1 text-right">Value</div>
-            <div className="col-span-1 text-right">First seen</div>
-            <div className="col-span-1 text-right">Stage</div>
-          </div>
-
-          <ul className="space-y-1">
-            {sorted.map((l) => (
-              <li
-                key={l.id}
-                className="group relative bg-evari-surface/60 rounded-md hover:bg-evari-surface transition-colors"
-              >
-                <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <button
-                    aria-label="Edit lead"
-                    title="Edit"
-                    onClick={() => setEditing(l)}
-                    className="h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft"
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </button>
-                  <button
-                    aria-label="Delete lead"
-                    title="Delete"
-                    onClick={() => void deleteLead(l)}
-                    className="h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-
-                <Link
-                  href={'/leads/' + l.id}
-                  className="grid grid-cols-12 gap-3 px-4 py-3.5 items-center rounded-md pr-12"
-                >
-                  <div className="col-span-4 flex items-center gap-3 min-w-0">
-                    <div className="h-8 w-8 rounded-full bg-evari-surfaceSoft flex items-center justify-center text-[10px] text-evari-dim font-medium uppercase shrink-0">
-                      {l.fullName
-                        .split(' ')
-                        .map((p) => p[0])
-                        .join('')
-                        .slice(0, 2)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-evari-text truncate">
-                        {l.fullName}
-                      </div>
-                      <div className="text-xs text-evari-dim truncate">
-                        {l.email}
-                        {l.location ? ' · ' + l.location : ''}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="col-span-3 text-xs text-evari-dim truncate">
-                    {l.productInterest ?? (
-                      <span className="italic text-evari-dimmer">
-                        unspecified
-                      </span>
-                    )}
-                    {l.tags.length > 0 && (
-                      <div className="flex gap-1 mt-1 flex-wrap">
-                        {l.tags.slice(0, 2).map((t) => (
-                          <Badge
-                            key={t}
-                            variant="outline"
-                            className="text-[9px] py-0"
-                          >
-                            {t}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="col-span-2 min-w-0">
-                    <SourceBadge source={l.source} />
-                    {l.sourceDetail && (
-                      <div className="text-[10px] text-evari-dimmer truncate mt-0.5">
-                        {l.sourceDetail}
-                      </div>
-                    )}
-                  </div>
-                  <div className="col-span-1 text-right text-xs font-mono tabular-nums text-evari-text">
-                    {l.estimatedValue ? formatGBP(l.estimatedValue) : '—'}
-                  </div>
-                  <div className="col-span-1 text-right text-xs text-evari-dim font-mono tabular-nums">
-                    {relativeTime(l.firstSeenAt)}
-                  </div>
-                  <div className="col-span-1 flex justify-end items-center gap-1.5">
-                    <StageBadge stage={l.stage} />
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          {sorted.length === 0 && (
-            <div className="rounded-md bg-evari-surface/60 p-10 text-center">
-              <div className="text-sm text-evari-dim">No leads match.</div>
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="mt-2 text-xs text-evari-gold hover:text-evari-text"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Edit dialog */}
-      <Dialog
-        open={editing != null}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null);
-        }}
-      >
-        {editing && (
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Edit lead</DialogTitle>
-            </DialogHeader>
-            <LeadEditForm
-              lead={editing}
-              onSubmit={(changes) => updateLead(editing.id, changes)}
-              onCancel={() => setEditing(null)}
-            />
-          </DialogContent>
-        )}
-      </Dialog>
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------------
-// Sidebar sub-components
-
-function FilterSection({
-  label,
-  icon,
-  onAllOn,
-  onAllOff,
-  allSelected,
-  noneSelected,
-  children,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  onAllOn: () => void;
-  onAllOff: () => void;
-  allSelected: boolean;
-  noneSelected: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="flex items-center justify-between px-1 pb-1.5">
-        <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium flex items-center gap-1.5">
-          {icon}
-          {label}
-        </div>
-        <div className="inline-flex items-center gap-0.5 text-[10px]">
-          <button
-            type="button"
-            onClick={onAllOn}
-            disabled={allSelected}
-            className={cn(
-              'px-1.5 py-0.5 rounded transition-colors',
-              allSelected
-                ? 'text-evari-text bg-evari-surfaceSoft'
-                : 'text-evari-dim hover:text-evari-text hover:bg-evari-surfaceSoft',
+                ))}
+              </ul>
             )}
-            title="Turn every option on"
-          >
-            All
-          </button>
-          <span className="text-evari-dimmer">·</span>
-          <button
-            type="button"
-            onClick={onAllOff}
-            disabled={noneSelected}
-            className={cn(
-              'px-1.5 py-0.5 rounded transition-colors',
-              noneSelected
-                ? 'text-evari-text bg-evari-surfaceSoft'
-                : 'text-evari-dim hover:text-evari-text hover:bg-evari-surfaceSoft',
-            )}
-            title="Turn every option off"
-          >
-            None
-          </button>
-        </div>
+          </div>
+        </main>
+
+        {/* Column 3: CompanyPanel */}
+        <section className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface overflow-hidden">
+          {selected && selectedCompany ? (
+            <CompanyPanel
+              key={selected.id}
+              domain={selectedCompany.domain}
+              company={selectedCompany}
+              loading={huntingId === selected.id}
+              log={huntingId === selected.id ? huntLog : []}
+              enrichPassCount={enrichPassById[selected.id] ?? (selected.orgProfile?.contactsEnrichedAt ? 1 : 0)}
+              onEnrich={() => void enrichContacts(selected.id)}
+              actions={
+                <LeadPanelActions
+                  lead={selected}
+                  busy={actionBusy[selected.id]}
+                  onMoveToProspect={() => void moveToProspect(selected.id)}
+                  onDelete={() => void deleteLead(selected.id)}
+                />
+              }
+            />
+          ) : (
+            <EmptyPanel />
+          )}
+        </section>
       </div>
-      <div className="space-y-0.5">{children}</div>
     </div>
   );
 }
 
-function FilterRow({
-  icon,
-  label,
-  count,
-  active,
-  onClick,
-  capitalize,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-  capitalize?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'w-full flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors text-left',
-        active
-          ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-          : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
-      )}
-    >
-      <span
-        className={cn(
-          'shrink-0',
-          active ? 'text-evari-text' : 'text-evari-dimmer',
-        )}
-      >
-        {icon}
-      </span>
-      <span className={cn('flex-1 truncate', capitalize && 'capitalize')}>
-        {label}
-      </span>
-      <CountPill n={count} />
-    </button>
-  );
-}
+// ---------------------------------------------------------------------------
+// Row
+// ---------------------------------------------------------------------------
 
-function CountPill({ n }: { n: number }) {
-  if (n === 0) return null;
-  const pad =
-    n >= 10000 ? 'px-2.5' : n >= 1000 ? 'px-2' : n >= 100 ? 'px-1.5' : 'px-1';
-  return (
-    <span
-      className={
-        'inline-flex items-center justify-center h-5 min-w-[20px] text-[10px] tabular-nums rounded-full bg-evari-surface/60 text-evari-dimmer ' +
-        pad
-      }
-    >
-      {n.toLocaleString()}
-    </span>
-  );
-}
-
-function StageDot({ stage }: { stage: LeadStage }) {
-  const tone: Record<LeadStage, string> = {
-    new: 'bg-evari-warn',
-    contacted: 'bg-sky-400',
-    discovery: 'bg-evari-gold',
-    configuring: 'bg-evari-gold',
-    quoted: 'bg-evari-gold',
-    won: 'bg-evari-success',
-    lost: 'bg-evari-dimmer',
-    cold: 'bg-evari-dimmer',
-  };
-  return <span className={cn('h-2 w-2 rounded-full', tone[stage])} />;
-}
-
-// ----------------------------------------------------------------------------
-// Edit form (unchanged)
-
-function LeadEditForm({
+function LeadRow({
   lead,
-  onSubmit,
-  onCancel,
+  active,
+  onSelect,
 }: {
   lead: Lead;
-  onSubmit: (
-    changes: Partial<
-      Pick<
-        Lead,
-        | 'fullName'
-        | 'email'
-        | 'phone'
-        | 'stage'
-        | 'estimatedValue'
-        | 'productInterest'
-        | 'location'
-        | 'sourceDetail'
-      >
-    >,
-  ) => void;
-  onCancel: () => void;
+  active: boolean;
+  onSelect: () => void;
 }) {
-  const [fullName, setFullName] = useState(lead.fullName);
-  const [email, setEmail] = useState(lead.email);
-  const [phone, setPhone] = useState(lead.phone ?? '');
-  const [location, setLocation] = useState(lead.location ?? '');
-  const [productInterest, setProductInterest] = useState(
-    lead.productInterest ?? '',
-  );
-  const [sourceDetail, setSourceDetail] = useState(lead.sourceDetail ?? '');
-  const [stage, setStage] = useState<LeadStage>(lead.stage);
-  const [estimatedValue, setEstimatedValue] = useState(
-    lead.estimatedValue?.toString() ?? '',
-  );
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    onSubmit({
-      fullName: fullName.trim(),
-      email: email.trim(),
-      phone: phone.trim() || undefined,
-      location: location.trim() || undefined,
-      productInterest: productInterest.trim() || undefined,
-      sourceDetail: sourceDetail.trim() || undefined,
-      stage,
-      estimatedValue: estimatedValue
-        ? Number(estimatedValue.replace(/[^0-9.]/g, '')) || undefined
-        : undefined,
-    });
-  }
+  const domain = useMemo(() => deriveDomainForIcon(lead), [lead]);
+  const orgLabel = lead.companyName ?? lead.email.split('@')[1] ?? '—';
+  const stage = lead.stage ?? 'new';
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <Field label="Full name">
-        <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Email">
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </Field>
-        <Field label="Phone">
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Location">
-          <Input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-          />
-        </Field>
-        <Field label="Product interest">
-          <Input
-            value={productInterest}
-            onChange={(e) => setProductInterest(e.target.value)}
-          />
-        </Field>
-      </div>
-      <Field label="Source detail (who / where from)">
-        <Input
-          value={sourceDetail}
-          onChange={(e) => setSourceDetail(e.target.value)}
-          placeholder="e.g. Whitfield Cyclery, Oxford — or Dr Sarah Mitchell, Aurora Physio"
+    <li
+      onClick={onSelect}
+      className={cn(
+        'group flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors',
+        active
+          ? 'bg-evari-accent/5 border-l-2 border-evari-accent -ml-[2px] pl-[calc(1.25rem-2px)]'
+          : 'hover:bg-evari-surface/60',
+      )}
+    >
+      <div className="h-11 w-11 shrink-0 rounded-md bg-white border border-evari-line/40 flex items-center justify-center overflow-hidden p-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`}
+          alt=""
+          className="max-h-full max-w-full object-contain"
         />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Stage">
-          <select
-            value={stage}
-            onChange={(e) => setStage(e.target.value as LeadStage)}
-            className="w-full bg-evari-surface/70 rounded-md px-2 py-1.5 text-sm text-evari-text focus:outline-none focus:ring-1 focus:ring-evari-gold/50"
-          >
-            {STAGES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Estimated value (£)">
-          <Input
-            value={estimatedValue}
-            onChange={(e) => setEstimatedValue(e.target.value)}
-            placeholder="e.g. 8500"
-          />
-        </Field>
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" size="sm" variant="primary">
-          Save changes
-        </Button>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="text-[14px] font-semibold text-evari-text truncate">
+            {lead.fullName || orgLabel}
+          </span>
+          <span className="text-[12px] text-evari-dimmer truncate">{orgLabel}</span>
+        </div>
+        <div className="flex items-center gap-4 text-[11px] text-evari-dim mt-1">
+          {lead.jobTitle ? (
+            <span className="truncate max-w-[180px]">{lead.jobTitle}</span>
+          ) : null}
+          {lead.orgProfile?.employeeRange ? (
+            <span className="inline-flex items-center gap-1">
+              <Users2 className="h-3 w-3 text-evari-dimmer" />
+              {lead.orgProfile.employeeRange}
+            </span>
+          ) : null}
+          {lead.address ? (
+            <span className="inline-flex items-center gap-1 truncate max-w-[180px]">
+              <MapPin className="h-3 w-3 text-evari-dimmer" />
+              {lead.address}
+            </span>
+          ) : null}
+          {lead.lastTouchAt ? (
+            <span className="text-evari-dimmer">{relativeTime(lead.lastTouchAt)}</span>
+          ) : null}
+        </div>
       </div>
-    </form>
+      <div className="flex items-center gap-2 shrink-0">
+        <span
+          className={cn(
+            'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium',
+            STAGE_TONE[stage],
+          )}
+        >
+          {STAGE_LABEL[stage]}
+        </span>
+      </div>
+    </li>
   );
 }
 
-function Field({
-  label,
-  children,
+// ---------------------------------------------------------------------------
+// Right-panel action row (thread / demote / delete)
+// ---------------------------------------------------------------------------
+
+function LeadPanelActions({
+  lead,
+  busy,
+  onMoveToProspect,
+  onDelete,
 }: {
-  label: string;
-  children: React.ReactNode;
+  lead: Lead;
+  busy: string | undefined;
+  onMoveToProspect: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <label className="space-y-1 block">
-      <span className="block text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-        {label}
-      </span>
-      {children}
-    </label>
+    <div className="flex items-center gap-2">
+      {lead.threadId ? (
+        <Button
+          type="button"
+          asChild
+          className="flex-1 inline-flex items-center justify-center gap-1.5 bg-evari-accent text-evari-ink hover:bg-evari-accent/90"
+        >
+          <a href={`/inbox/${lead.threadId}`}>
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open thread
+          </a>
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          disabled
+          className="flex-1 inline-flex items-center justify-center gap-1.5"
+          variant="outline"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          No thread yet
+        </Button>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onMoveToProspect}
+        disabled={!!busy}
+        className="shrink-0"
+      >
+        {busy === 'demote' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowDownLeft className="h-3.5 w-3.5" />}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onDelete}
+        disabled={!!busy}
+        className="shrink-0 text-evari-danger hover:text-evari-danger"
+      >
+        {busy === 'delete' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+      </Button>
+    </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Empty detail placeholder
+// ---------------------------------------------------------------------------
+
+function EmptyPanel() {
+  return (
+    <div className="h-full flex flex-col items-center justify-center px-8 text-center">
+      <div className="h-12 w-12 rounded-full bg-evari-surfaceSoft inline-flex items-center justify-center mb-4">
+        <Folder className="h-5 w-5 text-evari-dimmer" />
+      </div>
+      <div className="text-[14px] font-semibold text-evari-text mb-1">
+        Pick a lead
+      </div>
+      <div className="text-[12px] text-evari-dim max-w-sm">
+        Click any row on the left to see company details, contacts, and recent
+        activity. Open the thread to jump back into the conversation.
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function deriveDomainForIcon(lead: Lead): string {
+  const url = lead.companyUrl ?? '';
+  if (url) {
+    const d = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+    if (d) return d;
+  }
+  const at = lead.email.indexOf('@');
+  if (at > -1) return lead.email.slice(at + 1).toLowerCase();
+  return 'unknown.local';
 }

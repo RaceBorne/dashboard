@@ -161,3 +161,33 @@ export async function PATCH(
   }
   return NextResponse.json({ ok: true, lead: saved, promoted: autoPromoted });
 }
+
+/**
+ * DELETE /api/leads/[id]
+ *
+ * Remove a Lead row entirely. Used from Prospects + Leads to drop a row
+ * the operator no longer wants in the CRM. Idempotent — returns ok even
+ * when the row is already gone.
+ */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const supabase = createSupabaseAdmin();
+  if (!supabase) {
+    return NextResponse.json(
+      { ok: false, error: 'Supabase admin client unavailable' },
+      { status: 500 },
+    );
+  }
+  const { error } = await supabase.from('dashboard_leads').delete().eq('id', id);
+  if (error) {
+    return NextResponse.json(
+      { ok: false, error: error.message },
+      { status: 500 },
+    );
+  }
+  return NextResponse.json({ ok: true });
+}
+
