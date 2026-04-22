@@ -14,7 +14,6 @@ import {
   Mail,
   Send,
   X,
-  ArrowRight,
   ArrowUp,
   UserSearch,
 } from 'lucide-react';
@@ -36,11 +35,6 @@ interface PlayOption {
 interface Props {
   plays: PlayOption[];
 }
-
-const HERO_SUGGESTIONS = [
-  'Find boutique retailers specialising in premium urban and e-cargo bikes',
-  'Find owners clubs and membership associations for cyclists and outdoor enthusiasts',
-] as const;
 
 const EMPTY_FILTERS: DiscoverFiltersType = {
   location: { include: [], exclude: [] },
@@ -336,9 +330,9 @@ export function DiscoverClient({ plays }: Props) {
                     void runHero(heroPrompt);
                   }
                 }}
-                placeholder="Describe your current customers…"
+                placeholder="Describe who we are searching for."
                 rows={1}
-                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-evari-ink placeholder:text-evari-dimmer focus:outline-none"
+                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-evari-ink placeholder:text-evari-ink/70 focus:outline-none"
               />
               <button
                 type="submit"
@@ -352,28 +346,6 @@ export function DiscoverClient({ plays }: Props) {
                 )}
               </button>
             </form>
-
-            <div className="mt-10">
-              <div className="text-sm text-evari-text font-medium mb-3">
-                Getting started
-              </div>
-              <ul className="space-y-2">
-                {HERO_SUGGESTIONS.map((s) => (
-                  <li key={s}>
-                    <button
-                      type="button"
-                      onClick={() => void runHero(s)}
-                      disabled={aiBusy}
-                      className="w-full flex items-center gap-3 rounded-lg border border-evari-line/40 bg-white px-4 py-3 text-left text-[13px] text-evari-ink hover:border-evari-accent hover:shadow-sm disabled:opacity-50 shadow-sm"
-                    >
-                      <Sparkles className="h-3.5 w-3.5 shrink-0 text-evari-accent" />
-                      <span className="flex-1">{s}</span>
-                      <ArrowRight className="h-3.5 w-3.5 text-evari-dimmer" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
         </div>
       ) : null}
