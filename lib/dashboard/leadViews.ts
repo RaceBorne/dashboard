@@ -203,6 +203,7 @@ export function leadToDiscoveredCompany(lead: Lead): DiscoveredCompany {
       source: c.emailSource ?? 'scraped',
       confidence: c.confidence,
       sourceUrl: c.sourceUrl,
+      manualBucket: c.manualBucket,
     });
   }
 

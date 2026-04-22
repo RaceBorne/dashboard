@@ -34,9 +34,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn, relativeTime } from '@/lib/utils';
-import type { Lead, ProspectStatus } from '@/lib/types';
+import type { Lead, LeadNote, ProspectStatus } from '@/lib/types';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
 import { leadToDiscoveredCompany } from '@/lib/dashboard/leadViews';
+
+type ManualBucket = 'person' | 'decision_maker' | 'generic';
 
 const STATUS_TONE: Record<ProspectStatus, string> = {
   pending: 'bg-evari-surfaceSoft text-evari-dim',
@@ -321,6 +323,157 @@ export function ProspectsClient({ initialLeads }: Props) {
     }
   }
 
+  // --- Notes CRUD ---------------------------------------------------------
+
+  const [noteBusy, setNoteBusy] = useState(false);
+
+  async function addNote(leadId: string, text: string) {
+    setNoteBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error(`Note create failed (${res.status})`);
+      const data = (await res.json()) as { ok: boolean; lead?: Lead };
+      if (data.lead) {
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? data.lead! : l)));
+      }
+    } catch (err) {
+      console.error('add note', err);
+    } finally {
+      setNoteBusy(false);
+    }
+  }
+
+  async function editNote(leadId: string, noteId: string, text: string) {
+    setNoteBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/notes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: noteId, text }),
+      });
+      if (!res.ok) throw new Error(`Note update failed (${res.status})`);
+      const data = (await res.json()) as { ok: boolean; lead?: Lead };
+      if (data.lead) {
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? data.lead! : l)));
+      }
+    } catch (err) {
+      console.error('edit note', err);
+    } finally {
+      setNoteBusy(false);
+    }
+  }
+
+  async function deleteNote(leadId: string, noteId: string) {
+    const ok = await confirm({
+      title: 'Delete this note?',
+      description: 'The note will be removed from this prospect.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setNoteBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/notes`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: noteId }),
+      });
+      if (!res.ok) throw new Error(`Note delete failed (${res.status})`);
+      const data = (await res.json()) as { ok: boolean; lead?: Lead };
+      if (data.lead) {
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? data.lead! : l)));
+      }
+    } catch (err) {
+      console.error('delete note', err);
+    } finally {
+      setNoteBusy(false);
+    }
+  }
+
+  // --- Contact row CRUD ---------------------------------------------------
+
+  const [contactBusy, setContactBusy] = useState(false);
+
+  async function editContact(
+    leadId: string,
+    email: string,
+    patch: {
+      name?: string;
+      jobTitle?: string;
+      newEmail?: string;
+      manualBucket?: ManualBucket | null;
+    },
+  ) {
+    setContactBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/contacts`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, ...patch }),
+      });
+      if (!res.ok) throw new Error(`Contact update failed (${res.status})`);
+      const data = (await res.json()) as { ok: boolean; lead?: Lead };
+      if (data.lead) {
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? data.lead! : l)));
+      }
+    } catch (err) {
+      console.error('edit contact', err);
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
+  async function deleteContact(leadId: string, email: string) {
+    const ok = await confirm({
+      title: 'Delete this contact?',
+      description: `Remove ${email} from this prospect.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setContactBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/contacts`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error(`Contact delete failed (${res.status})`);
+      const data = (await res.json()) as { ok: boolean; lead?: Lead };
+      if (data.lead) {
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? data.lead! : l)));
+      }
+    } catch (err) {
+      console.error('delete contact', err);
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
+  // --- Save-to-folder ------------------------------------------------------
+
+  async function saveToFolder(leadId: string, folder: string) {
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: folder }),
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      const data = (await res.json()) as { ok: boolean; lead?: Lead };
+      if (data.lead) {
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? data.lead! : l)));
+        window.dispatchEvent(new Event('evari:nav-counts-dirty'));
+      }
+    } catch (err) {
+      console.error('save folder', err);
+    }
+  }
+
   // --- Render --------------------------------------------------------------
 
   return (
@@ -520,6 +673,23 @@ export function ProspectsClient({ initialLeads }: Props) {
               log={huntingId === selected.id ? huntLog : []}
               enrichPassCount={enrichPassById[selected.id] ?? (selected.orgProfile?.contactsEnrichedAt ? 1 : 0)}
               onEnrich={() => void enrichContacts(selected.id)}
+              saveToFolder={{
+                current: selected.category ?? undefined,
+                onPick: (folder) => saveToFolder(selected.id, folder),
+                onCreate: (folder) => saveToFolder(selected.id, folder),
+              }}
+              notes={{
+                entries: (selected.noteEntries ?? []) as LeadNote[],
+                onAdd: (text) => addNote(selected.id, text),
+                onEdit: (id, text) => editNote(selected.id, id, text),
+                onDelete: (id) => deleteNote(selected.id, id),
+                busy: noteBusy,
+              }}
+              contactOps={{
+                onEdit: (email, patch) => editContact(selected.id, email, patch),
+                onDelete: (email) => deleteContact(selected.id, email),
+                busy: contactBusy,
+              }}
               actions={
                 <ProspectPanelActions
                   lead={selected}
@@ -627,13 +797,17 @@ function ProspectPanelActions({
   onPromote: () => void;
   onDelete: () => void;
 }) {
+  // Prospects can only graduate to Leads once they have a real email on
+  // file — no pattern-inferred guesses, no blank addresses.
+  const canPromote = !!lead.email && lead.emailInferred !== true;
   return (
     <div className="flex items-center gap-2">
       <Button
         type="button"
         onClick={onPromote}
-        disabled={!!busy}
-        className="flex-1 inline-flex items-center justify-center gap-1.5 bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90"
+        disabled={!!busy || !canPromote}
+        title={canPromote ? undefined : 'Add a real (non-inferred) email before promoting.'}
+        className="flex-1 inline-flex items-center justify-center gap-1.5 bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {busy === 'promote' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
         Promote to Lead

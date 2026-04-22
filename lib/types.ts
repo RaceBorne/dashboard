@@ -76,6 +76,8 @@ export interface Lead {
   ownerName?: string;
   tags: string[];
   notes?: string;
+  /** Per-prospect/lead timestamped notes. Replaces single-field `notes` over time. */
+  noteEntries?: LeadNote[];
   threadId?: string;        // links to a conversation thread
   utm?: {
     source?: string;
@@ -122,6 +124,20 @@ export interface Lead {
   prospectSignals?: ProspectSignal;
   /** Per-message outreach log for the prospect tier. */
   outreach?: ProspectOutreach[];
+}
+
+/**
+ * A single note bubble attached to a Lead (prospect or lead tier). Notes
+ * are timestamped, individually editable, and individually deletable from
+ * the CompanyPanel Notes tab.
+ */
+export interface LeadNote {
+  id: string;
+  text: string;
+  /** ISO timestamp the note was created. */
+  createdAt: string;
+  /** ISO timestamp of the last edit, when the bubble was edited in place. */
+  updatedAt?: string;
 }
 
 export interface RelatedContact {
@@ -172,6 +188,12 @@ export interface CompanyContact {
   phone?: string;
   /** Where the name/title/email was found on the company's site. */
   sourceUrl?: string;
+  /**
+   * Operator override for how to classify this contact in the Contacts tab:
+   * 'decision_maker' | 'person' | 'generic'. When set, overrides the
+   * automatic jobTitle-based segmentation.
+   */
+  manualBucket?: 'person' | 'decision_maker' | 'generic';
 }
 
 /**
@@ -1080,6 +1102,11 @@ export interface DiscoverEmail {
   sourceCount?: number;
   /** True once an SMTP/provider check has been run. */
   verified?: boolean;
+  /**
+   * Operator classification override for the Contacts tab. When set,
+   * overrides the automatic segmentation based on job title.
+   */
+  manualBucket?: 'person' | 'decision_maker' | 'generic';
 }
 
 export interface DiscoveredCompany {
