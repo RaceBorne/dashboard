@@ -85,7 +85,7 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
             onChange={(e) => setAiPrompt(e.target.value)}
             rows={3}
             placeholder="UK-based sports clubs between 50 and 200 people, drop anything in London"
-            className="w-full rounded-md bg-evari-ink/40 border border-evari-line/40 px-2 py-1.5 text-[12px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent resize-none"
+            className="w-full rounded-lg bg-white border border-evari-line/40 px-3 py-2.5 text-[13px] text-evari-ink placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent shadow-sm resize-none"
           />
           <button
             type="button"
@@ -320,7 +320,7 @@ function ChipInput({
           {label}
         </div>
       ) : null}
-      <div className="flex gap-1">
+      <div className="flex gap-2">
         <input
           type="text"
           value={text}
@@ -332,13 +332,13 @@ function ChipInput({
             }
           }}
           placeholder={placeholder}
-          className="flex-1 rounded-md bg-evari-ink/40 border border-evari-line/40 px-2 py-1 text-[11px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent"
+          className="flex-1 rounded-lg bg-white border border-evari-line/40 px-3 py-2.5 text-[13px] text-evari-ink placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent shadow-sm"
         />
         <button
           type="button"
           onClick={add}
           disabled={!text.trim()}
-          className="h-[26px] w-[26px] inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft disabled:opacity-30"
+          className="h-[40px] w-[40px] shrink-0 inline-flex items-center justify-center rounded-lg border border-evari-line/40 bg-white text-evari-dim hover:text-evari-accent hover:border-evari-accent disabled:opacity-30 shadow-sm"
           title="Add"
         >
           <Plus className="h-3 w-3" />

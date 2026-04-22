@@ -324,7 +324,7 @@ export function DiscoverClient({ plays }: Props) {
                 e.preventDefault();
                 void runHero(heroPrompt);
               }}
-              className="relative rounded-2xl border border-evari-line/60 bg-evari-surface focus-within:border-evari-accent shadow-sm"
+              className="relative rounded-xl border border-evari-line/40 bg-white focus-within:border-evari-accent shadow-sm"
             >
               <Sparkles className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-evari-accent" />
               <textarea
@@ -338,12 +338,12 @@ export function DiscoverClient({ plays }: Props) {
                 }}
                 placeholder="Describe your current customers…"
                 rows={1}
-                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-evari-text placeholder:text-evari-dimmer focus:outline-none"
+                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-evari-ink placeholder:text-evari-dimmer focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={aiBusy || !heroPrompt.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-lg bg-evari-surfaceSoft text-evari-dim hover:bg-evari-accent hover:text-evari-ink disabled:opacity-40 disabled:hover:bg-evari-surfaceSoft disabled:hover:text-evari-dim"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-lg bg-evari-ink/5 text-evari-dim hover:bg-evari-accent hover:text-white disabled:opacity-40 disabled:hover:bg-evari-ink/5 disabled:hover:text-evari-dim"
               >
                 {aiBusy ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -364,7 +364,7 @@ export function DiscoverClient({ plays }: Props) {
                       type="button"
                       onClick={() => void runHero(s)}
                       disabled={aiBusy}
-                      className="w-full flex items-center gap-3 rounded-lg border border-evari-line/40 bg-evari-surface px-4 py-3 text-left text-[13px] text-evari-text hover:border-evari-dimmer hover:bg-evari-surfaceSoft disabled:opacity-50"
+                      className="w-full flex items-center gap-3 rounded-lg border border-evari-line/40 bg-white px-4 py-3 text-left text-[13px] text-evari-ink hover:border-evari-accent hover:shadow-sm disabled:opacity-50 shadow-sm"
                     >
                       <Sparkles className="h-3.5 w-3.5 shrink-0 text-evari-accent" />
                       <span className="flex-1">{s}</span>
