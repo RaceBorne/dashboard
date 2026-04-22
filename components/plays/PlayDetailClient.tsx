@@ -6,9 +6,11 @@ import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import {
   Activity,
   ArrowLeft,
+  BookOpenText,
   Check,
   ExternalLink,
   FileText,
+  Inbox,
   ListChecks,
   Loader2,
   Mail,
@@ -28,10 +30,12 @@ import {
   X,
   UserSearch,
 } from 'lucide-react';
+import { DraftsPane } from '@/components/plays/DraftsPane';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { PillTabs } from '@/components/ui/pill-tabs';
 import { MessageResponse } from '@/components/MessageResponse';
 import { cn, relativeTime } from '@/lib/utils';
 import { useVoiceChat } from '@/lib/hooks/useVoiceChat';
@@ -63,6 +67,8 @@ const STAGE_TONE: Record<PlayStage, string> = {
   retired: 'text-evari-dimmer bg-evari-surfaceSoft',
 };
 
+type Pane = 'brief' | 'drafts' | 'activity';
+
 export function PlayDetailClient({
   play: initialPlay,
 }: {
@@ -78,6 +84,7 @@ export function PlayDetailClient({
     }
     return null;
   });
+  const [pane, setPane] = useState<Pane>('brief');
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [committingStrategy, setCommittingStrategy] = useState(false);
@@ -522,7 +529,32 @@ export function PlayDetailClient({
           )}
         </div>
 
-        <div className="space-y-4">
+        {/* Section switcher */}
+        <PillTabs<Pane>
+          value={pane}
+          onChange={setPane}
+          size="sm"
+          options={[
+            {
+              value: 'brief',
+              label: 'Brief',
+              icon: <BookOpenText className="h-3.5 w-3.5" />,
+            },
+            {
+              value: 'drafts',
+              label: 'Drafts',
+              icon: <Inbox className="h-3.5 w-3.5" />,
+            },
+            {
+              value: 'activity',
+              label: `Activity · ${play.activity.length}`,
+              icon: <Activity className="h-3.5 w-3.5" />,
+            },
+          ]}
+        />
+
+        {pane === 'brief' && (
+          <div className="space-y-4">
             {/* Brief block */}
             <section className="rounded-xl bg-evari-surface p-5 space-y-3">
               <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
@@ -675,7 +707,30 @@ export function PlayDetailClient({
               </StrategyField>
             </section>
 
-        </div>
+          </div>
+        )}
+
+        {pane === 'drafts' && <DraftsPane play={play} />}
+
+        {pane === 'activity' && (
+          <section className="space-y-1">
+            <ul className="space-y-1">
+              {[...play.activity]
+                .sort((a, b) => +new Date(b.at) - +new Date(a.at))
+                .map((a) => (
+                  <li
+                    key={a.id}
+                    className="bg-evari-surface/60 rounded-md px-4 py-2.5 flex items-center justify-between gap-3"
+                  >
+                    <div className="text-xs text-evari-text">{a.summary}</div>
+                    <div className="text-[10px] text-evari-dimmer tabular-nums shrink-0">
+                      {relativeTime(a.at)}
+                    </div>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        )}
       </main>
 
       {/* Right: per-play chat. Pinned to the viewport, input always visible. */}
