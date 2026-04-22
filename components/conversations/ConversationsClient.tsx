@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { Sparkles, Send, ChevronRight, RefreshCw, AtSign, Pencil, Trash2, Search as SearchIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import {
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn, relativeTime } from '@/lib/utils';
 import type { Lead, Thread } from '@/lib/types';
+import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 
 interface Props {
  threads: Thread[];
@@ -26,6 +28,14 @@ interface Props {
 }
 
 export function ConversationsClient({ threads: initialThreads, leads, initialThreadId }: Props) {
+ const searchParams = useSearchParams();
+ const playId = searchParams?.get('playId') ?? null;
+ // A thread belongs to a Play iff its associated Lead is bound to that Play.
+ const leadPlayById = useMemo(() => {
+  const m = new Map<string, string | undefined>();
+  for (const l of leads) m.set(l.id, l.playId);
+  return m;
+ }, [leads]);
  const [threads, setThreads] = useState<Thread[]>(initialThreads);
  const [threadId, setThreadId] = useState(initialThreadId);
  const [draft, setDraft] = useState('');
@@ -50,6 +60,10 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
  const filteredThreads = useMemo(() => {
   const q = search.trim().toLowerCase();
   return threads.filter((t) => {
+   if (playId) {
+    const pid = t.leadId ? leadPlayById.get(t.leadId) : undefined;
+    if (pid !== playId) return false;
+   }
    if (statusFilter === 'unread' && !t.unread) return false;
    if (statusFilter !== 'all' && statusFilter !== 'unread' && t.status !== statusFilter) return false;
    if (activeLabel && !t.labels.includes(activeLabel)) return false;
@@ -63,7 +77,7 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
    }
    return true;
   });
- }, [threads, statusFilter, activeLabel, search]);
+ }, [threads, statusFilter, activeLabel, search, playId, leadPlayById]);
 
  const sortedThreads = useMemo(
   () => [...filteredThreads].sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt)),
@@ -119,7 +133,13 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
  }
 
  return (
-  <div className="flex-1 flex min-h-0 overflow-hidden">
+  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+   {playId ? (
+    <div className="px-4 pt-3">
+     <FunnelRibbon stage="conversations" playId={playId} />
+    </div>
+   ) : null}
+   <div className="flex-1 flex min-h-0 overflow-hidden">
    {/* Pane 1 — thread list */}
    <aside className="w-[340px] shrink-0 bg-evari-carbon flex flex-col">
     <div className="px-4 py-3 flex items-center justify-between">
@@ -421,6 +441,7 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
      </DialogContent>
     )}
    </Dialog>
+  </div>
   </div>
  );
 }

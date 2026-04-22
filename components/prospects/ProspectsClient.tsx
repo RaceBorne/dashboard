@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Search as SearchIcon,
   X,
@@ -37,6 +38,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn, relativeTime } from '@/lib/utils';
 import type { Lead, LeadNote, ProspectStatus } from '@/lib/types';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
+import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { leadToDiscoveredCompany } from '@/lib/dashboard/leadViews';
 
 type ManualBucket = 'person' | 'decision_maker' | 'generic';
@@ -72,6 +74,8 @@ interface Props {
 }
 
 export function ProspectsClient({ initialLeads }: Props) {
+  const searchParams = useSearchParams();
+  const playId = searchParams?.get('playId') ?? null;
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [activeFolder, setActiveFolder] = useState<string | null>(null); // null = All
   const [search, setSearch] = useState('');
@@ -166,6 +170,7 @@ export function ProspectsClient({ initialLeads }: Props) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return leads.filter((l) => {
+      if (playId && l.playId !== playId) return false;
       if (activeFolder) {
         const key = (l.category ?? '').trim() || UNCATEGORISED;
         if (key !== activeFolder) return false;
@@ -562,7 +567,11 @@ export function ProspectsClient({ initialLeads }: Props) {
   // --- Render --------------------------------------------------------------
 
   return (
-    <div className="flex gap-4 p-4 h-[calc(100vh-56px)] bg-evari-ink">
+    <div className="flex flex-col gap-3 p-4 h-[calc(100vh-56px)] bg-evari-ink">
+      {playId ? (
+        <FunnelRibbon stage="prospects" playId={playId} />
+      ) : null}
+      <div className="flex gap-4 flex-1 min-h-0">
       {/* Column 1: folder sidebar */}
       <aside className="w-[340px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
         <div className="shrink-0 px-4 pt-4 pb-2">
@@ -873,6 +882,7 @@ export function ProspectsClient({ initialLeads }: Props) {
             <EmptyPanel />
           )}
         </section>
+      </div>
       </div>
     </div>
   );
