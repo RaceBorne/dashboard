@@ -294,9 +294,9 @@ export function DiscoverClient({ plays }: Props) {
   const selectedEmails = (selectedCompany?.emails ?? []).map((e) => e.address);
 
   return (
-    <div className="flex h-[calc(100vh-56px)]">
+    <div className="flex gap-4 p-4 h-[calc(100vh-56px)] bg-evari-ink">
       {/* Left: filters */}
-      <aside className="w-[300px] shrink-0 border-r border-evari-line/40 bg-evari-surface overflow-hidden">
+      <aside className="w-[280px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
         <DiscoverFilters
           filters={filters}
           onChange={(next) => {
@@ -304,13 +304,17 @@ export function DiscoverClient({ plays }: Props) {
             void doSearch(next);
           }}
           onAiRefine={handleAiRefine}
+          onClearAll={() => {
+            setFilters(EMPTY_FILTERS);
+            if (hasSearched) void doSearch(EMPTY_FILTERS);
+          }}
           aiBusy={aiBusy}
         />
       </aside>
 
       {/* Pristine hero */}
       {!hasSearched ? (
-        <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-8 bg-evari-ink/20">
+        <div className="flex-1 min-w-0 rounded-xl bg-evari-surface flex flex-col items-center justify-center px-8">
           <div className="w-full max-w-2xl">
             <h1 className="text-center text-2xl font-semibold text-evari-text mb-6">
               What companies are you targeting?
@@ -360,7 +364,7 @@ export function DiscoverClient({ plays }: Props) {
                       type="button"
                       onClick={() => void runHero(s)}
                       disabled={aiBusy}
-                      className="w-full flex items-center gap-3 rounded-lg border border-evari-line/40 bg-evari-surface px-4 py-3 text-left text-[13px] text-evari-text hover:border-evari-dimmer hover:bg-evari-surface/80 disabled:opacity-50"
+                      className="w-full flex items-center gap-3 rounded-lg border border-evari-line/40 bg-evari-surface px-4 py-3 text-left text-[13px] text-evari-text hover:border-evari-dimmer hover:bg-evari-surfaceSoft disabled:opacity-50"
                     >
                       <Sparkles className="h-3.5 w-3.5 shrink-0 text-evari-accent" />
                       <span className="flex-1">{s}</span>
@@ -380,13 +384,13 @@ export function DiscoverClient({ plays }: Props) {
       {hasSearched ? (
       <div
         className={cn(
-          'flex-1 min-w-0 grid transition-[grid-template-columns] duration-500 ease-in-out',
+          'flex-1 min-w-0 grid gap-4 transition-[grid-template-columns] duration-500 ease-in-out',
           selected ? 'grid-cols-[1fr_1fr]' : 'grid-cols-[1fr_0fr]',
         )}
       >
-      <main className="min-w-0 flex flex-col overflow-hidden">
+      <main className="min-w-0 rounded-xl bg-evari-surface flex flex-col overflow-hidden">
         {/* Toolbar */}
-        <div className="shrink-0 border-b border-evari-line/40 bg-evari-surface px-5 py-3 flex items-center gap-3">
+        <div className="shrink-0 border-b border-evari-line/30 px-5 py-3 flex items-center gap-3">
           <h2 className="text-[15px] font-semibold text-evari-text">
             {searching ? (
               <span className="inline-flex items-center gap-2 text-evari-dim">
@@ -418,7 +422,7 @@ export function DiscoverClient({ plays }: Props) {
               else for (const c of cards) next.add(c.domain);
               setCompanyChecked(next);
             }}
-            className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-text hover:bg-evari-surface/80"
+            className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-text hover:bg-evari-surfaceSoft"
           >
             {companyChecked.size > 0 && companyChecked.size === cards.length
               ? 'Unselect all'
@@ -458,7 +462,7 @@ export function DiscoverClient({ plays }: Props) {
             <select
               value={playId}
               onChange={(e) => setPlayId(e.target.value)}
-              className="rounded-md bg-evari-ink/40 border border-evari-line/40 px-2 py-1 text-[11px] text-evari-text focus:outline-none focus:border-evari-accent"
+              className="rounded-md bg-evari-surface border border-evari-line/40 px-2 py-1 text-[11px] text-evari-text focus:outline-none focus:border-evari-accent"
             >
               {plays.length === 0 ? (
                 <option value="">No plays yet</option>
@@ -491,7 +495,7 @@ export function DiscoverClient({ plays }: Props) {
         ) : null}
 
         {sendResult ? (
-          <div className="border-b border-evari-line/40 bg-evari-success/5 px-4 py-2 text-[12px] text-evari-success">
+          <div className="border-b border-evari-line/40 bg-evari-success/10 px-4 py-2 text-[12px] text-evari-success">
             Created {sendResult.created} prospect{sendResult.created === 1 ? '' : 's'}
             {sendResult.skipped > 0 ? ` (skipped ${sendResult.skipped} dupes)` : ''}.{' '}
             <button
@@ -517,7 +521,7 @@ export function DiscoverClient({ plays }: Props) {
               No companies match. Tweak the filters on the left, or ask the AI to broaden the search.
             </div>
           ) : null}
-          <ul className="divide-y divide-evari-line/30">
+          <ul className="divide-y divide-evari-line/40">
             {cards.map((c) => {
               const picks = emailPicksByDomain.get(c.domain);
               const checked = companyChecked.has(c.domain);
@@ -527,7 +531,7 @@ export function DiscoverClient({ plays }: Props) {
                   className={cn(
                     'group flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors',
                     selected === c.domain
-                      ? 'bg-evari-surfaceSoft'
+                      ? 'bg-evari-accent/5 border-l-2 border-evari-accent -ml-[2px] pl-[calc(1.25rem-2px)]'
                       : 'hover:bg-evari-surface/60',
                   )}
                   onClick={() => void selectCard(c.domain)}
@@ -551,13 +555,13 @@ export function DiscoverClient({ plays }: Props) {
                   >
                     {checked ? <Check className="h-2.5 w-2.5 text-evari-ink" /> : null}
                   </span>
-                  <div className="h-11 w-11 shrink-0 rounded-md bg-evari-surfaceSoft border border-evari-line/30 flex items-center justify-center overflow-hidden">
-                    {c.logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.logoUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <Building2 className="h-5 w-5 text-evari-dimmer" />
-                    )}
+                  <div className="h-11 w-11 shrink-0 rounded-md bg-evari-surfaceSoft border border-evari-line/40 flex items-center justify-center overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={c.logoUrl ?? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(c.domain)}&sz=128`}
+                      alt=""
+                      className={c.logoUrl ? 'h-full w-full object-cover' : 'h-6 w-6 object-contain'}
+                    />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2 min-w-0">
@@ -600,7 +604,7 @@ export function DiscoverClient({ plays }: Props) {
                       </span>
                     ) : null}
                     {typeof c.emailCount === 'number' && c.emailCount > 0 ? (
-                      <span className="inline-flex items-center rounded-md bg-evari-surfaceSoft/70 text-evari-dim px-2.5 py-1 text-[11px]">
+                      <span className="inline-flex items-center rounded-md bg-evari-surfaceSoft text-evari-dim px-2.5 py-1 text-[11px]">
                         {c.emailCount} email{c.emailCount === 1 ? ' address' : ' addresses'}
                       </span>
                     ) : null}
@@ -611,7 +615,7 @@ export function DiscoverClient({ plays }: Props) {
           </ul>
         </div>
       </main>
-      <section className="min-w-0 overflow-hidden">
+      <section className="min-w-0 rounded-xl bg-evari-surface overflow-hidden">
         <div
           className={cn(
             'h-full transition-transform duration-500 ease-in-out',
@@ -646,7 +650,7 @@ export function DiscoverClient({ plays }: Props) {
             }
           />
         ) : (
-          <div className="h-full bg-evari-surface border-l border-evari-line/40 flex items-center justify-center px-10">
+          <div className="h-full flex items-center justify-center px-10">
             <div className="text-center text-[12px] text-evari-dimmer">
               <Building2 className="h-6 w-6 mx-auto mb-2 opacity-40" />
               Pick a company to see details, emails, and signals.

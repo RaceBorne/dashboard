@@ -99,12 +99,12 @@ export function CompanyPanel({
       {/* Header */}
       <div className="px-5 py-4 border-b border-evari-line/40 flex items-start gap-3">
         <div className="h-10 w-10 rounded-md bg-evari-surfaceSoft flex items-center justify-center overflow-hidden shrink-0">
-          {company?.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.logoUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <Building2 className="h-5 w-5 text-evari-dimmer" />
-          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={company?.logoUrl ?? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`}
+            alt=""
+            className={company?.logoUrl ? 'h-full w-full object-cover' : 'h-5 w-5 object-contain'}
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -252,7 +252,7 @@ export function CompanyPanel({
                       >
                         All
                       </button>
-                      <span className="text-evari-dimmer/50">·</span>
+                      <span className="text-evari-dimmer/60">·</span>
                       <button
                         type="button"
                         onClick={picker.onSelectNone}
@@ -300,7 +300,7 @@ export function CompanyPanel({
                   {company.technologies.map((t) => (
                     <span
                       key={t}
-                      className="inline-flex items-center rounded-full bg-evari-surfaceSoft/70 px-2 py-0.5 text-[10px] text-evari-dim"
+                      className="inline-flex items-center rounded-full bg-evari-surfaceSoft px-2 py-0.5 text-[10px] text-evari-dim"
                     >
                       {t}
                     </span>
@@ -367,7 +367,7 @@ export function CompanyPanel({
             {logOpen ? (
               <div
                 ref={logRef}
-                className="mt-2 max-h-40 overflow-y-auto rounded-md bg-evari-ink/40 p-2 font-mono text-[10px] text-evari-dim whitespace-pre-wrap"
+                className="mt-2 max-h-40 overflow-y-auto rounded-md bg-evari-surface p-2 font-mono text-[10px] text-evari-dim whitespace-pre-wrap"
               >
                 {log.join('\n')}
               </div>
@@ -399,9 +399,7 @@ export function CompanyPanel({
       </div>
     );
   }
-  return (
-    <div className="h-full bg-evari-surface border-l border-evari-line/40">{body}</div>
-  );
+  return <div className="h-full">{body}</div>;
 }
 
 // ---------------------------------------------------------------------------
@@ -421,7 +419,7 @@ function EmailRow({
     <li
       className={cn(
         'rounded-md border border-evari-line/40 px-2.5 py-1.5',
-        onToggle ? 'cursor-pointer hover:bg-evari-surfaceSoft/60' : '',
+        onToggle ? 'cursor-pointer hover:bg-evari-surfaceSoft' : '',
         picked ? 'bg-evari-accent/10 border-evari-accent/60' : '',
       )}
       onClick={onToggle}
@@ -486,7 +484,7 @@ function SignalRow({ signal }: { signal: DiscoverSignal }) {
   const body = (
     <div className="text-[11px] text-evari-text">
       <div className="flex items-center gap-1.5">
-        <span className="inline-flex items-center rounded-full bg-evari-surfaceSoft/70 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em] text-evari-dim">
+        <span className="inline-flex items-center rounded-full bg-evari-surfaceSoft px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em] text-evari-dim">
           {signal.type}
         </span>
         {signal.date ? (
@@ -505,7 +503,7 @@ function SignalRow({ signal }: { signal: DiscoverSignal }) {
         href={signal.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block hover:bg-evari-surfaceSoft/40 rounded-md -mx-1 px-1 py-0.5"
+        className="block hover:bg-evari-surfaceSoft rounded-md -mx-1 px-1 py-0.5"
       >
         {body}
       </a>

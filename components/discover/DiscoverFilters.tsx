@@ -7,7 +7,6 @@ import {
   Hash,
   Building2,
   Users2,
-  Calendar,
   Sparkles,
   BookmarkCheck,
   Plus,
@@ -15,6 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DiscoverFilters, DiscoverFilterGroup } from '@/lib/types';
@@ -29,21 +29,54 @@ interface Props {
   onChange: (next: DiscoverFilters) => void;
   /** Called when the user submits the AI refine prompt. */
   onAiRefine: (prompt: string) => Promise<void> | void;
+  /** Wipe every filter back to an empty state. */
+  onClearAll: () => void;
   aiBusy?: boolean;
 }
 
 const SIZE_BANDS = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5000+'];
 const COMPANY_TYPES = ['corporation', 'club', 'nonprofit', 'practice', 'other'];
 
-export function DiscoverFilters({ filters, onChange, onAiRefine, aiBusy = false }: Props) {
+export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiBusy = false }: Props) {
   const [aiPrompt, setAiPrompt] = useState('');
 
   function setGroup(key: 'location' | 'industry' | 'keywords' | 'companyName' | 'companyType', next: DiscoverFilterGroup) {
     onChange({ ...filters, [key]: next });
   }
 
+  const hasAnyFilters =
+    (filters.location?.include?.length ?? 0) > 0 ||
+    (filters.location?.exclude?.length ?? 0) > 0 ||
+    (filters.industry?.include?.length ?? 0) > 0 ||
+    (filters.industry?.exclude?.length ?? 0) > 0 ||
+    (filters.keywords?.include?.length ?? 0) > 0 ||
+    (filters.keywords?.exclude?.length ?? 0) > 0 ||
+    (filters.companyName?.include?.length ?? 0) > 0 ||
+    (filters.companyName?.exclude?.length ?? 0) > 0 ||
+    (filters.companyType?.include?.length ?? 0) > 0 ||
+    (filters.sizeBands?.length ?? 0) > 0 ||
+    (filters.similarTo?.length ?? 0) > 0 ||
+    Boolean(filters.savedOnly);
+
   return (
     <div className="flex flex-col h-full overflow-y-auto">
+      {/* Sticky header with global clear */}
+      <div className="sticky top-0 z-10 flex items-center justify-between bg-evari-surface border-b border-evari-line/40 px-4 py-3">
+        <div className="text-[11px] uppercase tracking-[0.16em] font-semibold text-evari-text">
+          Filters
+        </div>
+        <button
+          type="button"
+          onClick={() => onClearAll()}
+          disabled={!hasAnyFilters}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-evari-dim hover:text-evari-text hover:bg-evari-surfaceSoft disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-evari-dim"
+          title="Clear every filter"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Clear all
+        </button>
+      </div>
+
       {/* AI refine */}
       <Section title="AI refine" icon={<Sparkles className="h-3 w-3" />} defaultOpen>
         <div className="space-y-2">
@@ -183,46 +216,6 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, aiBusy = false 
         </div>
       </Section>
 
-      <Section title="Founded year" icon={<Calendar className="h-3 w-3" />}>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="number"
-            inputMode="numeric"
-            placeholder="min"
-            value={filters.foundedYearMin ?? ''}
-            onChange={(e) =>
-              onChange({
-                ...filters,
-                foundedYearMin: e.target.value ? parseInt(e.target.value, 10) : undefined,
-              })
-            }
-            className="w-20 rounded-md bg-evari-ink/40 border border-evari-line/40 px-2 py-1 text-[11px] text-evari-text focus:outline-none focus:border-evari-accent"
-          />
-          <span className="text-[11px] text-evari-dimmer">to</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            placeholder="max"
-            value={filters.foundedYearMax ?? ''}
-            onChange={(e) =>
-              onChange({
-                ...filters,
-                foundedYearMax: e.target.value ? parseInt(e.target.value, 10) : undefined,
-              })
-            }
-            className="w-20 rounded-md bg-evari-ink/40 border border-evari-line/40 px-2 py-1 text-[11px] text-evari-text focus:outline-none focus:border-evari-accent"
-          />
-        </div>
-      </Section>
-
-      <Section title="Technologies" icon={<Hash className="h-3 w-3" />}>
-        <ChipInput
-          label=""
-          values={filters.technologies ?? []}
-          onChange={(next) => onChange({ ...filters, technologies: next })}
-          placeholder="Shopify"
-        />
-      </Section>
     </div>
   );
 }
@@ -248,7 +241,7 @@ function Section({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-4 py-3.5 text-[12px] uppercase tracking-[0.16em] font-medium text-evari-dim hover:text-evari-text"
+        className="w-full flex items-center gap-2 px-4 py-3.5 text-[11px] uppercase tracking-[0.14em] font-semibold text-evari-text hover:text-evari-text"
       >
         <span className="text-evari-dimmer">{icon}</span>
         <span className="flex-1 text-left">{title}</span>
@@ -323,7 +316,7 @@ function ChipInput({
   return (
     <div>
       {label ? (
-        <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">
+        <div className="text-[10px] uppercase tracking-[0.12em] font-medium text-evari-dim mb-1">
           {label}
         </div>
       ) : null}
@@ -362,7 +355,7 @@ function ChipInput({
                   ? 'bg-evari-success/10 text-evari-success border border-evari-success/30'
                   : tone === 'exclude'
                     ? 'bg-evari-danger/10 text-evari-danger border border-evari-danger/30'
-                    : 'bg-evari-surfaceSoft/60 text-evari-dim border border-evari-line/40',
+                    : 'bg-evari-surfaceSoft text-evari-dim border border-evari-line/40',
               )}
             >
               {v}

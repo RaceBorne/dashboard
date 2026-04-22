@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
   const setFilters = tool({
     description:
-      'Replace the Discover filter state with the provided values. Always include ALL filters you want to end up with — this overwrites the previous state.',
+      'Set the final Discover filter state. Include EVERY filter you want kept (existing + new) — this overwrites the previous state, so always merge rather than replace.',
     inputSchema: FiltersSchema,
     execute: async (input) => {
       captured = input as DiscoverFilters;
@@ -68,16 +68,37 @@ export async function POST(req: Request) {
   });
 
   const system = [
-    'You edit the filter state of an Apollo-style company discovery UI.',
-    'You receive the current filter JSON plus a natural-language instruction.',
+    'You edit the filter state of a DataForSEO-backed company discovery UI used by Evari,',
+    'a UK-based premium urban + e-cargo bike brand. Operators type natural-language prompts',
+    'and you turn them into a rich, merged filter state that surfaces the right companies.',
+    '',
     'Call the `set_filters` tool exactly once with the final, complete filter state.',
-    'Rules:',
-    '- Preserve any existing filters the user did not ask to change.',
-    '- Lists of include / exclude strings are case-insensitive substrings (locations like "London", industries like "Sports Teams").',
-    '- `sizeBands` values are human-readable bands from ["1-10","11-50","51-200","201-500","501-1000","1001-5000","5000+"].',
-    '- `companyType.include` values are from ["corporation","club","nonprofit","practice","other"].',
+    '',
+    'Reasoning principles:',
+    '- MERGE with the current filters. Never drop a filter the user did not explicitly ask to remove.',
+    '- Expand vague asks into MULTIPLE concrete include keywords and industry terms so the search',
+    '  actually finds what the operator means. A single keyword rarely lands good results.',
+    '    • "premium urban bike shops"  → industry: ["bicycle shops", "sporting goods stores"];',
+    '      keywords: ["urban commuter", "e-cargo", "premium cycling", "boutique bike store"].',
+    '    • "owners clubs for cyclists" → industry: ["associations", "membership organizations",',
+    '      "sports clubs"]; keywords: ["cycling club", "bike owners", "rider community"].',
+    '    • "private knee-surgery clinics" → industry: ["orthopedic clinics", "private healthcare",',
+    '      "surgical practices"]; keywords: ["knee replacement", "orthopaedic surgeon", "private clinic"].',
+    '- Adjectives ("boutique", "premium", "independent", "specialist") go into keywords, not industry.',
+    '- Always add the country/region into location.include when the user mentions one',
+    '  ("UK" / "United Kingdom", "USA" / "United States", etc.). Regional phrases like',
+    '  "North West" should be added BOTH as-is and with the parent country.',
+    '- When the user says "drop X" / "exclude X", move that value to the relevant `.exclude` list',
+    '  (create one if needed) and remove it from `.include`.',
+    '- Keep each include/exclude array tight: 2–6 specific strings. Prefer concrete over generic.',
+    '',
+    'Field reference:',
+    '- include / exclude lists are case-insensitive substring matches.',
+    '- `sizeBands` values ∈ ["1-10","11-50","51-200","201-500","501-1000","1001-5000","5000+"].',
+    '  "small teams" → ["1-10","11-50"]. "mid-sized" → ["51-200","201-500"]. "enterprise" → ["1001-5000","5000+"].',
+    '- `companyType.include` values ∈ ["corporation","club","nonprofit","practice","other"].',
     '- `similarTo` is a list of seed domains (lowercased, no protocol).',
-    '- Only set fields you want to keep. Leave empty arrays out.',
+    '- `savedOnly` → true only if the user explicitly asks for saved companies.',
   ].join('\n');
 
   const user = [
