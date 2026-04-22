@@ -144,10 +144,13 @@ export function DiscoverClient({ plays }: Props) {
 
   // --- Gate cold Discover. Every search must start from a Strategy, so
   //     if the user lands without ?playId= we bounce them to /plays.
+  //     Guard: useSearchParams() can be null during hydration — if we
+  //     treat that as "no playId" we'd wrongly redirect a legitimate
+  //     ?playId= URL, which looks like the ribbon flashing on then off.
   const router = useRouter();
   useEffect(() => {
-    const pid = searchParams?.get('playId') ?? null;
-    if (!pid) {
+    if (!searchParams) return;
+    if (!searchParams.get('playId')) {
       router.replace('/plays');
     }
   }, [searchParams, router]);
@@ -555,9 +558,12 @@ export function DiscoverClient({ plays }: Props) {
 
   return (
     <div className="flex flex-col gap-3 p-4 h-[calc(100vh-56px)] bg-evari-ink">
-      {playId ? (
-        <FunnelRibbon stage="discovery" playId={playId} play={linkedPlay} />
-      ) : null}
+      {(() => {
+        const urlPid = searchParams?.get('playId') ?? null;
+        return urlPid ? (
+          <FunnelRibbon stage="discovery" playId={urlPid} play={linkedPlay} />
+        ) : null;
+      })()}
       <div className="flex gap-4 flex-1 min-h-0">
       {/* Left: filters */}
       <aside className="w-[380px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
