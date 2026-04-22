@@ -45,7 +45,7 @@ export default async function VenturesPage() {
         below as a smaller, secondary section.
       */}
       <div className="p-6 space-y-[52px]">
-        <FunnelRibbon stage="ventures" playId={plays[0]?.id ?? ''} />
+        <FunnelRibbon stage="ventures" playId="" />
 
         {/* Hero — big, the primary action on this page. */}
         <VentureHero />

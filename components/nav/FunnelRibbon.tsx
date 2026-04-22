@@ -91,10 +91,6 @@ export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
   const [play, setPlay] = useState<Play | null>(initialPlay ?? null);
 
   useEffect(() => {
-    // On the /ventures list page we render "All ventures" in the title slot
-    // regardless, so skip the fetch even though /ventures now passes the
-    // latest play's id (so chips have somewhere to navigate to).
-    if (stage === 'ventures') return;
     if (!playId) return;
     if (play && play.id === playId) return;
     let cancelled = false;
