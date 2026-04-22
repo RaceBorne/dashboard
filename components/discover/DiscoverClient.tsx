@@ -296,7 +296,7 @@ export function DiscoverClient({ plays }: Props) {
   return (
     <div className="flex gap-4 p-4 h-[calc(100vh-56px)] bg-evari-ink">
       {/* Left: filters */}
-      <aside className="w-[280px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
+      <aside className="w-[380px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
         <DiscoverFilters
           filters={filters}
           onChange={(next) => {
