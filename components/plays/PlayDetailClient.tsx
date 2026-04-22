@@ -67,7 +67,7 @@ const STAGE_TONE: Record<PlayStage, string> = {
   retired: 'text-evari-dimmer bg-evari-surfaceSoft',
 };
 
-type Pane = 'brief' | 'research' | 'targets' | 'messaging' | 'drafts' | 'activity';
+type Pane = 'brief' | 'drafts' | 'activity';
 
 export function PlayDetailClient({
   play: initialPlay,
@@ -541,21 +541,6 @@ export function PlayDetailClient({
               icon: <BookOpenText className="h-3.5 w-3.5" />,
             },
             {
-              value: 'research',
-              label: `Research · ${play.research.length}`,
-              icon: <FileText className="h-3.5 w-3.5" />,
-            },
-            {
-              value: 'targets',
-              label: `Targets · ${play.targets.length}`,
-              icon: <Target className="h-3.5 w-3.5" />,
-            },
-            {
-              value: 'messaging',
-              label: `Messaging · ${play.messaging.length}`,
-              icon: <Mail className="h-3.5 w-3.5" />,
-            },
-            {
               value: 'drafts',
               label: 'Drafts',
               icon: <Inbox className="h-3.5 w-3.5" />,
@@ -723,165 +708,6 @@ export function PlayDetailClient({
             </section>
 
           </div>
-        )}
-
-        {pane === 'research' && (
-          <section className="space-y-1">
-            {play.research.length === 0 && (
-              <EmptyState
-                label="No research notes yet."
-                hint="Ask Claude to scrape or look something up, then pin the answer into this section."
-              />
-            )}
-            {play.research.map((r) => (
-              <article
-                key={r.id}
-                className="bg-evari-surface/60 rounded-md p-4 space-y-2"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-sm font-medium text-evari-text">
-                    {r.title}
-                  </h3>
-                  <span className="text-[10px] text-evari-dimmer tabular-nums shrink-0">
-                    {relativeTime(r.at)}
-                  </span>
-                </div>
-                <p className="text-sm text-evari-dim leading-relaxed whitespace-pre-wrap">
-                  {r.body}
-                </p>
-                {(r.sourceUrl || (r.tags && r.tags.length > 0)) && (
-                  <div className="flex items-center gap-2 flex-wrap text-[10px]">
-                    {r.sourceUrl && (
-                      <a
-                        href={r.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-evari-gold hover:text-evari-text"
-                      >
-                        <ExternalLink className="h-2.5 w-2.5" />
-                        source
-                      </a>
-                    )}
-                    {r.tags?.map((t) => (
-                      <Badge key={t} variant="muted" className="text-[9px]">
-                        {t}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </article>
-            ))}
-          </section>
-        )}
-
-        {pane === 'targets' && (
-          <section className="space-y-1">
-            <div className="flex items-center justify-between px-1 pb-1">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium flex items-center gap-1.5">
-                <Users className="h-3 w-3" />
-                {play.targets.length} targets
-              </div>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-[11px] text-evari-gold hover:text-evari-text"
-              >
-                <Plus className="h-3 w-3" />
-                Add target
-              </button>
-            </div>
-            {play.targets.length === 0 && (
-              <EmptyState
-                label="No targets yet."
-                hint="Import from research, scrape a list, or add manually."
-              />
-            )}
-            <ul className="space-y-1">
-              {play.targets.map((t) => (
-                <li
-                  key={t.id}
-                  className="bg-evari-surface/60 rounded-md p-3 grid grid-cols-12 gap-3 items-center"
-                >
-                  <div className="col-span-4 min-w-0">
-                    <div className="text-sm text-evari-text truncate">
-                      {t.name}
-                    </div>
-                    {t.role && (
-                      <div className="text-[11px] text-evari-dim truncate">
-                        {t.role}
-                      </div>
-                    )}
-                  </div>
-                  <div className="col-span-3 min-w-0 text-xs text-evari-dim truncate">
-                    {t.org ?? '-'}
-                  </div>
-                  <div className="col-span-3 min-w-0 text-xs font-mono text-evari-dim truncate">
-                    {t.email ?? '-'}
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <Badge
-                      variant={
-                        t.status === 'replied' || t.status === 'meeting'
-                          ? 'success'
-                          : t.status === 'won'
-                            ? 'gold'
-                            : t.status === 'declined'
-                              ? 'critical'
-                              : 'muted'
-                      }
-                      className="text-[9px] capitalize"
-                    >
-                      {t.status}
-                    </Badge>
-                  </div>
-                  {t.notes && (
-                    <div className="col-span-12 text-[11px] text-evari-dimmer italic pt-1">
-                      {t.notes}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {pane === 'messaging' && (
-          <section className="space-y-1">
-            {play.messaging.length === 0 && (
-              <EmptyState
-                label="No messaging drafts yet."
-                hint="Use the chat on the right to draft in Evari voice, then save the best version here."
-              />
-            )}
-            <ul className="space-y-1">
-              {play.messaging.map((m) => (
-                <li
-                  key={m.id}
-                  className="bg-evari-surface/60 rounded-md p-4 space-y-2"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="muted" className="text-[9px] capitalize">
-                        {m.channel}
-                      </Badge>
-                      {m.sequenceStep && (
-                        <span className="text-[10px] text-evari-dimmer">
-                          step {m.sequenceStep}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {m.subject && (
-                    <div className="text-sm font-medium text-evari-text">
-                      {m.subject}
-                    </div>
-                  )}
-                  <div className="text-xs text-evari-dim leading-relaxed whitespace-pre-wrap font-sans">
-                    {m.body}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
         )}
 
         {pane === 'drafts' && <DraftsPane play={play} />}
