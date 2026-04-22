@@ -487,7 +487,9 @@ export function DiscoverClient({ plays }: Props) {
               }}
               className="relative flex items-center min-h-[60px] rounded-xl border border-evari-line/40 bg-white focus-within:border-evari-accent shadow-sm"
             >
-              <Sparkles className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-evari-accent" />
+              <div className="pl-4 pr-3 shrink-0 flex items-center self-stretch pointer-events-none">
+                <Sparkles className="h-4 w-4 text-evari-accent" />
+              </div>
               <textarea
                 value={heroPrompt}
                 onChange={(e) => setHeroPrompt(e.target.value)}
@@ -499,7 +501,7 @@ export function DiscoverClient({ plays }: Props) {
                 }}
                 placeholder="Describe who we are searching for."
                 rows={1}
-                className="w-full resize-none bg-transparent pl-11 pr-14 py-0 text-[14px] leading-6 text-slate-900 placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none"
+                className="flex-1 min-w-0 resize-none bg-transparent pr-14 py-4 text-[14px] leading-6 text-slate-900 placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none"
               />
               <button
                 type="submit"
