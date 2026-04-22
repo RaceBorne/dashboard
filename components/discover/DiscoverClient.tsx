@@ -532,9 +532,13 @@ export function DiscoverClient({ plays }: Props) {
         />
       </aside>
 
-      {/* Pristine hero */}
+      {/* Always a 50/50 split. Left column = hero before any search,
+          results list after. Right column = CompanyPanel when a card
+          is selected, SaveDestinationPanel while the save picker is
+          open, or an empty placeholder otherwise. */}
+      <div className="flex-1 min-w-0 h-full flex gap-4">
       {!hasSearched ? (
-        <div className="flex-1 min-w-0 rounded-xl bg-evari-surface flex flex-col items-center justify-center px-8">
+        <main className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface flex flex-col items-center justify-center px-8">
           <div className="w-full max-w-2xl">
             <h1 className="text-left text-2xl font-semibold text-evari-text mb-6 pl-1">
               What company are we searching for
@@ -575,20 +579,9 @@ export function DiscoverClient({ plays }: Props) {
               </button>
             </form>
           </div>
-        </div>
-      ) : null}
-
-      {/* Middle + right — animated grid. When nothing is selected the right
-          column collapses to 0fr; on selection it expands to 1fr and the
-          detail panel translates in from the right. */}
-      {hasSearched ? (
-      <div className="flex-1 min-w-0 h-full flex gap-4">
-      <main
-        className={cn(
-          'min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden transition-[flex-basis] duration-300 ease-in-out',
-          selected || saveSetupOpen ? 'basis-1/2 flex-1' : 'basis-full flex-1',
-        )}
-      >
+        </main>
+      ) : (
+      <main className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="shrink-0 border-b border-evari-line/30 px-5 py-3 flex items-center gap-3">
           <h2 className="text-[15px] font-semibold text-evari-text">
@@ -837,8 +830,9 @@ export function DiscoverClient({ plays }: Props) {
           </ul>
         </div>
       </main>
-      {selected ? (
+      )}
       <section className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface overflow-hidden">
+      {selected ? (
           <CompanyPanel
             key={selected}
             domain={selected}
@@ -874,9 +868,7 @@ export function DiscoverClient({ plays }: Props) {
               ) : null
             }
           />
-      </section>
       ) : saveSetupOpen ? (
-      <section className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface overflow-hidden">
           <SaveDestinationPanel
             saveTarget={saveTarget}
             savedCount={savedCount}
@@ -886,10 +878,11 @@ export function DiscoverClient({ plays }: Props) {
             onCreate={(folder) => setSaveTarget(folder)}
             onDismiss={() => setSaveSetupOpen(false)}
           />
+      ) : (
+          <EmptyDetailsPlaceholder onOpenPicker={() => setSaveSetupOpen(true)} hasSearched={hasSearched} />
+      )}
       </section>
-      ) : null}
       </div>
-      ) : null}
     </div>
   );
 }
@@ -903,4 +896,30 @@ function summariseFilters(f: DiscoverFiltersType): string {
   if (f.sizeBands?.length) bits.push('Size: ' + f.sizeBands.join(', '));
   if (f.savedOnly) bits.push('Saved only');
   return bits.length === 0 ? 'No filters — showing cache' : bits.join(' · ');
+}
+
+function EmptyDetailsPlaceholder({ onOpenPicker, hasSearched }: { onOpenPicker: () => void; hasSearched: boolean }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center px-8 text-center">
+      <div className="h-12 w-12 rounded-full bg-evari-surfaceSoft inline-flex items-center justify-center mb-4">
+        <Sparkles className="h-5 w-5 text-evari-dimmer" />
+      </div>
+      <div className="text-[14px] font-semibold text-evari-text mb-1">
+        {hasSearched ? "Pick a company to see details" : "Details will appear here"}
+      </div>
+      <div className="text-[12px] text-evari-dim max-w-sm">
+        {hasSearched
+          ? "Click any row on the left to open the company panel, or save the whole run to a Prospects folder."
+          : "Run a hero search on the left. As results stream in, you can save them to a Prospects folder in one click."}
+      </div>
+      <button
+        type="button"
+        onClick={onOpenPicker}
+        className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-dashed border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dim"
+      >
+        <Sparkles className="h-3 w-3" />
+        Choose a save destination
+      </button>
+    </div>
+  );
 }
