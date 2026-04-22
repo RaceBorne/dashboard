@@ -6,6 +6,13 @@ import { VentureHero } from '@/components/plays/VentureHero';
 import { PlayRow } from '@/components/plays/PlayRow';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 
+// Stage pages depend on ?playId= and per-request data, so opt out of
+// static prerender. Without this, Next.js 16 fails the build with
+// 'useSearchParams() should be wrapped in a suspense boundary' for any
+// client component (FunnelRibbon, ProjectRail) that reads search params.
+export const dynamic = 'force-dynamic';
+
+
 const STAGES: {
   key: PlayStage;
   label: string;

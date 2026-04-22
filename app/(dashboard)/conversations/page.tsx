@@ -7,6 +7,13 @@ interface PageProps {
   searchParams: Promise<{ thread?: string }>;
 }
 
+// Stage pages depend on ?playId= and per-request data, so opt out of
+// static prerender. Without this, Next.js 16 fails the build with
+// 'useSearchParams() should be wrapped in a suspense boundary' for any
+// client component (FunnelRibbon, ProjectRail) that reads search params.
+export const dynamic = 'force-dynamic';
+
+
 export default async function ConversationsPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const supabase = createSupabaseAdmin();
