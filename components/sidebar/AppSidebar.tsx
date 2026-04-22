@@ -144,7 +144,7 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        'hidden lg:flex shrink-0 flex-col bg-evari-carbon sticky top-0 h-screen self-start transition-[width] duration-200 ease-out',
+        'hidden lg:flex shrink-0 flex-col bg-evari-carbon sticky top-0 h-screen self-start transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]',
         collapsed ? 'w-14' : 'w-60',
       )}
       aria-label="Main navigation"
