@@ -578,9 +578,7 @@ export function LeadsClient({ initialLeads }: Props) {
 
   return (
     <div className="flex flex-col gap-3 p-4 h-[calc(100vh-56px)] bg-evari-ink">
-      {playId ? (
-        <FunnelRibbon stage="leads" playId={playId} />
-      ) : null}
+      <FunnelRibbon stage="leads" playId={playId ?? ''} />
       <div className="flex gap-4 flex-1 min-h-0">
       {/* Column 1: projects rail */}
       <ProjectRail activePlayId={playId} />

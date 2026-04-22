@@ -549,9 +549,7 @@ export function DiscoverClient({ plays }: Props) {
     <div className="flex flex-col gap-3 p-4 h-[calc(100vh-56px)] bg-evari-ink">
       {(() => {
         const urlPid = searchParams?.get('playId') ?? null;
-        return urlPid ? (
-          <FunnelRibbon stage="discovery" playId={urlPid} play={linkedPlay} />
-        ) : null;
+        return <FunnelRibbon stage="discovery" playId={urlPid ?? ''} play={linkedPlay} />;
       })()}
       <div className="flex gap-4 flex-1 min-h-0">
       <ProjectRail activePlayId={playId} />
