@@ -152,7 +152,10 @@ export function ProjectRail({ activePlayId, className }: Props) {
         id?: string;
       };
       if (body.ok && body.id) {
-        window.location.href = '/ventures/' + body.id;
+        // Drop user back to the ventures list — gives them context and
+        // lets them choose to drill into the new venture rather than landing
+        // on a blank Strategy view (especially jarring from a stage page).
+        window.location.href = '/ventures';
       } else {
         setCreating(false);
       }
