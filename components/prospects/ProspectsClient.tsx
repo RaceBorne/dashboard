@@ -1030,7 +1030,7 @@ export function ProspectsClient({
               </div>
 
               {expanded && (
-                <div className="rounded-md bg-evari-ink/40 p-3 space-y-3">
+                <div className="rounded-md bg-evari-ink/40 p-3 space-y-3 animate-in fade-in slide-in-from-top-4 duration-300 ease-out">
                   {p.orgProfile && (
                     <div className="space-y-1.5 pb-2 border-b border-evari-line/40">
                       <div className="flex items-center gap-3 text-[11px] text-evari-dim">
