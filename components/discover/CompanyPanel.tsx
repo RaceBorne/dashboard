@@ -240,7 +240,7 @@ export function CompanyPanel({
             {sortedEmails.length > 0 ? (
               <div className="px-5 py-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+                  <div className="text-sm text-evari-text font-medium">
                     Email addresses · {sortedEmails.length}
                   </div>
                   {picker ? (
@@ -279,7 +279,7 @@ export function CompanyPanel({
             {/* Signals */}
             {company.signals && company.signals.length > 0 ? (
               <div className="px-5 py-4">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-2">
+                <div className="text-sm text-evari-text font-medium mb-2">
                   Signals
                 </div>
                 <ul className="space-y-2">
@@ -293,7 +293,7 @@ export function CompanyPanel({
             {/* Technologies */}
             {company.technologies && company.technologies.length > 0 ? (
               <div className="px-5 py-4">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-2">
+                <div className="text-sm text-evari-text font-medium mb-2">
                   Technologies
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -312,7 +312,7 @@ export function CompanyPanel({
             {/* Keywords */}
             {company.keywords && company.keywords.length > 0 ? (
               <div className="px-5 py-4">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-2">
+                <div className="text-sm text-evari-text font-medium mb-2">
                   Keywords
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -331,7 +331,7 @@ export function CompanyPanel({
             {/* Sources */}
             {company.sources && company.sources.length > 0 ? (
               <div className="px-5 py-4">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-2">
+                <div className="text-sm text-evari-text font-medium mb-2">
                   Sources
                 </div>
                 <ul className="space-y-1">
@@ -360,7 +360,7 @@ export function CompanyPanel({
             <button
               type="button"
               onClick={() => setLogOpen((v) => !v)}
-              className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium hover:text-evari-text"
+              className="text-sm text-evari-text font-medium hover:text-evari-text"
             >
               {logOpen ? 'Hide log' : 'Show log'} · {log.length} line{log.length === 1 ? '' : 's'}
             </button>

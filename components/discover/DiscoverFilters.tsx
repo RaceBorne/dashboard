@@ -62,7 +62,7 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
     <div className="flex flex-col h-full overflow-y-auto">
       {/* Sticky header with global clear */}
       <div className="sticky top-0 z-10 flex items-center justify-between bg-evari-surface border-b border-evari-line/40 px-4 py-3">
-        <div className="text-[11px] uppercase tracking-[0.16em] font-semibold text-evari-text">
+        <div className="flex items-center gap-3 text-sm text-evari-text">
           Filters
         </div>
         <button
@@ -78,7 +78,7 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
       </div>
 
       {/* AI refine */}
-      <Section title="AI refine" icon={<Sparkles className="h-3 w-3" />} defaultOpen>
+      <Section title="AI refine" icon={<Sparkles className="h-4 w-4" />} defaultOpen>
         <div className="space-y-2">
           <textarea
             value={aiPrompt}
@@ -96,16 +96,16 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
               await onAiRefine(p);
               setAiPrompt('');
             }}
-            className="w-full inline-flex items-center justify-center gap-1.5 rounded-md bg-evari-accent px-2.5 py-1.5 text-[11px] font-medium text-evari-ink hover:bg-evari-accent/90 disabled:opacity-40"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-evari-gold px-3 py-2.5 text-[13px] font-semibold text-evari-goldInk hover:bg-evari-gold/90 disabled:opacity-40 shadow-sm"
           >
-            {aiBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            {aiBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Refine filters
           </button>
         </div>
       </Section>
 
       {/* Saved / similar */}
-      <Section title="Saved & similar" icon={<BookmarkCheck className="h-3 w-3" />}>
+      <Section title="Saved & similar" icon={<BookmarkCheck className="h-4 w-4" />}>
         <label className="flex items-center gap-2 text-[12px] text-evari-text">
           <input
             type="checkbox"
@@ -127,34 +127,34 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
 
       <IncludeExcludeSection
         title="Location"
-        icon={<MapPin className="h-3 w-3" />}
+        icon={<MapPin className="h-4 w-4" />}
         group={filters.location}
         onChange={(g) => setGroup('location', g)}
         placeholder="United Kingdom"
       />
       <IncludeExcludeSection
         title="Industry"
-        icon={<Briefcase className="h-3 w-3" />}
+        icon={<Briefcase className="h-4 w-4" />}
         group={filters.industry}
         onChange={(g) => setGroup('industry', g)}
         placeholder="Sports Teams and Clubs"
       />
       <IncludeExcludeSection
         title="Keywords"
-        icon={<Hash className="h-3 w-3" />}
+        icon={<Hash className="h-4 w-4" />}
         group={filters.keywords}
         onChange={(g) => setGroup('keywords', g)}
         placeholder="mountain biking"
       />
       <IncludeExcludeSection
         title="Company name"
-        icon={<Building2 className="h-3 w-3" />}
+        icon={<Building2 className="h-4 w-4" />}
         group={filters.companyName}
         onChange={(g) => setGroup('companyName', g)}
         placeholder="Acme Sports"
       />
 
-      <Section title="Size" icon={<Users2 className="h-3 w-3" />}>
+      <Section title="Size" icon={<Users2 className="h-4 w-4" />}>
         <div className="flex flex-wrap gap-1">
           {SIZE_BANDS.map((band) => {
             const on = filters.sizeBands?.includes(band);
@@ -182,7 +182,7 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
         </div>
       </Section>
 
-      <Section title="Company type" icon={<Building2 className="h-3 w-3" />}>
+      <Section title="Company type" icon={<Building2 className="h-4 w-4" />}>
         <div className="flex flex-wrap gap-1">
           {COMPANY_TYPES.map((ct) => {
             const on = filters.companyType?.include?.includes(ct);
@@ -241,11 +241,11 @@ function Section({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-4 py-3.5 text-[11px] uppercase tracking-[0.14em] font-semibold text-evari-text hover:text-evari-text"
+        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-evari-text hover:text-evari-text"
       >
-        <span className="text-evari-dimmer">{icon}</span>
+        <span className="text-evari-dim flex items-center justify-center">{icon}</span>
         <span className="flex-1 text-left">{title}</span>
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {open ? <ChevronDown className="h-4 w-4 text-evari-dimmer" /> : <ChevronRight className="h-4 w-4 text-evari-dimmer" />}
       </button>
       {open ? <div className="px-4 pb-4 pt-0.5">{children}</div> : null}
     </div>
@@ -316,7 +316,7 @@ function ChipInput({
   return (
     <div>
       {label ? (
-        <div className="text-[10px] uppercase tracking-[0.12em] font-medium text-evari-dim mb-1">
+        <div className="text-[12px] font-medium text-evari-dim mb-1.5">
           {label}
         </div>
       ) : null}

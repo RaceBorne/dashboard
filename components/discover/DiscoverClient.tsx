@@ -354,7 +354,7 @@ export function DiscoverClient({ plays }: Props) {
             </form>
 
             <div className="mt-10">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-2">
+              <div className="text-sm text-evari-text font-medium mb-3">
                 Getting started
               </div>
               <ul className="space-y-2">
