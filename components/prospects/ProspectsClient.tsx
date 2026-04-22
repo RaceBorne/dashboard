@@ -169,10 +169,19 @@ export function ProspectsClient({ initialLeads }: Props) {
     });
   }, [folderCounts]);
 
+  // First filter by playId only — so we can detect the empty-play case
+  // and fall back to showing every prospect. Folder + search filters are
+  // applied afterwards on whichever pool we end up with.
+  const playScoped = useMemo(() => {
+    if (!playId) return leads;
+    return leads.filter((l) => l.playId === playId);
+  }, [leads, playId]);
+  const isFallback = Boolean(playId) && playScoped.length === 0 && leads.length > 0;
+  const pool = isFallback ? leads : playScoped;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return leads.filter((l) => {
-      if (playId && l.playId !== playId) return false;
+    return pool.filter((l) => {
       if (activeFolder) {
         const key = (l.category ?? '').trim() || UNCATEGORISED;
         if (key !== activeFolder) return false;
@@ -191,7 +200,7 @@ export function ProspectsClient({ initialLeads }: Props) {
       }
       return true;
     });
-  }, [leads, activeFolder, search]);
+  }, [pool, activeFolder, search]);
 
   // Keep selection pointed at a valid row.
   useEffect(() => {
@@ -689,6 +698,12 @@ export function ProspectsClient({ initialLeads }: Props) {
               ) : null}
             </div>
           </header>
+
+          {isFallback ? (
+            <div className="px-4 py-2 text-[11px] text-evari-dimmer bg-evari-surfaceSoft/40 border-b border-evari-line/30">
+              No prospects linked to this venture yet — showing all.
+            </div>
+          ) : null}
 
           <div className="flex-1 overflow-y-auto">
             {filtered.length === 0 ? (
