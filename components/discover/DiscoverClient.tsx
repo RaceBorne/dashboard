@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Building2,
   BadgeCheck,
@@ -20,6 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
 import { DiscoverFilters } from '@/components/discover/DiscoverFilters';
+import { SaveDestinationPanel } from '@/components/discover/SaveDestinationPanel';
 import type {
   DiscoverCard,
   DiscoveredCompany,
@@ -82,6 +83,17 @@ export function DiscoverClient({ plays }: Props) {
   // results header. Checkbox per row; master checkbox toggles the visible set.
   const [companyChecked, setCompanyChecked] = useState<Set<string>>(new Set());
 
+  // Pre-commit save destination — while the hero agent is running, the
+  // right column shows a folder picker; once picked, every streamed
+  // candidate auto-saves into that Prospects folder.
+  const [saveTarget, setSaveTarget] = useState<string | null>(null);
+  const [saveSetupOpen, setSaveSetupOpen] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
+  const [lastHeroPrompt, setLastHeroPrompt] = useState('');
+  // Domains we've already auto-saved in this run. Kept in a ref so the
+  // effect below doesn't loop when we update it.
+  const autoSavedRef = useRef<Set<string>>(new Set());
+
   const filtersSummary = useMemo(() => summariseFilters(filters), [filters]);
 
   // No auto-search on mount — the pristine hero shows first. The operator
@@ -117,9 +129,52 @@ export function DiscoverClient({ plays }: Props) {
   async function runHero(prompt: string) {
     const p = prompt.trim();
     if (!p) return;
+    // Open the save-destination picker in the right column. Non-blocking —
+    // the AI keeps running while the operator decides.
+    setLastHeroPrompt(p);
+    setSaveTarget(null);
+    setSavedCount(0);
+    autoSavedRef.current = new Set();
+    setSaveSetupOpen(true);
     await handleAiRefine(p);
     setHeroPrompt('');
   }
+
+  // Auto-save any streamed cards that aren't already saved into the
+  // current saveTarget folder. Fires whenever cards or saveTarget change.
+  // Idempotent via autoSavedRef.
+  useEffect(() => {
+    if (!saveTarget) return;
+    const pending = cards.filter((c) => !autoSavedRef.current.has(c.domain));
+    if (pending.length === 0) return;
+    for (const c of pending) autoSavedRef.current.add(c.domain);
+    void (async () => {
+      try {
+        const res = await fetch('/api/discover/save-companies', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            folder: saveTarget,
+            companies: pending.map((c) => ({
+              domain: c.domain,
+              name: c.name,
+              logoUrl: c.logoUrl,
+              category: c.category,
+              employeeBand: c.employeeBand,
+              hqLabel: c.hqLabel,
+            })),
+          }),
+        });
+        const data = (await res.json()) as { ok?: boolean; created?: number };
+        if (data.ok && typeof data.created === 'number' && data.created > 0) {
+          setSavedCount((n) => n + (data.created ?? 0));
+          window.dispatchEvent(new Event('evari:nav-counts-dirty'));
+        }
+      } catch {
+        // Non-fatal — retry on the next card batch.
+      }
+    })();
+  }, [cards, saveTarget]);
 
   // AI agent: stream SSE from /api/discover/agent. Candidates appear
   // progressively in the results grid; on 'done' we merge the filters and
@@ -468,6 +523,10 @@ export function DiscoverClient({ plays }: Props) {
             setCompanyChecked(new Set());
             setHasSearched(false);
             setFiltersResetKey((k) => k + 1);
+            setSaveSetupOpen(false);
+            setSaveTarget(null);
+            setSavedCount(0);
+            autoSavedRef.current = new Set();
           }}
           aiBusy={aiBusy}
         />
@@ -527,7 +586,7 @@ export function DiscoverClient({ plays }: Props) {
       <main
         className={cn(
           'min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden transition-[flex-basis] duration-300 ease-in-out',
-          selected ? 'basis-1/2 flex-1' : 'basis-full flex-1',
+          selected || saveSetupOpen ? 'basis-1/2 flex-1' : 'basis-full flex-1',
         )}
       >
         {/* Toolbar */}
@@ -545,6 +604,28 @@ export function DiscoverClient({ plays }: Props) {
             )}
           </h2>
           <div className="flex-1" />
+          {saveTarget ? (
+            <button
+              type="button"
+              onClick={() => setSaveSetupOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-evari-accent/15 text-evari-accent px-3 py-1.5 text-[12px] font-medium hover:bg-evari-accent/25"
+              title="Manage save destination"
+            >
+              <Check className="h-3 w-3" />
+              Saving to {saveTarget}
+              {savedCount > 0 ? ` · ${savedCount}` : ''}
+            </button>
+          ) : !saveSetupOpen ? (
+            <button
+              type="button"
+              onClick={() => setSaveSetupOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dim"
+              title="Pick a folder to auto-save results"
+            >
+              <Sparkles className="h-3 w-3" />
+              Save to folder
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void doSearch(filters)}
@@ -792,6 +873,18 @@ export function DiscoverClient({ plays }: Props) {
                 </button>
               ) : null
             }
+          />
+      </section>
+      ) : saveSetupOpen ? (
+      <section className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface overflow-hidden">
+          <SaveDestinationPanel
+            saveTarget={saveTarget}
+            savedCount={savedCount}
+            busy={aiBusy}
+            prompt={lastHeroPrompt}
+            onPick={(folder) => setSaveTarget(folder)}
+            onCreate={(folder) => setSaveTarget(folder)}
+            onDismiss={() => setSaveSetupOpen(false)}
           />
       </section>
       ) : null}
