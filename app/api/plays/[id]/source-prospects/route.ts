@@ -1,16 +1,25 @@
+import { generateText, stepCountIs, tool } from 'ai';
+import { gateway } from '@ai-sdk/gateway';
+import { anthropic } from '@ai-sdk/anthropic';
+import { z } from 'zod';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay, upsertLead } from '@/lib/dashboard/repository';
 import {
   isDataForSeoConnected,
   searchBusinessListings,
+  webSearchQuery,
   type BusinessListing,
 } from '@/lib/integrations/dataforseo';
 import {
   isGooglePlacesConnected,
   searchPlaces,
 } from '@/lib/integrations/googleplaces';
-import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
+import { buildSystemPrompt, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import type { Lead, Play, PlaySourceRun } from '@/lib/types';
+
+const RESEARCH_MODEL = process.env.AI_MODEL || 'anthropic/claude-haiku-4-5';
+// Tool loop can do many sequential calls; let Vercel keep the request open.
+export const maxDuration = 300;
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,20 +32,22 @@ export const dynamic = 'force-dynamic';
  * `data:` line.
  *
  * Phases emitted (in order):
- *   planning           — asking Claude to derive a DataForSEO search plan
- *   plan-ready         — plan decided (includes { queries: [{description, locationName, limit?}] })
- *   searching          — DataForSEO call in flight (includes { query, index, total })
- *   search-done        — one DataForSEO result chunk returned (includes { query, found, foundTotal, costUsd, costTotal })
- *   all-searches-done  — every fan-out query finished (includes { foundTotal, uniqueTotal, costTotal })
+ *   planning           — Claude is researching the play
+ *   searching          — a research-agent tool call is in flight (includes { query, index })
+ *   search-done        — a research-agent tool call returned (includes { query, found, source, ... })
+ *   all-searches-done  — research finished, candidates parsed (includes { foundTotal, uniqueTotal, costTotal })
  *   inserting          — writing Lead rows to Supabase (includes { total })
  *   inserted-progress  — progress tick per row (includes { done, total, lead })
  *   done               — final success (includes { play, inserted, found, costUsd })
  *   error              — terminal failure (includes { message })
  *
  * Body: `{ candidates?: Lead[], search?: { description, locationName, limit } }`
- *  - If `candidates` is provided the route skips planning + DataForSEO and just
- *    inserts the pasted rows.
- *  - If `search` is provided it overrides the AI planner (single query).
+ *  - If `candidates` is provided the route skips research and inserts the
+ *    pasted rows verbatim.
+ *  - If `search` is provided it bypasses the research agent and runs a single
+ *    Google Places / DataForSEO business-listings query (operator debug path).
+ *  - Otherwise the research agent (Claude + web_search + find_business_listings
+ *    tool-loop) compiles named candidates for the play's scope.
  */
 
 interface SearchQuery {
@@ -50,10 +61,6 @@ interface SearchQuery {
    * DFS ignores this field.
    */
   includedType?: string;
-}
-
-interface SearchPlan {
-  queries: SearchQuery[];
 }
 
 interface CandidateBody {
@@ -144,248 +151,287 @@ export async function POST(
       }
 
       // ---------------- Auto-source path ---------------------------------
-      // Accept either provider. Google Places is preferred when configured;
-      // DFS is the fallback. If neither is set, bail out with the reason.
       const gpConnected = isGooglePlacesConnected();
       const dfsConnected = isDataForSeoConnected();
-      if (!gpConnected && !dfsConnected) {
-        const run: PlaySourceRun = {
-          at: nowIso,
-          agent: 'dataforseo',
-          inserted: 0,
-          error: 'No search provider configured',
-          durationMs: Date.now() - startedAt,
-        };
-        await stampRun(supabase, play, run);
-        fail(
-          'No search provider configured. Set GOOGLE_PLACES_API_KEY (preferred) or DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD, or paste a candidate list.',
-        );
-        return;
-      }
 
-      let plan: SearchPlan;
+      // -------- Operator debug path: { search: { description, locationName } }
+      // Bypasses the research agent and runs a single Google Places / DFS
+      // business-listings query. Useful for spot-checking a specific keyword.
       if (body.search?.description && body.search?.locationName) {
-        plan = {
-          queries: [
-            {
-              description: body.search.description,
-              locationName: body.search.locationName,
-              limit: body.search.limit ?? 20,
-              includedType: body.search.includedType,
-            },
-          ],
-        };
-        emit({
-          phase: 'plan-ready',
-          message: 'Using operator-supplied search plan',
-          queries: plan.queries,
-        });
-      } else {
-        if (!hasAIGatewayCredentials()) {
+        if (!gpConnected && !dfsConnected) {
           const run: PlaySourceRun = {
             at: nowIso,
             agent: 'dataforseo',
             inserted: 0,
-            error: 'AI gateway not configured',
+            error: 'No search provider configured',
             durationMs: Date.now() - startedAt,
           };
           await stampRun(supabase, play, run);
           fail(
-            'AI gateway not configured. Send { search: { description, locationName } } to bypass AI planning.',
+            'No search provider configured. Set GOOGLE_PLACES_API_KEY or DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD.',
           );
           return;
         }
+        const q: SearchQuery = {
+          description: body.search.description,
+          locationName: body.search.locationName,
+          limit: body.search.limit ?? 20,
+          includedType: body.search.includedType,
+        };
         emit({
-          phase: 'planning',
-          message: 'Asking Claude to derive a fan-out search plan from your scope…',
+          phase: 'searching',
+          message: 'Searching "' + q.description + '" in ' + q.locationName + '…',
+          query: q,
+          index: 1,
+          total: 1,
         });
+        let listings: BusinessListing[] = [];
+        let cost = 0;
+        let source: 'google_places' | 'dataforseo' = 'dataforseo';
         try {
-          plan = await derivePlan(play);
+          const res = await runProviderQuery(q, cap, { gpConnected, dfsConnected });
+          listings = res.listings;
+          cost = res.cost;
+          source = res.source;
         } catch (err) {
           const msg = (err as Error).message;
+          const agentLabel: PlaySourceRun['agent'] = gpConnected ? 'google_places' : 'dataforseo';
           const run: PlaySourceRun = {
             at: nowIso,
-            agent: 'dataforseo',
+            agent: agentLabel,
+            description: q.description,
+            locationName: q.locationName,
             inserted: 0,
-            error: 'Search planner failed: ' + msg,
+            error: msg,
             durationMs: Date.now() - startedAt,
           };
           await stampRun(supabase, play, run);
-          fail('Search planner failed: ' + msg);
+          fail('Search failed: ' + msg);
           return;
         }
-        emit({
-          phase: 'plan-ready',
-          message:
-            'Plan: ' +
-            plan.queries.length +
-            ' fan-out queries — ' +
-            plan.queries.map((q) => '"' + q.description + '" (' + q.locationName + ')').join(', '),
-          queries: plan.queries,
-        });
-      }
-
-      // Fan out across every planned query, dedupe listings globally.
-      const seen = new Map<string, BusinessListing>();
-      let costTotal = 0;
-      let foundTotal = 0;
-      const primaryQuery = plan.queries[0];
-
-      for (let i = 0; i < plan.queries.length; i += 1) {
-        const q = plan.queries[i];
-        emit({
-          phase: 'searching',
-          message:
-            'Searching "' + q.description + '" in ' + q.locationName + '…',
-          query: q,
-          index: i + 1,
-          total: plan.queries.length,
-        });
-        try {
-          const res = await runProviderQuery(q, cap, {
-            gpConnected,
-            dfsConnected,
-          });
-          costTotal += res.cost;
-          foundTotal += res.listings.length;
-          const country = extractCountryToken(q.locationName);
-          let rejected = 0;
-          for (const l of res.listings) {
-            if (country && !listingMatchesCountry(l, country)) {
-              rejected += 1;
-              continue;
-            }
-            const key = dedupeKey(l);
-            if (!seen.has(key)) seen.set(key, l);
-          }
-          emit({
-            phase: 'search-done',
-            message:
-              '"' +
-              q.description +
-              '" via ' +
-              res.source +
-              ' returned ' +
-              res.listings.length +
-              ' listing(s)' +
-              (rejected > 0
-                ? ' · ' + rejected + ' dropped as out-of-country'
-                : '') +
-              '.',
-            query: q,
-            found: res.listings.length,
-            rejected,
-            country,
-            source: res.source,
-            foundTotal,
-            uniqueTotal: seen.size,
-            costUsd: res.cost,
-            costTotal,
-            index: i + 1,
-            total: plan.queries.length,
-          });
-        } catch (err) {
-          const msg = (err as Error).message;
-          emit({
-            phase: 'search-done',
-            message: '"' + q.description + '" failed: ' + msg,
-            query: q,
-            found: 0,
-            foundTotal,
-            uniqueTotal: seen.size,
-            error: msg,
-            index: i + 1,
-            total: plan.queries.length,
-          });
+        const country = extractCountryToken(q.locationName);
+        const seen = new Map<string, BusinessListing>();
+        for (const l of listings) {
+          if (country && !listingMatchesCountry(l, country)) continue;
+          const key = dedupeKey(l);
+          if (!seen.has(key)) seen.set(key, l);
         }
-      }
-
-      const unique = Array.from(seen.values());
-      emit({
-        phase: 'all-searches-done',
-        message:
-          'All queries complete — ' +
-          unique.length +
-          ' unique prospect(s) across ' +
-          plan.queries.length +
-          ' search(es). Cost $' +
-          costTotal.toFixed(3) +
-          '.',
-        foundTotal,
-        uniqueTotal: unique.length,
-        costTotal,
-      });
-
-      if (unique.length === 0) {
-        const agentLabel: PlaySourceRun['agent'] = gpConnected
-          ? 'google_places'
-          : 'dataforseo';
+        const unique = Array.from(seen.values());
+        emit({
+          phase: 'search-done',
+          message:
+            '"' + q.description + '" via ' + source + ' returned ' + listings.length + ' listing(s).',
+          query: q,
+          found: listings.length,
+          source,
+          foundTotal: listings.length,
+          uniqueTotal: unique.length,
+          costUsd: cost,
+          costTotal: cost,
+          index: 1,
+          total: 1,
+        });
+        emit({
+          phase: 'all-searches-done',
+          message:
+            unique.length + ' unique prospect(s) from a single query. Cost $' + cost.toFixed(3) + '.',
+          foundTotal: listings.length,
+          uniqueTotal: unique.length,
+          costTotal: cost,
+        });
+        const agentLabel: PlaySourceRun['agent'] = gpConnected ? 'google_places' : 'dataforseo';
+        if (unique.length === 0) {
+          const run: PlaySourceRun = {
+            at: nowIso,
+            agent: agentLabel,
+            description: q.description,
+            locationName: q.locationName,
+            found: 0,
+            inserted: 0,
+            costUsd: cost,
+            durationMs: Date.now() - startedAt,
+          };
+          const saved = await stampRun(supabase, play, run);
+          emit({
+            phase: 'done',
+            message: 'No listings returned for "' + q.description + '".',
+            play: saved,
+            inserted: 0,
+            found: 0,
+            agent: agentLabel,
+            queries: [q],
+            costUsd: cost,
+          });
+          controller.close();
+          return;
+        }
+        const candidates: Array<Partial<Lead>> = unique.map((l) =>
+          listingToLead(l, play, category, source),
+        );
+        emit({
+          phase: 'inserting',
+          message: 'Writing ' + candidates.length + ' prospect row(s)…',
+          total: candidates.length,
+        });
+        const inserted = await insertCandidates(
+          supabase,
+          candidates,
+          play,
+          category,
+          nowIso,
+          (done, total, lead) => emit({ phase: 'inserted-progress', done, total, lead }),
+        );
         const run: PlaySourceRun = {
           at: nowIso,
           agent: agentLabel,
-          description: primaryQuery?.description,
-          locationName: primaryQuery?.locationName,
-          found: 0,
-          inserted: 0,
-          costUsd: costTotal,
+          description: q.description,
+          locationName: q.locationName,
+          found: unique.length,
+          inserted,
+          costUsd: cost,
           durationMs: Date.now() - startedAt,
         };
         const saved = await stampRun(supabase, play, run);
         emit({
           phase: 'done',
-          message: 'No listings returned across ' + plan.queries.length + ' query variants.',
           play: saved,
-          inserted: 0,
-          found: 0,
+          inserted,
+          found: unique.length,
           agent: agentLabel,
-          queries: plan.queries,
-          costUsd: costTotal,
+          queries: [q],
+          costUsd: cost,
         });
         controller.close();
         return;
       }
 
-      const candidates: Array<Partial<Lead>> = unique.map((l) =>
-        listingToLead(l, play, category),
+      // -------- Default: research agent --------------------------------------
+      // Claude + web_search + find_business_listings tool-loop. Works for both
+      // venue-based verticals (clinics, dealers) AND organisation-based ones
+      // (owner clubs, member networks, professional bodies, HNW directories).
+      if (!hasAIGatewayCredentials()) {
+        const run: PlaySourceRun = {
+          at: nowIso,
+          agent: 'research',
+          inserted: 0,
+          error: 'AI gateway not configured',
+          durationMs: Date.now() - startedAt,
+        };
+        await stampRun(supabase, play, run);
+        fail(
+          'AI gateway not configured. Send { search: { description, locationName } } to bypass the research agent.',
+        );
+        return;
+      }
+      if (!dfsConnected) {
+        const run: PlaySourceRun = {
+          at: nowIso,
+          agent: 'research',
+          inserted: 0,
+          error: 'DataForSEO not configured (research agent needs web_search + business listings)',
+          durationMs: Date.now() - startedAt,
+        };
+        await stampRun(supabase, play, run);
+        fail(
+          'DataForSEO not configured — research agent needs web_search and find_business_listings.',
+        );
+        return;
+      }
+      emit({
+        phase: 'planning',
+        message:
+          'Claude is researching named prospects for "' + (play.category ?? play.title) + '"…',
+      });
+      let researchListings: BusinessListing[] = [];
+      let researchCost = 0;
+      let researchToolCalls = 0;
+      try {
+        const res = await researchCandidates(play, emit);
+        researchListings = res.listings;
+        researchCost = res.cost;
+        researchToolCalls = res.toolCalls;
+      } catch (err) {
+        const msg = (err as Error).message;
+        const run: PlaySourceRun = {
+          at: nowIso,
+          agent: 'research',
+          inserted: 0,
+          error: 'Research agent failed: ' + msg,
+          durationMs: Date.now() - startedAt,
+        };
+        await stampRun(supabase, play, run);
+        fail('Research agent failed: ' + msg);
+        return;
+      }
+      emit({
+        phase: 'all-searches-done',
+        message:
+          'Research complete — ' +
+          researchListings.length +
+          ' unique candidate(s) from ' +
+          researchToolCalls +
+          ' tool call(s). Cost $' +
+          researchCost.toFixed(3) +
+          '.',
+        foundTotal: researchListings.length,
+        uniqueTotal: researchListings.length,
+        costTotal: researchCost,
+      });
+      if (researchListings.length === 0) {
+        const run: PlaySourceRun = {
+          at: nowIso,
+          agent: 'research',
+          found: 0,
+          inserted: 0,
+          costUsd: researchCost,
+          durationMs: Date.now() - startedAt,
+        };
+        const saved = await stampRun(supabase, play, run);
+        emit({
+          phase: 'done',
+          message: 'Research agent returned no usable candidates.',
+          play: saved,
+          inserted: 0,
+          found: 0,
+          agent: 'research',
+          costUsd: researchCost,
+        });
+        controller.close();
+        return;
+      }
+      const researchCandidatesList: Array<Partial<Lead>> = researchListings.map((l) =>
+        listingToLead(l, play, category, 'research'),
       );
       emit({
         phase: 'inserting',
         message:
-          'Writing ' + candidates.length + ' unique prospect row(s) to the funnel…',
-        total: candidates.length,
+          'Writing ' + researchCandidatesList.length + ' researched prospect(s) to the funnel…',
+        total: researchCandidatesList.length,
       });
-      const inserted = await insertCandidates(
+      const researchInserted = await insertCandidates(
         supabase,
-        candidates,
+        researchCandidatesList,
         play,
         category,
         nowIso,
-        (done, total, lead) =>
-          emit({ phase: 'inserted-progress', done, total, lead }),
+        (done, total, lead) => emit({ phase: 'inserted-progress', done, total, lead }),
       );
-
-      const finalAgentLabel: PlaySourceRun['agent'] = gpConnected
-        ? 'google_places'
-        : 'dataforseo';
-      const run: PlaySourceRun = {
+      const researchRun: PlaySourceRun = {
         at: nowIso,
-        agent: finalAgentLabel,
-        description: primaryQuery?.description,
-        locationName: primaryQuery?.locationName,
-        found: unique.length,
-        inserted,
-        costUsd: costTotal,
+        agent: 'research',
+        found: researchListings.length,
+        inserted: researchInserted,
+        costUsd: researchCost,
         durationMs: Date.now() - startedAt,
       };
-      const saved = await stampRun(supabase, play, run);
+      const researchSaved = await stampRun(supabase, play, researchRun);
       emit({
         phase: 'done',
-        play: saved,
-        inserted,
-        found: unique.length,
-        agent: finalAgentLabel,
-        queries: plan.queries,
-        costUsd: costTotal,
+        play: researchSaved,
+        inserted: researchInserted,
+        found: researchListings.length,
+        agent: 'research',
+        costUsd: researchCost,
       });
       controller.close();
     },
@@ -405,83 +451,326 @@ export async function POST(
 // ---------------------------------------------------------------------------
 
 /**
- * Ask Claude for a fan-out of 3–6 SHORT Google-style keywords, each pointing
- * at a specific business vertical / role that would buy Evari bikes. Short
- * keywords are the only thing DataForSEO's business listings endpoint
- * actually returns useful results for — long descriptive phrases return zero.
+ * The research agent. Lets Claude use web_search + find_business_listings
+ * iteratively to compile a long, named list of real prospects for the play.
+ *
+ * Why this is better than the old keyword-fan-out planner:
+ * - Old planner only emitted 3-6 short Google-Places-friendly keywords, then
+ *   ran them through venue-only data sources (Google Places, DFS business
+ *   listings). That misses entire categories — owner clubs, member orgs,
+ *   professional networks, HNW directories — because those don't exist as
+ *   "venues" in either provider.
+ * - The research agent, in contrast, can web_search for any of those long-
+ *   tail organisation lists ("UK Porsche owners club", "British supercar
+ *   owners associations", etc.) AND fall back to find_business_listings for
+ *   anything venue-shaped, picking the right tool per angle.
+ *
+ * The model emits a final JSON payload it has curated from tool results;
+ * we dedupe by domain or name and map to BusinessListing so the existing
+ * insertCandidates pipeline takes over unchanged.
  */
-async function derivePlan(play: Play): Promise<SearchPlan> {
+async function researchCandidates(
+  play: Play,
+  emit: (event: Record<string, unknown>) => void,
+): Promise<{ listings: BusinessListing[]; cost: number; toolCalls: number }> {
+  const system = await buildSystemPrompt({
+    voice: 'analyst',
+    task:
+      'Research a comprehensive, named, high-recall list of real UK prospect organisations / businesses / clubs / practices for an outreach Play. Use web_search FIRST for anything community / member / owner-club / association / professional-body / directory shaped — Google Places does not index those well. Use find_business_listings for venue-based verticals (gyms, clinics, dealerships, studios). Then emit a single JSON object with the curated, deduped candidates.',
+  });
+
   const prompt = [
-    'You are translating an Evari outreach Play into a fan-out of Google Places (New) Text Search queries.',
-    '',
-    'Google Places Text Search accepts natural Google-Maps-style queries like "cycling club in Surrey" or "private knee clinic in London". It returns structured places with an official `types` taxonomy (sports_club, gym, doctor, bicycle_store, etc.) — so keywords should describe the VENUE or ORGANISATION, not the people inside it.',
-    '',
-    'Play title: ' + play.title,
+    'PLAY',
+    '----',
+    'Title: ' + play.title,
     'Category: ' + (play.category ?? play.title),
-    'Strategy: ' + JSON.stringify(play.strategy ?? {}, null, 2),
-    'Scope: ' + JSON.stringify(play.scope ?? {}, null, 2),
     '',
-    'Emit a single JSON object with exactly this shape:',
+    'Strategy:',
+    JSON.stringify(play.strategy ?? {}, null, 2),
+    '',
+    'Scope:',
+    JSON.stringify(play.scope ?? {}, null, 2),
+    '',
+    'YOUR JOB',
+    '--------',
+    'Compile a long, named list of real prospect organisations for this Play.',
+    'Aim for 40-80 unique, named entries. Comprehensive recall matters more',
+    'than perfect precision — if in doubt, include it; the operator will',
+    'triage in the funnel.',
+    '',
+    'HOW TO RESEARCH',
+    '---------------',
+    '1. Plan the angles up front in your head. For an "owner clubs" Play,',
+    '   that means every marque (Porsche, Ferrari, Lamborghini, Aston, Bentley,',
+    "   McLaren, Maserati, Bugatti, Rolls-Royce, …), every region (national,",
+    '   London/Home Counties, Cotswolds, Cheshire, Yorkshire, …), every',
+    "   sub-type (concours, track-day, regional, marque-specific). For a",
+    "   'private knee clinics' Play, that means national chains, regional",
+    '   independents, every major hospital trust with a private wing, etc.',
+    '2. For each angle pick the right tool:',
+    '   - web_search FIRST for owner clubs, member orgs, associations,',
+    '     professional bodies, directories, HNW networks.',
+    '   - find_business_listings for venue-based verticals (gyms, clinics,',
+    '     dealers, studios, surgeries).',
+    '3. Iterate. Cover every obvious sub-angle. Do not stop after 3-5 calls',
+    '   if the list is still short — keep researching until coverage feels',
+    '   comprehensive (or you are about to hit your tool budget).',
+    '4. When done, emit ONE final JSON object with your curated candidates.',
+    '',
+    'OUTPUT FORMAT',
+    '-------------',
+    'Return ONLY a JSON object, no prose, no markdown fences:',
     '{',
-    '  "queries": [',
-    '    { "description": string, "locationName": string, "limit": number, "includedType"?: string },',
+    '  "candidates": [',
+    '    {',
+    '      "name": string,',
+    '      "website"?: string,',
+    '      "phone"?: string,',
+    '      "address"?: string,',
+    '      "type"?: string,',
+    '      "region"?: string,',
+    '      "notes"?: string',
+    '    },',
     '    ...',
     '  ]',
     '}',
     '',
-    'Rules:',
-    '- Return between 3 and 6 queries.',
-    '- Each "description" must be 2-5 words — a natural Google-style BUSINESS/VENUE keyword. Examples that work: "cycling club", "road cycling club", "triathlon club", "yacht broker", "private knee clinic", "boutique design studio". BAD: "cycling club secretary" (person role — returns nothing), "where to buy luxury bikes" (too conversational).',
-    '- CRITICAL: keywords describe business NAMES or venue types, NOT people. Forbidden tokens: "secretary", "organiser", "organizer", "director", "manager", "owner", "founder", "head of", "committee", "CEO", "CTO".',
-    '- Vary the angles: different sub-types, different cities if the Play is geographic. The planner fans out — each query should hit a different slice of the market.',
-    '- locationName must be a comma-separated human-readable location with the country as the tail. For a UK Play: "London, England, United Kingdom", "Surrey, England, United Kingdom", "Kent, England, United Kingdom", "South East England, United Kingdom". For a US Play: "San Francisco, CA, United States".',
-    '- EVERY query must stay in the Play\'s target country. Inspect play.scope.summary for geographic intent. If the scope mentions "South East England", never emit a US or Canadian locationName.',
-    '- includedType (optional) hard-filters to one Google Places type. Use it when you have high confidence. Common types: "sports_club" (cycling/triathlon/golf/yacht clubs), "gym" (fitness studios), "bicycle_store" (bike shops), "doctor" (medical practices — use "dental_clinic" for dentists, "hospital" for hospitals), "stadium", "sports_complex". Full list: https://developers.google.com/maps/documentation/places/web-service/place-types',
-    '- limit should be 15-20 per query (Google Places caps at 20 results per page).',
-    '- Never target generic bike shops. Prefer HNW / luxury-adjacent verticals consistent with the grounded brand brief.',
-    '- Return raw JSON only — no prose, no markdown fences.',
+    'RULES',
+    '-----',
+    '- Every candidate must be a real, named organisation or business — never',
+    '  a role ("club secretary"), never a person, never a generic category.',
+    '- Dedupe as you go (case-insensitive on name).',
+    '- Stay inside the Play scope geography (read play.scope.summary).',
+    '- Prefer the official root URL when known; omit website if you are not sure.',
   ].join('\n');
 
-  const markdown = await generateBriefing({
-    task: 'source-prospects-plan',
-    voice: 'analyst',
-    prompt,
-  });
-  const cleaned = markdown
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```\s*$/i, '')
-    .trim();
-  const parsed = JSON.parse(cleaned) as Record<string, unknown>;
-  const rawQueries = Array.isArray(parsed.queries) ? parsed.queries : [];
-  const queries: SearchQuery[] = [];
-  for (const q of rawQueries) {
-    if (!q || typeof q !== 'object') continue;
-    const rec = q as Record<string, unknown>;
-    const description =
-      typeof rec.description === 'string' ? rec.description.trim() : '';
-    const locationName =
-      typeof rec.locationName === 'string' && rec.locationName.trim().length > 0
-        ? rec.locationName.trim()
-        : 'United Kingdom';
-    const limit =
-      typeof rec.limit === 'number' && rec.limit > 0 && rec.limit <= 200
-        ? Math.floor(rec.limit)
-        : 50;
-    if (!description) continue;
-    // Hard guard — refuse anything longer than 6 words; short keywords only.
-    if (description.split(/\s+/).length > 6) continue;
-    const includedType =
-      typeof rec.includedType === 'string' && rec.includedType.trim().length > 0
-        ? rec.includedType.trim()
-        : undefined;
-    queries.push({ description, locationName, limit, includedType });
+  const toolState = { calls: 0, cost: 0 };
+
+  const tools = {
+    web_search: tool({
+      description:
+        'Google-style organic search. Use for owner clubs, member associations, professional networks, directories, HNW communities, and any other organisation that does not live on Google Maps. Returns title + url + domain + snippet for each hit.',
+      inputSchema: z.object({
+        query: z.string().min(2).describe('Google search query'),
+        limit: z.number().int().min(1).max(20).optional(),
+      }),
+      execute: async ({ query, limit }) => {
+        toolState.calls += 1;
+        const idx = toolState.calls;
+        emit({
+          phase: 'searching',
+          message: 'web_search: "' + query + '"',
+          query: { description: query, locationName: 'web', tool: 'web_search' },
+          index: idx,
+        });
+        try {
+          const { hits, cost } = await webSearchQuery({ query, limit: limit ?? 10 });
+          toolState.cost += cost;
+          emit({
+            phase: 'search-done',
+            message: 'web_search returned ' + hits.length + ' hit(s) for "' + query + '".',
+            query: { description: query, locationName: 'web', tool: 'web_search' },
+            found: hits.length,
+            source: 'web_search',
+            costUsd: cost,
+            costTotal: toolState.cost,
+            index: idx,
+          });
+          return {
+            query,
+            costUsd: cost,
+            hits: hits.map((h) => ({
+              rank: h.rank,
+              title: h.title,
+              url: h.url,
+              domain: h.domain,
+              snippet: h.snippet,
+            })),
+          };
+        } catch (err) {
+          const msg = (err as Error).message;
+          emit({
+            phase: 'search-done',
+            message: 'web_search failed for "' + query + '": ' + msg,
+            query: { description: query, tool: 'web_search' },
+            found: 0,
+            error: msg,
+            costTotal: toolState.cost,
+            index: idx,
+          });
+          return { error: msg };
+        }
+      },
+    }),
+    find_business_listings: tool({
+      description:
+        'Find real businesses matching a keyword in a location. Returns title, domain, phone, address, category. Use for venue-based verticals — clinics, gyms, dealerships, studios, surgeries.',
+      inputSchema: z.object({
+        description: z
+          .string()
+          .min(2)
+          .describe('Short Google-style keyword, e.g. "private knee clinic"'),
+        locationName: z
+          .string()
+          .optional()
+          .describe('Location, e.g. "United Kingdom" or "London, England, United Kingdom"'),
+        limit: z.number().int().min(1).max(50).optional(),
+      }),
+      execute: async ({ description, locationName, limit }) => {
+        toolState.calls += 1;
+        const idx = toolState.calls;
+        const loc = locationName ?? 'United Kingdom';
+        emit({
+          phase: 'searching',
+          message: 'find_business_listings: "' + description + '" in ' + loc,
+          query: { description, locationName: loc, tool: 'find_business_listings' },
+          index: idx,
+        });
+        try {
+          const { listings, cost } = await searchBusinessListings({
+            description,
+            locationName: loc,
+            limit: limit ?? 20,
+          });
+          toolState.cost += cost;
+          emit({
+            phase: 'search-done',
+            message:
+              'find_business_listings returned ' + listings.length + ' listing(s) for "' + description + '".',
+            query: { description, locationName: loc, tool: 'find_business_listings' },
+            found: listings.length,
+            source: 'find_business_listings',
+            costUsd: cost,
+            costTotal: toolState.cost,
+            index: idx,
+          });
+          return {
+            query: { description, locationName: loc },
+            costUsd: cost,
+            listings: listings.map((l) => ({
+              title: l.title,
+              url: l.url,
+              domain: l.domain,
+              phone: l.phone,
+              address: l.address,
+              category: l.category,
+            })),
+          };
+        } catch (err) {
+          const msg = (err as Error).message;
+          emit({
+            phase: 'search-done',
+            message: 'find_business_listings failed for "' + description + '": ' + msg,
+            query: { description, tool: 'find_business_listings' },
+            found: 0,
+            error: msg,
+            costTotal: toolState.cost,
+            index: idx,
+          });
+          return { error: msg };
+        }
+      },
+    }),
+  };
+
+  let finalText = '';
+  try {
+    const { text } = await generateText({
+      model: gateway(RESEARCH_MODEL),
+      system,
+      prompt,
+      tools,
+      stopWhen: stepCountIs(12),
+    });
+    finalText = text;
+  } catch (err) {
+    if (!process.env.ANTHROPIC_API_KEY || !isResearchRetryable(err)) throw err;
+    const bareModel = RESEARCH_MODEL.replace(/^anthropic\//, '');
+    const { text } = await generateText({
+      model: anthropic(bareModel),
+      system,
+      prompt,
+      tools,
+      stopWhen: stepCountIs(12),
+    });
+    finalText = text;
   }
-  if (queries.length === 0) {
-    throw new Error(
-      'AI planner returned no usable short-keyword queries (needs 2-4 word Google-style keywords)',
-    );
+
+  // Extract the first {...} block — model sometimes wraps prose around it.
+  let parsed: Record<string, unknown> | undefined;
+  const match = finalText.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      parsed = JSON.parse(match[0]) as Record<string, unknown>;
+    } catch {
+      // fall through
+    }
   }
-  return { queries };
+  if (!parsed) {
+    throw new Error('Research agent did not return parseable JSON candidates');
+  }
+
+  const raw = Array.isArray(parsed.candidates) ? parsed.candidates : [];
+  const seen = new Map<string, BusinessListing>();
+  for (const c of raw) {
+    if (!c || typeof c !== 'object') continue;
+    const rec = c as Record<string, unknown>;
+    const name = typeof rec.name === 'string' ? rec.name.trim() : '';
+    if (!name) continue;
+    const website = typeof rec.website === 'string' && rec.website.trim().length > 0
+      ? rec.website.trim()
+      : undefined;
+    const phone = typeof rec.phone === 'string' && rec.phone.trim().length > 0
+      ? rec.phone.trim()
+      : undefined;
+    const address = typeof rec.address === 'string' && rec.address.trim().length > 0
+      ? rec.address.trim()
+      : undefined;
+    const type = typeof rec.type === 'string' && rec.type.trim().length > 0
+      ? rec.type.trim()
+      : undefined;
+    const region = typeof rec.region === 'string' && rec.region.trim().length > 0
+      ? rec.region.trim()
+      : undefined;
+    const notes = typeof rec.notes === 'string' && rec.notes.trim().length > 0
+      ? rec.notes.trim()
+      : undefined;
+    const domain = deriveDomain(website);
+    const key = domain ? 'dom:' + domain.toLowerCase() : 'name:' + name.toLowerCase();
+    if (seen.has(key)) continue;
+    const categoryParts = [type, region, notes].filter(Boolean).join(' · ');
+    seen.set(key, {
+      title: name,
+      url: website,
+      domain,
+      phone,
+      address,
+      category: categoryParts || undefined,
+    });
+  }
+
+  return {
+    listings: Array.from(seen.values()),
+    cost: toolState.cost,
+    toolCalls: toolState.calls,
+  };
+}
+
+function isResearchRetryable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (err.name === 'GatewayRateLimitError') return true;
+  if (err.name === 'GatewayAuthenticationError') return true;
+  if (err.name === 'GatewayInternalServerError') return true;
+  const m = err.message.toLowerCase();
+  return (
+    m.includes('rate limit') ||
+    m.includes('free credits') ||
+    m.includes('insufficient credit') ||
+    m.includes('429') ||
+    m.includes('502') ||
+    m.includes('503') ||
+    m.includes('504')
+  );
 }
 
 /**
@@ -563,6 +852,7 @@ function listingToLead(
   l: BusinessListing,
   play: Play,
   category: string,
+  source: 'research' | 'google_places' | 'dataforseo' = 'dataforseo',
 ): Partial<Lead> {
   const slug = slugify(l.title) || Math.random().toString(36).slice(2, 10);
   const id = 'prospect-' + (play.id + '-' + slug).slice(0, 80);
@@ -570,6 +860,12 @@ function listingToLead(
   // person's name, and the operator (or the contact-enrichment pass) will
   // fill in a real contact. Same for email: no inferred info@domain here,
   // only verbatim real addresses added later.
+  const sourceLabel =
+    source === 'research'
+      ? 'Researched'
+      : source === 'google_places'
+        ? 'Google Places'
+        : 'DataForSEO';
   return {
     id,
     fullName: '',
@@ -580,7 +876,8 @@ function listingToLead(
     email: '',
     emailInferred: false,
     sourceDetail:
-      'DataForSEO: ' +
+      sourceLabel +
+      ': ' +
       (l.category ?? 'business listings') +
       (l.address ? ' — ' + l.address : ''),
     category,

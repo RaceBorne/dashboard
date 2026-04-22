@@ -616,7 +616,7 @@ export interface PlayScope {
 
 export interface PlaySourceRun {
   at: string;
-  agent: 'paste' | 'dataforseo' | 'google_places' | 'auto-scan';
+  agent: 'paste' | 'dataforseo' | 'google_places' | 'auto-scan' | 'research';
   description?: string;
   locationName?: string;
   found?: number;
