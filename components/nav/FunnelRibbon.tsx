@@ -79,15 +79,15 @@ export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
   const currentIdx = STAGES.findIndex((s) => s.key === stage);
 
   return (
-    <div className="shrink-0 rounded-xl bg-evari-surface border border-evari-line/40 px-4 py-2.5">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="min-w-0 flex-1">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+    <div className="shrink-0 rounded-xl bg-evari-surface border border-evari-line/40 px-4 h-[52px] flex items-center">
+      <div className="flex items-center justify-between gap-4 w-full">
+        <div className="min-w-0 flex-1 flex items-baseline gap-2">
+          <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium shrink-0">
             Strategy
-          </div>
-          <div className="text-[13px] font-semibold text-evari-text truncate">
+          </span>
+          <span className="text-[13px] font-semibold text-evari-text truncate">
             {play?.title ?? (playId ? 'Loading strategy…' : 'No strategy linked')}
-          </div>
+          </span>
         </div>
         <nav
           aria-label="Funnel stages"
