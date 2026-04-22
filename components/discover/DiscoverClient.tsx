@@ -318,7 +318,7 @@ export function DiscoverClient({ plays }: Props) {
                 e.preventDefault();
                 void runHero(heroPrompt);
               }}
-              className="relative rounded-xl border border-evari-line/40 bg-white focus-within:border-evari-accent shadow-sm"
+              className="relative flex items-center min-h-[60px] rounded-xl border border-evari-line/40 bg-white focus-within:border-evari-accent shadow-sm"
             >
               <Sparkles className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-evari-accent" />
               <textarea
@@ -332,7 +332,7 @@ export function DiscoverClient({ plays }: Props) {
                 }}
                 placeholder="Describe who we are searching for."
                 rows={1}
-                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-slate-900 placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none"
+                className="w-full resize-none bg-transparent pl-11 pr-14 py-0 text-[14px] leading-6 text-slate-900 placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none"
               />
               <button
                 type="submit"
