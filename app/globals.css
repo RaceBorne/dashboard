@@ -270,6 +270,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Reserve scrollbar gutter on every page so wrappers have identical width
+   whether or not the document scrolls. Without this, /ventures and the
+   Strategy detail page (which can scroll the document) lose ~15px of
+   horizontal space to the body scrollbar, while Discover/Prospects/Leads/
+   Conversations (which clamp to viewport height and scroll internally)
+   keep the full width — making the FunnelRibbon shift left on the two
+   document-scrolling pages. scrollbar-gutter:stable + overflow-y:scroll
+   guarantees a stable horizontal layout across all 6 stage pages. */
+html {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+
 ::selection {
   background: rgb(var(--evari-gold) / 0.35);
   color: rgb(var(--evari-text));
