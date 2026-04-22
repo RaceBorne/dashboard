@@ -310,8 +310,8 @@ export function DiscoverClient({ plays }: Props) {
       {!hasSearched ? (
         <div className="flex-1 min-w-0 rounded-xl bg-evari-surface flex flex-col items-center justify-center px-8">
           <div className="w-full max-w-2xl">
-            <h1 className="text-center text-2xl font-semibold text-evari-text mb-6">
-              What companies are you targeting?
+            <h1 className="text-left text-2xl font-semibold text-evari-text mb-6 pl-1">
+              What company are we searching for
             </h1>
             <form
               onSubmit={(e) => {
@@ -332,7 +332,7 @@ export function DiscoverClient({ plays }: Props) {
                 }}
                 placeholder="Describe who we are searching for."
                 rows={1}
-                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-center text-evari-ink placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none"
+                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-evari-ink placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none"
               />
               <button
                 type="submit"
