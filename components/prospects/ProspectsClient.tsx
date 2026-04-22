@@ -915,7 +915,7 @@ export function ProspectsClient({
             return (
             <li
               key={p.id}
-              className="bg-evari-surface/60 rounded-md p-4 space-y-3"
+              className="bg-evari-surface/60 rounded-md p-4"
             >
               <div
                 className="flex items-start justify-between gap-3 cursor-pointer"
@@ -1029,8 +1029,17 @@ export function ProspectsClient({
                 </div>
               </div>
 
-              {expanded && (
-                <div className="rounded-md bg-evari-ink/40 p-3 space-y-3 animate-in fade-in slide-in-from-top-4 duration-300 ease-out">
+              <div
+                className={cn(
+                  'grid overflow-hidden transition-[grid-template-rows,margin-top,opacity] duration-[800ms] ease-in-out',
+                  expanded
+                    ? 'grid-rows-[1fr] mt-3 opacity-100'
+                    : 'grid-rows-[0fr] mt-0 opacity-0',
+                )}
+                aria-hidden={!expanded}
+              >
+                <div className="min-h-0">
+                  <div className="rounded-md bg-evari-ink/40 p-3 space-y-3">
                   {p.orgProfile && (
                     <div className="space-y-1.5 pb-2 border-b border-evari-line/40">
                       <div className="flex items-center gap-3 text-[11px] text-evari-dim">
@@ -1134,8 +1143,9 @@ export function ProspectsClient({
                     useContactPending={fieldSaving.has(p.id + ':use-contact')}
                   />
 
+                  </div>
                 </div>
-              )}
+              </div>
 
               {/* Signals strip */}
               <div className="flex items-center gap-2 text-[11px] flex-wrap">
@@ -1171,13 +1181,13 @@ export function ProspectsClient({
 
               {/* Outreach excerpt */}
               {p.outreach[0]?.replyExcerpt && (
-                <div className="rounded-md bg-evari-ink/60 p-3 text-xs italic text-evari-dim leading-relaxed">
+                <div className="mt-3 rounded-md bg-evari-ink/60 p-3 text-xs italic text-evari-dim leading-relaxed">
                   {p.outreach[0].replyExcerpt}
                 </div>
               )}
 
               {p.notes && (
-                <div className="text-[13px] text-evari-dimmer italic">
+                <div className="mt-3 text-[13px] text-evari-dimmer italic">
                   {p.notes}
                 </div>
               )}
@@ -1394,6 +1404,8 @@ function ContactRow({
       {c.email ? (
         <a
           href={'mailto:' + c.email}
+          target="_blank"
+          rel="noreferrer"
           onClick={(e) => e.stopPropagation()}
           className="font-mono text-[10px] text-evari-gold hover:text-evari-text truncate"
           title={c.email}
@@ -1522,6 +1534,9 @@ function LeadFieldsBlock({
         onStartEdit={() => onStartEdit('email', verifiedEmail(prospect))}
         onCancelEdit={onCancelEdit}
         onSave={(v) => onSave('email', v)}
+        externalHref={
+          verifiedEmail(prospect) ? 'mailto:' + verifiedEmail(prospect) : undefined
+        }
         trailing={
           verifiedEmail(prospect) ? (
             <span
@@ -1545,6 +1560,9 @@ function LeadFieldsBlock({
         onStartEdit={() => onStartEdit('phone', prospect.phone ?? '')}
         onCancelEdit={onCancelEdit}
         onSave={(v) => onSave('phone', v)}
+        externalHref={
+          prospect.phone ? 'tel:' + prospect.phone.replace(/\s+/g, '') : undefined
+        }
       />
       {prospect.linkedinUrl && (
         <a
@@ -1615,6 +1633,7 @@ function LeadField({
   onCancelEdit,
   onSave,
   trailing,
+  externalHref,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -1629,6 +1648,7 @@ function LeadField({
   onCancelEdit: () => void;
   onSave: (v: string) => void;
   trailing?: React.ReactNode;
+  externalHref?: string;
 }) {
   if (editing) {
     const InputEl = multiline ? 'textarea' : 'input';
@@ -1666,13 +1686,20 @@ function LeadField({
 
   const empty = !value.trim();
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={(e) => {
         e.stopPropagation();
         onStartEdit();
       }}
-      className="w-full flex items-start gap-2 text-[13px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-1 -mx-1"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onStartEdit();
+        }
+      }}
+      className="w-full flex items-start gap-2 text-[13px] text-left group hover:bg-evari-surfaceSoft/50 rounded px-1 py-1 -mx-1 cursor-pointer"
     >
       <span className="pt-0.5 shrink-0">{icon}</span>
       <span className="w-16 text-evari-dimmer shrink-0">{label}</span>
@@ -1685,8 +1712,20 @@ function LeadField({
         {empty ? placeholder : value}
       </span>
       {trailing}
+      {externalHref && !empty && (
+        <a
+          href={externalHref}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title={'Open ' + label.toLowerCase() + ' in a new window'}
+          className="h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 shrink-0"
+        >
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
       <Pencil className="h-3 w-3 text-evari-dimmer opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
-    </button>
+    </div>
   );
 }
 
