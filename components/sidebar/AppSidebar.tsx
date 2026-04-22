@@ -1,13 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import {
   LayoutDashboard,
-  Compass,
   Inbox,
-  MessageSquare,
   TrendingUp,
   Search,
   FileText,
@@ -16,25 +14,23 @@ import {
   Settings,
   ListTodo,
   Rocket,
-  Flag,
   Users,
   Network,
   ShoppingBag,
   Gauge,
   Link2,
   Mail,
+  Plus,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme/ThemeProvider';
 
+// Static nav items. The 'pipeline' group is NOT in here — it's rendered
+// dynamically as a live project list below.
 const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
-  { href: '/plays', label: 'Strategy', icon: Rocket, group: 'pipeline' },
-  { href: '/discover', label: 'Discover', icon: Compass, group: 'pipeline' },
-  { href: '/prospects', label: 'Prospects', icon: Flag, group: 'pipeline' },
-  { href: '/leads', label: 'Leads', icon: Inbox, group: 'pipeline' },
-  { href: '/conversations', label: 'Conversations', icon: MessageSquare, group: 'pipeline' },
   { href: '/traffic', label: 'Traffic', icon: TrendingUp, group: 'web' },
   { href: '/seo', label: 'SEO Health', icon: Search, group: 'web', warn: true },
   { href: '/pages', label: 'Pages', icon: FileText, group: 'web' },
@@ -49,9 +45,18 @@ const NAV = [
   { href: '/settings', label: 'Settings', icon: Settings, group: 'system' },
 ] as const;
 
+// Ordering of groups in the rail. Pipeline is injected first after Today.
+const GROUP_ORDER: readonly string[] = [
+  'today',
+  'web',
+  'broadcast',
+  'marketing',
+  'commerce',
+  'system',
+];
+
 const GROUP_LABELS: Record<string, string> = {
   today: 'Today',
-  pipeline: 'Pipeline',
   web: 'Website',
   broadcast: 'Broadcast',
   marketing: 'Marketing',
@@ -59,16 +64,42 @@ const GROUP_LABELS: Record<string, string> = {
   system: 'System',
 };
 
+// Pages that are Pipeline stages. Switching projects from the sidebar
+// preserves the current stage — e.g. if you're on /discover and click a
+// different project, you stay on /discover with a new ?playId.
+const STAGE_PATHS = [
+  '/discover',
+  '/prospects',
+  '/leads',
+  '/conversations',
+] as const;
+
+type PlayLite = { id: string; title: string; updatedAt: string };
+
 export function AppSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { theme, logoLight, logoDark } = useTheme();
   const [openTaskCount, setOpenTaskCount] = useState<number | null>(null);
-  const [pipelineCounts, setPipelineCounts] = useState<{
-    plays: number;
-    prospectsActive: number;
-    leadsPipeline: number;
-    conversationsUnread: number;
-  } | null>(null);
+  const [plays, setPlays] = useState<PlayLite[] | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  // Current play id: read from /plays/[id] pathname or from ?playId on a
+  // stage page. Used to highlight the active project in the rail.
+  const activePlayId = useMemo(() => {
+    const m = pathname.match(/^\/plays\/(play-[^/]+)/);
+    if (m) return m[1];
+    return searchParams?.get('playId') ?? null;
+  }, [pathname, searchParams]);
+
+  // Current stage path (if we're on one) so the project-switch link can
+  // preserve it. Otherwise default to /plays/[id].
+  const currentStagePath = useMemo(() => {
+    for (const s of STAGE_PATHS) {
+      if (pathname === s || pathname.startsWith(s + '/')) return s;
+    }
+    return null;
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,90 +118,77 @@ export function AppSidebar() {
 
   useEffect(() => {
     let cancelled = false;
-    let lastFetchAt = 0;
-    let queued = false;
 
     async function refetch() {
-      // Throttle so a burst of inserted-progress events doesn't hammer the
-      // endpoint — at most one in-flight + one queued.
-      const now = Date.now();
-      if (now - lastFetchAt < 750) {
-        if (!queued) {
-          queued = true;
-          setTimeout(() => {
-            queued = false;
-            void refetch();
-          }, 800);
-        }
-        return;
-      }
-      lastFetchAt = now;
       try {
-        const r = await fetch('/api/dashboard/nav-counts', {
-          cache: 'no-store',
-        });
-        const d: {
-          plays?: number;
-          prospectsActive?: number;
-          leadsPipeline?: number;
-          conversationsUnread?: number;
-        } = await r.json();
+        const r = await fetch('/api/plays', { cache: 'no-store' });
+        const d = (await r.json()) as { ok?: boolean; plays?: PlayLite[] };
         if (cancelled) return;
-        if (
-          typeof d.plays === 'number' &&
-          typeof d.prospectsActive === 'number' &&
-          typeof d.leadsPipeline === 'number' &&
-          typeof d.conversationsUnread === 'number'
-        ) {
-          setPipelineCounts({
-            plays: d.plays,
-            prospectsActive: d.prospectsActive,
-            leadsPipeline: d.leadsPipeline,
-            conversationsUnread: d.conversationsUnread,
-          });
+        if (d.ok && Array.isArray(d.plays)) {
+          setPlays(d.plays);
         }
       } catch {
-        if (!cancelled) {
-          setPipelineCounts((prev) =>
-            prev ?? {
-              plays: 0,
-              prospectsActive: 0,
-              leadsPipeline: 0,
-              conversationsUnread: 0,
-            },
-          );
-        }
+        if (!cancelled) setPlays((prev) => prev ?? []);
       }
     }
 
     void refetch();
 
-    // Any agent action that mutates pipeline counts dispatches this event
-    // (e.g. PlayDetailClient on each inserted-progress SSE tick).
+    // Any agent/UI action that mutates plays dispatches this event so the
+    // rail reflects new/renamed/deleted projects without a full reload.
     function onDirty() {
       void refetch();
     }
-    window.addEventListener('evari:nav-counts-dirty', onDirty);
+    window.addEventListener('evari:plays-dirty', onDirty);
 
     return () => {
       cancelled = true;
-      window.removeEventListener('evari:nav-counts-dirty', onDirty);
+      window.removeEventListener('evari:plays-dirty', onDirty);
     };
   }, []);
 
-  // Group items
+  async function createProject() {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const res = await fetch('/api/plays', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const body = (await res.json().catch(() => ({ ok: false }))) as {
+        ok?: boolean;
+        id?: string;
+      };
+      if (body.ok && body.id) {
+        // Navigate via a full anchor so the new play's detail page picks
+        // up a fresh server render with seeded strategy.
+        window.location.href = '/plays/' + body.id;
+      } else {
+        setCreating(false);
+      }
+    } catch {
+      setCreating(false);
+    }
+  }
+
+  // Group static items.
   const groups = NAV.reduce<Record<string, typeof NAV[number][]>>((acc, item) => {
     (acc[item.group] ||= []).push(item);
     return acc;
   }, {});
 
-  // User-uploaded logos (stored as base64 data URLs in localStorage via
-  // ThemeProvider) take precedence. Fall back to the built-in Evari marks
-  // when nothing is uploaded for the current theme.
   const uploaded = theme === 'dark' ? logoDark : logoLight;
   const logoSrc =
     uploaded ??
     (theme === 'dark' ? '/evari-logo-on-dark.svg' : '/evari-logo-on-light.svg');
+
+  // Helper: build the href for a project list item. Preserves stage when
+  // the user is already inside one.
+  function projectHref(id: string): string {
+    if (currentStagePath) return currentStagePath + '?playId=' + id;
+    return '/plays/' + id;
+  }
 
   return (
     <aside className="hidden lg:flex w-60 shrink-0 flex-col bg-evari-carbon sticky top-0 h-screen self-start">
@@ -187,98 +205,126 @@ export function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2">
-        {Object.entries(groups).map(([group, items]) => (
-          <div key={group} className="mb-4">
-            <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium">
-              {GROUP_LABELS[group]}
-            </div>
-            <div className="space-y-0.5">
+        {GROUP_ORDER.map((group) => {
+          if (group === 'today') {
+            const items = groups[group] ?? [];
+            return (
+              <GroupBlock key={group} label={GROUP_LABELS[group]}>
+                {items.map((item) => {
+                  const active =
+                    item.href === '/'
+                      ? pathname === '/'
+                      : pathname.startsWith(item.href);
+                  const Icon = item.icon;
+                  const navCount =
+                    item.href === '/tasks' && openTaskCount && openTaskCount > 0
+                      ? openTaskCount
+                      : undefined;
+                  return (
+                    <NavLink
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      Icon={Icon}
+                      active={active}
+                      count={navCount}
+                      countTone={item.href === '/tasks' ? 'warn' : 'default'}
+                      warn={'warn' in item && item.warn ? true : false}
+                    />
+                  );
+                })}
+              </GroupBlock>
+            );
+          }
+
+          const items = groups[group] ?? [];
+          if (items.length === 0) return null;
+          return (
+            <GroupBlock key={group} label={GROUP_LABELS[group]}>
               {items.map((item) => {
                 const active =
                   item.href === '/'
                     ? pathname === '/'
                     : pathname.startsWith(item.href);
                 const Icon = item.icon;
-                let navCount: number | undefined;
-                if (item.href === '/tasks') {
-                  navCount =
-                    openTaskCount !== null && openTaskCount > 0 ? openTaskCount : undefined;
-                } else if (item.href === '/plays' && pipelineCounts && pipelineCounts.plays > 0) {
-                  navCount = pipelineCounts.plays;
-                } else if (
-                  item.href === '/prospects' &&
-                  pipelineCounts &&
-                  pipelineCounts.prospectsActive > 0
-                ) {
-                  navCount = pipelineCounts.prospectsActive;
-                } else if (
-                  item.href === '/leads' &&
-                  pipelineCounts &&
-                  pipelineCounts.leadsPipeline > 0
-                ) {
-                  navCount = pipelineCounts.leadsPipeline;
-                } else if (
-                  item.href === '/conversations' &&
-                  pipelineCounts &&
-                  pipelineCounts.conversationsUnread > 0
-                ) {
-                  navCount = pipelineCounts.conversationsUnread;
-                } else {
-                  navCount =
-                    'count' in item && typeof item.count === 'number' ? item.count : undefined;
-                }
                 return (
-                  <Link
+                  <NavLink
                     key={item.href}
                     href={item.href}
+                    label={item.label}
+                    Icon={Icon}
+                    active={active}
+                    warn={'warn' in item && item.warn ? true : false}
+                  />
+                );
+              })}
+            </GroupBlock>
+          );
+        }).flatMap((node, i, arr) =>
+          // Inject the Pipeline group directly after 'today'.
+          GROUP_ORDER[i] === 'today'
+            ? [
+                node,
+                <GroupBlock key="pipeline" label="Pipeline">
+                  {plays === null ? (
+                    <div className="px-3 py-1.5 text-[11px] text-evari-dimmer">
+                      Loading…
+                    </div>
+                  ) : plays.length === 0 ? (
+                    <div className="px-3 py-1.5 text-[11px] text-evari-dimmer">
+                      No projects yet.
+                    </div>
+                  ) : (
+                    plays.map((play) => {
+                      const active = activePlayId === play.id;
+                      return (
+                        <Link
+                          key={play.id}
+                          href={projectHref(play.id)}
+                          className={cn(
+                            'flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors',
+                            active
+                              ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                              : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
+                          )}
+                        >
+                          <Rocket
+                            className={cn(
+                              'h-4 w-4 shrink-0',
+                              active ? 'text-evari-gold' : 'text-evari-dimmer',
+                            )}
+                          />
+                          <span className="flex-1 truncate">
+                            {play.title || 'Untitled strategy'}
+                          </span>
+                        </Link>
+                      );
+                    })
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void createProject()}
+                    disabled={creating}
                     className={cn(
-                      'flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors',
-                      active
-                        ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                      'mt-1 flex items-center gap-3 rounded-md px-3 py-1.5 text-sm w-full text-left transition-colors',
+                      creating
+                        ? 'text-evari-dimmer cursor-wait'
                         : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
                     )}
                   >
-                    <Icon
-                      className={cn(
-                        'h-4 w-4 shrink-0',
-                        active ? 'text-evari-text' : 'text-evari-dimmer',
-                      )}
-                    />
-                    <span className="flex-1">{item.label}</span>
-                    {navCount ? (
-                      <span
-                        className={cn(
-                          // Circle at 1-2 digits (min-w === h === 20px); lozenges out
-                          // at 3/4/5+ digits with stepped padding so the number stays
-                          // readable all the way up to 100k+. Never truncate — Craig
-                          // wants the real number, not a '99+' placeholder.
-                          'inline-flex items-center justify-center h-5 min-w-[20px] text-[10px] tabular-nums rounded-full',
-                          navCount >= 10000
-                            ? 'px-2.5'
-                            : navCount >= 1000
-                              ? 'px-2'
-                              : navCount >= 100
-                                ? 'px-1.5'
-                                : 'px-1',
-                          item.href === '/tasks'
-                            ? 'bg-evari-warn text-evari-ink font-semibold'
-                            : active
-                              ? 'bg-evari-surfaceSoft text-evari-dim'
-                              : 'bg-evari-surface/60 text-evari-dimmer',
-                        )}
-                      >
-                        {navCount.toLocaleString()}
-                      </span>
-                    ) : null}
-                    {'warn' in item && item.warn ? (
-                      <span className="h-1.5 w-1.5 rounded-full bg-evari-warn" />
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+                    {creating ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-evari-dimmer" />
+                    ) : (
+                      <Plus className="h-4 w-4 shrink-0 text-evari-dimmer" />
+                    )}
+                    <span className="flex-1">
+                      {creating ? 'Creating…' : 'New project'}
+                    </span>
+                  </button>
+                </GroupBlock>,
+              ]
+            : [node],
+        )}
       </nav>
 
       {/* Footer */}
@@ -290,5 +336,86 @@ export function AppSidebar() {
         <div className="mt-1 text-evari-dimmer/80 font-mono">v0.1.0</div>
       </div>
     </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Internals
+// ---------------------------------------------------------------------------
+
+function GroupBlock({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-4">
+      <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium">
+        {label}
+      </div>
+      <div className="space-y-0.5">{children}</div>
+    </div>
+  );
+}
+
+function NavLink({
+  href,
+  label,
+  Icon,
+  active,
+  count,
+  countTone = 'default',
+  warn = false,
+}: {
+  href: string;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  active: boolean;
+  count?: number;
+  countTone?: 'default' | 'warn';
+  warn?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        'flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors',
+        active
+          ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+          : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
+      )}
+    >
+      <Icon
+        className={cn(
+          'h-4 w-4 shrink-0',
+          active ? 'text-evari-text' : 'text-evari-dimmer',
+        )}
+      />
+      <span className="flex-1">{label}</span>
+      {count ? (
+        <span
+          className={cn(
+            'inline-flex items-center justify-center h-5 min-w-[20px] text-[10px] tabular-nums rounded-full',
+            count >= 10000
+              ? 'px-2.5'
+              : count >= 1000
+                ? 'px-2'
+                : count >= 100
+                  ? 'px-1.5'
+                  : 'px-1',
+            countTone === 'warn'
+              ? 'bg-evari-warn text-evari-ink font-semibold'
+              : active
+                ? 'bg-evari-surfaceSoft text-evari-dim'
+                : 'bg-evari-surface/60 text-evari-dimmer',
+          )}
+        >
+          {count.toLocaleString()}
+        </span>
+      ) : null}
+      {warn ? <span className="h-1.5 w-1.5 rounded-full bg-evari-warn" /> : null}
+    </Link>
   );
 }

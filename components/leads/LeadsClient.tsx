@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Search as SearchIcon,
   X,
@@ -75,6 +75,18 @@ export function LeadsClient({ initialLeads }: Props) {
   const searchParams = useSearchParams();
   const deepLinkId = searchParams?.get('id') ?? null;
   const playId = searchParams?.get('playId') ?? null;
+  // --- Gate cold stage. Every pipeline stage must start
+  //     from a Strategy. Guard: useSearchParams() can be
+  //     null during hydration — only redirect once it's
+  //     resolved so we don't flash-bounce a legitimate URL.
+  const router = useRouter();
+  useEffect(() => {
+    if (!searchParams) return;
+    if (!searchParams.get('playId')) {
+      router.replace('/plays');
+    }
+  }, [searchParams, router]);
+
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [activeFolder, setActiveFolder] = useState<string | null>(null); // null = All
   const [search, setSearch] = useState('');

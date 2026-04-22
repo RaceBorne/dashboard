@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { Sparkles, Send, ChevronRight, RefreshCw, AtSign, Pencil, Trash2, Search as SearchIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,18 @@ interface Props {
 export function ConversationsClient({ threads: initialThreads, leads, initialThreadId }: Props) {
  const searchParams = useSearchParams();
  const playId = searchParams?.get('playId') ?? null;
+ // --- Gate cold stage. Every pipeline stage must start
+ //     from a Strategy. Guard: useSearchParams() can be
+ //     null during hydration — only redirect once it's
+ //     resolved so we don't flash-bounce a legitimate URL.
+ const router = useRouter();
+ useEffect(() => {
+   if (!searchParams) return;
+   if (!searchParams.get('playId')) {
+     router.replace('/plays');
+   }
+ }, [searchParams, router]);
+
  // A thread belongs to a Play iff its associated Lead is bound to that Play.
  const leadPlayById = useMemo(() => {
   const m = new Map<string, string | undefined>();

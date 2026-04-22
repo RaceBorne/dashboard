@@ -1,6 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { autoScanForPlay } from '@/lib/brand/autoScan';
+import { listPlays } from '@/lib/dashboard/repository';
 import type { Play } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -22,6 +23,26 @@ export const dynamic = 'force-dynamic';
  * the detail page. The scan is non-blocking — the client gets the id
  * immediately and the funnel fills in asynchronously.
  */
+/**
+ * GET /api/plays
+ *
+ * Lightweight project list for the sidebar. Returns id + title +
+ * updatedAt, sorted most-recently-updated first.
+ */
+export async function GET() {
+  const supabase = createSupabaseAdmin();
+  if (!supabase) {
+    return NextResponse.json({ ok: true, plays: [] });
+  }
+  const plays = await listPlays(supabase);
+  const trimmed = plays.map((p) => ({
+    id: p.id,
+    title: p.title,
+    updatedAt: p.updatedAt,
+  }));
+  return NextResponse.json({ ok: true, plays: trimmed });
+}
+
 export async function POST(req: Request) {
   const supabase = createSupabaseAdmin();
   if (!supabase) {
