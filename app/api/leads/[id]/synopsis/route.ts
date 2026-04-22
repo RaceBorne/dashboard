@@ -68,38 +68,30 @@ export async function POST(
       : '(none)';
 
   const prompt = [
-    'You are writing a short, factual synopsis of a sales prospect for the',
-    'Evari outreach operator. Be concrete and compressed. 90-120 words.',
-    'No sales language, no flattery, no filler. Plain prose, no bullets.',
+    'You are writing a short, factual description of a company. 3 to 4',
+    'sentences, 60-90 words total. Plain prose, no bullets, no headings,',
+    'no markdown. Do NOT mention Evari, outreach, sales, buying triggers,',
+    'decision-makers, or anything about the reader. Do NOT flatter or',
+    'speculate. Just describe the company.',
     '',
-    'Prospect:',
+    'Cover, when the data supports it: what the company does, what kind of',
+    'organization it is (practice, clinic, club, company, nonprofit, etc.),',
+    'roughly where it operates, and its scale. Skip any field you cannot',
+    'speak to with confidence.',
+    '',
+    'Company:',
+    '- Name: ' + (lead.companyName ?? '(unknown)'),
+    '- URL: ' + (lead.companyUrl ?? '(unknown)'),
+    '- Address: ' + (lead.address ?? '(unknown)'),
+    '',
+    'Context about a named contact at this company (for background only —',
+    'do NOT write about the person, write about the company):',
     '- Name: ' + lead.fullName,
     '- Job title: ' + (lead.jobTitle ?? '(unknown)'),
-    '- Company: ' + (lead.companyName ?? '(unknown)'),
-    '- Company URL: ' + (lead.companyUrl ?? '(unknown)'),
     '- LinkedIn: ' + (lead.linkedinUrl ?? '(unknown)'),
-    '- Address: ' + (lead.address ?? '(unknown)'),
-    '- Email: ' + (lead.email || '(unknown)'),
     '',
-    'Related contacts:',
+    'Other known contacts at the same company (reference only):',
     related,
-    '',
-    'Play context:',
-    play
-      ? '- Play: ' +
-        play.title +
-        ' (' +
-        (play.category ?? play.title) +
-        ')\n' +
-        (play.scope?.summary ? '- Scope: ' + play.scope.summary : '') +
-        (play.strategy?.hypothesis
-          ? '\n- Hypothesis: ' + play.strategy.hypothesis
-          : '')
-      : '(no play linked)',
-    '',
-    'Write the synopsis now. Cover: what the company does, where they are,',
-    'their likely buying trigger given the Play context, and whether the',
-    'named person or a related contact is the right decision-maker to email.',
     '',
     'AFTER the synopsis, on a new line, emit EXACTLY this delimiter and',
     'then a single JSON object on the next line:',

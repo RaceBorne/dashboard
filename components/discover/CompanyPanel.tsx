@@ -232,26 +232,23 @@ export function CompanyPanel({
                   type="button"
                   onClick={() => setSavePopoverOpen((v) => !v)}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-medium transition-colors',
+                    'h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors',
                     saveToFolder.current
-                      ? 'bg-evari-accent/10 text-evari-accent hover:bg-evari-accent/15'
-                      : 'bg-evari-surfaceSoft text-evari-dim hover:text-evari-text',
+                      ? 'bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90'
+                      : 'text-evari-goldInk bg-evari-gold/60 hover:bg-evari-gold',
                   )}
                   title={
                     saveToFolder.current
                       ? `Saved in ${saveToFolder.current}`
                       : 'Save to a folder'
                   }
+                  aria-label={saveToFolder.current ? `Saved in ${saveToFolder.current}` : 'Save to a folder'}
                 >
                   {saveToFolder.current ? (
                     <Folder className="h-3.5 w-3.5" />
                   ) : (
                     <Save className="h-3.5 w-3.5" />
                   )}
-                  <span className="max-w-[120px] truncate">
-                    {saveToFolder.current ?? 'Save'}
-                  </span>
-                  <ChevronDown className="h-3 w-3" />
                 </button>
                 {savePopoverOpen ? (
                   <SavePopover
@@ -307,10 +304,6 @@ export function CompanyPanel({
             </div>
           </div>
 
-          {company?.description ? (
-            <p className="mt-4 text-[13px] leading-relaxed text-evari-dim">{company.description}</p>
-          ) : null}
-
           {/* Primary CTA row: explicit Enrich action + any picker actions. */}
           {onEnrich ? (
             <div className="mt-4">
@@ -319,7 +312,7 @@ export function CompanyPanel({
                 onClick={() => onEnrich({ force: true })}
                 disabled={loading}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[12.5px] font-semibold shadow-sm transition-colors',
+                  'inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[12.5px] font-semibold shadow-sm transition-colors',
                   loading
                     ? 'bg-evari-surfaceSoft text-evari-dim cursor-wait'
                     : enrichPassCount === 0
@@ -416,7 +409,7 @@ export function CompanyPanel({
                     {company.keywords.map((k) => (
                       <span
                         key={k}
-                        className="inline-flex items-center rounded-full border border-evari-line/60 px-2 py-0.5 text-[10px] text-evari-dim"
+                        className="inline-flex items-center rounded-full border border-evari-line/60 px-2 py-0.5 text-[12px] text-evari-dim"
                       >
                         {k}
                       </span>
@@ -425,6 +418,26 @@ export function CompanyPanel({
                 ) : null}
               </div>
             ) : null}
+
+            {/* AI-generated synopsis — filled passively on the
+                Prospects / Leads list; may be empty on Discover. */}
+            <div className="mt-4 border-t border-evari-line/40 pt-4">
+              <div className="text-[13px] font-semibold text-evari-text mb-2">About</div>
+              {company.description ? (
+                <p className="text-[12px] leading-relaxed text-evari-dim whitespace-pre-wrap">
+                  {company.description}
+                </p>
+              ) : (
+                <div className="space-y-1.5" aria-label="Generating company summary">
+                  <div className="h-2.5 rounded bg-evari-surfaceSoft animate-pulse" />
+                  <div className="h-2.5 w-11/12 rounded bg-evari-surfaceSoft animate-pulse" />
+                  <div className="h-2.5 w-9/12 rounded bg-evari-surfaceSoft animate-pulse" />
+                  <p className="pt-1 text-[10px] text-evari-dimmer italic">
+                    Summary being drafted…
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         ) : null}
 
@@ -444,7 +457,7 @@ export function CompanyPanel({
                     type="button"
                     onClick={() => setTab(t)}
                     className={cn(
-                      'py-3 text-[13px] font-medium border-b-2 -mb-px transition-colors',
+                      'py-3 text-[15px] font-semibold border-b-2 -mb-px transition-colors',
                       active
                         ? 'border-evari-accent text-evari-text'
                         : 'border-transparent text-evari-dim hover:text-evari-text',
@@ -478,7 +491,7 @@ export function CompanyPanel({
                       type="button"
                       onClick={() => setOnlyVerified((v) => !v)}
                       className={cn(
-                        'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium shadow-sm',
+                        'inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium shadow-sm',
                         onlyVerified
                           ? 'border-evari-accent bg-evari-accent/10 text-evari-accent'
                           : 'border-evari-line/60 bg-white text-evari-dim hover:text-evari-text',
@@ -492,7 +505,7 @@ export function CompanyPanel({
                       type="button"
                       onClick={() => setNameFilterOpen((v) => !v)}
                       className={cn(
-                        'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium shadow-sm',
+                        'inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium shadow-sm',
                         nameFilterOpen || nameFilter
                           ? 'border-evari-accent bg-evari-accent/10 text-evari-accent'
                           : 'border-evari-line/60 bg-white text-evari-dim hover:text-evari-text',
@@ -518,29 +531,39 @@ export function CompanyPanel({
                   </div>
                 ) : null}
 
-                {/* Segment switcher */}
-                <div className="grid grid-cols-3 rounded-md bg-evari-surfaceSoft p-1 text-[12px]">
-                  {(['people', 'decision', 'generic'] as const).map((s) => {
+                {/* Segment switcher — pill lozenge */}
+                <div className="inline-flex items-center gap-1 rounded-full bg-evari-surfaceSoft p-1 text-[12px]">
+                  {(['people', 'decision', 'generic'] as const).map((seg) => {
                     const labels: Record<Segment, string> = {
                       people: 'People',
                       decision: 'Decision makers',
                       generic: 'Generic',
                     };
-                    const count = segmented[s].length;
-                    const active = segment === s;
+                    const count = segmented[seg].length;
+                    const active = segment === seg;
                     return (
                       <button
-                        key={s}
+                        key={seg}
                         type="button"
-                        onClick={() => setSegment(s)}
+                        onClick={() => setSegment(seg)}
                         className={cn(
-                          'py-1.5 rounded text-center transition-colors',
+                          'inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition-colors',
                           active
-                            ? 'bg-white text-evari-text shadow-sm font-medium'
+                            ? 'bg-evari-gold text-evari-goldInk font-semibold shadow-sm'
                             : 'text-evari-dim hover:text-evari-text',
                         )}
                       >
-                        {labels[s]} · {count}
+                        <span>{labels[seg]}</span>
+                        <span
+                          className={cn(
+                            'inline-flex items-center justify-center rounded-full px-1.5 text-[12px] font-semibold',
+                            active
+                              ? 'bg-evari-goldInk/15 text-evari-goldInk'
+                              : 'bg-white text-evari-dim',
+                          )}
+                        >
+                          {count}
+                        </span>
                       </button>
                     );
                   })}
@@ -548,7 +571,7 @@ export function CompanyPanel({
 
                 {/* Picker helper */}
                 {picker && visibleEmails.length > 0 ? (
-                  <div className="flex items-center justify-between text-[11px] text-evari-dim">
+                  <div className="flex items-center justify-between text-[13px] text-evari-dim">
                     <div>
                       {picker.selected.size > 0
                         ? picker.selected.size + ' selected'
@@ -584,18 +607,36 @@ export function CompanyPanel({
                         ' contacts in this set.'}
                   </div>
                 ) : (
-                  <ul className="divide-y divide-evari-line/40 rounded-md border border-evari-line/40 overflow-hidden">
-                    {visibleEmails.map((e) => (
-                      <ContactRow
-                        key={e.address}
-                        email={e}
-                        segment={segmentFor(e)}
-                        picked={picker?.selected.has(e.address)}
-                        onToggle={picker ? () => picker.onToggle(e.address) : undefined}
-                        ops={contactOps}
-                      />
-                    ))}
-                  </ul>
+                  <div className="rounded-md border border-evari-line/40 overflow-hidden">
+                    <div
+                      className={cn(
+                        'grid items-center gap-3 px-3 py-1.5 bg-evari-surfaceSoft/60 border-b border-evari-line/40',
+                        'text-[11px] font-medium text-evari-dimmer',
+                        contactOps
+                          ? 'grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_1.5rem]'
+                          : picker
+                            ? 'grid-cols-[1.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)]'
+                            : 'grid-cols-[1.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)]',
+                      )}
+                    >
+                      <span className="col-span-2">Contact</span>
+                      <span>Title</span>
+                      <span>Email</span>
+                      {contactOps ? <span aria-hidden="true" /> : null}
+                    </div>
+                    <ul className="divide-y divide-evari-line/40">
+                      {visibleEmails.map((e) => (
+                        <ContactRow
+                          key={e.address}
+                          email={e}
+                          segment={segmentFor(e)}
+                          picked={picker?.selected.has(e.address)}
+                          onToggle={picker ? () => picker.onToggle(e.address) : undefined}
+                          ops={contactOps}
+                        />
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
             ) : null}
@@ -605,10 +646,10 @@ export function CompanyPanel({
             {/* Sources footnote */}
             {company.sources && company.sources.length > 0 ? (
               <div className="mt-4 pt-3 border-t border-evari-line/40">
-                <div className="text-[11px] font-medium text-evari-dim mb-1">Sources</div>
+                <div className="text-[13px] font-medium text-evari-dim mb-1">Sources</div>
                 <ul className="space-y-0.5">
                   {company.sources.map((u) => (
-                    <li key={u} className="text-[11px] truncate">
+                    <li key={u} className="text-[13px] truncate">
                       <a
                         href={u}
                         target="_blank"
@@ -746,7 +787,7 @@ function ContactRow({
 
   if (editing) {
     return (
-      <li className="px-3 py-3 bg-evari-accent/5">
+      <li className="px-3 py-3 bg-evari-accent/5 block col-span-full">
         <div className="grid grid-cols-1 gap-2">
           <input
             value={editName}
@@ -793,82 +834,105 @@ function ContactRow({
     );
   }
 
+  const hasName = !!(email.name && email.name.trim());
+  const hasTitle = !!(email.jobTitle && email.jobTitle.trim());
+  const columnClass = ops
+    ? 'grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_1.5rem]'
+    : 'grid-cols-[1.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)]';
+
   return (
     <li
       className={cn(
-        'group px-3 py-2.5 flex items-start gap-3 transition-colors',
+        'group grid items-center gap-3 px-3 py-2.5 transition-colors',
+        columnClass,
         onToggle ? 'cursor-pointer hover:bg-evari-surfaceSoft' : '',
         picked ? 'bg-evari-accent/5' : '',
       )}
       onClick={onToggle}
     >
-      {onToggle ? (
+      <div className="flex items-center justify-start">
+        {onToggle ? (
+          <span
+            className={cn(
+              'h-4 w-4 shrink-0 rounded-[3px] border flex items-center justify-center',
+              picked ? 'bg-evari-accent border-evari-accent' : 'border-evari-dimmer bg-white',
+            )}
+          >
+            {picked ? <Check className="h-3 w-3 text-evari-ink" /> : null}
+          </span>
+        ) : (
+          <Mail className="h-3.5 w-3.5 text-evari-dimmer shrink-0" />
+        )}
+      </div>
+
+      {/* Contact column (name) */}
+      <div className="min-w-0 flex items-center gap-1.5 text-[12px] text-evari-text">
         <span
           className={cn(
-            'h-4 w-4 mt-0.5 shrink-0 rounded-[3px] border flex items-center justify-center',
-            picked ? 'bg-evari-accent border-evari-accent' : 'border-evari-dimmer bg-white',
+            'truncate',
+            hasName ? 'font-medium text-evari-text' : 'italic text-evari-dimmer',
           )}
         >
-          {picked ? <Check className="h-3 w-3 text-evari-ink" /> : null}
+          {hasName ? email.name : 'No person'}
         </span>
-      ) : (
-        <Mail className="h-3.5 w-3.5 text-evari-dimmer shrink-0 mt-0.5" />
-      )}
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-[12px] text-evari-text">
-          {isPerson ? (
-            <>
-              <span className="font-medium truncate">{email.name || 'Unnamed contact'}</span>
-              {email.jobTitle ? (
-                <span className="text-evari-dim truncate">· {email.jobTitle}</span>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <span className="font-medium">{email.name || 'Generic email address'}</span>
-              {email.jobTitle ? (
-                <span className="text-evari-dim truncate">· {email.jobTitle}</span>
-              ) : roleTag ? (
-                <span className="text-evari-dim">· {roleTag}</span>
-              ) : null}
-            </>
-          )}
-          {email.manualBucket ? (
-            <span
-              className={cn(
-                'ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em]',
-                email.manualBucket === 'decision_maker'
-                  ? 'bg-evari-gold/25 text-evari-goldInk'
-                  : email.manualBucket === 'person'
-                    ? 'bg-evari-accent/10 text-evari-accent'
-                    : 'bg-evari-surfaceSoft text-evari-dim',
-              )}
-              title="Operator-set classification"
-            >
-              {email.manualBucket === 'decision_maker'
-                ? 'DM'
+        {email.manualBucket ? (
+          <span
+            className={cn(
+              'shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em]',
+              email.manualBucket === 'decision_maker'
+                ? 'bg-evari-gold/25 text-evari-goldInk'
                 : email.manualBucket === 'person'
-                  ? 'Person'
-                  : 'Generic'}
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[12px]">
-          <span className="font-mono text-evari-dim truncate">{email.address}</span>
-          {isVerified ? (
-            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-evari-success" aria-label="Verified" />
-          ) : isMaybe ? (
-            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-evari-dimmer" aria-label="Unverified" />
-          ) : (
-            <ShieldOff className="h-3.5 w-3.5 shrink-0 text-evari-dimmer" aria-label="Unverified" />
+                  ? 'bg-evari-accent/10 text-evari-accent'
+                  : 'bg-evari-surfaceSoft text-evari-dim',
+            )}
+            title="Operator-set classification"
+          >
+            {email.manualBucket === 'decision_maker'
+              ? 'DM'
+              : email.manualBucket === 'person'
+                ? 'Person'
+                : 'Generic'}
+          </span>
+        ) : null}
+      </div>
+
+      {/* Title column */}
+      <div className="min-w-0 text-[12px]">
+        <span
+          className={cn(
+            'truncate block',
+            hasTitle
+              ? 'text-evari-dim'
+              : isPerson
+                ? 'italic text-evari-dimmer'
+                : roleTag
+                  ? 'text-evari-dim'
+                  : 'italic text-evari-dimmer',
           )}
-        </div>
+        >
+          {hasTitle
+            ? email.jobTitle
+            : isPerson
+              ? 'No position filled'
+              : roleTag ?? 'No position filled'}
+        </span>
+      </div>
+
+      {/* Email column */}
+      <div className="min-w-0 flex items-center gap-1.5 text-[12px]">
+        <span className="font-mono text-evari-dim truncate">{email.address}</span>
+        {isVerified ? (
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-evari-success" aria-label="Verified" />
+        ) : isMaybe ? (
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-evari-dimmer" aria-label="Unverified" />
+        ) : (
+          <ShieldOff className="h-3.5 w-3.5 shrink-0 text-evari-dimmer" aria-label="Unverified" />
+        )}
       </div>
 
       {ops ? (
         <div
-          className="relative shrink-0 self-start"
+          className="relative shrink-0 flex items-center justify-end"
           onClick={(ev) => ev.stopPropagation()}
         >
           <button
@@ -1021,7 +1085,7 @@ function NotesTab({ notes }: { notes?: Props['notes'] }) {
           }}
         />
         <div className="flex items-center justify-between px-1 pt-1">
-          <span className="text-[10.5px] text-evari-dimmer">⌘ + Enter to save</span>
+          <span className="text-[12.5px] text-evari-dimmer">⌘ + Enter to save</span>
           <button
             type="button"
             onClick={() => void addNote()}
@@ -1084,7 +1148,7 @@ function NotesTab({ notes }: { notes?: Props['notes'] }) {
                   <div className="whitespace-pre-wrap text-[13px] text-evari-text leading-relaxed">
                     {n.text}
                   </div>
-                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[10.5px] text-evari-dimmer">
+                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[12.5px] text-evari-dimmer">
                     <span>
                       {formatTimestamp(n.createdAt)}
                       {n.updatedAt ? ` · edited ${formatTimestamp(n.updatedAt)}` : ''}

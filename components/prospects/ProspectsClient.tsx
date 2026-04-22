@@ -29,6 +29,7 @@ import {
   Rocket,
   ExternalLink,
   Inbox,
+  FolderInput,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,6 +77,11 @@ export function ProspectsClient({ initialLeads }: Props) {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Multi-select for bulk folder moves.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [bulkMoveBusy, setBulkMoveBusy] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
   // Hunt / enrich streaming state — keyed on lead id so the panel can show
   // live log output while a run is in progress.
   const [huntingId, setHuntingId] = useState<string | null>(null);
@@ -92,6 +98,51 @@ export function ProspectsClient({ initialLeads }: Props) {
 
   const confirm = useConfirm();
   const streamAbort = useRef<AbortController | null>(null);
+
+  // --- Passive synopsis backfill -------------------------------------------
+  // On mount, walk every row that either has no AI synopsis yet OR has a
+  // synopsis generated before the prompt-rewrite cutoff (old "Evari sales
+  // framing" copy). Regenerate stale ones in-place, sequentially, with a
+  // small stagger to stay under the AI gateway rate ceiling.
+  useEffect(() => {
+    const PROMPT_CUTOFF = Date.parse('2026-04-22T00:00:00Z');
+    const needed: Array<{ id: string; regenerate: boolean }> = [];
+    for (const l of initialLeads) {
+      const missing = !l.synopsis || !l.orgProfile;
+      const generatedMs = l.synopsisGeneratedAt
+        ? Date.parse(l.synopsisGeneratedAt)
+        : 0;
+      const stale = !missing && generatedMs < PROMPT_CUTOFF;
+      if (missing || stale) needed.push({ id: l.id, regenerate: !missing });
+    }
+    if (needed.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (const { id, regenerate } of needed) {
+        if (cancelled) return;
+        try {
+          const url = regenerate
+            ? `/api/leads/${id}/synopsis?regenerate=1`
+            : `/api/leads/${id}/synopsis`;
+          const res = await fetch(url, { method: 'POST' });
+          if (!res.ok) continue;
+          const data = (await res.json()) as { ok?: boolean; lead?: Lead };
+          if (!data.ok || !data.lead || cancelled) continue;
+          setLeads((prev) => prev.map((l) => (l.id === id ? data.lead! : l)));
+        } catch {
+          // Swallow — backfill is best-effort.
+        }
+        // Small cool-down between calls.
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount with the initial row set. New rows created later
+    // during the session don't need a backfill pass.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- Derived: folder counts + filtered list ------------------------------
 
@@ -474,12 +525,46 @@ export function ProspectsClient({ initialLeads }: Props) {
     }
   }
 
+  // --- Bulk selection ----------------------------------------------------
+
+  function toggleSelect(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setBulkMoveOpen(false);
+  }
+
+  async function bulkMoveTo(folder: string) {
+    const target = folder.trim();
+    if (!target) return;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkMoveBusy(true);
+    try {
+      for (const id of ids) {
+        await saveToFolder(id, target);
+      }
+      setSelectedIds(new Set());
+      setBulkMoveOpen(false);
+      setNewFolderName('');
+    } finally {
+      setBulkMoveBusy(false);
+    }
+  }
+
   // --- Render --------------------------------------------------------------
 
   return (
     <div className="flex gap-4 p-4 h-[calc(100vh-56px)] bg-evari-ink">
       {/* Column 1: folder sidebar */}
-      <aside className="w-[260px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
+      <aside className="w-[340px] shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col">
         <div className="shrink-0 px-4 pt-4 pb-2">
           <div className="text-[11px] uppercase tracking-wide text-evari-dimmer mb-2">
             Folders
@@ -605,15 +690,97 @@ export function ProspectsClient({ initialLeads }: Props) {
       <div className="flex-1 min-w-0 h-full flex gap-4">
         {/* Column 2: list */}
         <main className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden">
-          <header className="shrink-0 border-b border-evari-line/30 px-4 py-3 flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="text-[14px] font-semibold text-evari-text truncate">
-                {activeFolder ?? 'All prospects'}
+          <header className="sticky top-0 z-10 shrink-0 border-b border-evari-line/30 bg-evari-surface px-4 py-3 flex items-center gap-3">
+            {selectedIds.size > 0 ? (
+              <div className="min-w-0 flex-1 flex items-center gap-2">
+                <span className="text-[13px] font-semibold text-evari-text whitespace-nowrap">
+                  {selectedIds.size} selected
+                </span>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setBulkMoveOpen((v) => !v)}
+                    disabled={bulkMoveBusy}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70"
+                  >
+                    {bulkMoveBusy ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <FolderInput className="h-3 w-3" />
+                    )}
+                    Move to folder
+                  </button>
+                  {bulkMoveOpen ? (
+                    <div className="absolute left-0 top-full mt-1 w-64 rounded-lg border border-evari-line/60 bg-evari-surface shadow-lg z-20 p-2">
+                      <div className="max-h-48 overflow-y-auto">
+                        {folderKeys.length === 0 ? (
+                          <div className="px-2 py-1.5 text-[11.5px] text-evari-dim">
+                            No folders yet.
+                          </div>
+                        ) : (
+                          <ul className="space-y-0.5">
+                            {folderKeys.map((k) => (
+                              <li key={k}>
+                                <button
+                                  type="button"
+                                  onClick={() => void bulkMoveTo(k)}
+                                  className="w-full inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] text-left text-evari-text hover:bg-evari-surfaceSoft"
+                                >
+                                  <Folder className="h-3 w-3 text-evari-dimmer" />
+                                  <span className="flex-1 truncate">{k}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="mt-1 pt-1 border-t border-evari-line/40 flex items-center gap-1">
+                        <Input
+                          value={newFolderName}
+                          onChange={(e) => setNewFolderName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void bulkMoveTo(newFolderName);
+                            }
+                          }}
+                          placeholder="New folder…"
+                          className="h-7 text-[12px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void bulkMoveTo(newFolderName)}
+                          disabled={!newFolderName.trim() || bulkMoveBusy}
+                          className="h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-md text-evari-accent hover:bg-evari-surfaceSoft disabled:opacity-40"
+                          title="Create + move"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11.5px] text-evari-dim hover:text-evari-text"
+                >
+                  <X className="h-3 w-3" />
+                  Clear
+                </button>
               </div>
-              <div className="text-[11.5px] text-evari-dim">
-                {filtered.length} prospect{filtered.length === 1 ? '' : 's'}
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14px] font-semibold text-evari-text truncate">
+                    {activeFolder ?? 'All prospects'}
+                  </div>
+                </div>
+                <div className="shrink-0 text-[11.5px] text-evari-dim whitespace-nowrap">
+                  {filtered.length} prospect{filtered.length === 1 ? '' : 's'}
+                </div>
+              </>
+            )}
             <div className="relative w-48 shrink-0">
               <SearchIcon className="h-3.5 w-3.5 text-evari-dimmer absolute left-2.5 top-1/2 -translate-y-1/2" />
               <Input
@@ -648,13 +815,15 @@ export function ProspectsClient({ initialLeads }: Props) {
                 </div>
               </div>
             ) : (
-              <ul className="divide-y divide-evari-line/40">
+              <ul className="space-y-1 px-2 py-2">
                 {filtered.map((l) => (
                   <ProspectRow
                     key={l.id}
                     lead={l}
                     active={selectedId === l.id}
                     onSelect={() => setSelectedId(l.id)}
+                    checked={selectedIds.has(l.id)}
+                    onCheck={(v) => toggleSelect(l.id, v)}
                   />
                 ))}
               </ul>
@@ -716,10 +885,14 @@ function ProspectRow({
   lead,
   active,
   onSelect,
+  checked,
+  onCheck,
 }: {
   lead: Lead;
   active: boolean;
   onSelect: () => void;
+  checked: boolean;
+  onCheck: (v: boolean) => void;
 }) {
   const domain = useMemo(() => deriveDomainForIcon(lead), [lead]);
   const orgLabel = lead.companyName ?? lead.email.split('@')[1] ?? '—';
@@ -729,12 +902,20 @@ function ProspectRow({
     <li
       onClick={onSelect}
       className={cn(
-        'group flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors',
+        'group flex items-center gap-4 rounded-[10px] px-4 py-3 cursor-pointer transition-colors',
         active
-          ? 'bg-evari-accent/5 border-l-2 border-evari-accent -ml-[2px] pl-[calc(1.25rem-2px)]'
-          : 'hover:bg-evari-surface/60',
+          ? 'bg-white/[0.10]'
+          : 'bg-white/[0.03] hover:bg-white/[0.06]',
       )}
     >
+      <input
+        type="checkbox"
+        checked={checked}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onCheck(e.target.checked)}
+        className="h-4 w-4 shrink-0 accent-evari-accent cursor-pointer"
+        aria-label="Select row"
+      />
       <div className="h-11 w-11 shrink-0 rounded-md bg-white border border-evari-line/40 flex items-center justify-center overflow-hidden p-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -748,19 +929,17 @@ function ProspectRow({
           <span className="text-[14px] font-semibold text-evari-text truncate">
             {lead.fullName || orgLabel}
           </span>
-          <span className="text-[12px] text-evari-dimmer truncate">{orgLabel}</span>
+          {(lead.fullName ? orgLabel : lead.address) ? (
+            <span className="text-[12px] text-evari-dimmer truncate">
+              {lead.fullName ? orgLabel : lead.address}
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center gap-4 text-[11px] text-evari-dim mt-1">
           {lead.orgProfile?.employeeRange ? (
             <span className="inline-flex items-center gap-1">
               <Users2 className="h-3 w-3 text-evari-dimmer" />
               {lead.orgProfile.employeeRange}
-            </span>
-          ) : null}
-          {lead.address ? (
-            <span className="inline-flex items-center gap-1 truncate max-w-[180px]">
-              <MapPin className="h-3 w-3 text-evari-dimmer" />
-              {lead.address}
             </span>
           ) : null}
           {lead.lastTouchAt ? (
@@ -802,16 +981,30 @@ function ProspectPanelActions({
   const canPromote = !!lead.email && lead.emailInferred !== true;
   return (
     <div className="flex items-center gap-2">
-      <Button
-        type="button"
-        onClick={onPromote}
-        disabled={!!busy || !canPromote}
-        title={canPromote ? undefined : 'Add a real (non-inferred) email before promoting.'}
-        className="flex-1 inline-flex items-center justify-center gap-1.5 bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {busy === 'promote' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
-        Promote to Lead
-      </Button>
+      {canPromote ? (
+        <Button
+          type="button"
+          onClick={onPromote}
+          disabled={!!busy}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90"
+        >
+          {busy === 'promote' ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Rocket className="h-3.5 w-3.5" />
+          )}
+          Promote to Lead
+        </Button>
+      ) : (
+        <div
+          aria-disabled="true"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-evari-surfaceSoft px-3 py-2 text-[12.5px] font-medium text-evari-dim cursor-not-allowed select-none"
+          title="Add a real (non-inferred) email before promoting."
+        >
+          <Rocket className="h-3.5 w-3.5" />
+          One contact required to promote to Lead
+        </div>
+      )}
       {lead.threadId ? (
         <Button
           type="button"
