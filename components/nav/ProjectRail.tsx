@@ -62,11 +62,22 @@ export function ProjectRail({ activePlayId, className }: Props) {
     setHydrated(true);
   }, []);
 
-  // Persist when it changes.
+  // Persist when it changes + broadcast to other components on the page
+  // (PlayDetailClient reflows its Spitball / Brief columns when the rail
+  // collapses, since collapsing frees ~200px of horizontal real estate).
   useEffect(() => {
     if (!hydrated) return;
     try {
       window.localStorage.setItem(LS_KEY, collapsed ? '1' : '0');
+    } catch {
+      // Non-fatal.
+    }
+    try {
+      window.dispatchEvent(
+        new CustomEvent('evari:project-rail-toggled', {
+          detail: { collapsed },
+        }),
+      );
     } catch {
       // Non-fatal.
     }

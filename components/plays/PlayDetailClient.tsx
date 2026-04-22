@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { ProjectRail } from '@/components/nav/ProjectRail';
+import { useProjectRailCollapsed } from '@/lib/hooks/useProjectRailCollapsed';
 import {
   Activity,
   Check,
@@ -69,6 +70,7 @@ export function PlayDetailClient({
   const [flowError, setFlowError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceChat();
+  const railCollapsed = useProjectRailCollapsed();
 
   // ----- PATCH helpers --------------------------------------------------
 
@@ -398,7 +400,7 @@ export function PlayDetailClient({
       {/* Centre: Spitball chat — the live workspace where the venture
           gets shaped. Moved from the right column so the primary
           interaction sits in the middle of vision. */}
-      <main className="flex-1 min-w-0">
+      <main className={cn('min-w-0', railCollapsed ? 'flex-1 basis-1/2' : 'flex-1')}>
         <div className="sticky top-4 rounded-xl bg-evari-surface flex flex-col max-h-[calc(100vh-80px)] min-h-[480px] overflow-hidden">
           <div className="flex items-start gap-3 p-4 shrink-0 border-b border-evari-line/40">
             <div className="h-8 w-8 rounded-lg bg-evari-surfaceSoft flex items-center justify-center shrink-0">
@@ -550,7 +552,7 @@ export function PlayDetailClient({
 
       {/* Right: workbook — the living artifact. Brief, strategy,
           notes. Narrow by design so the chat stays primary. */}
-      <aside className="w-[560px] shrink-0 space-y-5">
+      <aside className={cn('space-y-5 min-w-0', railCollapsed ? 'flex-1 basis-1/2' : 'w-[560px] shrink-0')}>
         {/* Title + stage controls */}
         <div className="rounded-xl bg-evari-surface p-5 space-y-3">
           <div className="flex items-start justify-between gap-4">
