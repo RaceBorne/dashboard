@@ -85,7 +85,7 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
             onChange={(e) => setAiPrompt(e.target.value)}
             rows={3}
             placeholder="UK-based sports clubs between 50 and 200 people, drop anything in London"
-            className="w-full rounded-lg bg-white border border-evari-line/40 px-3 py-2.5 text-[13px] text-evari-ink placeholder:text-evari-ink/45 focus:outline-none focus:border-evari-accent shadow-sm resize-none"
+            className="w-full rounded-lg bg-white border border-evari-line/40 px-3 py-2.5 text-[13px] text-evari-ink placeholder:text-slate-500 focus:outline-none focus:border-evari-accent shadow-sm resize-none"
           />
           <button
             type="button"
@@ -332,7 +332,7 @@ function ChipInput({
             }
           }}
           placeholder={placeholder}
-          className="flex-1 rounded-lg bg-white border border-evari-line/40 px-3 py-2.5 text-[13px] text-evari-ink placeholder:text-evari-ink/45 focus:outline-none focus:border-evari-accent shadow-sm"
+          className="flex-1 rounded-lg bg-white border border-evari-line/40 px-3 py-2.5 text-[13px] text-evari-ink placeholder:text-slate-500 focus:outline-none focus:border-evari-accent shadow-sm"
         />
         <button
           type="button"
