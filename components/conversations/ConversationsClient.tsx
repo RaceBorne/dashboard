@@ -146,13 +146,11 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
  }
 
  return (
-  <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+  <div className="flex flex-col gap-3 p-4 flex-1 min-h-0 overflow-hidden bg-evari-ink">
    {playId ? (
-    <div className="px-4 pt-3">
-     <FunnelRibbon stage="conversations" playId={playId} />
-    </div>
+    <FunnelRibbon stage="conversations" playId={playId} />
    ) : null}
-   <div className="flex-1 flex min-h-0 overflow-hidden gap-4 p-4">
+   <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
     <ProjectRail activePlayId={playId} />
    {/* Pane 1 — thread list */}
    <aside className="w-[340px] shrink-0 bg-evari-carbon flex flex-col">
