@@ -16,6 +16,7 @@ import {
   X,
   ArrowUp,
   UserSearch,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
@@ -582,9 +583,11 @@ export function DiscoverClient({ plays }: Props) {
         </main>
       ) : (
       <main className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden">
-        {/* Toolbar */}
-        <div className="shrink-0 border-b border-evari-line/30 px-5 py-3 flex items-center gap-3">
-          <h2 className="text-[15px] font-semibold text-evari-text">
+        {/* Toolbar — lozenge row. Everything is whitespace-nowrap and
+            rounded-full so the narrow 50/50 column never wraps. The
+            title shrinks/truncates; buttons keep their full shape. */}
+        <div className="shrink-0 border-b border-evari-line/30 px-4 py-2.5 flex items-center gap-2">
+          <h2 className="min-w-0 truncate text-[13px] font-semibold text-evari-text">
             {searching ? (
               <span className="inline-flex items-center gap-2 text-evari-dim">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -592,43 +595,47 @@ export function DiscoverClient({ plays }: Props) {
               </span>
             ) : (
               <>
-                {cards.length.toLocaleString()} companies match your filters
+                <span className="text-evari-text">{cards.length.toLocaleString()}</span>{' '}
+                <span className="text-evari-dim font-normal">companies</span>
               </>
             )}
           </h2>
           <div className="flex-1" />
+          {/* Save destination pill. */}
           {saveTarget ? (
             <button
               type="button"
               onClick={() => setSaveSetupOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-evari-accent/15 text-evari-accent px-3 py-1.5 text-[12px] font-medium hover:bg-evari-accent/25"
-              title="Manage save destination"
+              className="inline-flex items-center gap-1.5 rounded-full bg-evari-accent/15 text-evari-accent px-3 py-1.5 text-[11.5px] font-medium hover:bg-evari-accent/25 whitespace-nowrap max-w-[180px]"
+              title={`Saving to ${saveTarget}`}
             >
-              <Check className="h-3 w-3" />
-              Saving to {saveTarget}
-              {savedCount > 0 ? ` · ${savedCount}` : ''}
+              <Check className="h-3 w-3 shrink-0" />
+              <span className="truncate">{saveTarget}</span>
+              {savedCount > 0 ? <span className="shrink-0 opacity-70">· {savedCount}</span> : null}
             </button>
           ) : !saveSetupOpen ? (
             <button
               type="button"
               onClick={() => setSaveSetupOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dim"
+              className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-evari-line/60 px-3 py-1.5 text-[11.5px] text-evari-dim hover:text-evari-text hover:border-evari-dim whitespace-nowrap"
               title="Pick a folder to auto-save results"
             >
               <Sparkles className="h-3 w-3" />
               Save to folder
             </button>
           ) : null}
+          {/* Rerun — icon-only ghost pill. */}
           <button
             type="button"
             onClick={() => void doSearch(filters)}
             disabled={searching}
-            className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-40"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-evari-line/60 text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-40 whitespace-nowrap shrink-0"
             title="Re-run with current filters"
+            aria-label="Rerun"
           >
-            <Sparkles className="h-3 w-3" />
-            Rerun
+            <RefreshCw className="h-3 w-3" />
           </button>
+          {/* Select-all lozenge — segmented toggle. */}
           <button
             type="button"
             onClick={() => {
@@ -637,20 +644,28 @@ export function DiscoverClient({ plays }: Props) {
               else for (const c of cards) next.add(c.domain);
               setCompanyChecked(next);
             }}
-            className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-text hover:bg-evari-surfaceSoft"
+            className="inline-flex items-center gap-1.5 rounded-full border border-evari-line/60 px-3 py-1.5 text-[11.5px] text-evari-text hover:bg-evari-surfaceSoft whitespace-nowrap shrink-0"
           >
-            {companyChecked.size > 0 && companyChecked.size === cards.length
-              ? 'Unselect all'
-              : companyChecked.size > 0
-                ? `${companyChecked.size} selected`
-                : 'Save all companies'}
-            <ChevronDown className="h-3 w-3 text-evari-dimmer" />
+            <span className={cn(
+              'h-3.5 w-3.5 rounded-[3px] border inline-flex items-center justify-center shrink-0',
+              companyChecked.size > 0 && companyChecked.size === cards.length
+                ? 'bg-evari-accent border-evari-accent'
+                : companyChecked.size > 0
+                  ? 'bg-evari-accent/40 border-evari-accent'
+                  : 'border-evari-dimmer'
+            )}>
+              {companyChecked.size > 0 ? (
+                <Check className="h-2.5 w-2.5 text-evari-ink" />
+              ) : null}
+            </span>
+            {companyChecked.size > 0
+              ? `${companyChecked.size}/${cards.length}`
+              : 'Select all'}
           </button>
+          {/* Primary CTA — Find all people. */}
           <button
             type="button"
             onClick={() => {
-              // "Find all people" — pre-select every known email across all
-              // visible companies, so the operator can send them in one click.
               const next = new Map<string, Set<string>>();
               for (const c of cards) {
                 const co = companyByDomain.get(c.domain);
@@ -659,10 +674,16 @@ export function DiscoverClient({ plays }: Props) {
               }
               setEmailPicksByDomain(next);
             }}
-            className="inline-flex items-center gap-1.5 rounded-md bg-evari-accent px-3 py-1.5 text-[12px] font-medium text-evari-ink hover:bg-evari-accent/90"
+            className="inline-flex items-center gap-1.5 rounded-full bg-evari-accent px-3 py-1.5 text-[11.5px] font-semibold text-evari-ink hover:bg-evari-accent/90 whitespace-nowrap shrink-0"
+            title={`Pick all ${totalEmailsVisible} known emails`}
           >
             <UserSearch className="h-3 w-3" />
-            Find all people · {totalEmailsVisible} results
+            Find people
+            {totalEmailsVisible > 0 ? (
+              <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-evari-ink/10 text-[10.5px] font-semibold px-1">
+                {totalEmailsVisible}
+              </span>
+            ) : null}
           </button>
         </div>
 
