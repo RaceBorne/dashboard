@@ -13,6 +13,8 @@ import {
   Mail,
   Send,
   X,
+  ArrowRight,
+  ArrowUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
@@ -32,6 +34,11 @@ interface PlayOption {
 interface Props {
   plays: PlayOption[];
 }
+
+const HERO_SUGGESTIONS = [
+  'Find boutique retailers specialising in premium urban and e-cargo bikes',
+  'Find owners clubs and membership associations for cyclists and outdoor enthusiasts',
+] as const;
 
 const EMPTY_FILTERS: DiscoverFiltersType = {
   location: { include: [], exclude: [] },
@@ -67,15 +74,19 @@ export function DiscoverClient({ plays }: Props) {
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ created: number; skipped: number } | null>(null);
 
+  // Pristine-state hero: before the operator has run any intentional
+  // search, we blank the results + panel and render a centered prompt.
+  const [hasSearched, setHasSearched] = useState(false);
+  const [heroPrompt, setHeroPrompt] = useState('');
+
   const filtersSummary = useMemo(() => summariseFilters(filters), [filters]);
 
-  // Run search on first mount so the page paints with the cache instead of blank
-  useEffect(() => {
-    void doSearch(filters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // No auto-search on mount — the pristine hero shows first. The operator
+  // triggers a search by typing filters, hitting the AI refine box, or
+  // picking a suggestion on the hero.
 
   const doSearch = useCallback(async (f: DiscoverFiltersType) => {
+    setHasSearched(true);
     setSearching(true);
     setSearchError(null);
     try {
@@ -99,6 +110,13 @@ export function DiscoverClient({ plays }: Props) {
       setSearching(false);
     }
   }, []);
+
+  async function runHero(prompt: string) {
+    const p = prompt.trim();
+    if (!p) return;
+    await handleAiRefine(p);
+    setHeroPrompt('');
+  }
 
   // AI-refine: ask Claude to transform filters, then search
   async function handleAiRefine(prompt: string) {
@@ -276,7 +294,74 @@ export function DiscoverClient({ plays }: Props) {
         />
       </aside>
 
+      {/* Pristine hero */}
+      {!hasSearched ? (
+        <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-8 bg-evari-ink/20">
+          <div className="w-full max-w-2xl">
+            <h1 className="text-center text-2xl font-semibold text-evari-text mb-6">
+              What companies are you targeting?
+            </h1>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void runHero(heroPrompt);
+              }}
+              className="relative rounded-2xl border border-evari-line/60 bg-evari-surface focus-within:border-evari-accent shadow-sm"
+            >
+              <Sparkles className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-evari-accent" />
+              <textarea
+                value={heroPrompt}
+                onChange={(e) => setHeroPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void runHero(heroPrompt);
+                  }
+                }}
+                placeholder="Describe your current customers…"
+                rows={1}
+                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-evari-text placeholder:text-evari-dimmer focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={aiBusy || !heroPrompt.trim()}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-lg bg-evari-surfaceSoft text-evari-dim hover:bg-evari-accent hover:text-evari-ink disabled:opacity-40 disabled:hover:bg-evari-surfaceSoft disabled:hover:text-evari-dim"
+              >
+                {aiBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ArrowUp className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </form>
+
+            <div className="mt-10">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-2">
+                Getting started
+              </div>
+              <ul className="space-y-2">
+                {HERO_SUGGESTIONS.map((s) => (
+                  <li key={s}>
+                    <button
+                      type="button"
+                      onClick={() => void runHero(s)}
+                      disabled={aiBusy}
+                      className="w-full flex items-center gap-3 rounded-lg border border-evari-line/40 bg-evari-surface px-4 py-3 text-left text-[13px] text-evari-text hover:border-evari-dimmer hover:bg-evari-surface/80 disabled:opacity-50"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 shrink-0 text-evari-accent" />
+                      <span className="flex-1">{s}</span>
+                      <ArrowRight className="h-3.5 w-3.5 text-evari-dimmer" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Middle: results */}
+      {hasSearched ? (
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="h-12 shrink-0 border-b border-evari-line/40 bg-evari-surface px-4 flex items-center gap-3">
@@ -443,7 +528,10 @@ export function DiscoverClient({ plays }: Props) {
         </div>
       </main>
 
+      ) : null}
+
       {/* Right: detail panel */}
+      {hasSearched ? (
       <section className="w-[480px] shrink-0">
         {selected ? (
           <CompanyPanel
@@ -481,6 +569,7 @@ export function DiscoverClient({ plays }: Props) {
           </div>
         )}
       </section>
+      ) : null}
     </div>
   );
 }
