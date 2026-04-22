@@ -111,11 +111,11 @@
 /* Default — neutral charcoal, no warmth */
 :root[data-theme='dark'],
 :root[data-theme='dark'][data-shade='2'] {
-  --evari-ink: 30 30 30;
-  --evari-carbon: 24 24 24;
+  --evari-ink: 22 22 22;
+  --evari-carbon: 16 16 16;
   --evari-surface: 44 44 44;
   --evari-surface-soft: 58 58 58;
-  --evari-trough: 18 18 18;
+  --evari-trough: 10 10 10;
   --evari-edge: 70 70 70;
   --evari-mute: 90 90 90;
 }
