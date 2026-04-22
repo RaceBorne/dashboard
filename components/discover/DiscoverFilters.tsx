@@ -235,7 +235,7 @@ function Section({
   title,
   icon,
   children,
-  defaultOpen = false,
+  defaultOpen = true,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -248,13 +248,13 @@ function Section({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] uppercase tracking-[0.14em] font-medium text-evari-dim hover:text-evari-text"
+        className="w-full flex items-center gap-2 px-4 py-3.5 text-[12px] uppercase tracking-[0.16em] font-medium text-evari-dim hover:text-evari-text"
       >
         <span className="text-evari-dimmer">{icon}</span>
         <span className="flex-1 text-left">{title}</span>
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
       </button>
-      {open ? <div className="px-4 pb-3">{children}</div> : null}
+      {open ? <div className="px-4 pb-4 pt-0.5">{children}</div> : null}
     </div>
   );
 }
@@ -274,9 +274,8 @@ function IncludeExcludeSection({
 }) {
   const include = group?.include ?? [];
   const exclude = group?.exclude ?? [];
-  const defaultOpen = include.length + exclude.length > 0;
   return (
-    <Section title={title} icon={icon} defaultOpen={defaultOpen}>
+    <Section title={title} icon={icon}>
       <div className="space-y-2">
         <ChipInput
           label="Include"
