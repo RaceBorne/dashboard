@@ -51,22 +51,22 @@ const STAGES: StageDef[] = [
   {
     key: 'discovery',
     label: 'Discovery',
-    href: (id) => (id ? `/discover?playId=${id}` : '/ventures'),
+    href: (id) => (id ? `/discover?playId=${id}` : '/discover'),
   },
   {
     key: 'prospects',
     label: 'Prospects',
-    href: (id) => (id ? `/prospects?playId=${id}` : '/ventures'),
+    href: (id) => (id ? `/prospects?playId=${id}` : '/prospects'),
   },
   {
     key: 'leads',
     label: 'Leads',
-    href: (id) => (id ? `/leads?playId=${id}` : '/ventures'),
+    href: (id) => (id ? `/leads?playId=${id}` : '/leads'),
   },
   {
     key: 'conversations',
     label: 'Conversations',
-    href: (id) => (id ? `/conversations?playId=${id}` : '/ventures'),
+    href: (id) => (id ? `/conversations?playId=${id}` : '/conversations'),
   },
 ];
 

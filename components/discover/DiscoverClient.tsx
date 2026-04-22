@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { ProjectRail } from '@/components/nav/ProjectRail';
 import {
@@ -143,18 +143,6 @@ export function DiscoverClient({ plays }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // --- Gate cold Discover. Every search must start from a Strategy, so
-  //     if the user lands without ?playId= we bounce them to /plays.
-  //     Guard: useSearchParams() can be null during hydration — if we
-  //     treat that as "no playId" we'd wrongly redirect a legitimate
-  //     ?playId= URL, which looks like the ribbon flashing on then off.
-  const router = useRouter();
-  useEffect(() => {
-    if (!searchParams) return;
-    if (!searchParams.get('playId')) {
-      router.replace('/ventures');
-    }
-  }, [searchParams, router]);
 
 
   const doSearch = useCallback(async (f: DiscoverFiltersType) => {

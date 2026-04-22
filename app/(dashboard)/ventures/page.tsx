@@ -44,7 +44,7 @@ export default async function VenturesPage() {
         hero is the primary action; the existing ventures list lives
         below as a smaller, secondary section.
       */}
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-[52px]">
         <FunnelRibbon stage="ventures" playId="" />
 
         {/* Hero — big, the primary action on this page. */}

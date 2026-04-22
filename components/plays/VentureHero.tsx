@@ -82,7 +82,7 @@ export function VentureHero() {
   const disabled = busy || !title.trim() || pitch.trim().length < 10;
 
   return (
-    <section className="rounded-2xl bg-evari-surface border border-evari-line/40 p-6 space-y-4">
+    <section className="rounded-2xl bg-evari-surface p-6 space-y-4">
       <div className="space-y-1">
         <h2 className="text-base font-semibold text-evari-text">New venture</h2>
         <p className="text-[13px] text-evari-dim leading-relaxed">
@@ -110,10 +110,10 @@ export function VentureHero() {
           }}
           placeholder="Working title — e.g. UK private knee-surgery clinics"
           disabled={busy}
-          className="w-full rounded-lg border border-evari-line/40 bg-white px-4 py-3 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-evari-accent shadow-sm disabled:opacity-60"
+          className="w-full rounded-lg border border-evari-line/40 bg-black/[0.03] px-4 py-3 text-[14px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent shadow-sm disabled:opacity-60"
         />
 
-        <div className="relative flex items-start min-h-[96px] rounded-xl border border-evari-line/40 bg-white focus-within:border-evari-accent shadow-sm">
+        <div className="relative flex items-start min-h-[96px] rounded-xl border border-evari-line/40 bg-black/[0.03] focus-within:border-evari-accent shadow-sm">
           <div className="pl-4 pr-3 pt-5 shrink-0">
             <Sparkles className="h-4 w-4 text-evari-accent" />
           </div>
@@ -130,7 +130,7 @@ export function VentureHero() {
             placeholder="What are you trying to do? Who's the customer, what's the bet, what does success look like?"
             rows={3}
             disabled={busy}
-            className="flex-1 min-w-0 resize-none bg-transparent pr-16 pl-0 py-4 text-[14px] leading-6 text-slate-900 placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none disabled:opacity-60"
+            className="flex-1 min-w-0 resize-none bg-transparent pr-16 pl-0 py-4 text-[14px] leading-6 text-evari-text placeholder:text-evari-dimmer focus:placeholder:text-transparent focus:outline-none disabled:opacity-60"
           />
           <button
             type="submit"
