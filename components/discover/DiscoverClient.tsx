@@ -546,7 +546,7 @@ export function DiscoverClient({ plays }: Props) {
   const selectedEmails = (selectedCompany?.emails ?? []).map((e) => e.address);
 
   return (
-    <div className="flex flex-col gap-3 p-6 h-[calc(100vh-56px)] bg-evari-ink">
+    <div className="flex flex-col gap-3 p-4 h-[calc(100vh-56px)] bg-evari-ink">
       {(() => {
         const urlPid = searchParams?.get('playId') ?? null;
         return <FunnelRibbon stage="discovery" playId={urlPid ?? ''} play={linkedPlay} />;
