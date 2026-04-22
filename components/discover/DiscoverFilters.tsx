@@ -69,7 +69,7 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
           type="button"
           onClick={() => onClearAll()}
           disabled={!hasAnyFilters}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-evari-dim hover:text-evari-text hover:bg-evari-surfaceSoft disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-evari-dim"
+          className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/40 bg-white px-2.5 py-1 text-[11px] font-medium text-evari-dim hover:text-evari-accent hover:border-evari-accent disabled:opacity-50 disabled:hover:text-evari-dim disabled:hover:border-evari-line/40 shadow-sm"
           title="Clear every filter"
         >
           <RotateCcw className="h-3 w-3" />
@@ -132,13 +132,68 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
         onChange={(g) => setGroup('location', g)}
         placeholder="United Kingdom"
       />
-      <IncludeExcludeSection
-        title="Industry"
-        icon={<Briefcase className="h-4 w-4" />}
-        group={filters.industry}
-        onChange={(g) => setGroup('industry', g)}
-        placeholder="Sports Teams and Clubs"
-      />
+      <Section title="Industry" icon={<Briefcase className="h-4 w-4" />}>
+        <div className="space-y-2">
+          <ChipInput
+            label="Include"
+            values={filters.industry?.include ?? []}
+            onChange={(next) =>
+              setGroup('industry', {
+                include: next,
+                exclude: filters.industry?.exclude ?? [],
+              })
+            }
+            placeholder="Sports Teams and Clubs"
+            tone="include"
+          />
+          <ChipInput
+            label="Exclude"
+            values={filters.industry?.exclude ?? []}
+            onChange={(next) =>
+              setGroup('industry', {
+                include: filters.industry?.include ?? [],
+                exclude: next,
+              })
+            }
+            placeholder="Sports Teams and Clubs"
+            tone="exclude"
+          />
+          <div>
+            <div className="text-[12px] font-medium text-evari-dim mb-1.5 mt-1">Company type</div>
+            <div className="flex flex-wrap gap-1">
+              {COMPANY_TYPES.map((ct) => {
+                const on = filters.companyType?.include?.includes(ct);
+                return (
+                  <button
+                    key={ct}
+                    type="button"
+                    onClick={() => {
+                      const prev = new Set(filters.companyType?.include ?? []);
+                      if (prev.has(ct)) prev.delete(ct);
+                      else prev.add(ct);
+                      onChange({
+                        ...filters,
+                        companyType: {
+                          include: Array.from(prev),
+                          exclude: filters.companyType?.exclude ?? [],
+                        },
+                      });
+                    }}
+                    className={cn(
+                      'rounded-full px-2.5 py-1 text-[11px] border capitalize transition-colors',
+                      on
+                        ? 'bg-evari-accent text-evari-ink border-evari-accent'
+                        : 'border-evari-line/60 text-evari-dim hover:border-evari-dimmer hover:text-evari-text',
+                    )}
+                  >
+                    {ct}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </Section>
       <IncludeExcludeSection
         title="Keywords"
         icon={<Hash className="h-4 w-4" />}
@@ -169,47 +224,13 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
                   onChange({ ...filters, sizeBands: Array.from(set) });
                 }}
                 className={cn(
-                  'rounded-full px-2 py-0.5 text-[11px] border transition-colors',
+                  'rounded-full px-2.5 py-1 text-[11px] border transition-colors',
                   on
                     ? 'bg-evari-accent text-evari-ink border-evari-accent'
-                    : 'border-evari-line/60 text-evari-dim hover:border-evari-dimmer',
+                    : 'border-evari-line/60 text-evari-dim hover:border-evari-dimmer hover:text-evari-text',
                 )}
               >
                 {band}
-              </button>
-            );
-          })}
-        </div>
-      </Section>
-
-      <Section title="Company type" icon={<Building2 className="h-4 w-4" />}>
-        <div className="flex flex-wrap gap-1">
-          {COMPANY_TYPES.map((ct) => {
-            const on = filters.companyType?.include?.includes(ct);
-            return (
-              <button
-                key={ct}
-                type="button"
-                onClick={() => {
-                  const prev = new Set(filters.companyType?.include ?? []);
-                  if (prev.has(ct)) prev.delete(ct);
-                  else prev.add(ct);
-                  onChange({
-                    ...filters,
-                    companyType: {
-                      include: Array.from(prev),
-                      exclude: filters.companyType?.exclude ?? [],
-                    },
-                  });
-                }}
-                className={cn(
-                  'rounded-full px-2 py-0.5 text-[11px] border capitalize transition-colors',
-                  on
-                    ? 'bg-evari-accent text-evari-ink border-evari-accent'
-                    : 'border-evari-line/60 text-evari-dim hover:border-evari-dimmer',
-                )}
-              >
-                {ct}
               </button>
             );
           })}
@@ -338,10 +359,10 @@ function ChipInput({
           type="button"
           onClick={add}
           disabled={!text.trim()}
-          className="h-[40px] w-[40px] shrink-0 inline-flex items-center justify-center rounded-lg border border-evari-line/40 bg-white text-evari-dim hover:text-evari-accent hover:border-evari-accent disabled:opacity-30 shadow-sm"
+          className="h-[40px] w-[40px] shrink-0 inline-flex items-center justify-center rounded-lg border border-evari-line/60 bg-white text-evari-dim hover:text-evari-accent hover:border-evari-accent disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           title="Add"
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="h-4 w-4" />
         </button>
       </div>
       {values.length > 0 ? (
@@ -362,7 +383,7 @@ function ChipInput({
               <button
                 type="button"
                 onClick={() => onChange(values.filter((x) => x !== v))}
-                className="opacity-60 hover:opacity-100"
+                className="opacity-80 hover:opacity-100 hover:text-evari-accent"
                 title="Remove"
               >
                 <X className="h-2.5 w-2.5" />
