@@ -112,7 +112,7 @@ export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
   const onList = stage === 'ventures' || !playId;
 
   return (
-    <div className="shrink-0 rounded-xl bg-evari-surface border border-evari-line/40 px-4 h-[52px] flex items-center">
+    <div className="shrink-0 rounded-xl bg-evari-surface px-4 h-[52px] flex items-center">
       <div className="flex items-center justify-between gap-4 w-full">
         <div className="min-w-0 flex-1 flex items-baseline gap-2">
           <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium shrink-0">

@@ -272,13 +272,6 @@ function RowMeta({ play }: { play: Play }) {
     Date.now() - new Date(play.autoScan.finishedAt).getTime() < 5 * 60_000;
   return (
     <div className="flex items-center gap-3 mt-2 text-[10px] text-evari-dimmer tabular-nums">
-      <span>{play.research.length} notes</span>
-      <span>·</span>
-      <span>{play.targets.length} targets</span>
-      <span>·</span>
-      <span>{play.messaging.length} messages</span>
-      <span>·</span>
-      <span>{play.chat.length} chat turns</span>
       {scanning ? (
         <span className="inline-flex items-center gap-1 rounded-full bg-evari-gold/15 text-evari-gold px-1.5 py-0.5 text-[9px] font-medium">
           <Loader2 className="h-2.5 w-2.5 animate-spin" />
