@@ -17,7 +17,7 @@ export const maxDuration = 300;
 const ENRICH_MODEL = process.env.AI_MODEL || 'anthropic/claude-haiku-4-5';
 
 /**
- * POST /api/discover/enrich/[domain]?force=1
+ * POST /api/discover/enrich/[domain]?force=1&budget=8&cacheOnly=1
  *
  * SSE-streaming enrichment for a single company. Fills in description, logo,
  * orgType, employee band, hq, socials, technologies, signals, emails.
@@ -42,6 +42,11 @@ export async function POST(
   const domain = normaliseDomain(rawDomain);
   const url = new URL(req.url);
   const force = url.searchParams.get('force') === '1';
+  const cacheOnly = url.searchParams.get('cacheOnly') === '1';
+  const budgetParam = parseInt(url.searchParams.get('budget') ?? '', 10);
+  const budget = Number.isFinite(budgetParam)
+    ? Math.min(18, Math.max(4, budgetParam))
+    : 8;
 
   const encoder = new TextEncoder();
 
@@ -82,6 +87,13 @@ export async function POST(
             return;
           }
         }
+        if (cacheOnly) {
+          // Client asked for a no-work probe — nothing fresh, so tell the
+          // UI we have no cache and exit without calling the model.
+          emit({ phase: 'done', cached: false, company: null });
+          controller.close();
+          return;
+        }
       }
 
       if (!hasAIGatewayCredentials()) {
@@ -92,7 +104,7 @@ export async function POST(
       emit({ phase: 'start', domain });
 
       try {
-        const result = await runEnrichment(domain, (evt) => emit(evt));
+        const result = await runEnrichment(domain, budget, (evt) => emit(evt));
         const enrichedAt = new Date().toISOString();
         const company: DiscoveredCompany = { ...result, domain, enrichedAt };
         const { error: writeErr } = await supabase
@@ -132,6 +144,7 @@ type Emit = (event: Record<string, unknown>) => void;
 
 async function runEnrichment(
   domain: string,
+  budget: number,
   emit: Emit,
 ): Promise<Omit<DiscoveredCompany, 'domain' | 'enrichedAt'>> {
   const task =
@@ -221,7 +234,7 @@ async function runEnrichment(
 
   emit({ phase: 'synth' });
 
-  const text = await runWithFallback({ system, task, prompt, tools });
+  const text = await runWithFallback({ system, task, prompt, tools, budget });
   const parsed = parseJsonEnvelope(text);
   if (!parsed) {
     throw new Error('Model returned no JSON payload');
@@ -239,6 +252,7 @@ async function runWithFallback(opts: {
   task: string;
   prompt: string;
   tools: Record<string, unknown>;
+  budget: number;
 }): Promise<string> {
   const system = opts.system;
   try {
@@ -248,7 +262,7 @@ async function runWithFallback(opts: {
       prompt: opts.prompt,
       // @ts-expect-error ai-sdk tool shape is loosely typed here
       tools: opts.tools,
-      stopWhen: stepCountIs(18),
+      stopWhen: stepCountIs(opts.budget),
     });
     return text;
   } catch (err) {
@@ -260,7 +274,7 @@ async function runWithFallback(opts: {
       prompt: opts.prompt,
       // @ts-expect-error ai-sdk tool shape is loosely typed here
       tools: opts.tools,
-      stopWhen: stepCountIs(18),
+      stopWhen: stepCountIs(opts.budget),
     });
     return text;
   }

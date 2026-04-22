@@ -62,6 +62,7 @@ export function DiscoverClient({ plays }: Props) {
   const [companyByDomain, setCompanyByDomain] = useState<Map<string, DiscoveredCompany | null>>(new Map());
   const [enrichingDomain, setEnrichingDomain] = useState<string | null>(null);
   const [enrichLog, setEnrichLog] = useState<string[]>([]);
+  const [enrichPassByDomain, setEnrichPassByDomain] = useState<Map<string, number>>(new Map());
 
   // Email picker state per-domain
   const [emailPicksByDomain, setEmailPicksByDomain] = useState<Map<string, Set<string>>>(new Map());
@@ -249,14 +250,24 @@ export function DiscoverClient({ plays }: Props) {
     }
   }
 
-  // Enrich one domain via SSE
-  async function enrich(domain: string, opts: { force?: boolean } = {}) {
-    setEnrichingDomain(domain);
-    setEnrichLog([]);
+  // Enrich one domain via SSE. Pass { cacheOnly: true } for a no-work probe
+  // that resolves from the 30-day Supabase cache or returns company=null.
+  // Pass { budget: N } to cap the agent's tool-call budget (4..18).
+  async function enrich(
+    domain: string,
+    opts: { force?: boolean; cacheOnly?: boolean; budget?: number } = {},
+  ) {
+    if (!opts.cacheOnly) {
+      setEnrichingDomain(domain);
+      setEnrichLog([]);
+    }
     try {
-      const url = `/api/discover/enrich/${encodeURIComponent(domain)}${
-        opts.force ? '?force=1' : ''
-      }`;
+      const qs = new URLSearchParams();
+      if (opts.force) qs.set('force', '1');
+      if (opts.cacheOnly) qs.set('cacheOnly', '1');
+      if (opts.budget) qs.set('budget', String(opts.budget));
+      const query = qs.toString();
+      const url = `/api/discover/enrich/${encodeURIComponent(domain)}${query ? '?' + query : ''}`;
       const res = await fetch(url, { method: 'POST' });
       if (!res.body) return;
       const reader = res.body.getReader();
@@ -279,7 +290,8 @@ export function DiscoverClient({ plays }: Props) {
                 url?: string;
                 query?: string;
                 hits?: number;
-                company?: DiscoveredCompany;
+                company?: DiscoveredCompany | null;
+                cached?: boolean;
               };
               const phase = payload.phase ?? '';
               if (phase === 'fetching' && payload.url) {
@@ -293,25 +305,43 @@ export function DiscoverClient({ plays }: Props) {
               } else if (phase === 'error' && payload.message) {
                 setEnrichLog((l) => [...l, 'error: ' + payload.message]);
               }
-              if (phase === 'done' && payload.company) {
-                const co = payload.company;
-                setCompanyByDomain((m) => new Map(m).set(domain, co));
-                setCards((prev) =>
-                  prev.map((c) =>
-                    c.domain === domain
-                      ? {
-                          ...c,
-                          name: co.name ?? c.name,
-                          logoUrl: co.logoUrl ?? c.logoUrl,
-                          category: co.category ?? c.category,
-                          employeeBand: co.employeeBand ?? c.employeeBand,
-                          hqLabel: co.hq?.full ?? c.hqLabel,
-                          enriched: true,
-                          emailCount: co.emails?.length ?? c.emailCount,
-                        }
-                      : c,
-                  ),
-                );
+              if (phase === 'done') {
+                if (payload.company) {
+                  const co = payload.company;
+                  setCompanyByDomain((m) => new Map(m).set(domain, co));
+                  setCards((prev) =>
+                    prev.map((c) =>
+                      c.domain === domain
+                        ? {
+                            ...c,
+                            name: co.name ?? c.name,
+                            logoUrl: co.logoUrl ?? c.logoUrl,
+                            category: co.category ?? c.category,
+                            employeeBand: co.employeeBand ?? c.employeeBand,
+                            hqLabel: co.hq?.full ?? c.hqLabel,
+                            enriched: true,
+                            emailCount: co.emails?.length ?? c.emailCount,
+                          }
+                        : c,
+                    ),
+                  );
+                } else {
+                  // cacheOnly probe with no hit — remember that we checked.
+                  setCompanyByDomain((m) => {
+                    if (m.has(domain)) return m;
+                    const next = new Map(m);
+                    next.set(domain, null);
+                    return next;
+                  });
+                }
+                // Count a pass only for real enrichments (not cached probes).
+                if (!opts.cacheOnly && !payload.cached) {
+                  setEnrichPassByDomain((m) => {
+                    const next = new Map(m);
+                    next.set(domain, (next.get(domain) ?? 0) + 1);
+                    return next;
+                  });
+                }
               }
             } catch {
               /* ignore bad chunk */
@@ -324,13 +354,15 @@ export function DiscoverClient({ plays }: Props) {
     }
   }
 
-  // Load a cached company payload when selecting a new card (fast path)
+  // Select a card. The panel renders immediately from the DiscoverCard
+  // (name / logo / category / size / HQ) — no agent call. We fire a
+  // cache-only probe in the background: if a fresh enrichment exists the
+  // panel fills in; otherwise the operator can hit "Find emails & details"
+  // to run a bounded 8-step agent pass.
   async function selectCard(domain: string) {
     setSelected(domain);
     if (companyByDomain.has(domain)) return;
-    // Opportunistically call the same endpoint with cache-only heuristic: the
-    // route will short-circuit within 30 days, streaming a single 'done' event.
-    void enrich(domain, { force: false });
+    void enrich(domain, { cacheOnly: true });
   }
 
   function toggleEmailPick(domain: string, email: string) {
@@ -394,7 +426,22 @@ export function DiscoverClient({ plays }: Props) {
     }
   }
 
-  const selectedCompany = selected ? companyByDomain.get(selected) ?? null : null;
+  const selectedCard = selected ? cards.find((c) => c.domain === selected) ?? null : null;
+  const cachedCompany = selected ? companyByDomain.get(selected) ?? null : null;
+  // Paint the panel even before enrichment lands by synthesising a
+  // DiscoveredCompany stub from whatever we know from the DiscoverCard.
+  const selectedCompany: DiscoveredCompany | null = cachedCompany
+    ? cachedCompany
+    : selectedCard
+      ? {
+          domain: selectedCard.domain,
+          name: selectedCard.name,
+          logoUrl: selectedCard.logoUrl,
+          category: selectedCard.category,
+          employeeBand: selectedCard.employeeBand,
+          hq: selectedCard.hqLabel ? { full: selectedCard.hqLabel } : undefined,
+        }
+      : null;
   const selectedPicks = selected ? emailPicksByDomain.get(selected) ?? new Set<string>() : new Set<string>();
   const selectedEmails = (selectedCompany?.emails ?? []).map((e) => e.address);
 
@@ -720,7 +767,15 @@ export function DiscoverClient({ plays }: Props) {
             company={selectedCompany}
             loading={enrichingDomain === selected}
             log={enrichingDomain === selected ? enrichLog : []}
-            onEnrich={(opts) => void enrich(selected, opts)}
+            enrichPassCount={enrichPassByDomain.get(selected) ?? 0}
+            onEnrich={(opts) => {
+              const pass = enrichPassByDomain.get(selected) ?? 0;
+              void enrich(selected, {
+                force: true,
+                budget: pass === 0 ? 8 : 14,
+                ...(opts ?? {}),
+              });
+            }}
             picker={{
               selected: selectedPicks,
               onToggle: (email) => toggleEmailPick(selected, email),

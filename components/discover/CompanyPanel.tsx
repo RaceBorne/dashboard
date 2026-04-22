@@ -48,6 +48,8 @@ interface Props {
   onClose?: () => void;
   /** Trigger an enrichment run for this domain. */
   onEnrich?: (opts: { force?: boolean }) => void;
+  /** Number of enrichment passes completed for this domain. */
+  enrichPassCount?: number;
   /** Email picker. When omitted the emails are just listed. */
   picker?: {
     selected: Set<string>;
@@ -89,6 +91,7 @@ export function CompanyPanel({
   mode = 'inline',
   onClose,
   onEnrich,
+  enrichPassCount = 0,
   picker,
   actions,
 }: Props) {
@@ -200,26 +203,45 @@ export function CompanyPanel({
             <p className="mt-4 text-[13px] leading-relaxed text-evari-dim">{company.description}</p>
           ) : null}
 
-          {/* Primary CTA row */}
-          {actions ? (
-            <div className="mt-4">{actions}</div>
-          ) : onEnrich ? (
+          {/* Primary CTA row: explicit Enrich action + any picker actions. */}
+          {onEnrich ? (
             <div className="mt-4">
               <button
                 type="button"
                 onClick={() => onEnrich({ force: true })}
                 disabled={loading}
-                className="inline-flex items-center gap-2 rounded-lg border border-evari-line/60 bg-white px-3 py-1.5 text-[12px] font-medium text-evari-text hover:border-evari-accent hover:text-evari-accent disabled:opacity-40 shadow-sm"
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[12.5px] font-semibold shadow-sm transition-colors',
+                  loading
+                    ? 'bg-evari-surfaceSoft text-evari-dim cursor-wait'
+                    : enrichPassCount === 0
+                      ? 'bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90'
+                      : 'bg-white border border-evari-line/60 text-evari-text hover:border-evari-accent hover:text-evari-accent',
+                )}
               >
                 {loading ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : enrichPassCount === 0 ? (
+                  <Sparkles className="h-3.5 w-3.5" />
                 ) : (
                   <RefreshCw className="h-3.5 w-3.5" />
                 )}
-                {loading ? 'Enriching\u2026' : 'Re-enrich'}
+                {loading
+                  ? enrichPassCount === 0
+                    ? 'Finding emails\u2026'
+                    : 'Going deeper\u2026'
+                  : enrichPassCount === 0
+                    ? 'Find emails & details'
+                    : 'Enrich again \u00b7 go deeper'}
               </button>
+              {!loading && enrichPassCount === 0 ? (
+                <p className="mt-1.5 text-[10.5px] text-evari-dimmer">
+                  Runs a bounded 8-page agent pass. Re-run for a wider search.
+                </p>
+              ) : null}
             </div>
           ) : null}
+          {actions ? <div className="mt-3">{actions}</div> : null}
         </div>
 
         {/* ---------- Company details ---------- */}
@@ -533,7 +555,7 @@ export function CompanyPanel({
         {!company && !loading ? (
           <div className="p-5">
             <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-[12px] text-evari-dim">
-              Nothing cached for {domain} yet.
+              Click “Find emails & details” to pull this company’s public profile.
               {onEnrich ? (
                 <button
                   type="button"
