@@ -848,6 +848,7 @@ export function LeadsClient({ initialLeads }: Props) {
               key={selected.id}
               domain={selectedCompany.domain}
               company={selectedCompany}
+              linkedPlayId={selected.playId ?? null}
               loading={huntingId === selected.id}
               log={huntingId === selected.id ? huntLog : []}
               enrichPassCount={enrichPassById[selected.id] ?? (selected.orgProfile?.contactsEnrichedAt ? 1 : 0)}

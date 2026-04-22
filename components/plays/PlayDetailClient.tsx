@@ -27,6 +27,7 @@ import {
   Volume2,
   VolumeX,
   X,
+  UserSearch,
 } from 'lucide-react';
 import { DraftsPane } from '@/components/plays/DraftsPane';
 import { Badge } from '@/components/ui/badge';
@@ -613,25 +614,28 @@ export function PlayDetailClient({
                       Commit from Spitball, or edit any field below.
                     </span>
                   )}
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => void commitScope()}
-                    disabled={committingScope || !strategy}
+                  <Link
+                    href={`/discover?playId=${play.id}`}
+                    aria-disabled={!strategy}
+                    tabIndex={strategy ? 0 : -1}
+                    onClick={(e) => {
+                      if (!strategy) e.preventDefault();
+                    }}
                     title={
                       strategy
-                        ? 'Turn this strategy into a bulleted Scope plan.'
+                        ? 'Find prospects in Discover seeded from this strategy.'
                         : 'Commit a strategy first.'
                     }
-                    className="text-[11px] uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
+                    className={[
+                      'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] font-semibold shadow-sm transition-colors',
+                      strategy
+                        ? 'bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90'
+                        : 'bg-evari-surfaceSoft text-evari-dim cursor-not-allowed pointer-events-none',
+                    ].join(' ')}
                   >
-                    {committingScope ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <ListChecks className="h-3 w-3" />
-                    )}
-                    Convert to scope
-                  </Button>
+                    <UserSearch className="h-3 w-3" />
+                    Find prospects
+                  </Link>
                 </div>
               </div>
 
@@ -715,111 +719,6 @@ export function PlayDetailClient({
               </StrategyField>
             </section>
 
-            {/* Scope block — generated from Strategy. */}
-            <section className="rounded-xl bg-evari-surface p-5 space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
-                  Scope
-                </div>
-                <div className="flex items-center gap-3">
-                  {scope?.sourcedAt ? (
-                    <span className="text-[10px] text-evari-dimmer">
-                      {scope.sourcedCount ?? 0} sourced · {relativeTime(scope.sourcedAt)}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-evari-dimmer italic">
-                      {scope ? 'Ready to source.' : 'Convert from Strategy to create a scope.'}
-                    </span>
-                  )}
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => void sourceProspects()}
-                    disabled={sourcingProspects || !scope}
-                    title={
-                      scope
-                        ? 'Run the Source Prospects agent for this scope.'
-                        : 'Convert the strategy to a scope first.'
-                    }
-                    className="text-[11px] uppercase tracking-[0.14em] inline-flex items-center gap-1.5"
-                  >
-                    {sourcingProspects ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Rocket className="h-3 w-3" />
-                    )}
-                    Source prospects
-                  </Button>
-                </div>
-              </div>
-
-              {flowError && (
-                <div className="text-[11px] text-evari-warn bg-evari-surfaceSoft rounded px-2.5 py-1.5">
-                  {flowError}
-                </div>
-              )}
-
-              {(sourcingProspects || sourceRunSteps.length > 0) && (
-                <SourceRunModal
-                  steps={sourceRunSteps}
-                  running={sourcingProspects}
-                  onDismiss={() => setSourceRunSteps([])}
-                />
-              )}
-
-              {scope?.lastSourceRun && !sourcingProspects && (
-                <LastRunCard run={scope.lastSourceRun} />
-              )}
-
-              {scope ? (
-                <div className="space-y-4">
-                  <StrategyField
-                    label="Summary"
-                    hint="How we go to market for this Play."
-                  >
-                    <InlineText
-                      value={scope.summary}
-                      onSave={(v) => saveScope({ summary: v })}
-                      multiline
-                      placeholder="Click to write a one-paragraph scope summary."
-                      displayClassName="text-sm text-evari-text leading-relaxed whitespace-pre-wrap"
-                      label="scope summary"
-                    />
-                  </StrategyField>
-
-                  <StrategyField
-                    label="Plan"
-                    hint="Who we contact, in what sequence, with what message."
-                  >
-                    <InlineList
-                      values={scope.bullets}
-                      onSave={(v) => saveScope({ bullets: v })}
-                      placeholder="Add a plan step..."
-                    />
-                  </StrategyField>
-
-                  {(scope.targetSummary || true) && (
-                    <StrategyField
-                      label="Target"
-                      hint="Who we contact — sector, role, rough volume."
-                    >
-                      <InlineText
-                        value={scope.targetSummary ?? ''}
-                        onSave={(v) => saveScope({ targetSummary: v })}
-                        placeholder="e.g. Practice managers at UK private knee clinics — ~120 targets"
-                        displayClassName="text-sm text-evari-text"
-                        label="target summary"
-                      />
-                    </StrategyField>
-                  )}
-                </div>
-              ) : (
-                <div className="text-xs text-evari-dimmer italic">
-                  Commit a Strategy, then click Convert to scope to generate a
-                  bulleted plan here.
-                </div>
-              )}
-            </section>
           </div>
         )}
 

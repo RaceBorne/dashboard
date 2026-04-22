@@ -68,7 +68,8 @@ export async function POST(
     '  "messagingAngles": string[],   // 1-3 angles to test',
     '  "weeklyTarget": number,        // new prospects per week',
     '  "successMetrics": string[],    // 1-3 measurable outcomes',
-    '  "disqualifiers": string[]      // reasons not to contact an otherwise-matching lead',
+    '  "disqualifiers": string[],     // reasons not to contact an otherwise-matching lead',
+    '  "strategyShort": string        // 30-40 words max; plain sentence describing who we target and why, used verbatim as a Discover search prompt',
     '}',
     '',
     'Return raw JSON only — no prose, no markdown fences.',
@@ -88,8 +89,8 @@ export async function POST(
     );
   }
 
-  const strategy = parseStrategy(markdown);
-  if (!strategy) {
+  const parsed = parseStrategy(markdown);
+  if (!parsed) {
     return NextResponse.json(
       { ok: false, error: 'Could not parse strategy JSON from AI response' },
       { status: 502 },
@@ -99,7 +100,8 @@ export async function POST(
   const now = new Date().toISOString();
   const next: Play = {
     ...play,
-    strategy: { ...(play.strategy ?? {}), ...strategy },
+    strategy: { ...(play.strategy ?? {}), ...parsed.strategy },
+    strategyShort: parsed.strategyShort ?? play.strategyShort,
     updatedAt: now,
     activity: [
       ...play.activity,
@@ -122,7 +124,7 @@ export async function POST(
   return NextResponse.json({ ok: true, play: next });
 }
 
-function parseStrategy(raw: string): PlayStrategy | undefined {
+function parseStrategy(raw: string): { strategy: PlayStrategy; strategyShort?: string } | undefined {
   const cleaned = raw
     .replace(/^```(?:json)?/i, '')
     .replace(/```\s*$/i, '')
@@ -142,7 +144,9 @@ function parseStrategy(raw: string): PlayStrategy | undefined {
       successMetrics: asStrArray(p.successMetrics),
       disqualifiers: asStrArray(p.disqualifiers),
     };
-    return out;
+    const strategyShort =
+      typeof p.strategyShort === 'string' ? p.strategyShort.trim() : '';
+    return { strategy: out, strategyShort: strategyShort || undefined };
   } catch {
     return undefined;
   }

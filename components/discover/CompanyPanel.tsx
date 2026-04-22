@@ -28,7 +28,13 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { DiscoveredCompany, DiscoverEmail, LeadNote } from '@/lib/types';
+import type {
+  DiscoveredCompany,
+  DiscoverEmail,
+  LeadNote,
+  Play,
+  PlayStrategy,
+} from '@/lib/types';
 
 /**
  * Right-column "company detail" panel — shared between /discover, /prospects
@@ -114,9 +120,16 @@ interface Props {
     onDelete: (email: string) => void | Promise<void>;
     busy?: boolean;
   };
+
+  /**
+   * When this Company row is linked to a Play (prospect/lead sourced
+   * from a Play), supply its id here to reveal the read-only Strategy
+   * tab. The panel fetches /api/plays/[id] on demand.
+   */
+  linkedPlayId?: string | null;
 }
 
-type Tab = 'contacts' | 'notes';
+type Tab = 'contacts' | 'notes' | 'strategy';
 type Segment = 'people' | 'decision' | 'generic';
 
 const DECISION_MAKER_RE =
@@ -155,6 +168,7 @@ export function CompanyPanel({
   saveToFolder,
   notes,
   contactOps,
+  linkedPlayId,
 }: Props) {
   const logRef = useRef<HTMLDivElement>(null);
   const [logOpen, setLogOpen] = useState(false);
@@ -165,6 +179,45 @@ export function CompanyPanel({
   const [nameFilterOpen, setNameFilterOpen] = useState(false);
   const [nameFilter, setNameFilter] = useState('');
   const [savePopoverOpen, setSavePopoverOpen] = useState(false);
+
+  // Linked Play — lazily fetched when the Strategy tab is first shown.
+  const [linkedPlay, setLinkedPlay] = useState<Play | null>(null);
+  const [linkedPlayLoading, setLinkedPlayLoading] = useState(false);
+  const [linkedPlayError, setLinkedPlayError] = useState<string | null>(
+    null,
+  );
+  const fetchedPlayIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Reset and refetch whenever the linked Play id changes (including
+    // switching between companies with different plays).
+    if (!linkedPlayId) {
+      setLinkedPlay(null);
+      setLinkedPlayError(null);
+      fetchedPlayIdRef.current = null;
+      return;
+    }
+    if (fetchedPlayIdRef.current === linkedPlayId) return;
+    fetchedPlayIdRef.current = linkedPlayId;
+    setLinkedPlay(null);
+    setLinkedPlayError(null);
+    setLinkedPlayLoading(true);
+    void (async () => {
+      try {
+        const res = await fetch(`/api/plays/${linkedPlayId}`);
+        const data = (await res.json()) as { ok?: boolean; play?: Play };
+        if (!res.ok || !data?.play) {
+          setLinkedPlayError('Could not load the linked Play.');
+          return;
+        }
+        setLinkedPlay(data.play);
+      } catch {
+        setLinkedPlayError('Could not load the linked Play.');
+      } finally {
+        setLinkedPlayLoading(false);
+      }
+    })();
+  }, [linkedPlayId]);
 
   useEffect(() => {
     if (!logRef.current) return;
@@ -312,7 +365,7 @@ export function CompanyPanel({
                 onClick={() => onEnrich({ force: true })}
                 disabled={loading}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[12.5px] font-semibold shadow-sm transition-colors',
+                  'inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[11px] font-semibold shadow-sm transition-colors',
                   loading
                     ? 'bg-evari-surfaceSoft text-evari-dim cursor-wait'
                     : enrichPassCount === 0
@@ -321,11 +374,11 @@ export function CompanyPanel({
                 )}
               >
                 {loading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin" />
                 ) : enrichPassCount === 0 ? (
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <Sparkles className="h-3 w-3" />
                 ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
+                  <RefreshCw className="h-3 w-3" />
                 )}
                 {loading
                   ? enrichPassCount === 0
@@ -336,7 +389,7 @@ export function CompanyPanel({
                     : 'Enrich again \u00b7 go deeper'}
               </button>
               {!loading && enrichPassCount === 0 ? (
-                <p className="mt-1.5 text-[10.5px] text-evari-dimmer">
+                <p className="mt-1 text-[9.5px] text-evari-dimmer">
                   Runs a bounded 8-page agent pass. Re-run for a wider search.
                 </p>
               ) : null}
@@ -445,10 +498,14 @@ export function CompanyPanel({
         {company ? (
           <div className="sticky top-0 z-10 border-t border-evari-line/40 bg-white">
             <div className="px-5 flex items-center gap-6">
-              {(['contacts', 'notes'] as const).map((t) => {
+              {((linkedPlayId
+                ? (['contacts', 'notes', 'strategy'] as const)
+                : (['contacts', 'notes'] as const)
+              ) as readonly Tab[]).map((t) => {
                 const labels: Record<Tab, string> = {
                   contacts: 'Contacts',
                   notes: 'Notes',
+                  strategy: 'Strategy',
                 };
                 const active = tab === t;
                 return (
@@ -642,6 +699,14 @@ export function CompanyPanel({
             ) : null}
 
             {tab === 'notes' ? <NotesTab notes={notes} /> : null}
+
+            {tab === 'strategy' ? (
+              <StrategyTab
+                play={linkedPlay}
+                loading={linkedPlayLoading}
+                error={linkedPlayError}
+              />
+            ) : null}
 
             {/* Sources footnote */}
             {company.sources && company.sources.length > 0 ? (
@@ -1387,4 +1452,135 @@ function socialLinks(s: NonNullable<DiscoveredCompany['socials']>): Array<{
   if (s.tiktok)
     out.push({ href: s.tiktok, label: 'TikTok', icon: <Globe className="h-3.5 w-3.5" /> });
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Strategy tab — read-only summary of the linked Play's strategy.
+// ---------------------------------------------------------------------------
+
+function StrategyTab({
+  play,
+  loading,
+  error,
+}: {
+  play: Play | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="space-y-2" aria-label="Loading strategy">
+        <div className="h-2.5 rounded bg-evari-surfaceSoft animate-pulse" />
+        <div className="h-2.5 w-11/12 rounded bg-evari-surfaceSoft animate-pulse" />
+        <div className="h-2.5 w-9/12 rounded bg-evari-surfaceSoft animate-pulse" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-center text-[12px] text-evari-dim">
+        {error}
+      </div>
+    );
+  }
+  if (!play) {
+    return (
+      <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-center text-[12px] text-evari-dim">
+        No strategy linked yet.
+      </div>
+    );
+  }
+
+  const strategy: PlayStrategy | undefined = play.strategy;
+  const short = play.strategyShort?.trim();
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-evari-dimmer">
+          Play
+        </div>
+        <div className="mt-0.5 text-[14px] font-semibold text-evari-text">
+          {play.title || 'Untitled play'}
+        </div>
+        {play.brief ? (
+          <p className="mt-1 text-[12px] leading-relaxed text-evari-dim whitespace-pre-wrap">
+            {play.brief}
+          </p>
+        ) : null}
+      </div>
+
+      {short ? (
+        <div className="rounded-md bg-evari-surfaceSoft px-3 py-2">
+          <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-evari-dimmer">
+            Short
+          </div>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-evari-text">
+            {short}
+          </p>
+        </div>
+      ) : null}
+
+      {strategy ? (
+        <div className="space-y-3">
+          {strategy.hypothesis ? (
+            <StrategyField label="Hypothesis" value={strategy.hypothesis} />
+          ) : null}
+          {strategy.sector ? (
+            <StrategyField label="Sector" value={strategy.sector} />
+          ) : null}
+          {strategy.targetPersona ? (
+            <StrategyField label="Target persona" value={strategy.targetPersona} />
+          ) : null}
+          {strategy.messagingAngles && strategy.messagingAngles.length > 0 ? (
+            <StrategyList label="Messaging angles" items={strategy.messagingAngles} />
+          ) : null}
+          {typeof strategy.weeklyTarget === 'number' ? (
+            <StrategyField
+              label="Weekly target"
+              value={`${strategy.weeklyTarget} new prospects/week`}
+            />
+          ) : null}
+          {strategy.successMetrics && strategy.successMetrics.length > 0 ? (
+            <StrategyList label="Success metrics" items={strategy.successMetrics} />
+          ) : null}
+          {strategy.disqualifiers && strategy.disqualifiers.length > 0 ? (
+            <StrategyList label="Disqualifiers" items={strategy.disqualifiers} />
+          ) : null}
+        </div>
+      ) : (
+        <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-center text-[12px] text-evari-dim">
+          This Play doesn’t have a committed strategy yet.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StrategyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-evari-dimmer">
+        {label}
+      </div>
+      <div className="mt-0.5 text-[12px] leading-relaxed text-evari-text whitespace-pre-wrap">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function StrategyList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-evari-dimmer">
+        {label}
+      </div>
+      <ul className="mt-1 list-disc pl-4 space-y-0.5 text-[12px] leading-relaxed text-evari-text">
+        {items.map((it, idx) => (
+          <li key={`${idx}-${it}`}>{it}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }

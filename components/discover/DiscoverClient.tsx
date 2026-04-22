@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Building2,
   BadgeCheck,
@@ -100,6 +101,34 @@ export function DiscoverClient({ plays }: Props) {
   // No auto-search on mount — the pristine hero shows first. The operator
   // triggers a search by typing filters, hitting the AI refine box, or
   // picking a suggestion on the hero.
+  // --- One-shot seed from ?playId=. When the user lands on Discover from
+  //     a Play's "Find prospects" button we fetch that Play, preload its
+  //     strategyShort into the hero prompt, and pin the save-destination
+  //     play so any send-to-prospects gets the right playId. Further edits
+  //     in Discover don't flow back to the Play.
+  const searchParams = useSearchParams();
+  const seededPlayIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const pid = searchParams?.get('playId') ?? null;
+    if (!pid) return;
+    if (seededPlayIdRef.current === pid) return;
+    seededPlayIdRef.current = pid;
+    setPlayId(pid);
+    void (async () => {
+      try {
+        const res = await fetch(`/api/plays/${pid}`);
+        const data = (await res.json()) as {
+          ok?: boolean;
+          play?: { strategyShort?: string };
+        };
+        const short = data?.play?.strategyShort?.trim();
+        if (short) setHeroPrompt(short);
+      } catch {
+        // Non-fatal: user can still type a prompt manually.
+      }
+    })();
+  }, [searchParams]);
+
 
   const doSearch = useCallback(async (f: DiscoverFiltersType) => {
     setHasSearched(true);
