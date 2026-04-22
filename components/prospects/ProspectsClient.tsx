@@ -632,7 +632,7 @@ export function ProspectsClient({
   return (
     <div className="flex gap-5 p-6">
       {/* Left filter sidebar */}
-      <aside className="w-56 shrink-0">
+      <aside className="w-72 shrink-0">
         <div className="sticky top-4 space-y-5">
           {/* All prospects */}
           <div>
@@ -643,7 +643,7 @@ export function ProspectsClient({
                 setSearch('');
               }}
               className={cn(
-                'w-full flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors text-left',
+                'w-full flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors text-left',
                 allSelected && !search
                   ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                   : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
@@ -704,7 +704,7 @@ export function ProspectsClient({
                     type="button"
                     onClick={() => toggleStatus(s.key)}
                     className={cn(
-                      'w-full flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors text-left',
+                      'w-full flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors text-left',
                       active
                         ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                         : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
@@ -759,7 +759,7 @@ export function ProspectsClient({
                       )}
                     >
                       {renaming ? (
-                        <div className="flex-1 flex items-center gap-2 px-3 py-1 text-sm">
+                        <div className="flex-1 flex items-center gap-2 px-2.5 py-1 text-sm">
                           <Folder className="h-3.5 w-3.5 shrink-0 text-evari-dimmer" />
                           <input
                             autoFocus
@@ -784,7 +784,7 @@ export function ProspectsClient({
                           <button
                             type="button"
                             onClick={() => toggleCategory(key)}
-                            className="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-1.5 text-sm text-left"
+                            className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-sm text-left"
                           >
                             <Folder
                               className={cn(
