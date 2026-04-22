@@ -332,7 +332,7 @@ export function DiscoverClient({ plays }: Props) {
                 }}
                 placeholder="Describe who we are searching for."
                 rows={1}
-                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-evari-ink placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none"
+                className="w-full resize-none bg-transparent pl-11 pr-14 py-4 text-[14px] text-slate-900 placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none"
               />
               <button
                 type="submit"
