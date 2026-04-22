@@ -6,11 +6,9 @@ import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import {
   Activity,
   ArrowLeft,
-  BookOpenText,
   Check,
   ExternalLink,
   FileText,
-  Inbox,
   ListChecks,
   Loader2,
   Mail,
@@ -30,12 +28,10 @@ import {
   X,
   UserSearch,
 } from 'lucide-react';
-import { DraftsPane } from '@/components/plays/DraftsPane';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PillTabs } from '@/components/ui/pill-tabs';
 import { MessageResponse } from '@/components/MessageResponse';
 import { cn, relativeTime } from '@/lib/utils';
 import { useVoiceChat } from '@/lib/hooks/useVoiceChat';
@@ -45,29 +41,8 @@ import type {
   PlayChatMessage,
   PlayScope,
   PlaySourceRun,
-  PlayStage,
   PlayStrategy,
 } from '@/lib/types';
-
-const STAGES: PlayStage[] = [
-  'idea',
-  'researching',
-  'building',
-  'ready',
-  'live',
-  'retired',
-];
-
-const STAGE_TONE: Record<PlayStage, string> = {
-  idea: 'text-evari-dim bg-evari-surfaceSoft',
-  researching: 'bg-evari-gold text-evari-goldInk',
-  building: 'bg-evari-warn text-evari-goldInk',
-  ready: 'bg-sky-400 text-evari-ink',
-  live: 'bg-evari-success text-evari-ink',
-  retired: 'text-evari-dimmer bg-evari-surfaceSoft',
-};
-
-type Pane = 'brief' | 'drafts' | 'activity';
 
 export function PlayDetailClient({
   play: initialPlay,
@@ -84,7 +59,6 @@ export function PlayDetailClient({
     }
     return null;
   });
-  const [pane, setPane] = useState<Pane>('brief');
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [committingStrategy, setCommittingStrategy] = useState(false);
@@ -133,20 +107,6 @@ export function PlayDetailClient({
 
   async function saveScope(patch: Partial<PlayScope>) {
     await patchPlay({ scope: patch });
-  }
-
-  // ----- Stage transitions ---------------------------------------------
-
-  async function setStage(s: PlayStage) {
-    if (s === play.stage) return;
-    // Optimistic update while the PATCH flies.
-    setPlay((prev) => ({ ...prev, stage: s }));
-    try {
-      await patchPlay({ stage: s });
-    } catch {
-      // Rollback on failure.
-      setPlay((prev) => ({ ...prev, stage: play.stage }));
-    }
   }
 
   // ----- Chat -----------------------------------------------------------
@@ -482,40 +442,6 @@ export function PlayDetailClient({
                 </div>
               </div>
             </div>
-            <span
-              className={cn(
-                'shrink-0 text-[10px] uppercase tracking-wider font-semibold rounded-full px-2.5 py-1',
-                STAGE_TONE[play.stage],
-              )}
-            >
-              {play.stage}
-            </span>
-          </div>
-
-          {/* Stage transitions */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-              Move to:
-            </span>
-            {STAGES.map((s) => {
-              const active = play.stage === s;
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => void setStage(s)}
-                  disabled={active}
-                  className={cn(
-                    'text-[10px] capitalize px-2 py-0.5 rounded-full transition-colors',
-                    active
-                      ? 'bg-evari-surfaceSoft text-evari-text cursor-default'
-                      : 'bg-evari-surface/60 text-evari-dim hover:bg-evari-surfaceSoft hover:text-evari-text',
-                  )}
-                >
-                  {s}
-                </button>
-              );
-            })}
           </div>
 
           {play.tags.length > 0 && (
@@ -529,32 +455,7 @@ export function PlayDetailClient({
           )}
         </div>
 
-        {/* Section switcher */}
-        <PillTabs<Pane>
-          value={pane}
-          onChange={setPane}
-          size="sm"
-          options={[
-            {
-              value: 'brief',
-              label: 'Brief',
-              icon: <BookOpenText className="h-3.5 w-3.5" />,
-            },
-            {
-              value: 'drafts',
-              label: 'Drafts',
-              icon: <Inbox className="h-3.5 w-3.5" />,
-            },
-            {
-              value: 'activity',
-              label: `Activity · ${play.activity.length}`,
-              icon: <Activity className="h-3.5 w-3.5" />,
-            },
-          ]}
-        />
-
-        {pane === 'brief' && (
-          <div className="space-y-4">
+        <div className="space-y-4">
             {/* Brief block */}
             <section className="rounded-xl bg-evari-surface p-5 space-y-3">
               <div className="text-[10px] uppercase tracking-[0.18em] text-evari-dimmer font-medium">
@@ -707,30 +608,7 @@ export function PlayDetailClient({
               </StrategyField>
             </section>
 
-          </div>
-        )}
-
-        {pane === 'drafts' && <DraftsPane play={play} />}
-
-        {pane === 'activity' && (
-          <section className="space-y-1">
-            <ul className="space-y-1">
-              {[...play.activity]
-                .sort((a, b) => +new Date(b.at) - +new Date(a.at))
-                .map((a) => (
-                  <li
-                    key={a.id}
-                    className="bg-evari-surface/60 rounded-md px-4 py-2.5 flex items-center justify-between gap-3"
-                  >
-                    <div className="text-xs text-evari-text">{a.summary}</div>
-                    <div className="text-[10px] text-evari-dimmer tabular-nums shrink-0">
-                      {relativeTime(a.at)}
-                    </div>
-                  </li>
-                ))}
-            </ul>
-          </section>
-        )}
+        </div>
       </main>
 
       {/* Right: per-play chat. Pinned to the viewport, input always visible. */}
