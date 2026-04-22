@@ -51,6 +51,7 @@ const EMPTY_FILTERS: DiscoverFiltersType = {
 export function DiscoverClient({ plays }: Props) {
   const [filters, setFilters] = useState<DiscoverFiltersType>(EMPTY_FILTERS);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiStatus, setAiStatus] = useState<string | null>(null);
 
   const [cards, setCards] = useState<DiscoverCard[]>([]);
   const [searching, setSearching] = useState(false);
@@ -119,23 +120,132 @@ export function DiscoverClient({ plays }: Props) {
     setHeroPrompt('');
   }
 
-  // AI-refine: ask Claude to transform filters, then search
+  // AI agent: stream SSE from /api/discover/agent. Candidates appear
+  // progressively in the results grid; on 'done' we merge the filters and
+  // run a regular filtered search to enrich with any additional matches.
   async function handleAiRefine(prompt: string) {
     setAiBusy(true);
+    setAiStatus('Understanding your brief…');
+    setSearchError(null);
+    setSearching(true);
+    setHasSearched(true);
+    setCards([]); // start fresh; candidates will stream in
+    const seededDomains = new Set<string>();
     try {
-      const res = await fetch('/api/discover/ai-refine', {
+      const res = await fetch('/api/discover/agent', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ filters, prompt }),
       });
-      const data = (await res.json()) as { ok?: boolean; filters?: DiscoverFiltersType };
-      if (data.ok && data.filters) {
-        const next = { ...EMPTY_FILTERS, ...data.filters };
-        setFilters(next);
-        await doSearch(next);
+      if (!res.body) throw new Error('no stream');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalFilters: DiscoverFiltersType | null = null;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+          const chunk = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          for (const line of chunk.split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const evt = JSON.parse(line.slice(6)) as {
+                phase?: string;
+                message?: string;
+                tool?: string;
+                query?: string;
+                count?: number;
+                domain?: string;
+                title?: string;
+                source?: string;
+                filters?: DiscoverFiltersType;
+                domains?: Array<{ domain: string; title?: string; category?: string; source?: string }>;
+                reasoning?: string;
+              };
+              const phase = evt.phase;
+              if (phase === 'status' && evt.message) {
+                setAiStatus(evt.message);
+              } else if (phase === 'search' && evt.query) {
+                setAiStatus('Searching • ' + evt.query);
+              } else if (phase === 'found' && typeof evt.count === 'number') {
+                setAiStatus('Found ' + evt.count + ' hits, scanning…');
+              } else if (phase === 'candidate' && evt.domain) {
+                if (!seededDomains.has(evt.domain)) {
+                  seededDomains.add(evt.domain);
+                  const d = evt.domain;
+                  setCards((prev) =>
+                    prev.some((c) => c.domain === d)
+                      ? prev
+                      : [
+                          ...prev,
+                          {
+                            domain: d,
+                            name: evt.title ?? d,
+                            logoUrl:
+                              'https://www.google.com/s2/favicons?domain=' +
+                              encodeURIComponent(d) +
+                              '&sz=128',
+                            category: undefined,
+                            enriched: false,
+                            emailCount: 0,
+                          },
+                        ],
+                  );
+                }
+              } else if (phase === 'done') {
+                finalFilters = evt.filters ?? null;
+                if (evt.reasoning) setAiStatus(evt.reasoning);
+                else setAiStatus('Agent finished • merging with filter search…');
+              } else if (phase === 'error' && evt.message) {
+                setSearchError(evt.message);
+              }
+            } catch {
+              /* ignore malformed chunks */
+            }
+          }
+        }
       }
+      if (finalFilters) {
+        const merged: DiscoverFiltersType = { ...EMPTY_FILTERS, ...finalFilters };
+        setFilters(merged);
+        // Layer standard filter search on top of the agent-seeded cards.
+        try {
+          const res2 = await fetch('/api/discover/search', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ filters: merged, limit: 100 }),
+          });
+          const data = (await res2.json()) as {
+            ok?: boolean;
+            companies?: DiscoverCard[];
+            source?: 'dfs' | 'cache' | 'mixed';
+          };
+          if (data.ok && Array.isArray(data.companies)) {
+            setCards((prev) => {
+              const byDomain = new Map<string, DiscoverCard>();
+              for (const c of prev) byDomain.set(c.domain, c);
+              for (const c of data.companies ?? []) {
+                const existing = byDomain.get(c.domain);
+                byDomain.set(c.domain, existing ? { ...c, ...existing } : c);
+              }
+              return Array.from(byDomain.values());
+            });
+            setSource(data.source ?? null);
+          }
+        } catch {
+          /* search errors are non-fatal — agent-seeded cards still show */
+        }
+      }
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : 'Agent failed');
     } finally {
       setAiBusy(false);
+      setAiStatus(null);
+      setSearching(false);
     }
   }
 
@@ -300,6 +410,7 @@ export function DiscoverClient({ plays }: Props) {
             void doSearch(next);
           }}
           onAiRefine={handleAiRefine}
+          aiStatus={aiStatus}
           onClearAll={() => {
             setFilters(EMPTY_FILTERS);
             setCards([]);

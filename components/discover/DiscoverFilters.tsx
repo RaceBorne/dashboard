@@ -32,12 +32,14 @@ interface Props {
   /** Wipe every filter back to an empty state. */
   onClearAll: () => void;
   aiBusy?: boolean;
+  /** Live status line from the AI agent while it runs. */
+  aiStatus?: string | null;
 }
 
 const SIZE_BANDS = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5000+'];
 const COMPANY_TYPES = ['corporation', 'club', 'nonprofit', 'practice', 'other'];
 
-export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiBusy = false }: Props) {
+export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiBusy = false, aiStatus = null }: Props) {
   const [aiPrompt, setAiPrompt] = useState('');
 
   function setGroup(key: 'location' | 'industry' | 'keywords' | 'companyName' | 'companyType', next: DiscoverFilterGroup) {
@@ -99,8 +101,14 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
             className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-evari-gold px-3 py-2.5 text-[13px] font-semibold text-evari-goldInk hover:bg-evari-gold/90 disabled:opacity-40 shadow-sm"
           >
             {aiBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Refine filters
+            Find companies
           </button>
+          {aiStatus ? (
+            <div className="flex items-start gap-2 text-[11.5px] leading-snug text-evari-dim">
+              <Loader2 className="h-3 w-3 animate-spin mt-[2px] shrink-0 text-evari-accent" />
+              <span className="flex-1">{aiStatus}</span>
+            </div>
+          ) : null}
         </div>
       </Section>
 
