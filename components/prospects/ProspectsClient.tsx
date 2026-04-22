@@ -781,55 +781,61 @@ export function ProspectsClient({
                         </div>
                       ) : (
                         <>
+                          {/* Left slot — folder icon at rest, edit+delete on hover. */}
+                          {/* Fixed width so the name column doesn't shift when hovering. */}
+                          <div className="w-[52px] shrink-0 pl-2.5 flex items-center">
+                            <div className="group-hover:hidden">
+                              <Folder
+                                className={cn(
+                                  'h-3.5 w-3.5',
+                                  active ? 'text-evari-text' : 'text-evari-dimmer',
+                                )}
+                              />
+                            </div>
+                            <div className="hidden group-hover:flex items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRenamingCategory(key);
+                                  setRenameValue(key);
+                                }}
+                                disabled={busy || key === 'Uncategorised'}
+                                title={
+                                  key === 'Uncategorised'
+                                    ? 'Cannot rename Uncategorised'
+                                    : 'Rename folder'
+                                }
+                                className="h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void deleteCategory(key);
+                                }}
+                                disabled={busy}
+                                title="Delete folder + all prospects inside"
+                                className="h-5 w-5 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-surface/60 disabled:opacity-30"
+                              >
+                                {busy ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3 w-3" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
                           <button
                             type="button"
                             onClick={() => toggleCategory(key)}
-                            className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-sm text-left"
+                            className="flex-1 min-w-0 flex items-center gap-2 py-1.5 pr-2.5 text-sm text-left"
                           >
-                            <Folder
-                              className={cn(
-                                'h-3.5 w-3.5 shrink-0',
-                                active ? 'text-evari-text' : 'text-evari-dimmer',
-                              )}
-                            />
                             <span className="flex-1 truncate">{key}</span>
                             <CountPill n={count} />
                           </button>
-                          <div className="flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRenamingCategory(key);
-                                setRenameValue(key);
-                              }}
-                              disabled={busy || key === 'Uncategorised'}
-                              title={
-                                key === 'Uncategorised'
-                                  ? 'Cannot rename Uncategorised'
-                                  : 'Rename folder'
-                              }
-                              className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void deleteCategory(key);
-                              }}
-                              disabled={busy}
-                              title="Delete folder + all prospects inside"
-                              className="h-6 w-6 inline-flex items-center justify-center rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-surface/60 disabled:opacity-30"
-                            >
-                              {busy ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3 w-3" />
-                              )}
-                            </button>
-                          </div>
                         </>
                       )}
                     </div>
