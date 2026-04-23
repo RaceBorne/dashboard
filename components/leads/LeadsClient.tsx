@@ -36,11 +36,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn, relativeTime } from '@/lib/utils';
-import type { Lead, LeadNote, LeadStage } from '@/lib/types';
+import type { DiscoveredCompany, Lead, LeadNote, LeadStage } from '@/lib/types';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { ProjectRail } from '@/components/nav/ProjectRail';
-import { leadToDiscoveredCompany } from '@/lib/dashboard/leadViews';
+import { deriveDomain, leadToDiscoveredCompany } from '@/lib/dashboard/leadViews';
 import { STAGE_WRAPPER_CLASSNAME_FIXED_HEIGHT } from '@/lib/layout/stageWrapper';
 
 type ManualBucket = 'person' | 'decision_maker' | 'generic';
@@ -206,10 +206,24 @@ export function LeadsClient({ initialLeads }: Props) {
   }, [filtered, selectedId]);
 
   const selected = selectedId ? leads.find((l) => l.id === selectedId) ?? null : null;
-  const selectedCompany = useMemo(
-    () => (selected ? leadToDiscoveredCompany(selected) : null),
-    [selected],
-  );
+  const [engineByDomain, setEngineByDomain] = useState<
+    Record<string, DiscoveredCompany>
+  >({});
+  const selectedCompany = useMemo(() => {
+    if (!selected) return null;
+    const base = leadToDiscoveredCompany(selected);
+    const engine = engineByDomain[base.domain];
+    if (!engine) return base;
+    return {
+      ...base,
+      people: engine.people ?? base.people,
+      peopleTargetRole: engine.peopleTargetRole ?? base.peopleTargetRole,
+      peopleEnrichedAt: engine.peopleEnrichedAt ?? base.peopleEnrichedAt,
+      keywords: engine.keywords ?? base.keywords,
+      signals: engine.signals ?? base.signals,
+      socials: engine.socials ?? base.socials,
+    };
+  }, [selected, engineByDomain]);
 
   // --- Actions ------------------------------------------------------------
 
@@ -324,8 +338,19 @@ export function LeadsClient({ initialLeads }: Props) {
     }
   }
 
+  /**
+   * Enrich a lead via the same Discover engine (#185). Keeps the
+   * CompanyPanel's People section consistent with Discover + Prospects.
+   */
   async function enrichContacts(leadId: string) {
     if (huntingId) return;
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead) return;
+    const domain = deriveDomain(lead);
+    if (!domain) {
+      setHuntLog(['error: no domain on this lead (email or companyUrl required)']);
+      return;
+    }
     streamAbort.current?.abort();
     const ac = new AbortController();
     streamAbort.current = ac;
@@ -333,18 +358,16 @@ export function LeadsClient({ initialLeads }: Props) {
     setHuntLog([]);
 
     try {
-      const res = await fetch(`/api/leads/${leadId}/enrich-contacts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ regenerate: true }),
-        signal: ac.signal,
-      });
-      if (!res.ok || !res.body) throw new Error(`Enrich failed (${res.status})`);
+      const url =
+        '/api/discover/enrich/' + encodeURIComponent(domain) +
+        '?force=1' +
+        (lead.playId ? '&playId=' + encodeURIComponent(lead.playId) : '');
+      const res = await fetch(url, { method: 'POST', signal: ac.signal });
+      if (!res.ok || !res.body) throw new Error('Enrich failed (' + res.status + ')');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = '';
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -360,19 +383,29 @@ export function LeadsClient({ initialLeads }: Props) {
             const msg = JSON.parse(payload) as {
               phase?: string;
               message?: string;
-              lead?: Lead;
+              company?: DiscoveredCompany;
+              url?: string;
+              query?: string;
             };
             if (msg.phase && msg.phase !== 'done' && msg.phase !== 'error') {
-              setHuntLog((prev) => [
-                ...prev,
-                msg.message ? `${msg.phase}: ${msg.message}` : msg.phase!,
-              ]);
+              const label =
+                msg.url ? msg.phase + ': ' + msg.url :
+                msg.query ? msg.phase + ': ' + msg.query :
+                msg.message ? msg.phase + ': ' + msg.message :
+                msg.phase;
+              setHuntLog((prev) => [...prev, label ?? '']);
             }
-            if (msg.phase === 'done' && msg.lead) {
-              setLeads((prev) => prev.map((l) => (l.id === leadId ? msg.lead! : l)));
+            if (msg.phase === 'done' && msg.company) {
+              setEngineByDomain((prev) => ({
+                ...prev,
+                [msg.company!.domain]: msg.company!,
+              }));
+            }
+            if (msg.phase === 'prospects-saved') {
+              window.dispatchEvent(new Event('evari:nav-counts-dirty'));
             }
             if (msg.phase === 'error') {
-              setHuntLog((prev) => [...prev, `error: ${msg.message ?? 'failed'}`]);
+              setHuntLog((prev) => [...prev, 'error: ' + (msg.message ?? 'failed')]);
             }
           } catch {
             setHuntLog((prev) => [...prev, payload]);
@@ -384,6 +417,10 @@ export function LeadsClient({ initialLeads }: Props) {
     } catch (err) {
       if ((err as { name?: string }).name === 'AbortError') return;
       console.error('enrich-contacts', err);
+      setHuntLog((prev) => [
+        ...prev,
+        'error: ' + (err instanceof Error ? err.message : 'failed'),
+      ]);
     } finally {
       if (streamAbort.current === ac) streamAbort.current = null;
       setHuntingId((cur) => (cur === leadId ? null : cur));

@@ -97,7 +97,7 @@ export function ensureLeadTimestamps(lead: Lead): Lead {
  * Extract a normalised domain from a URL or email string. Returns '' when no
  * clean domain can be derived — callers should fall back to a placeholder.
  */
-function deriveDomain(lead: Lead): string {
+export function deriveDomain(lead: Lead): string {
   const fromUrl = lead.companyUrl ? normaliseHostish(lead.companyUrl) : '';
   if (fromUrl) return fromUrl;
   const email = lead.email ?? '';
