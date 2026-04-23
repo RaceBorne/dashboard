@@ -339,31 +339,75 @@ export function LeadsClient({ initialLeads }: Props) {
   }
 
   /**
-   * Enrich a lead via the same Discover engine (#185). Keeps the
-   * CompanyPanel's People section consistent with Discover + Prospects.
+   * Enrich a lead. Hybrid: legacy enrich-contacts drives the visible
+   * huntLog + orgProfile.contacts; discover engine runs in parallel to
+   * populate engineByDomain so the CompanyPanel's People section lights
+   * up with scores + candidates + MX. Engine errors are silent.
    */
   async function enrichContacts(leadId: string) {
     if (huntingId) return;
     const lead = leads.find((l) => l.id === leadId);
     if (!lead) return;
-    const domain = deriveDomain(lead);
-    if (!domain) {
-      setHuntLog(['error: no domain on this lead (email or companyUrl required)']);
-      return;
-    }
     streamAbort.current?.abort();
     const ac = new AbortController();
     streamAbort.current = ac;
     setHuntingId(leadId);
     setHuntLog([]);
 
-    try {
-      const url =
+    const domain = deriveDomain(lead);
+    if (domain) {
+      const engineUrl =
         '/api/discover/enrich/' + encodeURIComponent(domain) +
         '?force=1' +
         (lead.playId ? '&playId=' + encodeURIComponent(lead.playId) : '');
-      const res = await fetch(url, { method: 'POST', signal: ac.signal });
-      if (!res.ok || !res.body) throw new Error('Enrich failed (' + res.status + ')');
+      void (async () => {
+        try {
+          const engineRes = await fetch(engineUrl, { method: 'POST' });
+          if (!engineRes.ok || !engineRes.body) return;
+          const reader = engineRes.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const frames = buf.split('\n\n');
+            buf = frames.pop() ?? '';
+            for (const frame of frames) {
+              const line = frame.trim();
+              if (!line.startsWith('data:')) continue;
+              const payload = line.slice(5).trim();
+              if (!payload) continue;
+              try {
+                const msg = JSON.parse(payload) as {
+                  phase?: string;
+                  company?: DiscoveredCompany;
+                };
+                if (msg.phase === 'done' && msg.company) {
+                  setEngineByDomain((prev) => ({
+                    ...prev,
+                    [msg.company!.domain]: msg.company!,
+                  }));
+                }
+              } catch {
+                // ignore
+              }
+            }
+          }
+        } catch {
+          // Engine silence is fine.
+        }
+      })();
+    }
+
+    try {
+      const res = await fetch(`/api/leads/${leadId}/enrich-contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regenerate: true }),
+        signal: ac.signal,
+      });
+      if (!res.ok || !res.body) throw new Error(`Enrich failed (${res.status})`);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -383,29 +427,19 @@ export function LeadsClient({ initialLeads }: Props) {
             const msg = JSON.parse(payload) as {
               phase?: string;
               message?: string;
-              company?: DiscoveredCompany;
-              url?: string;
-              query?: string;
+              lead?: Lead;
             };
             if (msg.phase && msg.phase !== 'done' && msg.phase !== 'error') {
-              const label =
-                msg.url ? msg.phase + ': ' + msg.url :
-                msg.query ? msg.phase + ': ' + msg.query :
-                msg.message ? msg.phase + ': ' + msg.message :
-                msg.phase;
-              setHuntLog((prev) => [...prev, label ?? '']);
-            }
-            if (msg.phase === 'done' && msg.company) {
-              setEngineByDomain((prev) => ({
+              setHuntLog((prev) => [
                 ...prev,
-                [msg.company!.domain]: msg.company!,
-              }));
+                msg.message ? `${msg.phase}: ${msg.message}` : msg.phase!,
+              ]);
             }
-            if (msg.phase === 'prospects-saved') {
-              window.dispatchEvent(new Event('evari:nav-counts-dirty'));
+            if (msg.phase === 'done' && msg.lead) {
+              setLeads((prev) => prev.map((l) => (l.id === leadId ? msg.lead! : l)));
             }
             if (msg.phase === 'error') {
-              setHuntLog((prev) => [...prev, 'error: ' + (msg.message ?? 'failed')]);
+              setHuntLog((prev) => [...prev, `error: ${msg.message ?? 'failed'}`]);
             }
           } catch {
             setHuntLog((prev) => [...prev, payload]);
@@ -417,10 +451,6 @@ export function LeadsClient({ initialLeads }: Props) {
     } catch (err) {
       if ((err as { name?: string }).name === 'AbortError') return;
       console.error('enrich-contacts', err);
-      setHuntLog((prev) => [
-        ...prev,
-        'error: ' + (err instanceof Error ? err.message : 'failed'),
-      ]);
     } finally {
       if (streamAbort.current === ac) streamAbort.current = null;
       setHuntingId((cur) => (cur === leadId ? null : cur));
