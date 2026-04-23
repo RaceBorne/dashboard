@@ -88,6 +88,7 @@ export function ProspectsClient({ initialLeads }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
   const [bulkMoveBusy, setBulkMoveBusy] = useState(false);
+  const [bulkDeleteBusy, setBulkDeleteBusy] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   // Hunt / enrich streaming state — keyed on lead id so the panel can show
   // live log output while a run is in progress.
@@ -576,6 +577,60 @@ export function ProspectsClient({ initialLeads }: Props) {
     }
   }
 
+  /**
+   * Bulk delete every selected prospect. Confirms once for the whole batch
+   * (no per-row prompt) and fires the DELETEs in parallel since the API
+   * endpoint is a thin DB delete with no rate limit concerns. After the
+   * batch settles we drop the deleted ids from local state in one pass and
+   * fire a single nav-counts-dirty event so the sidebar pill re-polls once
+   * instead of once per row.
+   */
+  async function bulkDelete() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title: ids.length === 1
+        ? 'Delete this prospect?'
+        : `Delete ${ids.length} prospects?`,
+      description:
+        'This removes the rows from the CRM. You can always re-save them from Discover.',
+      confirmLabel: ids.length === 1 ? 'Delete' : `Delete ${ids.length}`,
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    setBulkDeleteBusy(true);
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        fetch(`/api/leads/${id}`, { method: 'DELETE' }).then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return id;
+        }),
+      ),
+    );
+    const deletedIds = new Set<string>();
+    let failures = 0;
+    for (const r of results) {
+      if (r.status === 'fulfilled') deletedIds.add(r.value);
+      else failures += 1;
+    }
+
+    if (deletedIds.size > 0) {
+      setLeads((prev) => prev.filter((l) => !deletedIds.has(l.id)));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of deletedIds) next.delete(id);
+        return next;
+      });
+      if (selectedId && deletedIds.has(selectedId)) setSelectedId(null);
+      window.dispatchEvent(new Event('evari:nav-counts-dirty'));
+    }
+    if (failures > 0) {
+      console.error(`bulk delete: ${failures} of ${ids.length} failed`);
+    }
+    setBulkDeleteBusy(false);
+  }
+
   // --- Render --------------------------------------------------------------
 
   return (
@@ -659,6 +714,20 @@ export function ProspectsClient({ initialLeads }: Props) {
                     </div>
                   ) : null}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void bulkDelete()}
+                  disabled={bulkDeleteBusy || bulkMoveBusy}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-evari-danger/40 bg-evari-danger/10 px-2 py-1 text-[11.5px] font-medium text-evari-danger hover:bg-evari-danger/20 disabled:opacity-50"
+                  title={`Delete ${selectedIds.size} selected prospect${selectedIds.size === 1 ? '' : 's'}`}
+                >
+                  {bulkDeleteBusy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3 w-3" />
+                  )}
+                  Delete
+                </button>
                 <button
                   type="button"
                   onClick={clearSelection}
