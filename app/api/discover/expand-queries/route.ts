@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { generateText } from 'ai';
 import { gateway } from '@ai-sdk/gateway';
 import { anthropic } from '@ai-sdk/anthropic';
-import { buildSystemPrompt, hasAIGatewayCredentials } from '@/lib/ai/gateway';
+import { buildSystemPrompt } from '@/lib/ai/gateway';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay } from '@/lib/dashboard/repository';
 import type { DiscoverFilters } from '@/lib/types';
@@ -46,13 +46,6 @@ export async function POST(req: Request) {
   const filters = body.filters ?? {};
   const seenDomains = Array.isArray(body.seenDomains) ? body.seenDomains : [];
   const limit = Math.min(Math.max(body.limit ?? 5, 3), 10);
-
-  if (!hasAIGatewayCredentials()) {
-    return NextResponse.json({
-      ok: false,
-      error: 'AI gateway not configured',
-    }, { status: 500 });
-  }
 
   // Resolve venture context when a playId is provided. Strategy persona +
   // short form give the model a steer on what counts as 'on-topic'.
@@ -126,6 +119,9 @@ export async function POST(req: Request) {
   const system = await buildSystemPrompt({ voice: 'analyst', task });
 
   let text: string;
+  // Try gateway first; fall back to direct Anthropic if it fails and we
+  // have an API key. When neither path works, bubble the real error up
+  // so the client surfaces a useful message.
   try {
     const res = await generateText({
       model: gateway(MODEL),
@@ -133,20 +129,39 @@ export async function POST(req: Request) {
       prompt,
     });
     text = res.text;
-  } catch (err) {
+  } catch (gatewayErr) {
     if (!process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json({
-        ok: false,
-        error: err instanceof Error ? err.message : 'AI gateway failed',
-      }, { status: 502 });
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'No model available. Set AI_GATEWAY_API_KEY or ANTHROPIC_API_KEY in Vercel env.',
+          detail: gatewayErr instanceof Error ? gatewayErr.message : String(gatewayErr),
+        },
+        { status: 502 },
+      );
     }
-    const bareModel = MODEL.replace(/^anthropic\//, '');
-    const res = await generateText({
-      model: anthropic(bareModel),
-      system,
-      prompt,
-    });
-    text = res.text;
+    try {
+      const bareModel = MODEL.replace(/^anthropic\//, '');
+      const res = await generateText({
+        model: anthropic(bareModel),
+        system,
+        prompt,
+      });
+      text = res.text;
+    } catch (anthropicErr) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Both gateway and direct Anthropic failed.',
+          detail:
+            anthropicErr instanceof Error
+              ? anthropicErr.message
+              : String(anthropicErr),
+        },
+        { status: 502 },
+      );
+    }
   }
 
   const parsed = parseJsonEnvelope(text);
