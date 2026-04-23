@@ -609,7 +609,7 @@ export function PlayDetailClient({
                     <InlineText
                       value={play.category ?? ''}
                       onSave={saveCategory}
-                      placeholder="e.g. Knee Ops"
+                      placeholder="Categorise this venture"
                       displayClassName="text-[11px] text-evari-text"
                       label="funnel category"
                     />
