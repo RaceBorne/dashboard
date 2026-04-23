@@ -53,7 +53,7 @@ export async function POST(
   const cacheOnly = url.searchParams.get('cacheOnly') === '1';
   const budgetParam = parseInt(url.searchParams.get('budget') ?? '', 10);
   const budget = Number.isFinite(budgetParam)
-    ? Math.min(18, Math.max(4, budgetParam))
+    ? Math.min(24, Math.max(4, budgetParam))
     : 8;
   // Target role for the enrichment engine. Preference order:
   //   1. Explicit ?targetRole=... query param (operator override in panel)
@@ -127,16 +127,38 @@ export async function POST(
         }
       }
 
-      emit({ phase: 'start', domain, targetRole });
+      // Engine mode needs more tool calls for contact hunting (see the
+      // CONTACT HUNT section in ENRICHMENT_ENGINE_PROMPT). Floor the
+      // budget at 16 when a targetRole is in play.
+      const effectiveBudget = targetRole ? Math.max(16, budget) : budget;
+
+      emit({ phase: 'start', domain, targetRole, budget: effectiveBudget });
 
       try {
-        const result = await runEnrichment(domain, budget, targetRole, (evt) => emit(evt));
+        const result = await runEnrichment(domain, effectiveBudget, targetRole, (evt) => emit(evt));
         const enrichedAt = new Date().toISOString();
+
+        // ----- Merge new people into existing cached people --------------
+        // Rerun is additive: we never silently drop a person or address
+        // that a previous pass found. Merge keys are case-insensitive
+        // names; email candidates are deduped by address.
+        let mergedPeople = result.people ?? [];
+        const { data: cachedRow } = await supabase
+          .from('dashboard_discovered_companies')
+          .select('payload')
+          .eq('domain', domain)
+          .maybeSingle();
+        const cachedCompany = (cachedRow?.payload ?? null) as DiscoveredCompany | null;
+        if (cachedCompany?.people && cachedCompany.people.length > 0) {
+          mergedPeople = mergePeople(cachedCompany.people, result.people ?? []);
+        }
+
         const company: DiscoveredCompany = {
           ...result,
           domain,
           enrichedAt,
-          ...(result.people && result.people.length > 0
+          people: mergedPeople.length > 0 ? mergedPeople : undefined,
+          ...(mergedPeople.length > 0
             ? { peopleTargetRole: targetRole, peopleEnrichedAt: enrichedAt }
             : {}),
         };
@@ -150,7 +172,30 @@ export async function POST(
         if (writeErr) {
           console.warn('[discover/enrich] persist failed', writeErr);
         }
-        emit({ phase: 'done', cached: false, company });
+
+        // ----- Auto-save HIGH-confidence primaries into Prospects --------
+        // When the enrichment is running inside a venture, every person
+        // whose primary email came back HIGH gets upserted into the
+        // prospects funnel under the venture's folder. Skips anything
+        // we've already saved for this playId.
+        let autoSaved: { inserted: number; folder?: string } = { inserted: 0 };
+        if (playIdParam && company.people && company.people.length > 0) {
+          autoSaved = await autoSaveProspects(supabase, playIdParam, company);
+          if (autoSaved.inserted > 0) {
+            emit({
+              phase: 'prospects-saved',
+              inserted: autoSaved.inserted,
+              folder: autoSaved.folder,
+            });
+          }
+        }
+
+        emit({
+          phase: 'done',
+          cached: false,
+          company,
+          autoSaved,
+        });
         controller.close();
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Enrichment failed';
@@ -209,7 +254,7 @@ async function runEnrichment(
     `  "technologies"?: string[],\n` +
     `  "signals"?: [{ "type": string, "title": string, "url"?: string, "date"?: string, "summary"?: string }],\n` +
     `  "emails"?: [{ "address": string, "bucket"?: string, "label"?: string, "name"?: string, "jobTitle"?: string, "source"?: string, "confidence"?: string, "sourceUrl"?: string }],\n` +
-    `  "people"?: [{ "name": string, "jobTitle"?: string, "location"?: string, "linkedin"?: string, "sourceUrl"?: string, "emailCandidates"?: [{ "email": string, "confidence": "HIGH"|"MEDIUM"|"LOW", "reason": string }], "primaryEmail"?: string, "leadScore"?: number, "reasoning"?: string }],\n` +
+    `  "people"?: [{ "name": string, "jobTitle"?: string, "location"?: string, "linkedin"?: string, "phone"?: string, "sourceUrl"?: string, "emailCandidates"?: [{ "email": string, "confidence": "HIGH"|"MEDIUM"|"LOW", "reason": string }], "primaryEmail"?: string, "leadScore"?: number, "reasoning"?: string }],\n` +
     `  "keywords"?: string[],\n` +
     `  "sources"?: string[]\n` +
     `}`;
@@ -362,19 +407,38 @@ function ENRICHMENT_ENGINE_PROMPT(domain: string, targetRole: string): string {
     '  3. GENERATE  — for each person, generate plausible email permutations',
     '     at ' + domain + ' using common patterns (firstname.lastname@,',
     '     first@, firstinitiallastname@, firstnameinitiallastname@).',
-    '  4. VERIFY    — rank each candidate email HIGH / MEDIUM / LOW based on',
-    '     pattern consistency with any @' + domain + ' examples you found.',
-    '     Do NOT claim HIGH unless you have strong pattern evidence.',
-    '  5. SCORE     — give each person a leadScore 0-100 based on role',
+    '  4. CONTACT HUNT (MANDATORY — the most important step). For EACH',
+    '     identified person, run web_search at least 3 times explicitly',
+    '     hunting for their real contact details. Good query shapes:',
+    '       - "@' + domain + '" "{firstname} {lastname}"',
+    '       - "{firstname} {lastname}" "{company}" contact OR email',
+    '       - "{firstname} {lastname}" "{company}" phone',
+    '       - "{firstname} {lastname}" linkedin',
+    '       - site:linkedin.com "{firstname} {lastname}" "{company}"',
+    '     Harvest any real addresses / phone numbers you find on bio',
+    '     pages, speaker bios, podcast show notes, press releases, team',
+    '     pages, conference programs, LinkedIn headers. When you find',
+    '     a real address, add it to emailCandidates with confidence HIGH',
+    '     and a reason citing the source URL. Same for phone: add it to',
+    '     the person\'s "phone" field with the source URL in reasoning.',
+    '     Emails found this way ALWAYS beat pattern guesses — mark the',
+    '     scraped one as the primaryEmail.',
+    '  5. VERIFY    — rank every candidate email HIGH / MEDIUM / LOW:',
+    '       HIGH   = scraped verbatim from a public source OR strong',
+    '                pattern match against confirmed @' + domain + ' examples.',
+    '       MEDIUM = pattern plausible but no public example yet.',
+    '       LOW    = pure guess, no evidence.',
+    '  6. SCORE     — give each person a leadScore 0-100 based on role',
     '     seniority, fit with the target role "' + targetRole + '", and',
     '     confidence in the contact data.',
-    '  6. REASON    — one short sentence per person explaining the score.',
+    '  7. REASON    — one short sentence per person explaining the score.',
     '',
     'Hard rules:',
     '  - Never fabricate. If uncertain, return fewer people rather than',
-    '    guessing names.',
+    '    guessing names or emails.',
     '  - Every emailCandidates[].email must end in @' + domain + '.',
-    '  - primaryEmail must be one of that person emailCandidates[].email.',
+    '  - primaryEmail must be one of that person\'s emailCandidates[].email.',
+    '  - phone: UK format preferred (+44 ...) when found.',
     '  - JSON only. No prose outside the <json>...</json> envelope.',
     '',
   ].join('\n') + '\n';
@@ -525,6 +589,7 @@ function normaliseCompany(
       jobTitle: asString(po.jobTitle) || undefined,
       location: asString(po.location) || undefined,
       linkedinUrl: asString(po.linkedin) || undefined,
+      phone: asString(po.phone) || undefined,
       sourceUrl: asString(po.sourceUrl) || undefined,
       email: primaryEmail,
       emailCandidates: emailCandidates.length ? emailCandidates : undefined,
@@ -691,4 +756,165 @@ function normaliseDomain(input: string): string {
   } catch {
     return s.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// v2 helpers (#179): merge on rerun + auto-save to prospects
+// ---------------------------------------------------------------------------
+
+/**
+ * Merge newly-enriched people into the previously-cached people list.
+ * Keys on case-insensitive name. Email candidates are deduped by address;
+ * when the same address appears twice we keep the higher-confidence one.
+ * Scalar fields prefer newer data but keep older data when newer is blank.
+ */
+function mergePeople(
+  existing: CompanyContact[],
+  incoming: CompanyContact[],
+): CompanyContact[] {
+  const nameKey = (n: string) => n.trim().toLowerCase();
+  const byName = new Map<string, CompanyContact>();
+  for (const p of existing) byName.set(nameKey(p.name), p);
+  for (const p of incoming) {
+    const key = nameKey(p.name);
+    const prior = byName.get(key);
+    if (!prior) {
+      byName.set(key, p);
+      continue;
+    }
+    const confRank: Record<EmailCandidate['confidence'], number> = {
+      HIGH: 3,
+      MEDIUM: 2,
+      LOW: 1,
+    };
+    const candMap = new Map<string, EmailCandidate>();
+    for (const c of [...(prior.emailCandidates ?? []), ...(p.emailCandidates ?? [])]) {
+      const existingC = candMap.get(c.email);
+      if (!existingC || confRank[c.confidence] > confRank[existingC.confidence]) {
+        candMap.set(c.email, c);
+      }
+    }
+    const merged: CompanyContact = {
+      ...prior,
+      jobTitle: p.jobTitle ?? prior.jobTitle,
+      location: p.location ?? prior.location,
+      linkedinUrl: p.linkedinUrl ?? prior.linkedinUrl,
+      phone: p.phone ?? prior.phone,
+      sourceUrl: p.sourceUrl ?? prior.sourceUrl,
+      emailCandidates:
+        candMap.size > 0 ? Array.from(candMap.values()) : undefined,
+      primaryEmail: p.primaryEmail ?? prior.primaryEmail,
+      leadScore: p.leadScore ?? prior.leadScore,
+      reasoning: p.reasoning ?? prior.reasoning,
+      enrichedAt: p.enrichedAt ?? prior.enrichedAt,
+    };
+    byName.set(key, merged);
+  }
+  return Array.from(byName.values()).sort(
+    (a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0),
+  );
+}
+
+/**
+ * For every person whose primary email came back HIGH confidence, upsert
+ * a prospect row into dashboard_leads under the venture's folder
+ * (play.category ?? play.title). Skips anything already present for this
+ * playId + email combo so multiple reruns don't create duplicates.
+ */
+async function autoSaveProspects(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  playId: string,
+  company: DiscoveredCompany,
+): Promise<{ inserted: number; folder?: string }> {
+  if (!supabase) return { inserted: 0 };
+  if (!company.people || company.people.length === 0) return { inserted: 0 };
+
+  const play = await getPlay(supabase, playId);
+  if (!play) return { inserted: 0 };
+  const folder = play.category ?? play.title;
+
+  const { data: existingRows } = await supabase
+    .from('dashboard_leads')
+    .select('id, payload')
+    .eq('tier', 'prospect')
+    .eq('payload->>playId', playId);
+  const existingEmails = new Set<string>();
+  for (const row of (existingRows ?? []) as Array<{ payload: { email?: string } }>) {
+    const e = (row.payload?.email ?? '').toLowerCase();
+    if (e) existingEmails.add(e);
+  }
+
+  interface NewLead {
+    id: string;
+    tier: 'prospect';
+    payload: Record<string, unknown>;
+  }
+  const toInsert: NewLead[] = [];
+  const now = new Date().toISOString();
+  for (const person of company.people) {
+    if (!person.primaryEmail) continue;
+    const email = person.primaryEmail.toLowerCase();
+    if (existingEmails.has(email)) continue;
+    const primary = person.emailCandidates?.find((c) => c.email === email);
+    if (primary?.confidence !== 'HIGH') continue;
+
+    const idSlug = email
+      .split('@')[0]
+      .replace(/[^a-z0-9]/gi, '')
+      .slice(0, 20) || 'lead';
+    const id =
+      'lead-' + idSlug + '-' + Math.random().toString(36).slice(2, 7);
+
+    toInsert.push({
+      id,
+      tier: 'prospect',
+      payload: {
+        id,
+        tier: 'prospect',
+        fullName: person.name,
+        email,
+        source: 'outreach_agent',
+        sourceCategory: 'outreach',
+        sourceDetail: 'Enrichment engine · ' + (company.name ?? company.domain),
+        stage: 'new',
+        intent: 'unknown',
+        firstSeenAt: now,
+        lastTouchAt: now,
+        tags: ['auto-enriched'],
+        activity: [
+          {
+            id: 'act-' + Math.random().toString(36).slice(2, 10),
+            type: 'lead_created',
+            at: now,
+            summary:
+              'Auto-sourced by enrichment engine (score ' +
+              (person.leadScore ?? '?') +
+              ')',
+          },
+        ],
+        category: folder,
+        playId,
+        companyName: company.name ?? company.domain,
+        companyUrl: company.domain ? 'https://' + company.domain : undefined,
+        jobTitle: person.jobTitle,
+        phone: person.phone,
+        linkedinUrl: person.linkedinUrl,
+        address: person.location,
+        emailInferred:
+          primary?.reason?.toLowerCase().includes('pattern') &&
+          !primary?.reason?.toLowerCase().includes('scraped'),
+        prospectStatus: 'new',
+        synopsis: person.reasoning,
+      },
+    });
+  }
+
+  if (toInsert.length === 0) return { inserted: 0, folder };
+  const { error } = await supabase.from('dashboard_leads').insert(toInsert);
+  if (error) {
+    console.warn('[enrich/auto-save] insert failed', error);
+    return { inserted: 0, folder };
+  }
+  return { inserted: toInsert.length, folder };
 }
