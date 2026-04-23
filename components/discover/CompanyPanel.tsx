@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type {
+  CompanyContact,
   DiscoveredCompany,
   DiscoverEmail,
   LeadNote,
@@ -536,6 +537,13 @@ export function CompanyPanel({
           <div className="px-5 py-4">
             {tab === 'contacts' ? (
               <div className="space-y-3">
+                {company.people && company.people.length > 0 ? (
+                  <PeopleSection
+                    people={company.people}
+                    targetRole={company.peopleTargetRole}
+                    enrichedAt={company.peopleEnrichedAt}
+                  />
+                ) : null}
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="text-[13px] text-evari-text">
                     <span className="font-semibold">
@@ -1581,6 +1589,146 @@ function StrategyList({ label, items }: { label: string; items: string[] }) {
           <li key={`${idx}-${it}`}>{it}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Engine-output rendering (#178)
+// ---------------------------------------------------------------------------
+
+function PeopleSection({
+  people,
+  targetRole,
+  enrichedAt,
+}: {
+  people: CompanyContact[];
+  targetRole?: string;
+  enrichedAt?: string;
+}) {
+  return (
+    <section className="rounded-lg border border-evari-accent/30 bg-evari-accent/5 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="text-[11px] uppercase tracking-[0.14em] text-evari-accent font-semibold inline-flex items-center gap-1.5">
+          <Sparkles className="h-3 w-3" />
+          Engine candidates ({people.length})
+        </div>
+        {targetRole ? (
+          <div className="text-[11px] text-evari-dim truncate max-w-[320px]">
+            Target role: <span className="text-evari-text font-medium">{targetRole}</span>
+          </div>
+        ) : null}
+      </div>
+      <div className="space-y-2">
+        {people.map((p, i) => (
+          <PersonCard key={(p.name ?? '') + i} person={p} />
+        ))}
+      </div>
+      {enrichedAt ? (
+        <div className="text-[10px] text-evari-dimmer">
+          Enriched {new Date(enrichedAt).toLocaleString()}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function PersonCard({ person }: { person: CompanyContact }) {
+  const score = person.leadScore;
+  const scoreColor =
+    score == null
+      ? 'bg-evari-surfaceSoft text-evari-dim'
+      : score >= 80
+        ? 'bg-green-500/15 text-green-700'
+        : score >= 60
+          ? 'bg-amber-500/15 text-amber-700'
+          : 'bg-red-500/15 text-red-700';
+  return (
+    <div className="rounded-md bg-white border border-evari-line/40 p-3 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] text-evari-text font-semibold truncate">
+            {person.name}
+          </div>
+          {person.jobTitle ? (
+            <div className="text-[12px] text-evari-dim truncate">{person.jobTitle}</div>
+          ) : null}
+          {person.location ? (
+            <div className="text-[11px] text-evari-dimmer truncate">{person.location}</div>
+          ) : null}
+          {person.linkedinUrl ? (
+            <a
+              href={person.linkedinUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-evari-accent hover:underline inline-flex items-center gap-1 mt-0.5"
+            >
+              LinkedIn
+            </a>
+          ) : null}
+        </div>
+        {score != null ? (
+          <div
+            className={cn(
+              'shrink-0 rounded-md px-2 py-1 text-[12px] font-mono font-semibold',
+              scoreColor,
+            )}
+            title="Lead score 0-100"
+          >
+            {score}
+          </div>
+        ) : null}
+      </div>
+      {person.reasoning ? (
+        <div className="text-[11px] text-evari-dim italic leading-relaxed">
+          {person.reasoning}
+        </div>
+      ) : null}
+      {person.emailCandidates && person.emailCandidates.length > 0 ? (
+        <div className="space-y-1 pt-2 border-t border-evari-line/40">
+          {person.emailCandidates.map((c, i) => {
+            const isPrimary = c.email === person.primaryEmail;
+            const confColor =
+              c.confidence === 'HIGH'
+                ? 'text-green-700'
+                : c.confidence === 'MEDIUM'
+                  ? 'text-amber-700'
+                  : 'text-evari-dim';
+            return (
+              <div
+                key={c.email + i}
+                className="flex items-center gap-2 text-[11px] min-w-0"
+              >
+                <span
+                  className={cn(
+                    'h-1.5 w-1.5 rounded-full shrink-0',
+                    c.mxVerified ? 'bg-green-500' : 'bg-evari-dimmer',
+                  )}
+                  title={c.mxVerified ? 'Domain accepts mail (MX record found)' : 'MX not verified'}
+                />
+                <span
+                  className={cn(
+                    'font-mono shrink-0',
+                    isPrimary ? 'text-evari-text font-semibold' : 'text-evari-dim',
+                  )}
+                >
+                  {c.email}
+                </span>
+                {isPrimary ? (
+                  <span className="text-[9px] uppercase tracking-wide text-evari-accent font-bold shrink-0">
+                    primary
+                  </span>
+                ) : null}
+                <span className={cn('text-[10px] font-semibold shrink-0', confColor)}>
+                  {c.confidence}
+                </span>
+                <span className="text-evari-dimmer truncate">{c.reason}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
