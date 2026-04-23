@@ -348,7 +348,32 @@ export function PlayDetailClient({
     }
   }
 
-  // Poll /api/plays/[id] while the background auto-scan is running so the
+  // ─── Spitball auto-kickoff ────────────────────────────────────────────
+  //
+  // When the user lands on a freshly-created venture (chat is empty but the
+  // brief has been seeded by VentureHero), automatically fire the brief as
+  // their first Spitball message. Same UX as if they'd pasted the brief into
+  // the chat input and pressed Go themselves — Claude responds immediately,
+  // the conversation is alive on entry instead of requiring a manual nudge.
+  //
+  // Guarded by a useRef so React StrictMode's double-mount in dev doesn't
+  // fire it twice. Once the kickoff exchange is persisted, play.chat.length
+  // is no longer 0, so subsequent visits to the venture skip the kickoff
+  // naturally — no per-venture flag needed.
+  const kickoffFiredRef = useRef(false);
+  useEffect(() => {
+    if (kickoffFiredRef.current) return;
+    if (chatLoading) return;
+    if (play.chat.length > 0) return;
+    const brief = play.brief?.trim() ?? '';
+    if (brief.length === 0) return;
+    kickoffFiredRef.current = true;
+    void sendChat(brief);
+    // sendChat already handles state, persistence, and accordion focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+    // Poll /api/plays/[id] while the background auto-scan is running so the
   // Scanning… pill self-resolves once it finishes. Polling stops as soon as
   // status transitions to done/skipped/error.
   const autoScanActive =
