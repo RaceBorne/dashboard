@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { ProjectRail } from '@/components/nav/ProjectRail';
 import { useProjectRailCollapsed } from '@/lib/hooks/useProjectRailCollapsed';
-import { STAGE_WRAPPER_CLASSNAME } from '@/lib/layout/stageWrapper';
+import { STAGE_WRAPPER_CLASSNAME_FIXED_HEIGHT } from '@/lib/layout/stageWrapper';
 import {
   Activity,
   Check,
@@ -394,15 +394,15 @@ export function PlayDetailClient({
   const scope = play.scope;
 
   return (
-    <div className={STAGE_WRAPPER_CLASSNAME}>
+    <div className={STAGE_WRAPPER_CLASSNAME_FIXED_HEIGHT}>
       <FunnelRibbon stage="strategy" playId={play.id} play={play} />
-      <div className="flex gap-5">
+      <div className="flex gap-5 flex-1 min-h-0 overflow-hidden">
       <ProjectRail activePlayId={play.id} />
       {/* Centre: Spitball chat — the live workspace where the venture
           gets shaped. Moved from the right column so the primary
           interaction sits in the middle of vision. */}
-      <main className={cn('min-w-0', railCollapsed ? 'flex-1 basis-1/2' : 'flex-1')}>
-        <div className="sticky top-4 rounded-xl bg-evari-surface flex flex-col max-h-[calc(100vh-80px)] min-h-[480px] overflow-hidden">
+      <main className={cn('min-w-0 h-full flex flex-col min-h-0', railCollapsed ? 'flex-1 basis-1/2' : 'flex-1')}>
+        <div className="rounded-xl bg-evari-surface flex flex-col flex-1 min-h-0 overflow-hidden">
           <div className="flex items-start gap-3 p-4 shrink-0 border-b border-evari-line/40">
             <div className="h-8 w-8 rounded-lg bg-evari-surfaceSoft flex items-center justify-center shrink-0">
               <Sparkles className="h-4 w-4 text-evari-dim" />
@@ -553,7 +553,7 @@ export function PlayDetailClient({
 
       {/* Right: workbook — the living artifact. Brief, strategy,
           notes. Narrow by design so the chat stays primary. */}
-      <aside className={cn('space-y-5 min-w-0', railCollapsed ? 'flex-1 basis-1/2' : 'w-[560px] shrink-0')}>
+      <aside className={cn('space-y-5 min-w-0 h-full overflow-y-auto pr-1 -mr-1', railCollapsed ? 'flex-1 basis-1/2' : 'w-[560px] shrink-0')}>
         {/* Title + stage controls */}
         <div className="rounded-xl bg-evari-surface p-5 space-y-3">
           <div className="flex items-start justify-between gap-4">
