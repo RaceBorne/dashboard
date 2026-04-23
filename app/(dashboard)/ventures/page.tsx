@@ -1,6 +1,6 @@
 import { TopBar } from '@/components/sidebar/TopBar';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
-import { listPlays } from '@/lib/dashboard/repository';
+import { getCountsPerPlay, listPlays } from '@/lib/dashboard/repository';
 import type { Play, PlayStage } from '@/lib/types';
 import { VentureHero } from '@/components/plays/VentureHero';
 import { PlayRow } from '@/components/plays/PlayRow';
@@ -28,7 +28,13 @@ const STAGES: {
 ];
 
 export default async function VenturesPage() {
-  const plays = await listPlays(createSupabaseAdmin());
+  const supabase = createSupabaseAdmin();
+  // Fetch plays + per-play pipeline counts in parallel. The counts power
+  // the right side of each PlayRow (replaces the old "idea" stage lozenge).
+  const [plays, countsByPlay] = await Promise.all([
+    listPlays(supabase),
+    getCountsPerPlay(supabase),
+  ]);
   const byStage = new Map<PlayStage, Play[]>();
   for (const s of STAGES) byStage.set(s.key, []);
   for (const c of plays) {
@@ -85,7 +91,11 @@ export default async function VenturesPage() {
                   </div>
                   <ul className="space-y-1">
                     {items.map((c) => (
-                      <PlayRow key={c.id} play={c} />
+                      <PlayRow
+                        key={c.id}
+                        play={c}
+                        counts={countsByPlay.get(c.id)}
+                      />
                     ))}
                   </ul>
                 </div>

@@ -341,6 +341,73 @@ export async function resolveCurrentUserId(
   return active?.id ?? users[0]?.id ?? DEFAULT_CURRENT_USER_ID;
 }
 
+/**
+ * Per-play pipeline counts — prospects, leads, conversations — used by the
+ * Ventures list rows (see components/plays/PlayRow). Does the aggregation in
+ * two round-trips and tallies in memory:
+ *
+ *   - `dashboard_leads` rows carry both `tier` and `payload.playId`, so one
+ *     select gives us prospect + lead counts per play.
+ *   - `dashboard_threads` rows have only `payload.leadId`, so we build a
+ *     leadId → playId lookup from the leads fetch above and tally threads by
+ *     their lead's playId.
+ *
+ * Plays with no rows do not appear in the returned map — callers should
+ * treat a missing entry as { prospects: 0, leads: 0, conversations: 0 }.
+ */
+export async function getCountsPerPlay(
+  supabase: SupabaseClient | null,
+): Promise<Map<string, { prospects: number; leads: number; conversations: number }>> {
+  const counts = new Map<
+    string,
+    { prospects: number; leads: number; conversations: number }
+  >();
+  if (!supabase) return counts;
+
+  function bump(
+    playId: string | null | undefined,
+    key: 'prospects' | 'leads' | 'conversations',
+  ) {
+    if (!playId) return;
+    const cur = counts.get(playId) ?? { prospects: 0, leads: 0, conversations: 0 };
+    cur[key] += 1;
+    counts.set(playId, cur);
+  }
+
+  const { data: leadRows } = await supabase
+    .from('dashboard_leads')
+    .select('id, tier, payload');
+  const leadIdToPlay = new Map<string, string>();
+  if (leadRows?.length) {
+    for (const row of leadRows as {
+      id: string;
+      tier: 'prospect' | 'lead' | null;
+      payload: Lead;
+    }[]) {
+      const playId = row.payload?.playId ?? null;
+      if (playId && row.id) leadIdToPlay.set(row.id, playId);
+      // Column tier is authoritative; payload.tier is a fallback for legacy
+      // rows written before the column was added.
+      const tier = row.tier ?? row.payload?.tier ?? 'prospect';
+      bump(playId, tier === 'lead' ? 'leads' : 'prospects');
+    }
+  }
+
+  const { data: threadRows } = await supabase
+    .from('dashboard_threads')
+    .select('payload');
+  if (threadRows?.length) {
+    for (const row of threadRows as { payload: Thread }[]) {
+      const leadId = row.payload?.leadId;
+      if (!leadId) continue;
+      const playId = leadIdToPlay.get(leadId);
+      bump(playId, 'conversations');
+    }
+  }
+
+  return counts;
+}
+
 /** Counts for sidebar / nav (pipeline + web). */
 export async function getDashboardNavCounts(supabase: SupabaseClient | null): Promise<{
   plays: number;

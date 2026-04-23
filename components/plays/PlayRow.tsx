@@ -6,43 +6,34 @@ import { useRouter } from 'next/navigation';
 import { Pencil, Trash2, Check, X, Pin, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn, relativeTime } from '@/lib/utils';
-import type { Play, PlayStage } from '@/lib/types';
+import type { Play } from '@/lib/types';
 
 /**
- * A single row in the /plays list.
+ * A single row in the /ventures list.
  *
  * Reads as a normal clickable link to the detail page, but on hover reveals
  * inline edit (pencil → title becomes an input, Enter to save) and delete
- * (trash → confirm → DELETE). Stage is always editable via the pill dropdown
- * so Craig can triage stages straight from the list without clicking in.
+ * (trash → confirm → DELETE).
+ *
+ * Right-hand side: three always-visible pipeline counts —
+ * prospects, leads, conversations — for the project. They replace the old
+ * stage lozenge / inline stage dropdown that used to live there. Stage is
+ * still editable from the venture's detail page.
  *
  * All writes go through /api/plays/[id] (PATCH or DELETE) and then
  * router.refresh() so the server-rendered list re-fetches.
  */
 
-const STAGES: PlayStage[] = [
-  'idea',
-  'researching',
-  'building',
-  'ready',
-  'live',
-  'retired',
-];
-
-const STAGE_TONE: Record<PlayStage, string> = {
-  idea: 'text-evari-dim bg-evari-surfaceSoft',
-  researching: 'bg-evari-gold text-evari-goldInk',
-  building: 'bg-evari-warn text-evari-goldInk',
-  ready: 'bg-sky-400 text-evari-ink',
-  live: 'bg-evari-success text-evari-ink',
-  retired: 'text-evari-dimmer bg-evari-surfaceSoft',
-};
-
 interface Props {
   play: Play;
+  /**
+   * Per-play pipeline counts, computed server-side via getCountsPerPlay().
+   * Undefined when a play has no rows (e.g. a fresh idea); render as 0.
+   */
+  counts?: { prospects: number; leads: number; conversations: number };
 }
 
-export function PlayRow({ play }: Props) {
+export function PlayRow({ play, counts }: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -115,14 +106,12 @@ export function PlayRow({ play }: Props) {
     setError(null);
   }
 
-  async function handleStage(next: PlayStage) {
-    if (next === play.stage) return;
-    await savePatch({ stage: next });
-  }
-
   if (deleted) return null;
 
   const busy = saving || pending;
+  const prospects = counts?.prospects ?? 0;
+  const leads = counts?.leads ?? 0;
+  const conversations = counts?.conversations ?? 0;
 
   return (
     <li
@@ -201,56 +190,46 @@ export function PlayRow({ play }: Props) {
           </Link>
         )}
 
-        {/* Right-side controls — always rendered, fade in on hover/edit */}
-        <div
-          className={cn(
-            'flex items-center gap-1 shrink-0 transition-opacity',
-            editing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
-          )}
-        >
-          {/* Stage pill doubles as a dropdown — change stage inline */}
-          <label className="relative">
-            <span className="sr-only">Stage</span>
-            <span
-              className={cn(
-                'inline-flex items-center text-[10px] uppercase tracking-wider font-semibold rounded-full px-2 py-0.5 cursor-pointer select-none',
-                STAGE_TONE[play.stage],
-              )}
+        {/* Right rail — always-visible counts on top, hover-revealed
+            edit/trash buttons below. The counts replaced the old "idea"
+            stage lozenge so each row tells you at a glance how loaded the
+            project is. Stage editing now lives on the detail page. */}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="flex items-center gap-3 text-[11px] text-evari-dim tabular-nums">
+            <CountItem n={prospects} label="prospects" />
+            <span className="text-evari-line">·</span>
+            <CountItem n={leads} label="leads" />
+            <span className="text-evari-line">·</span>
+            <CountItem n={conversations} label="conversations" />
+          </div>
+
+          <div
+            className={cn(
+              'flex items-center gap-1 transition-opacity',
+              editing
+                ? 'opacity-100'
+                : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={busy || editing}
+              title="Edit title"
+              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft transition-colors"
             >
-              {play.stage}
-            </span>
-            <select
-              value={play.stage}
-              onChange={(e) => void handleStage(e.target.value as PlayStage)}
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
               disabled={busy}
-              className="absolute inset-0 opacity-0 cursor-pointer"
-              aria-label="Change stage"
+              title="Delete venture"
+              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft transition-colors"
             >
-              {STAGES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            disabled={busy || editing}
-            title="Edit title"
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surfaceSoft transition-colors"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={busy}
-            title="Delete venture"
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-evari-dimmer hover:text-evari-danger hover:bg-evari-surfaceSoft transition-colors"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -260,6 +239,22 @@ export function PlayRow({ play }: Props) {
         </div>
       ) : null}
     </li>
+  );
+}
+
+function CountItem({ n, label }: { n: number; label: string }) {
+  return (
+    <span>
+      <span
+        className={cn(
+          'font-medium tabular-nums',
+          n > 0 ? 'text-evari-text' : 'text-evari-dimmer',
+        )}
+      >
+        {n}
+      </span>{' '}
+      <span className="text-evari-dimmer">{label}</span>
+    </span>
   );
 }
 
