@@ -215,9 +215,20 @@ export async function PATCH(
 /**
  * DELETE /api/plays/[id]
  *
- * Hard-delete the row. The row is small (everything's in the jsonb payload),
- * we don't keep a "retired" soft state because the `retired` stage already
- * exists for that — if Craig only wanted to park it, he'd change the stage.
+ * Hard-delete the venture AND every prospect / lead row that was sourced
+ * into it. Rationale (#170): folders in the Discover "Save to folder"
+ * picker are derived from the distinct payload.category values across
+ * dashboard_leads (tier='prospect'). If we leave those rows alone when
+ * a venture is deleted, the user sees ghost folders carrying the deleted
+ * venture's prospect counts forever. Cascade keeps the Discover folder
+ * list honest.
+ *
+ * We delete dashboard_leads first so a partial failure leaves the venture
+ * intact (and re-running the delete cleans the rest up). The reverse
+ * order would orphan rows under a non-existent play if the second step
+ * failed. We don't keep a "retired" soft state because the `retired`
+ * stage already exists for that — if Craig only wanted to park it, he'd
+ * change the stage instead of clicking delete.
  */
 export async function DELETE(
   _req: Request,
@@ -231,6 +242,23 @@ export async function DELETE(
       { status: 500 },
     );
   }
+
+  // Step 1 — cascade-delete every lead/prospect tied to this venture.
+  // Match on payload->>'playId' (jsonb text accessor). Failure here is
+  // non-fatal to the venture delete itself; we log but continue, because
+  // a stuck cascade should not leave the venture undeletable.
+  const { error: cascadeErr, count: cascadeCount } = await supabase
+    .from('dashboard_leads')
+    .delete({ count: 'exact' })
+    .eq('payload->>playId', id);
+  if (cascadeErr) {
+    console.warn(
+      '[plays/delete] cascade delete on dashboard_leads failed for play ' + id,
+      cascadeErr,
+    );
+  }
+
+  // Step 2 — delete the venture itself.
   const { error } = await supabase.from('dashboard_plays').delete().eq('id', id);
   if (error) {
     return NextResponse.json(
@@ -238,7 +266,10 @@ export async function DELETE(
       { status: 500 },
     );
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    cascadedRows: cascadeCount ?? 0,
+  });
 }
 
 // --------------------------------------------------------------------------
