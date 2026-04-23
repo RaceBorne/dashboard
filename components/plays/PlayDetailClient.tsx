@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { ProjectRail } from '@/components/nav/ProjectRail';
 import { useProjectRailCollapsed } from '@/lib/hooks/useProjectRailCollapsed';
+import { STAGE_WRAPPER_CLASSNAME } from '@/lib/layout/stageWrapper';
 import {
   Activity,
   Check,
@@ -393,7 +394,7 @@ export function PlayDetailClient({
   const scope = play.scope;
 
   return (
-    <div className="flex flex-col gap-[52px] px-6 pt-[52px] pb-[52px]">
+    <div className={STAGE_WRAPPER_CLASSNAME}>
       <FunnelRibbon stage="strategy" playId={play.id} play={play} />
       <div className="flex gap-5">
       <ProjectRail activePlayId={play.id} />

@@ -41,6 +41,7 @@ import { CompanyPanel } from '@/components/discover/CompanyPanel';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { ProjectRail } from '@/components/nav/ProjectRail';
 import { leadToDiscoveredCompany } from '@/lib/dashboard/leadViews';
+import { STAGE_WRAPPER_CLASSNAME_FIXED_HEIGHT } from '@/lib/layout/stageWrapper';
 
 type ManualBucket = 'person' | 'decision_maker' | 'generic';
 
@@ -577,7 +578,7 @@ export function LeadsClient({ initialLeads }: Props) {
   // --- Render -------------------------------------------------------------
 
   return (
-    <div className="flex flex-col gap-[52px] px-6 pt-[52px] pb-[52px] h-[calc(100vh-56px)] bg-evari-ink">
+    <div className={STAGE_WRAPPER_CLASSNAME_FIXED_HEIGHT}>
       <FunnelRibbon stage="leads" playId={playId ?? ''} />
       <div className="flex gap-4 flex-1 min-h-0">
       {/* Column 1: projects rail */}

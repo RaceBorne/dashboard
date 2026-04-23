@@ -5,6 +5,7 @@ import type { Play, PlayStage } from '@/lib/types';
 import { VentureHero } from '@/components/plays/VentureHero';
 import { PlayRow } from '@/components/plays/PlayRow';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
+import { STAGE_WRAPPER_CLASSNAME } from '@/lib/layout/stageWrapper';
 
 // Stage pages depend on ?playId= and per-request data, so opt out of
 // static prerender. Without this, Next.js 16 fails the build with
@@ -51,7 +52,7 @@ export default async function VenturesPage() {
         hero is the primary action; the existing ventures list lives
         below as a smaller, secondary section.
       */}
-      <div className="flex flex-col gap-[52px] px-6 pt-[52px] pb-[52px]">
+      <div className={STAGE_WRAPPER_CLASSNAME}>
         <FunnelRibbon stage="ventures" playId={plays[0]?.id ?? ""} />
 
         {/* Hero — big, the primary action on this page. */}

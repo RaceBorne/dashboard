@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { ProjectRail } from '@/components/nav/ProjectRail';
+import { STAGE_WRAPPER_CLASSNAME_FIXED_HEIGHT } from '@/lib/layout/stageWrapper';
 import {
   Building2,
   BadgeCheck,
@@ -546,7 +547,7 @@ export function DiscoverClient({ plays }: Props) {
   const selectedEmails = (selectedCompany?.emails ?? []).map((e) => e.address);
 
   return (
-    <div className="flex flex-col gap-[52px] px-6 pt-[52px] pb-[52px] h-[calc(100vh-56px)] bg-evari-ink">
+    <div className={STAGE_WRAPPER_CLASSNAME_FIXED_HEIGHT}>
       {(() => {
         const urlPid = searchParams?.get('playId') ?? null;
         return <FunnelRibbon stage="discovery" playId={urlPid ?? ''} play={linkedPlay} />;
