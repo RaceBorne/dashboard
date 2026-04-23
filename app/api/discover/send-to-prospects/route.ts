@@ -120,7 +120,7 @@ export async function POST(req: Request) {
           },
         ],
         tier: 'prospect',
-        category: play.category,
+        category: play.category ?? play.title,
         playId: body.playId,
         companyName: company?.name,
         companyUrl: 'https://' + domain,

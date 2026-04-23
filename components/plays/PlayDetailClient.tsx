@@ -104,10 +104,6 @@ export function PlayDetailClient({
     await patchPlay({ strategy: patch });
   }
 
-  async function saveCategory(next: string) {
-    await patchPlay({ category: next });
-  }
-
   async function saveScope(patch: Partial<PlayScope>) {
     await patchPlay({ scope: patch });
   }
@@ -601,20 +597,7 @@ export function PlayDetailClient({
                   </span>
                   <AutoScanPill autoScan={play.autoScan} />
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-[11px]">
-                  <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-                    Funnel
-                  </span>
-                  <div className="flex-1 min-w-0 max-w-[360px]">
-                    <InlineText
-                      value={play.category ?? ''}
-                      onSave={saveCategory}
-                      placeholder="Categorise this venture"
-                      displayClassName="text-[11px] text-evari-text"
-                      label="funnel category"
-                    />
-                  </div>
-                </div>
+
               </div>
             </div>
           </div>
