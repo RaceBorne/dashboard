@@ -36,6 +36,8 @@ import {
   Activity,
   MapPin,
   UserCircle2,
+  Clock,
+  CalendarRange,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -134,6 +136,13 @@ export function TrafficDashboard({ snapshot }: Props) {
     [snapshot.trend365, trendWindow],
   );
 
+  // ─── Hero panels: last 24h + this week ────────────────────────────────────
+  // GA4's daily export usually lands one day late (today is incomplete), so
+  // "last 24h" = the most recent complete day and "this week" = the trailing
+  // 7 complete days. Each panel shows delta vs the equivalent prior block.
+  const heroDay = useMemo(() => buildHeroDayUsers(snapshot.trend365), [snapshot.trend365]);
+  const heroWeek = useMemo(() => buildHeroWeekUsers(snapshot.trend365), [snapshot.trend365]);
+
   async function runSync() {
     setBusy(true);
     setError(null);
@@ -231,6 +240,30 @@ export function TrafficDashboard({ snapshot }: Props) {
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Hero — last 24 hrs + this week. These are the panels Craig actually
+          glances at first thing each morning; the 28d KPI strip below is the
+          "are we trending the right way" backdrop. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <HeroUsersPanel
+          tile={heroDay}
+          title="Users · last 24 hrs"
+          subtitle={heroDay.windowLabel}
+          icon={<Clock className="h-4 w-4" />}
+          color={CHART_PALETTE[0]}
+          previousLabel="vs prior 24 hrs"
+          footer="Most recent complete day from the GA4 daily export. GA4 finalises a day a few hours after midnight UTC, so this is normally yesterday."
+        />
+        <HeroUsersPanel
+          tile={heroWeek}
+          title="Users · this week"
+          subtitle={heroWeek.windowLabel}
+          icon={<CalendarRange className="h-4 w-4" />}
+          color={CHART_PALETTE[1]}
+          previousLabel="vs prior 7 days"
+          footer="Trailing 7 complete days, summed. Compared against the 7 days immediately before that block."
+        />
+      </div>
 
       {/* 1. KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -574,6 +607,166 @@ export function TrafficDashboard({ snapshot }: Props) {
         </Card>
       </div>
     </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Hero "users" panels — last 24 hrs + this week. These read the trend365
+// array (sorted ascending) and synthesise a TrafficKpiTile-shaped object so
+// they can lean on the existing Sparkline + delta visuals without a new
+// data layer trip.
+// -----------------------------------------------------------------------------
+interface HeroTile {
+  value: number;
+  previousValue: number;
+  deltaPct: number;
+  trend: TrafficSparkPoint[];
+  windowLabel: string;
+}
+
+type TrafficSparkPoint = { day: string; value: number };
+
+function buildHeroDayUsers(trend: TrafficDay[]): HeroTile {
+  if (trend.length === 0) {
+    return { value: 0, previousValue: 0, deltaPct: 0, trend: [], windowLabel: '—' };
+  }
+  const last = trend[trend.length - 1];
+  const prev = trend.length >= 2 ? trend[trend.length - 2] : null;
+  const value = last?.users ?? 0;
+  const previousValue = prev?.users ?? 0;
+  const delta = value - previousValue;
+  const deltaPct = previousValue > 0 ? delta / previousValue : 0;
+  // Sparkline: last 14 days of daily users, so the most-recent-day big
+  // number always has visual context.
+  const sparkRows = trend.slice(Math.max(0, trend.length - 14));
+  const sparkTrend: TrafficSparkPoint[] = sparkRows.map((d) => ({ day: d.day, value: d.users }));
+  return {
+    value,
+    previousValue,
+    deltaPct,
+    trend: sparkTrend,
+    windowLabel: last ? formatDayLabel(last.day) : '—',
+  };
+}
+
+function buildHeroWeekUsers(trend: TrafficDay[]): HeroTile {
+  if (trend.length === 0) {
+    return { value: 0, previousValue: 0, deltaPct: 0, trend: [], windowLabel: '—' };
+  }
+  const week = trend.slice(Math.max(0, trend.length - 7));
+  const prevWeek = trend.slice(Math.max(0, trend.length - 14), Math.max(0, trend.length - 7));
+  const value = week.reduce((s, d) => s + d.users, 0);
+  const previousValue = prevWeek.reduce((s, d) => s + d.users, 0);
+  const delta = value - previousValue;
+  const deltaPct = previousValue > 0 ? delta / previousValue : 0;
+  // Sparkline: last 12 weeks of weekly user totals if we have enough days,
+  // otherwise fall back to whatever daily data we have.
+  const sparkTrend: TrafficSparkPoint[] = bucketIntoWeeks(trend, 12);
+  const startDay = week[0]?.day;
+  const endDay = week[week.length - 1]?.day;
+  const windowLabel =
+    startDay && endDay
+      ? `${formatDayLabel(startDay)} → ${formatDayLabel(endDay)}`
+      : '—';
+  return { value, previousValue, deltaPct, trend: sparkTrend, windowLabel };
+}
+
+// Group the trailing N weeks of trend rows into Sunday-anchored 7-day buckets
+// keyed by the bucket's last day. We work backwards from the most recent day
+// so the most recent bucket is always exactly 7 days regardless of which
+// weekday GA4 last reported.
+function bucketIntoWeeks(trend: TrafficDay[], weeks: number): TrafficSparkPoint[] {
+  if (trend.length === 0) return [];
+  const out: TrafficSparkPoint[] = [];
+  let end = trend.length;
+  for (let i = 0; i < weeks; i++) {
+    const start = Math.max(0, end - 7);
+    if (start === end) break;
+    const slice = trend.slice(start, end);
+    const sum = slice.reduce((s, d) => s + d.users, 0);
+    const lastDay = slice[slice.length - 1]?.day ?? '';
+    out.push({ day: lastDay, value: sum });
+    end = start;
+    if (start === 0) break;
+  }
+  return out.reverse();
+}
+
+function formatDayLabel(day: string): string {
+  if (!day || day.length < 10) return day;
+  const d = new Date(day + 'T00:00:00Z');
+  return d.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
+function HeroUsersPanel({
+  tile,
+  title,
+  subtitle,
+  icon,
+  color,
+  previousLabel,
+  footer,
+}: {
+  tile: HeroTile;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  color: string;
+  previousLabel: string;
+  footer: string;
+}) {
+  const arrow =
+    tile.deltaPct > 0 ? TrendingUp : tile.deltaPct < 0 ? TrendingDown : Minus;
+  const Arrow = arrow;
+  const tone =
+    tile.deltaPct > 0
+      ? 'text-evari-success'
+      : tile.deltaPct < 0
+        ? 'text-evari-danger'
+        : 'text-evari-dimmer';
+
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+              <span style={{ color }}>{icon}</span>
+              {title}
+            </div>
+            <div className="text-xs text-evari-dim mt-0.5 truncate">{subtitle}</div>
+          </div>
+          <span
+            className={cn(
+              'inline-flex items-center gap-0.5 text-xs font-mono tabular-nums px-1.5 py-0.5 rounded-md bg-evari-surfaceSoft',
+              tone,
+            )}
+          >
+            <Arrow className="h-3.5 w-3.5" />
+            {formatPct(tile.deltaPct)}
+          </span>
+        </div>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-4xl font-medium tracking-tight text-evari-text font-mono tabular-nums leading-none">
+              {formatNumber(tile.value)}
+            </div>
+            <div className="text-[11px] text-evari-dimmer mt-1">
+              {previousLabel}: {formatNumber(tile.previousValue)}
+            </div>
+          </div>
+          <div className="h-12 w-40 -mb-1">
+            <Sparkline data={tile.trend} color={color} />
+          </div>
+        </div>
+        <PanelFooter>{footer}</PanelFooter>
+      </CardContent>
+    </Card>
   );
 }
 
