@@ -35,8 +35,21 @@
  *
  *   Plus `box-border` so padding lives inside the 52px box and the
  *   chip lozenge sits centred exactly as designed.
+ *
+ * ─── Dev-mode height assertion ───
+ *
+ *   In addition to the belt-and-braces layout fix, we measure the
+ *   ribbon's actual rendered height after mount (and on every stage
+ *   change / window resize) and `console.warn` if it isn't exactly
+ *   52px. This is gated on NODE_ENV !== 'production' so it costs
+ *   nothing in prod but catches regressions the instant any dev
+ *   loads the page locally.
+ *
+ *   If you ever see "[FunnelRibbon] height assertion failed" in the
+ *   console, do NOT silence it — read the warning, find what's
+ *   squashing the ribbon, and fix the layout (not the assertion).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -110,6 +123,7 @@ interface Props {
 
 export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
   const [play, setPlay] = useState<Play | null>(initialPlay ?? null);
+  const ribbonRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!playId) return;
@@ -129,11 +143,49 @@ export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
     };
   }, [playId, play]);
 
+  // Dev-mode height assertion. See the "Dev-mode height assertion"
+  // comment block at the top of this file. Costs nothing in prod
+  // because the entire effect body short-circuits on NODE_ENV.
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    const el = ribbonRef.current;
+    if (!el) return;
+
+    const EXPECTED = 52;
+    let warned = false;
+
+    const measure = () => {
+      const h = Math.round(el.getBoundingClientRect().height);
+      if (h !== EXPECTED && !warned) {
+        warned = true;
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[FunnelRibbon] height assertion failed — expected ${EXPECTED}px, got ${h}px on stage="${stage}". ` +
+            `Something in the surrounding layout is squashing (or stretching) the ribbon. ` +
+            `See lib/layout/stageWrapper.ts and the "Height: belt + braces" comment in FunnelRibbon.tsx ` +
+            `before "fixing" anything — this is almost certainly a wrapper-flex regression, not a ribbon bug.`,
+        );
+      }
+    };
+
+    // Measure once after layout settles, then again on resize. We
+    // only warn once per mount to keep the console clean.
+    const rafId = requestAnimationFrame(measure);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+    };
+  }, [stage]);
+
   const currentIdx = STAGES.findIndex((s) => s.key === stage);
   const onList = stage === 'ventures' || !playId;
 
   return (
     <div
+      ref={ribbonRef}
       className="shrink-0 box-border rounded-xl bg-evari-surface px-4 h-[52px] min-h-[52px] flex items-center"
       style={{ height: 52, minHeight: 52 }}
     >
