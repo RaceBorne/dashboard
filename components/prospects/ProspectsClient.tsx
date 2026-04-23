@@ -647,6 +647,39 @@ export function ProspectsClient({ initialLeads }: Props) {
           <header className="sticky top-0 z-10 shrink-0 border-b border-evari-line/30 bg-evari-surface px-4 py-3 flex items-center gap-3">
             {selectedIds.size > 0 ? (
               <div className="min-w-0 flex-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Toggle: if every visible row is already selected,
+                    // clear; otherwise add every visible row to the set.
+                    const allVisible = filtered.length > 0 && filtered.every((l) => selectedIds.has(l.id));
+                    if (allVisible) {
+                      setSelectedIds(new Set());
+                    } else {
+                      setSelectedIds(new Set(filtered.map((l) => l.id)));
+                    }
+                  }}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70 whitespace-nowrap"
+                  title={
+                    filtered.length > 0 && filtered.every((l) => selectedIds.has(l.id))
+                      ? 'Deselect all'
+                      : `Select all ${filtered.length} visible prospects`
+                  }
+                >
+                  <span className={
+                    'h-3.5 w-3.5 rounded-[3px] border inline-flex items-center justify-center shrink-0 ' +
+                    (filtered.length > 0 && filtered.every((l) => selectedIds.has(l.id))
+                      ? 'bg-evari-accent border-evari-accent'
+                      : 'border-evari-dimmer')
+                  }>
+                    {filtered.length > 0 && filtered.every((l) => selectedIds.has(l.id)) ? (
+                      <Check className="h-2.5 w-2.5 text-evari-ink" />
+                    ) : null}
+                  </span>
+                  {filtered.length > 0 && filtered.every((l) => selectedIds.has(l.id))
+                    ? 'All'
+                    : `Select all ${filtered.length}`}
+                </button>
                 <span className="text-[13px] font-semibold text-evari-text whitespace-nowrap">
                   {selectedIds.size} selected
                 </span>
@@ -747,6 +780,22 @@ export function ProspectsClient({ initialLeads }: Props) {
                 <div className="shrink-0 text-[11.5px] text-evari-dim whitespace-nowrap">
                   {filtered.length} prospect{filtered.length === 1 ? '' : 's'}
                 </div>
+                {filtered.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Select every visible row. The header switches to
+                      // selection mode automatically because selectedIds.size
+                      // becomes > 0.
+                      setSelectedIds(new Set(filtered.map((l) => l.id)));
+                    }}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70 whitespace-nowrap"
+                    title={`Select all ${filtered.length} visible prospects`}
+                  >
+                    <span className="h-3.5 w-3.5 rounded-[3px] border border-evari-dimmer inline-flex items-center justify-center shrink-0" />
+                    Select all
+                  </button>
+                ) : null}
               </>
             )}
             <div className="relative w-48 shrink-0">
