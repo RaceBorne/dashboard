@@ -366,13 +366,14 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
      </div>
     ) : (
      <>
-      <div className="px-6 py-4">
+      <div className="px-6 py-4 border-b border-evari-line/40 bg-evari-surface/30">
        <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-         <h2 className="text-base font-medium text-evari-text truncate">
+         <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-1.5">Subject</div>
+         <h2 className="text-xl font-semibold text-evari-text leading-tight break-words">
           {thread.subject}
          </h2>
-         <div className="mt-1 text-xs text-evari-dim flex items-center gap-2 flex-wrap">
+         <div className="mt-2 text-xs text-evari-dim flex items-center gap-2 flex-wrap">
           <AtSign className="h-3 w-3" />
           {thread.participants
            .map((p) => p.name + ' <' + p.email + '>')
