@@ -44,6 +44,9 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
  const [draft, setDraft] = useState('');
  const [aiLoading, setAiLoading] = useState(false);
  const [aiMock, setAiMock] = useState(false);
+ const [sendBusy, setSendBusy] = useState(false);
+ const [sendError, setSendError] = useState<string | null>(null);
+ const [justSent, setJustSent] = useState(false);
  const [editing, setEditing] = useState<Thread | null>(null);
  const confirm = useConfirm();
 
@@ -132,6 +135,50 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
    setAiMock(data.mock);
   } finally {
    setAiLoading(false);
+  }
+ }
+
+ /**
+  * Send the current draft via /api/conversations/[id]/reply. The server
+  * sends the email through Gmail (signature attached server-side from the
+  * default OutreachSender), appends the sent message to the thread, and
+  * returns the updated thread. We swap our local thread copy for the
+  * returned one so the UI updates immediately without a refetch.
+  */
+ async function sendReply() {
+  if (!thread) return;
+  const text = draft.trim();
+  if (!text || sendBusy) return;
+  setSendBusy(true);
+  setSendError(null);
+  setJustSent(false);
+  try {
+   const res = await fetch('/api/conversations/' + thread.id + '/reply', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ body: text }),
+   });
+   const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    sent?: boolean;
+    thread?: Thread;
+    error?: string;
+    warning?: string;
+   };
+   if (!res.ok || !data.ok) {
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+   }
+   if (data.thread) {
+    setThreads((prev) => prev.map((t) => (t.id === data.thread!.id ? data.thread! : t)));
+   }
+   setDraft('');
+   setJustSent(true);
+   // Auto-clear the success chip after 4s so it doesn't stick around.
+   setTimeout(() => setJustSent(false), 4000);
+  } catch (err) {
+   setSendError(err instanceof Error ? err.message : 'Send failed');
+  } finally {
+   setSendBusy(false);
   }
  }
 
@@ -410,12 +457,25 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
         className="min-h-[140px] font-sans"
        />
        <div className="flex justify-between items-center mt-2">
-        <div className="text-[11px] text-evari-dimmer">
-         {draft.length} chars · sent via Gmail when connected
+        <div className="text-[11px] text-evari-dimmer flex items-center gap-2 min-w-0">
+         <span>{draft.length} chars · sent via Gmail with signature attached</span>
+         {sendError ? (
+          <span className="text-evari-danger truncate">· {sendError}</span>
+         ) : justSent ? (
+          <span className="text-evari-success">· sent</span>
+         ) : null}
         </div>
-        <Button size="sm" disabled={!draft.trim()}>
-         <Send className="h-3 w-3" />
-         Send
+        <Button
+         size="sm"
+         onClick={() => void sendReply()}
+         disabled={!draft.trim() || sendBusy}
+        >
+         {sendBusy ? (
+          <RefreshCw className="h-3 w-3 animate-spin" />
+         ) : (
+          <Send className="h-3 w-3" />
+         )}
+         {sendBusy ? 'Sending…' : 'Send'}
         </Button>
        </div>
       </div>
