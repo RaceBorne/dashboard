@@ -170,6 +170,22 @@ export type CompanyContactDepartment =
 
 export type CompanyContactSeniority = 'exec' | 'senior' | 'mid' | 'junior' | 'other';
 
+/**
+ * One plausible email address for a person. The enrichment engine
+ * generates multiple per person (pattern permutations) rather than
+ * committing to a single guess, so the operator can see why we picked
+ * one over the others.
+ */
+export interface EmailCandidate {
+  email: string;
+  /** HIGH / MEDIUM / LOW — UPPERCASE to match the enrichment prompt spec. */
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  /** One-line justification: pattern match, MX hit, public mention, etc. */
+  reason: string;
+  /** True once dns.resolveMx on the address domain returned a record. */
+  mxVerified?: boolean;
+}
+
 export interface CompanyContact {
   name: string;
   jobTitle?: string;
@@ -194,6 +210,21 @@ export interface CompanyContact {
    * automatic jobTitle-based segmentation.
    */
   manualBucket?: 'person' | 'decision_maker' | 'generic';
+
+  // --- Enrichment engine v1 fields (#178) ----------------------------------
+
+  /** Location / city line surfaced by the enrichment engine. */
+  location?: string;
+  /** Multiple plausible addresses for this person, each with confidence + reason. */
+  emailCandidates?: EmailCandidate[];
+  /** The single candidate the enrichment engine picks as most likely. */
+  primaryEmail?: string;
+  /** 0-100 fit score for the current target role + venture. */
+  leadScore?: number;
+  /** Short sentence explaining the score + why this person matters. */
+  reasoning?: string;
+  /** ISO timestamp of the last enrichment pass for this contact. */
+  enrichedAt?: string;
 }
 
 /**
@@ -1143,6 +1174,17 @@ export interface DiscoveredCompany {
   sources?: string[];
   /** ISO timestamp of last enrichment. */
   enrichedAt?: string;
+  /**
+   * Enrichment-engine output: ranked people at this company with
+   * email candidates, score, and reasoning. Matches the 7-step
+   * enrichment prompt output. Populated when the enrich endpoint
+   * is called with a targetRole. See CompanyContact for shape.
+   */
+  people?: CompanyContact[];
+  /** The target role the enrichment engine ranked people for. Audit field. */
+  peopleTargetRole?: string;
+  /** ISO timestamp of the last people enrichment pass. */
+  peopleEnrichedAt?: string;
 }
 
 /**

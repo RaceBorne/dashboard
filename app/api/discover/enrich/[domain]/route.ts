@@ -8,7 +8,15 @@ import {
   webSearchQuery,
 } from '@/lib/integrations/dataforseo';
 import { buildSystemPrompt, hasAIGatewayCredentials } from '@/lib/ai/gateway';
-import type { DiscoveredCompany, DiscoverEmail, DiscoverSignal } from '@/lib/types';
+import type {
+  CompanyContact,
+  DiscoveredCompany,
+  DiscoverEmail,
+  DiscoverSignal,
+  EmailCandidate,
+} from '@/lib/types';
+import { hasMxRecord, domainOf } from '@/lib/enrich/mxCheck';
+import { getPlay } from '@/lib/dashboard/repository';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,6 +55,12 @@ export async function POST(
   const budget = Number.isFinite(budgetParam)
     ? Math.min(18, Math.max(4, budgetParam))
     : 8;
+  // Target role for the enrichment engine. Preference order:
+  //   1. Explicit ?targetRole=... query param (operator override in panel)
+  //   2. play.strategy.targetPersona when ?playId= is provided
+  //   3. Undefined — the model picks a sensible default based on orgType.
+  const explicitTargetRole = url.searchParams.get('targetRole') || undefined;
+  const playIdParam = url.searchParams.get('playId') || undefined;
 
   const encoder = new TextEncoder();
 
@@ -101,12 +115,31 @@ export async function POST(
         return;
       }
 
-      emit({ phase: 'start', domain });
+      // Resolve the target role we'll pass into the enrichment engine.
+      let targetRole = explicitTargetRole;
+      if (!targetRole && playIdParam) {
+        try {
+          const play = await getPlay(supabase, playIdParam);
+          const persona = play?.strategy?.targetPersona;
+          if (persona) targetRole = persona;
+        } catch {
+          // Non-fatal: fall through with undefined targetRole.
+        }
+      }
+
+      emit({ phase: 'start', domain, targetRole });
 
       try {
-        const result = await runEnrichment(domain, budget, (evt) => emit(evt));
+        const result = await runEnrichment(domain, budget, targetRole, (evt) => emit(evt));
         const enrichedAt = new Date().toISOString();
-        const company: DiscoveredCompany = { ...result, domain, enrichedAt };
+        const company: DiscoveredCompany = {
+          ...result,
+          domain,
+          enrichedAt,
+          ...(result.people && result.people.length > 0
+            ? { peopleTargetRole: targetRole, peopleEnrichedAt: enrichedAt }
+            : {}),
+        };
         const { error: writeErr } = await supabase
           .from('dashboard_discovered_companies')
           .upsert({
@@ -145,8 +178,12 @@ type Emit = (event: Record<string, unknown>) => void;
 async function runEnrichment(
   domain: string,
   budget: number,
+  targetRole: string | undefined,
   emit: Emit,
 ): Promise<Omit<DiscoveredCompany, 'domain' | 'enrichedAt'>> {
+  const engineBlock = targetRole
+    ? ENRICHMENT_ENGINE_PROMPT(domain, targetRole)
+    : '';
   const task =
     `Build a structured company profile for ${domain}. Visit the site, run targeted web searches, then output one JSON object matching the schema below.\n\n` +
     `Rules:\n` +
@@ -156,6 +193,7 @@ async function runEnrichment(
     `- For signals, return up to 5 recent items (hires, news, launches, investment) with short titles + dates when known.\n` +
     `- For emails, return every verifiable @${domain} address you encounter, with the role bucket and a source URL.\n` +
     `- Do not invent people. If nobody is named publicly, leave emails[].name empty for role addresses.\n\n` +
+    engineBlock +
     `Output exactly one JSON object (no prose) wrapped in <json>...</json>:\n` +
     `{\n` +
     `  "name": string,\n` +
@@ -171,6 +209,7 @@ async function runEnrichment(
     `  "technologies"?: string[],\n` +
     `  "signals"?: [{ "type": string, "title": string, "url"?: string, "date"?: string, "summary"?: string }],\n` +
     `  "emails"?: [{ "address": string, "bucket"?: string, "label"?: string, "name"?: string, "jobTitle"?: string, "source"?: string, "confidence"?: string, "sourceUrl"?: string }],\n` +
+    `  "people"?: [{ "name": string, "jobTitle"?: string, "location"?: string, "linkedin"?: string, "sourceUrl"?: string, "emailCandidates"?: [{ "email": string, "confidence": "HIGH"|"MEDIUM"|"LOW", "reason": string }], "primaryEmail"?: string, "leadScore"?: number, "reasoning"?: string }],\n` +
     `  "keywords"?: string[],\n` +
     `  "sources"?: string[]\n` +
     `}`;
@@ -244,6 +283,8 @@ async function runEnrichment(
   if (sources.size > 0) {
     normalised.sources = Array.from(sources).slice(0, 20);
   }
+  // STEP 5 of the engine: verify MX for every candidate email.
+  await verifyPeopleMx(normalised.people);
   return normalised;
 }
 
@@ -295,6 +336,48 @@ function isRetryable(err: unknown): boolean {
     m.includes('503') ||
     m.includes('504')
   );
+}
+
+// ---------------------------------------------------------------------------
+// Enrichment engine prompt (#178)
+//
+// Injected into the task whenever a targetRole is provided. Mirrors the
+// 7-step prompt Craig handed over: FIND -> MATCH -> GENERATE -> VERIFY ->
+// SCORE -> OUTPUT. Kept as a single template literal so it's obvious where
+// to edit if the enrichment spec changes.
+// ---------------------------------------------------------------------------
+function ENRICHMENT_ENGINE_PROMPT(domain: string, targetRole: string): string {
+  return [
+    '## ENRICHMENT ENGINE',
+    'You are ALSO acting as the Evari Enrichment Engine. In addition to the',
+    'company facts above, populate the "people" array with up to 3 ranked',
+    'candidates for the target role. Target role: ' + targetRole + '.',
+    '',
+    'Sequence (do NOT skip steps):',
+    '  1. IDENTIFY  — list up to 3 individuals at ' + domain + ' who match',
+    '     the target role. Prioritise seniority + decision-making authority.',
+    '     Prefer UK/EU based where possible.',
+    '  2. MATCH     — every person MUST currently work at ' + domain + '. Reject',
+    '     outdated roles, wrong companies, or ambiguous matches.',
+    '  3. GENERATE  — for each person, generate plausible email permutations',
+    '     at ' + domain + ' using common patterns (firstname.lastname@,',
+    '     first@, firstinitiallastname@, firstnameinitiallastname@).',
+    '  4. VERIFY    — rank each candidate email HIGH / MEDIUM / LOW based on',
+    '     pattern consistency with any @' + domain + ' examples you found.',
+    '     Do NOT claim HIGH unless you have strong pattern evidence.',
+    '  5. SCORE     — give each person a leadScore 0-100 based on role',
+    '     seniority, fit with the target role "' + targetRole + '", and',
+    '     confidence in the contact data.',
+    '  6. REASON    — one short sentence per person explaining the score.',
+    '',
+    'Hard rules:',
+    '  - Never fabricate. If uncertain, return fewer people rather than',
+    '    guessing names.',
+    '  - Every emailCandidates[].email must end in @' + domain + '.',
+    '  - primaryEmail must be one of that person emailCandidates[].email.',
+    '  - JSON only. No prose outside the <json>...</json> envelope.',
+    '',
+  ].join('\n') + '\n';
 }
 
 // ---------------------------------------------------------------------------
@@ -402,6 +485,60 @@ function normaliseCompany(
     });
   }
 
+  // People — enrichment engine output (#178). Each candidate has
+  // multiple emailCandidates with confidence + reason, a primaryEmail
+  // pick, a leadScore, and a short reasoning line.
+  const peopleRaw = Array.isArray(raw.people) ? (raw.people as unknown[]) : [];
+  const people: CompanyContact[] = [];
+  for (const p of peopleRaw.slice(0, 10)) {
+    if (!p || typeof p !== 'object') continue;
+    const po = p as Record<string, unknown>;
+    const personName = asString(po.name).trim();
+    if (!personName) continue;
+    const candidatesRaw = Array.isArray(po.emailCandidates)
+      ? (po.emailCandidates as unknown[])
+      : [];
+    const emailCandidates: EmailCandidate[] = [];
+    for (const c of candidatesRaw) {
+      if (!c || typeof c !== 'object') continue;
+      const co = c as Record<string, unknown>;
+      const addr = asString(co.email).trim().toLowerCase();
+      if (!addr || !addr.includes('@')) continue;
+      const conf = asString(co.confidence).toUpperCase();
+      const confidence: EmailCandidate['confidence'] =
+        conf === 'HIGH' || conf === 'MEDIUM' || conf === 'LOW' ? conf : 'LOW';
+      emailCandidates.push({
+        email: addr,
+        confidence,
+        reason: asString(co.reason) || 'Pattern-based guess.',
+      });
+    }
+    const primaryEmailRaw = asString(po.primaryEmail).trim().toLowerCase();
+    const primaryEmail =
+      primaryEmailRaw &&
+      emailCandidates.some((c) => c.email === primaryEmailRaw)
+        ? primaryEmailRaw
+        : emailCandidates[0]?.email;
+    const leadScore = asNumber(po.leadScore);
+    people.push({
+      name: personName,
+      jobTitle: asString(po.jobTitle) || undefined,
+      location: asString(po.location) || undefined,
+      linkedinUrl: asString(po.linkedin) || undefined,
+      sourceUrl: asString(po.sourceUrl) || undefined,
+      email: primaryEmail,
+      emailCandidates: emailCandidates.length ? emailCandidates : undefined,
+      primaryEmail: primaryEmail || undefined,
+      leadScore:
+        typeof leadScore === 'number'
+          ? Math.max(0, Math.min(100, Math.round(leadScore)))
+          : undefined,
+      reasoning: asString(po.reasoning) || undefined,
+      emailSource: 'ai',
+      enrichedAt: new Date().toISOString(),
+    });
+  }
+
   return {
     name,
     description: description || undefined,
@@ -418,7 +555,37 @@ function normaliseCompany(
     signals: signals.length ? signals : undefined,
     emails: emails.length ? emails : undefined,
     sources: sourcesArr.length ? sourcesArr : undefined,
+    people: people.length ? people : undefined,
   };
+}
+
+/**
+ * Run MX lookups on every candidate email in a people[] list. Flips
+ * mxVerified in place. The helper memoises per-domain so we only pay
+ * one DNS round-trip regardless of how many candidates share the
+ * domain (typically all of them do).
+ */
+async function verifyPeopleMx(people: CompanyContact[] | undefined): Promise<void> {
+  if (!people || people.length === 0) return;
+  const uniqueDomains = new Set<string>();
+  for (const p of people) {
+    for (const c of p.emailCandidates ?? []) {
+      const d = domainOf(c.email);
+      if (d) uniqueDomains.add(d);
+    }
+  }
+  const verified = new Map<string, boolean>();
+  await Promise.all(
+    Array.from(uniqueDomains).map(async (d) => {
+      verified.set(d, await hasMxRecord(d));
+    }),
+  );
+  for (const p of people) {
+    for (const c of p.emailCandidates ?? []) {
+      const d = domainOf(c.email);
+      c.mxVerified = verified.get(d) ?? false;
+    }
+  }
 }
 
 function asString(v: unknown): string {
