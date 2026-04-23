@@ -104,6 +104,10 @@ export function DiscoverClient({ plays }: Props) {
   const [quickAddValue, setQuickAddValue] = useState('');
   const [quickAddBusy, setQuickAddBusy] = useState(false);
 
+  /** Set of domains whose 'Find more like this' call is currently running.
+   *  Used to show a spinner on the right row and prevent double-fire. */
+  const [similarBusy, setSimilarBusy] = useState<Set<string>>(new Set());
+
   // Pre-commit save destination — while the hero agent is running, the
   // right column shows a folder picker; once picked, every streamed
   // candidate auto-saves into that Prospects folder.
@@ -371,6 +375,131 @@ export function DiscoverClient({ plays }: Props) {
       setCards((prev) => prev.filter((c) => c.domain !== domain));
     } finally {
       setQuickAddBusy(false);
+    }
+  }
+
+  /**
+   * Find 5 peer companies at the same tier / audience as the clicked
+   * row. Server calls Claude with the company's cached profile + the
+   * venture context + a 'do not return these' list. For each returned
+   * domain, we prepend a skeleton card and fire enrichment in the
+   * background (same pattern as quickAdd). #184.
+   */
+  async function findSimilar(refDomain: string) {
+    if (similarBusy.has(refDomain)) return;
+    setSimilarBusy((prev) => {
+      const next = new Set(prev);
+      next.add(refDomain);
+      return next;
+    });
+    try {
+      const seenDomains = cards.map((c) => c.domain);
+      const res = await fetch('/api/discover/find-similar', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          domain: refDomain,
+          playId: playId || undefined,
+          seenDomains,
+          limit: 5,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        peers?: Array<{ domain: string; name?: string; why?: string }>;
+        reasoning?: string;
+        error?: string;
+      };
+      if (!data.ok || !Array.isArray(data.peers) || data.peers.length === 0) {
+        setExpandToast(data.error ?? 'No peers surfaced');
+        setTimeout(() => setExpandToast(null), 5000);
+        return;
+      }
+      // Prepend skeletons for every new peer so the list reacts
+      // immediately. Enrichment then fills each one in.
+      const peers = data.peers;
+      setCards((prev) => {
+        const seen = new Set(prev.map((c) => c.domain));
+        const skeletons: DiscoverCard[] = [];
+        for (const pr of peers) {
+          if (seen.has(pr.domain)) continue;
+          seen.add(pr.domain);
+          skeletons.push({ domain: pr.domain, name: pr.name ?? pr.domain });
+        }
+        return [...skeletons, ...prev];
+      });
+      setExpandToast(
+        'Found ' + peers.length + ' peers for ' + refDomain + '. Enriching…',
+      );
+      // Kick off enrichment for each in parallel; results land via SSE.
+      await Promise.all(
+        peers.map(async (pr) => {
+          try {
+            const enrichRes = await fetch(
+              '/api/discover/enrich/' +
+                encodeURIComponent(pr.domain) +
+                '?force=0' +
+                (playId ? '&playId=' + encodeURIComponent(playId) : ''),
+              { method: 'POST' },
+            );
+            if (!enrichRes.ok || !enrichRes.body) return;
+            const reader = enrichRes.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              let delim = buffer.indexOf('\n\n');
+              while (delim !== -1) {
+                const raw = buffer.slice(0, delim).trim();
+                buffer = buffer.slice(delim + 2);
+                delim = buffer.indexOf('\n\n');
+                if (!raw.startsWith('data:')) continue;
+                const payload = raw.slice(5).trim();
+                if (!payload) continue;
+                try {
+                  const evt = JSON.parse(payload) as {
+                    phase?: string;
+                    company?: DiscoveredCompanyLike;
+                  };
+                  if (evt.phase === 'done' && evt.company) {
+                    const realCard: DiscoverCard = {
+                      domain: evt.company.domain ?? pr.domain,
+                      name: evt.company.name ?? pr.domain,
+                      logoUrl: evt.company.logoUrl,
+                      category: evt.company.category,
+                      employeeBand: evt.company.employeeBand,
+                      hqLabel: evt.company.hq?.full,
+                    };
+                    setCards((prev) =>
+                      prev.map((c) =>
+                        c.domain === pr.domain ? realCard : c,
+                      ),
+                    );
+                  }
+                } catch {
+                  // ignore malformed chunks
+                }
+              }
+            }
+          } catch {
+            // Non-fatal per peer; skeleton stays in the list.
+          }
+        }),
+      );
+      setTimeout(() => setExpandToast(null), 5000);
+    } catch (err) {
+      setExpandToast(
+        err instanceof Error ? 'Find similar failed: ' + err.message : 'Find similar failed',
+      );
+      setTimeout(() => setExpandToast(null), 5000);
+    } finally {
+      setSimilarBusy((prev) => {
+        const next = new Set(prev);
+        next.delete(refDomain);
+        return next;
+      });
     }
   }
 
@@ -1173,6 +1302,23 @@ export function DiscoverClient({ plays }: Props) {
                         {c.emailCount} email{c.emailCount === 1 ? ' address' : ' addresses'}
                       </span>
                     ) : null}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void findSimilar(c.domain);
+                      }}
+                      disabled={similarBusy.has(c.domain)}
+                      className="inline-flex items-center gap-1 rounded-md border border-evari-line/60 bg-white px-2 py-1 text-[11px] text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-50 whitespace-nowrap"
+                      title={'Find 5 peer companies at the same tier as ' + c.name}
+                    >
+                      {similarBusy.has(c.domain) ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3 w-3" />
+                      )}
+                      Find similar
+                    </button>
                   </div>
                 </li>
               );
