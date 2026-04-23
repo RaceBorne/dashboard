@@ -590,46 +590,17 @@ export function DiscoverClient({ plays }: Props) {
           open, or an empty placeholder otherwise. */}
       <div className="flex-1 min-w-0 h-full flex gap-4">
       {!hasSearched ? (
-        <main className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface flex flex-col items-center justify-center px-8">
-          <div className="w-full max-w-2xl">
-            <h1 className="text-left text-2xl font-semibold text-evari-text mb-6 pl-1">
-              What company are we searching for
-            </h1>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void runHero(heroPrompt);
-              }}
-              className="relative flex items-center min-h-[60px] rounded-xl border border-evari-line/40 bg-white focus-within:border-evari-accent shadow-sm"
-            >
-              <div className="pl-4 pr-3 shrink-0 flex items-center self-stretch pointer-events-none">
-                <Sparkles className="h-4 w-4 text-evari-accent" />
-              </div>
-              <textarea
-                value={heroPrompt}
-                onChange={(e) => setHeroPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    void runHero(heroPrompt);
-                  }
-                }}
-                placeholder="Describe who we are searching for."
-                rows={1}
-                className="flex-1 min-w-0 resize-none bg-transparent pr-14 py-4 text-[14px] leading-6 text-slate-900 placeholder:text-slate-400 focus:placeholder:text-transparent focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={aiBusy || !heroPrompt.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 inline-flex items-center justify-center rounded-lg bg-evari-ink/5 text-evari-dim hover:bg-evari-accent hover:text-white disabled:opacity-40 disabled:hover:bg-evari-ink/5 disabled:hover:text-evari-dim"
-              >
-                {aiBusy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <ArrowUp className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </form>
+        <main className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface flex flex-col items-center justify-center px-8 text-center">
+          <div className="h-12 w-12 rounded-full bg-evari-surfaceSoft flex items-center justify-center mb-4">
+            <Sparkles className="h-5 w-5 text-evari-dimmer" />
+          </div>
+          <div className="text-[14px] font-semibold text-evari-text mb-1">
+            Results will appear here
+          </div>
+          <div className="text-[12px] text-evari-dim max-w-sm">
+            Tweak the filters on the left and hit{' '}
+            <span className="text-evari-text font-medium">Find companies</span>.
+            Matches stream into this column as the agent finds them.
           </div>
         </main>
       ) : (
