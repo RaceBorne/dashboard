@@ -14,6 +14,27 @@
  * The consumer can pass a pre-loaded Play object to avoid a double fetch
  * (Discover and PlayDetail already have it). When no play is passed the
  * ribbon fetches /api/plays/[id] itself.
+ *
+ * ─── Height: belt + braces ───
+ *
+ *   The ribbon was rendering noticeably shorter than 52px on stage pages
+ *   that use STAGE_WRAPPER_CLASSNAME_FILL (notably Conversations). Root
+ *   cause: that wrapper combines `flex flex-col`, `flex-1`, `min-h-0`
+ *   and `overflow-hidden`. In that flex context, an item with bare
+ *   `h-[52px]` is treated as a flex-basis hint rather than a hard
+ *   height — `shrink-0` should prevent shrinking but doesn't always
+ *   fire when the parent has `min-h-0` and the available space is
+ *   contended.
+ *
+ *   Defensive fix: pin the ribbon's height with three reinforcing
+ *   declarations so no flex calculation can squash it:
+ *     1. h-[52px]                — the canonical height (Tailwind class)
+ *     2. min-h-[52px]            — explicit floor flex can't push below
+ *     3. style={{ height, minHeight }}  — inline override that beats
+ *                                  any class-cascade fight
+ *
+ *   Plus `box-border` so padding lives inside the 52px box and the
+ *   chip lozenge sits centred exactly as designed.
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -112,7 +133,10 @@ export function FunnelRibbon({ stage, playId, play: initialPlay }: Props) {
   const onList = stage === 'ventures' || !playId;
 
   return (
-    <div className="shrink-0 rounded-xl bg-evari-surface px-4 h-[52px] flex items-center">
+    <div
+      className="shrink-0 box-border rounded-xl bg-evari-surface px-4 h-[52px] min-h-[52px] flex items-center"
+      style={{ height: 52, minHeight: 52 }}
+    >
       <div className="flex items-center justify-between gap-4 w-full">
         <div className="min-w-0 flex-1 flex items-baseline gap-2">
           <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium shrink-0">
