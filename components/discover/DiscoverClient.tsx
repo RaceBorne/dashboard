@@ -21,11 +21,20 @@ import {
   ArrowUp,
   UserSearch,
   RefreshCw,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
 import { DiscoverFilters } from '@/components/discover/DiscoverFilters';
 import { SaveDestinationPanel } from '@/components/discover/SaveDestinationPanel';
+interface DiscoveredCompanyLike {
+  domain?: string;
+  name?: string;
+  logoUrl?: string;
+  category?: string;
+  employeeBand?: string;
+  hq?: { full?: string };
+}
 import type {
   DiscoverCard,
   DiscoveredCompany,
@@ -89,6 +98,12 @@ export function DiscoverClient({ plays }: Props) {
   // results header. Checkbox per row; master checkbox toggles the visible set.
   const [companyChecked, setCompanyChecked] = useState<Set<string>>(new Set());
 
+  // --- Additive rerun + quick-add (#183) -----------------------------------
+  const [expanding, setExpanding] = useState(false);
+  const [expandToast, setExpandToast] = useState<string | null>(null);
+  const [quickAddValue, setQuickAddValue] = useState('');
+  const [quickAddBusy, setQuickAddBusy] = useState(false);
+
   // Pre-commit save destination — while the hero agent is running, the
   // right column shows a folder picker; once picked, every streamed
   // candidate auto-saves into that Prospects folder.
@@ -146,7 +161,10 @@ export function DiscoverClient({ plays }: Props) {
 
 
 
-  const doSearch = useCallback(async (f: DiscoverFiltersType) => {
+  const doSearch = useCallback(async (
+    f: DiscoverFiltersType,
+    opts?: { append?: boolean },
+  ): Promise<DiscoverCard[]> => {
     setHasSearched(true);
     setSearching(true);
     setSearchError(null);
@@ -163,14 +181,198 @@ export function DiscoverClient({ plays }: Props) {
         error?: string;
       };
       if (!data.ok) throw new Error(data.error ?? 'Search failed');
-      setCards(data.companies ?? []);
+      const incoming = data.companies ?? [];
+      if (opts?.append) {
+        // Merge: keep existing cards, append new-domain cards only.
+        setCards((prev) => {
+          const seen = new Set(prev.map((c) => c.domain));
+          const added = incoming.filter((c) => !seen.has(c.domain));
+          return [...prev, ...added];
+        });
+      } else {
+        setCards(incoming);
+      }
       setSource(data.source ?? null);
+      return incoming;
     } catch (err) {
       setSearchError(err instanceof Error ? err.message : 'Search failed');
+      return [];
     } finally {
       setSearching(false);
     }
   }, []);
+
+  /**
+   * Additive rerun. Asks Claude for 5 new keyword phrases designed to
+   * widen the net around the current filters + avoid the domains we
+   * already have. Fires a search per keyword, merging new cards into
+   * the existing list. Called by the toolbar's Rerun button (#183).
+   */
+  async function additiveRerun() {
+    if (expanding) return;
+    setExpanding(true);
+    setExpandToast(null);
+    const beforeDomains = new Set(cards.map((c) => c.domain));
+    try {
+      const expandRes = await fetch('/api/discover/expand-queries', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          filters,
+          seenDomains: Array.from(beforeDomains),
+          playId: playId || undefined,
+          limit: 5,
+        }),
+      });
+      const expandData = (await expandRes.json()) as {
+        ok?: boolean;
+        keywords?: string[];
+        error?: string;
+      };
+      if (!expandData.ok || !Array.isArray(expandData.keywords)) {
+        throw new Error(expandData.error ?? 'Expand failed');
+      }
+      const newKeywords = expandData.keywords;
+      if (newKeywords.length === 0) {
+        setExpandToast('No new angles to try right now.');
+        return;
+      }
+      // Fire a search per new keyword. Each run appends new-domain cards
+      // to the list; duplicates are silently dropped by doSearch's
+      // seen-domain filter.
+      for (const kw of newKeywords) {
+        const merged: DiscoverFiltersType = {
+          ...filters,
+          keywords: {
+            include: [...(filters.keywords?.include ?? []), kw],
+            exclude: filters.keywords?.exclude ?? [],
+          },
+        };
+        await doSearch(merged, { append: true });
+      }
+      // Count what's new vs what was there when we started.
+      const afterDomains = new Set(
+        cardsRef.current.map((c) => c.domain),
+      );
+      let added = 0;
+      for (const d of afterDomains) if (!beforeDomains.has(d)) added += 1;
+      setExpandToast(
+        added > 0
+          ? 'Found ' + added + ' new companies across ' + newKeywords.length + ' angles.'
+          : 'No new companies surfaced on this pass.',
+      );
+    } catch (err) {
+      setExpandToast(
+        err instanceof Error ? err.message : 'Expand failed',
+      );
+    } finally {
+      setExpanding(false);
+      setTimeout(() => setExpandToast(null), 6000);
+    }
+  }
+
+  // Mirror of `cards` in a ref so additiveRerun can read the freshest list
+  // after all its appends without waiting for React state to flush.
+  const cardsRef = useRef<DiscoverCard[]>([]);
+  useEffect(() => {
+    cardsRef.current = cards;
+  }, [cards]);
+
+  /**
+   * Quick-add: paste a domain (or a full URL), we'll normalise it,
+   * trigger enrichment, and prepend a card. If a save folder is active
+   * the card will also auto-save via the existing useEffect loop.
+   */
+  async function quickAdd() {
+    const raw = quickAddValue.trim();
+    if (!raw || quickAddBusy) return;
+    const domain = raw
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
+      .split('/')[0]
+      .trim();
+    if (!domain.includes('.')) {
+      setExpandToast('Please paste a domain, e.g. rapha.cc');
+      setTimeout(() => setExpandToast(null), 4000);
+      return;
+    }
+    if (cards.some((c) => c.domain === domain)) {
+      setExpandToast('Already in the list: ' + domain);
+      setTimeout(() => setExpandToast(null), 4000);
+      return;
+    }
+    setQuickAddBusy(true);
+    try {
+      // Insert a skeleton card immediately so the UI reacts.
+      const skeleton: DiscoverCard = {
+        domain,
+        name: domain.replace(/\.(co\.uk|uk|cc|com|io|org)$/, ''),
+      };
+      setCards((prev) => [skeleton, ...prev]);
+      setQuickAddValue('');
+      // Fire enrichment — streams via SSE, but we just wait for the
+      // final 'done' event to replace our skeleton with the real card.
+      const res = await fetch(
+        '/api/discover/enrich/' + encodeURIComponent(domain) +
+          '?force=1' +
+          (playId ? '&playId=' + encodeURIComponent(playId) : ''),
+        { method: 'POST' },
+      );
+      if (!res.ok || !res.body) {
+        throw new Error('HTTP ' + res.status);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let delim = buffer.indexOf('\n\n');
+        while (delim !== -1) {
+          const raw = buffer.slice(0, delim).trim();
+          buffer = buffer.slice(delim + 2);
+          delim = buffer.indexOf('\n\n');
+          if (!raw.startsWith('data:')) continue;
+          const payload = raw.slice(5).trim();
+          if (!payload) continue;
+          try {
+            const evt = JSON.parse(payload) as {
+              phase?: string;
+              company?: DiscoveredCompanyLike;
+            };
+            if (evt.phase === 'done' && evt.company) {
+              const realCard: DiscoverCard = {
+                domain: evt.company.domain ?? domain,
+                name: evt.company.name ?? domain,
+                logoUrl: evt.company.logoUrl,
+                category: evt.company.category,
+                employeeBand: evt.company.employeeBand,
+                hqLabel: evt.company.hq?.full,
+              };
+              setCards((prev) =>
+                prev.map((c) => (c.domain === domain ? realCard : c)),
+              );
+            }
+          } catch {
+            // ignore malformed chunks
+          }
+        }
+      }
+      setExpandToast('Added ' + domain);
+      setTimeout(() => setExpandToast(null), 4000);
+    } catch (err) {
+      setExpandToast(
+        err instanceof Error ? 'Add failed: ' + err.message : 'Add failed',
+      );
+      setTimeout(() => setExpandToast(null), 5000);
+      // Rollback skeleton on failure.
+      setCards((prev) => prev.filter((c) => c.domain !== domain));
+    } finally {
+      setQuickAddBusy(false);
+    }
+  }
 
   async function runHero(prompt: string) {
     const p = prompt.trim();
@@ -711,17 +913,60 @@ export function DiscoverClient({ plays }: Props) {
               Save to folder
             </button>
           ) : null}
-          {/* Rerun — icon-only ghost pill. */}
+          {/* Quick-add by domain (#183). Paste a domain or URL and we'll
+              enrich it + prepend it to the list. Never replaces existing
+              cards; always additive. */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void quickAdd();
+            }}
+            className="inline-flex items-center gap-1 shrink-0"
+          >
+            <input
+              type="text"
+              value={quickAddValue}
+              onChange={(e) => setQuickAddValue(e.target.value)}
+              placeholder="Add domain..."
+              disabled={quickAddBusy}
+              className="h-7 rounded-full border border-evari-line/60 bg-white pl-3 pr-2 text-[11.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-evari-accent w-40 disabled:opacity-60"
+            />
+            <button
+              type="submit"
+              disabled={quickAddBusy || !quickAddValue.trim()}
+              className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-evari-line/60 text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-40"
+              title="Add this company to the results"
+              aria-label="Add domain"
+            >
+              {quickAddBusy ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Plus className="h-3 w-3" />
+              )}
+            </button>
+          </form>
+          {/* Rerun — now additive + AI-expanded. Asks Claude for 5 new
+              keyword angles, fires a search per angle, merges new-domain
+              results into the list (never replaces). */}
           <button
             type="button"
-            onClick={() => void doSearch(filters)}
-            disabled={searching}
+            onClick={() => void additiveRerun()}
+            disabled={searching || expanding}
             className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-evari-line/60 text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-40 whitespace-nowrap shrink-0"
-            title="Re-run with current filters"
-            aria-label="Rerun"
+            title="Expand the search: ask Claude for new angles and add to the list"
+            aria-label="Expand search"
           >
-            <RefreshCw className="h-3 w-3" />
+            {expanding ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
           </button>
+          {expandToast ? (
+            <div className="shrink-0 inline-flex items-center gap-1 rounded-full bg-evari-accent/10 text-evari-accent text-[11px] px-3 py-1 whitespace-nowrap">
+              {expandToast}
+            </div>
+          ) : null}
           {/* Select-all lozenge — segmented toggle. */}
           <button
             type="button"
