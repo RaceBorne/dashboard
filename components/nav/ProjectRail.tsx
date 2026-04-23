@@ -13,11 +13,27 @@
  * Collapsible: mirrors AppSidebar exactly. w-14 icon-only / w-[260px]
  * full layout, persisted via localStorage so it stays where the user
  * left it. Default is expanded so first-time users see project titles.
+ *
+ * History — "+ New project" footer removed (#165).
+ *   The footer used to host a "+ New project" button that called
+ *   `window.location.href = '/ventures'`. Two problems with that:
+ *     1) Hard reload via window.location.href (not Next.js soft routing)
+ *        meant the user dropped onto /ventures with a fresh document load
+ *        — which paints briefly with no cached chunks and looks "broken"
+ *        before settling.
+ *     2) /ventures is structurally different from the stage pages: it is
+ *        a vertical list (no rail, no 3-column FunnelRibbon+Rail+Cols
+ *        layout). The visual jump from the FIXED_HEIGHT stage layout to
+ *        the CLASSNAME list layout reads as ribbon clearspace breaking
+ *        even though `lib/layout/stageWrapper.ts` is unchanged.
+ *   Project creation now lives only on /ventures via VentureHero —
+ *   which is the proper flow because Spitball needs a working title +
+ *   one-sentence pitch on turn one.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { Plus, Loader2, Rocket, PanelLeft } from 'lucide-react';
+import { Loader2, Rocket, PanelLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type PlayLite = { id: string; title: string; updatedAt: string };
@@ -137,17 +153,6 @@ export function ProjectRail({ activePlayId, className }: Props) {
     return '/ventures/' + id;
   }
 
-  // The rail's "+" used to POST /api/plays with an empty body, which
-  // littered the project list with "Untitled strategy" rows that then
-  // became the active venture across every stage page. The proper
-  // creation flow (NewVentureButton) lives on /ventures and requires
-  // a working title plus a one-sentence pitch — without those, Spitball
-  // has no context on the first turn. So the rail just routes the user
-  // to /ventures now; no row is created until they fill the form in.
-  function goToNewVenture() {
-    window.location.href = '/ventures';
-  }
-
   return (
     <aside
       className={cn(
@@ -180,10 +185,11 @@ export function ProjectRail({ activePlayId, className }: Props) {
         </button>
       </div>
 
-      {/* Project list */}
+      {/* Project list — the only content in the rail now. The "+ New
+          project" footer was removed (#165, see header comment). */}
       <div
         className={cn(
-          'flex-1 overflow-y-auto pb-2 space-y-0.5',
+          'flex-1 overflow-y-auto pb-3 space-y-0.5',
           collapsed ? 'px-1.5' : 'px-2',
         )}
       >
@@ -198,7 +204,7 @@ export function ProjectRail({ activePlayId, className }: Props) {
         ) : plays.length === 0 ? (
           collapsed ? null : (
             <div className="px-3 py-2 text-[11px] text-evari-dimmer">
-              No projects yet. Create one below.
+              No projects yet. Create one from Ventures.
             </div>
           )
         ) : (
@@ -234,33 +240,6 @@ export function ProjectRail({ activePlayId, className }: Props) {
             );
           })
         )}
-      </div>
-
-      {/* Footer: New project — routes to /ventures hero (which has the
-          title + pitch form). No row is created until the user fills it in. */}
-      <div
-        className={cn(
-          'border-t border-evari-line/40',
-          collapsed ? 'p-1.5' : 'p-2',
-        )}
-      >
-        <button
-          type="button"
-          onClick={goToNewVenture}
-          title={collapsed ? 'New project' : undefined}
-          aria-label={collapsed ? 'New project' : undefined}
-          className={cn(
-            'flex items-center rounded-md text-sm w-full transition-colors text-evari-dim hover:bg-evari-surfaceSoft hover:text-evari-text',
-            collapsed
-              ? 'justify-center h-9 w-9 mx-auto'
-              : 'gap-2.5 px-3 py-1.5 text-left',
-          )}
-        >
-          <Plus className="h-4 w-4 shrink-0 text-evari-dimmer" />
-          {!collapsed ? (
-            <span className="flex-1">New project</span>
-          ) : null}
-        </button>
       </div>
     </aside>
   );
