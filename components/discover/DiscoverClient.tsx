@@ -527,6 +527,70 @@ export function DiscoverClient({ plays }: Props) {
     }
   }
 
+  /**
+   * Bulk send every checked company to Prospects. For each selected
+   * company, pick the best email we can find:
+   *   1. People[].primaryEmail where candidate is HIGH confidence (from
+   *      the enrichment engine).
+   *   2. Otherwise the first address on company.emails[] (generic or
+   *      named). At least the company gets saved so the operator can
+   *      come back and enrich it properly.
+   * Companies with NO email at all are counted in `skipped` and
+   * surfaced in the summary chip.
+   */
+  async function sendSelectedCompaniesToProspects() {
+    if (!playId || companyChecked.size === 0) return;
+    setSending(true);
+    setSendResult(null);
+    try {
+      const picks: Array<{ domain: string; emails: string[] }> = [];
+      let skippedNoEmail = 0;
+      for (const domain of companyChecked) {
+        const co = companyByDomain.get(domain);
+        const engineEmails = new Set<string>();
+        for (const person of co?.people ?? []) {
+          const primary = person.primaryEmail;
+          if (!primary) continue;
+          const cand = person.emailCandidates?.find((c) => c.email === primary);
+          if (cand?.confidence === 'HIGH') engineEmails.add(primary);
+        }
+        const fallback = (co?.emails ?? []).map((e) => e.address);
+        const emails = engineEmails.size > 0
+          ? Array.from(engineEmails)
+          : fallback.slice(0, 1);
+        if (emails.length === 0) {
+          skippedNoEmail += 1;
+          continue;
+        }
+        picks.push({ domain, emails });
+      }
+      if (picks.length === 0) {
+        setSendResult({ created: 0, skipped: skippedNoEmail });
+        return;
+      }
+      const res = await fetch('/api/discover/send-to-prospects', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ playId, picks }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        created?: number;
+        skipped?: number;
+      };
+      if (data.ok) {
+        setSendResult({
+          created: data.created ?? 0,
+          skipped: (data.skipped ?? 0) + skippedNoEmail,
+        });
+        setCompanyChecked(new Set());
+        window.dispatchEvent(new Event('evari:nav-counts-dirty'));
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
   const selectedCard = selected ? cards.find((c) => c.domain === selected) ?? null : null;
   const cachedCompany = selected ? companyByDomain.get(selected) ?? null : null;
   // Paint the panel even before enrichment lands by synthesising a
@@ -707,6 +771,26 @@ export function DiscoverClient({ plays }: Props) {
               </span>
             ) : null}
           </button>
+          {/* Send selected companies to Prospects. Only visible when
+              at least one company is ticked. Lives next to Find people
+              so the 'I've picked my row, now what?' action is right
+              there in the operator's field of view. */}
+          {companyChecked.size > 0 && playId ? (
+            <button
+              type="button"
+              onClick={() => void sendSelectedCompaniesToProspects()}
+              disabled={sending}
+              className="inline-flex items-center gap-1.5 rounded-full bg-evari-gold px-3 py-1.5 text-[11.5px] font-semibold text-evari-goldInk hover:bg-evari-gold/90 whitespace-nowrap shrink-0 disabled:opacity-60"
+              title={'Save ' + companyChecked.size + ' companies to the Prospects folder for this venture'}
+            >
+              {sending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Mail className="h-3 w-3" />
+              )}
+              Send {companyChecked.size} to Prospects
+            </button>
+          ) : null}
         </div>
 
         {/* Picker summary bar */}
