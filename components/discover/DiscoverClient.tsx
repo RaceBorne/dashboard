@@ -201,6 +201,7 @@ export function DiscoverClient({ plays }: Props) {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             folder: saveTarget,
+            playId: playId || undefined,
             companies: pending.map((c) => ({
               domain: c.domain,
               name: c.name,
@@ -747,29 +748,6 @@ export function DiscoverClient({ plays }: Props) {
             {companyChecked.size > 0
               ? `${companyChecked.size}/${cards.length}`
               : 'Select all'}
-          </button>
-          {/* Primary CTA — Find all people. */}
-          <button
-            type="button"
-            onClick={() => {
-              const next = new Map<string, Set<string>>();
-              for (const c of cards) {
-                const co = companyByDomain.get(c.domain);
-                const emails = (co?.emails ?? []).map((e) => e.address);
-                if (emails.length > 0) next.set(c.domain, new Set(emails));
-              }
-              setEmailPicksByDomain(next);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-full bg-evari-accent px-3 py-1.5 text-[11.5px] font-semibold text-evari-ink hover:bg-evari-accent/90 whitespace-nowrap shrink-0"
-            title={`Pick all ${totalEmailsVisible} known emails`}
-          >
-            <UserSearch className="h-3 w-3" />
-            Find people
-            {totalEmailsVisible > 0 ? (
-              <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-evari-ink/10 text-[10.5px] font-semibold px-1">
-                {totalEmailsVisible}
-              </span>
-            ) : null}
           </button>
           {/* Send selected companies to Prospects. Only visible when
               at least one company is ticked. Lives next to Find people

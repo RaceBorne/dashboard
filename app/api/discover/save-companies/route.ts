@@ -19,6 +19,13 @@ interface IncomingCompany {
 interface IncomingBody {
   /** Target folder name — maps to payload.category on tier='prospect' rows. */
   folder: string;
+  /**
+   * Optional venture id. When provided, every prospect row created gets
+   * payload.playId set so the row shows up inside the venture's filtered
+   * view on /prospects / /leads. Without this, rows are saved to the
+   * folder but orphan from any venture context (#181).
+   */
+  playId?: string;
   companies: IncomingCompany[];
 }
 
@@ -38,6 +45,7 @@ interface IncomingBody {
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Partial<IncomingBody>;
   const folder = (body.folder ?? '').trim();
+  const playId = (body.playId ?? '').trim() || undefined;
   const companies = Array.isArray(body.companies) ? body.companies : [];
 
   if (!folder) {
@@ -128,6 +136,7 @@ export async function POST(req: Request) {
       ],
       tier: 'prospect',
       category: folder,
+      playId,
       companyName,
       companyUrl: 'https://' + domain,
       address: hqFull,
