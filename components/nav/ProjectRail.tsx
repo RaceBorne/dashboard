@@ -36,7 +36,14 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { Loader2, Rocket, PanelLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-type PlayLite = { id: string; title: string; updatedAt: string };
+type PlayLite = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  prospectCount?: number;
+  leadCount?: number;
+  conversationCount?: number;
+};
 
 // Stage routes the rail can sit next to. Used to keep the user on the
 // same stage when they switch projects.
@@ -211,17 +218,25 @@ export function ProjectRail({ activePlayId, className }: Props) {
           plays.map((play) => {
             const active = resolvedActiveId === play.id;
             const title = play.title || 'Untitled strategy';
+            const prospects = play.prospectCount ?? 0;
+            // Build the secondary line. Always show prospect count; add
+            // lead count alongside when there are any, because 'N leads'
+            // is the signal that actually matters once outreach starts.
+            const leads = play.leadCount ?? 0;
+            const convs = play.conversationCount ?? 0;
+            const tooltipCounts =
+              prospects + 'p · ' + leads + 'l · ' + convs + 'c';
             return (
               <Link
                 key={play.id}
                 href={projectHref(play.id)}
-                title={collapsed ? title : undefined}
+                title={collapsed ? title + ' · ' + tooltipCounts : tooltipCounts}
                 aria-label={collapsed ? title : undefined}
                 className={cn(
                   'flex items-center rounded-md text-sm transition-colors',
                   collapsed
                     ? 'justify-center h-9 w-9 mx-auto'
-                    : 'gap-2.5 px-3 py-1.5',
+                    : 'gap-2.5 px-3 py-2',
                   active
                     ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                     : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
@@ -234,7 +249,14 @@ export function ProjectRail({ activePlayId, className }: Props) {
                   )}
                 />
                 {!collapsed ? (
-                  <span className="flex-1 truncate">{title}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-[13px] leading-tight">{title}</div>
+                    <div className="text-[10.5px] text-evari-dimmer leading-tight mt-0.5 truncate">
+                      {prospects} prospect{prospects === 1 ? '' : 's'}
+                      {leads > 0 ? ' · ' + leads + ' lead' + (leads === 1 ? '' : 's') : ''}
+                      {convs > 0 ? ' · ' + convs + ' conv' + (convs === 1 ? '' : 's') : ''}
+                    </div>
+                  </div>
                 ) : null}
               </Link>
             );

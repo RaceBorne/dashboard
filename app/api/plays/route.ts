@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { autoScanForPlay } from '@/lib/brand/autoScan';
-import { listPlays } from '@/lib/dashboard/repository';
+import { getCountsPerPlay, listPlays } from '@/lib/dashboard/repository';
 import type { Play } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -34,12 +34,21 @@ export async function GET() {
   if (!supabase) {
     return NextResponse.json({ ok: true, plays: [] });
   }
-  const plays = await listPlays(supabase);
-  const trimmed = plays.map((p) => ({
-    id: p.id,
-    title: p.title,
-    updatedAt: p.updatedAt,
-  }));
+  const [plays, counts] = await Promise.all([
+    listPlays(supabase),
+    getCountsPerPlay(supabase),
+  ]);
+  const trimmed = plays.map((p) => {
+    const c = counts.get(p.id);
+    return {
+      id: p.id,
+      title: p.title,
+      updatedAt: p.updatedAt,
+      prospectCount: c?.prospects ?? 0,
+      leadCount: c?.leads ?? 0,
+      conversationCount: c?.conversations ?? 0,
+    };
+  });
   return NextResponse.json({ ok: true, plays: trimmed });
 }
 
