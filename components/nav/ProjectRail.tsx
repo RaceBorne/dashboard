@@ -47,7 +47,6 @@ export function ProjectRail({ activePlayId, className }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [plays, setPlays] = useState<PlayLite[] | null>(null);
-  const [creating, setCreating] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -138,30 +137,15 @@ export function ProjectRail({ activePlayId, className }: Props) {
     return '/ventures/' + id;
   }
 
-  async function createProject() {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const res = await fetch('/api/plays', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      const body = (await res.json().catch(() => ({ ok: false }))) as {
-        ok?: boolean;
-        id?: string;
-      };
-      if (body.ok && body.id) {
-        // Drop user back to the ventures list — gives them context and
-        // lets them choose to drill into the new venture rather than landing
-        // on a blank Strategy view (especially jarring from a stage page).
-        window.location.href = '/ventures';
-      } else {
-        setCreating(false);
-      }
-    } catch {
-      setCreating(false);
-    }
+  // The rail's "+" used to POST /api/plays with an empty body, which
+  // littered the project list with "Untitled strategy" rows that then
+  // became the active venture across every stage page. The proper
+  // creation flow (NewVentureButton) lives on /ventures and requires
+  // a working title plus a one-sentence pitch — without those, Spitball
+  // has no context on the first turn. So the rail just routes the user
+  // to /ventures now; no row is created until they fill the form in.
+  function goToNewVenture() {
+    window.location.href = '/ventures';
   }
 
   return (
@@ -252,7 +236,8 @@ export function ProjectRail({ activePlayId, className }: Props) {
         )}
       </div>
 
-      {/* Footer: New project */}
+      {/* Footer: New project — routes to /ventures hero (which has the
+          title + pitch form). No row is created until the user fills it in. */}
       <div
         className={cn(
           'border-t border-evari-line/40',
@@ -261,29 +246,19 @@ export function ProjectRail({ activePlayId, className }: Props) {
       >
         <button
           type="button"
-          onClick={() => void createProject()}
-          disabled={creating}
-          title={collapsed ? (creating ? 'Creating…' : 'New project') : undefined}
+          onClick={goToNewVenture}
+          title={collapsed ? 'New project' : undefined}
           aria-label={collapsed ? 'New project' : undefined}
           className={cn(
-            'flex items-center rounded-md text-sm w-full transition-colors',
+            'flex items-center rounded-md text-sm w-full transition-colors text-evari-dim hover:bg-evari-surfaceSoft hover:text-evari-text',
             collapsed
               ? 'justify-center h-9 w-9 mx-auto'
               : 'gap-2.5 px-3 py-1.5 text-left',
-            creating
-              ? 'text-evari-dimmer cursor-wait'
-              : 'text-evari-dim hover:bg-evari-surfaceSoft hover:text-evari-text',
           )}
         >
-          {creating ? (
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-evari-dimmer" />
-          ) : (
-            <Plus className="h-4 w-4 shrink-0 text-evari-dimmer" />
-          )}
+          <Plus className="h-4 w-4 shrink-0 text-evari-dimmer" />
           {!collapsed ? (
-            <span className="flex-1">
-              {creating ? 'Creating…' : 'New project'}
-            </span>
+            <span className="flex-1">New project</span>
           ) : null}
         </button>
       </div>
