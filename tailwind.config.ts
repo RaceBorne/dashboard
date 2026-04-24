@@ -99,6 +99,12 @@ const config: Config = {
         'accordion-up': 'accordion-up 0.2s ease-out',
         shimmer: 'shimmer 2s linear infinite',
       },
+      transitionTimingFunction: {
+        // iOS-style glide. Named so the utility `ease-evari` resolves
+        // cleanly instead of forcing arbitrary-value bracket syntax,
+        // which Tailwind warns about when the expression contains commas.
+        evari: 'cubic-bezier(0.32, 0.72, 0, 1)',
+      },
     },
   },
   plugins: [require('tailwindcss-animate')],

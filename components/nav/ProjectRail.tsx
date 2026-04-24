@@ -163,7 +163,7 @@ export function ProjectRail({ activePlayId, className }: Props) {
   return (
     <aside
       className={cn(
-        'shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]',
+        'shrink-0 rounded-xl bg-evari-surface overflow-hidden flex flex-col transition-[width] duration-500 ease-evari',
         collapsed ? 'w-14' : 'w-[260px]',
         className,
       )}
