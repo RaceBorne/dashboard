@@ -424,7 +424,7 @@ export function PlayDetailClient({
           interaction sits in the middle of vision. */}
       <main className={cn('min-w-0 h-full flex flex-col min-h-0', railCollapsed ? 'flex-1 basis-1/2' : 'flex-1')}>
         <div className="rounded-xl bg-evari-surface flex flex-col flex-1 min-h-0 overflow-hidden">
-          <div className="flex items-start gap-3 p-4 shrink-0 border-b border-evari-line/40">
+          <div className="flex items-start gap-3 p-4 shrink-0">
             <div className="h-8 w-8 rounded-lg bg-evari-surfaceSoft flex items-center justify-center shrink-0">
               <Sparkles className="h-4 w-4 text-evari-dim" />
             </div>
@@ -514,7 +514,7 @@ export function PlayDetailClient({
 
           {/* Input row. shrink-0 + border-t keeps it visible at the bottom of
               the aside no matter how long the thread grows. */}
-          <div className="shrink-0 border-t border-evari-line/40 p-3 bg-evari-surface">
+          <div className="shrink-0 p-3 bg-evari-surface">
             <div className="flex items-center gap-2">
               <Input
                 placeholder={voice.isListening ? 'Listening...' : 'Ask, draft, plan...'}

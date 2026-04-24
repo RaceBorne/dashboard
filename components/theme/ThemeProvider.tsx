@@ -45,9 +45,10 @@ const STORAGE_ACCENT = (t: Theme) => `evari-accent-${t}`;
 const STORAGE_INK = (t: Theme) => `evari-ink-${t}`;
 const STORAGE_LOGO = (t: Theme) => `evari-logo-${t}`;
 
-const DEFAULT_ACCENT = '#CFA853';
-const DEFAULT_SHADE: Shade = 2;
-const DEFAULT_INK: Ink = 'auto';
+const DEFAULT_ACCENT = '#FEC700';
+const DEFAULT_SHADE: Shade = 3;
+const DEFAULT_INK_DARK: Ink = 'auto';
+const DEFAULT_INK_LIGHT: Ink = 'light';
 
 const INK_LIGHT = '245 245 245';
 const INK_DARK = '20 20 20';
@@ -105,8 +106,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     light: DEFAULT_ACCENT,
   });
   const [inkByTheme, setInkByTheme] = useState<Record<Theme, Ink>>({
-    dark: DEFAULT_INK,
-    light: DEFAULT_INK,
+    dark: DEFAULT_INK_DARK,
+    light: DEFAULT_INK_LIGHT,
   });
   const [logoByTheme, setLogoByTheme] = useState<Record<Theme, string | null>>({
     dark: null,
@@ -272,7 +273,8 @@ function parseAccent(raw: string | null): string {
 
 function parseInk(raw: string | null): Ink {
   if (raw === 'light' || raw === 'dark' || raw === 'auto') return raw;
-  return DEFAULT_INK;
+  // Fallback for stale/corrupt localStorage — 'auto' is the safest choice.
+  return 'auto';
 }
 
 function parseLogo(raw: string | null): string | null {

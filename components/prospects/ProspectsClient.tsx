@@ -725,7 +725,7 @@ export function ProspectsClient({ initialLeads }: Props) {
       <div className="flex-1 min-w-0 h-full flex gap-4">
         {/* Column 2: list */}
         <main className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface flex flex-col overflow-hidden">
-          <header className="sticky top-0 z-10 shrink-0 border-b border-evari-line/30 bg-evari-surface px-4 py-3 flex items-center gap-3">
+          <header className="sticky top-0 z-10 shrink-0 bg-evari-surface px-4 py-3 flex items-center gap-3">
             {selectedIds.size > 0 ? (
               <div className="min-w-0 flex-1 flex items-center gap-2">
                 <button
@@ -900,7 +900,7 @@ export function ProspectsClient({ initialLeads }: Props) {
           </header>
 
           {isFallback ? (
-            <div className="px-4 py-2 text-[11px] text-evari-dimmer bg-evari-surfaceSoft/40 border-b border-evari-line/30">
+            <div className="px-4 py-2 text-[11px] text-evari-dimmer bg-evari-surfaceSoft/40">
               No prospects linked to this venture yet — showing all.
             </div>
           ) : null}
@@ -1019,7 +1019,7 @@ function ProspectRow({
         checked={checked}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => onCheck(e.target.checked)}
-        className="h-4 w-4 shrink-0 accent-evari-accent cursor-pointer"
+        className="h-4 w-4 shrink-0 accent-evari-gold cursor-pointer"
         aria-label="Select row"
       />
       <div className="h-11 w-11 shrink-0 rounded-md bg-white border border-evari-line/40 flex items-center justify-center overflow-hidden p-1">

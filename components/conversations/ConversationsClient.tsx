@@ -359,14 +359,14 @@ export function ConversationsClient({ threads: initialThreads, leads, initialThr
    </aside>
 
    {/* Pane 2 — thread view */}
-   <section className="flex-1 min-w-0 flex flex-col bg-evari-ink">
+   <section className="flex-1 min-w-0 flex flex-col bg-evari-surface">
     {!thread ? (
      <div className="flex-1 flex items-center justify-center text-evari-dim text-sm">
       Select a conversation
      </div>
     ) : (
      <>
-      <div className="px-6 py-4 border-b border-evari-line/40 bg-evari-surface/30">
+      <div className="px-6 py-4">
        <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
          <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-1.5">Subject</div>

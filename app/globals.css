@@ -29,8 +29,8 @@
   /* One amber across the app — CTA fills, count circles, accents, editorial
      highlights. Target warm dusty gold, readable against both charcoal and
      white backgrounds. */
-  --evari-gold: 207 168 83;
-  --evari-gold-ink: 18 18 18;
+  --evari-gold: 254 199 0;
+  --evari-gold-ink: 20 20 20;
   --evari-success: 126 168 88;
   --evari-warn: 207 168 83;
   --evari-danger: 200 82 88;
@@ -214,8 +214,8 @@
      mode-only override further down that rewrites `text-evari-gold` to a
      neutral grey, because olive-on-cream fails contrast. The amber is
      preserved for `bg-evari-gold` (buttons, badges, chart fills). */
-  --evari-gold: 176 138 52;
-  --evari-gold-ink: 253 253 253;
+  --evari-gold: 254 199 0;
+  --evari-gold-ink: 245 245 245;
   --evari-success: 92 150 42;
   --evari-warn: 176 138 52;
   --evari-danger: 172 48 60;

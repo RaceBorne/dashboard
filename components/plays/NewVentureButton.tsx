@@ -172,7 +172,7 @@ export function NewVentureButton() {
                     }
                   }}
                   placeholder="e.g. UK private knee-surgery clinics"
-                  className="w-full rounded-md bg-evari-ink border border-evari-line/40 px-3 py-2 text-sm text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-gold/60"
+                  className="w-full rounded-md bg-white/[0.03] px-3 py-2 text-sm text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:bg-white/[0.06] transition-colors"
                 />
               </label>
 
@@ -191,7 +191,7 @@ export function NewVentureButton() {
                   }}
                   rows={3}
                   placeholder="One sentence. Who's the customer, what's the bet, what does success look like?"
-                  className="w-full rounded-md bg-evari-ink border border-evari-line/40 px-3 py-2 text-sm text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-gold/60 resize-none"
+                  className="w-full rounded-md bg-white/[0.03] px-3 py-2 text-sm text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:bg-white/[0.06] transition-colors resize-none"
                 />
                 <div className="text-[10px] text-evari-dimmer">
                   Seeds the Spitball chat so Claude has real context on the first turn.

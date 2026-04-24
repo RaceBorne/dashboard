@@ -110,10 +110,10 @@ export function VentureHero() {
           }}
           placeholder="Working title — e.g. UK private knee-surgery clinics"
           disabled={busy}
-          className="w-full rounded-lg border border-evari-line/40 bg-black/[0.03] px-4 py-3 text-[14px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent shadow-sm disabled:opacity-60"
+          className="w-full rounded-lg bg-white/[0.03] px-4 py-3 text-[14px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:bg-white/[0.06] transition-colors disabled:opacity-60"
         />
 
-        <div className="relative flex items-start min-h-[96px] rounded-xl border border-evari-line/40 bg-black/[0.03] focus-within:border-evari-accent shadow-sm">
+        <div className="relative flex items-start min-h-[96px] rounded-xl bg-white/[0.03] focus-within:bg-white/[0.06] transition-colors">
           <div className="pl-4 pr-3 pt-5 shrink-0">
             <Sparkles className="h-4 w-4 text-evari-accent" />
           </div>

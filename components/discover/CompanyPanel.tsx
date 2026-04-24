@@ -675,7 +675,7 @@ export function CompanyPanel({
                   <div className="rounded-md border border-evari-line/40 overflow-hidden">
                     <div
                       className={cn(
-                        'grid items-center gap-3 px-3 py-1.5 bg-evari-surfaceSoft/60 border-b border-evari-line/40',
+                        'grid items-center gap-3 px-3 py-1.5 bg-evari-surfaceSoft/60',
                         'text-[11px] font-medium text-evari-dimmer',
                         contactOps
                           ? 'grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_1.5rem]'
@@ -1332,12 +1332,12 @@ function SavePopover({
     <>
       <div className="fixed inset-0 z-30" onClick={onClose} aria-hidden="true" />
       <div className="absolute right-0 top-8 z-40 w-72 rounded-lg border border-evari-line/40 bg-white shadow-xl overflow-hidden">
-        <div className="px-3 py-2 border-b border-evari-line/30 flex items-center gap-2">
+        <div className="px-3 py-2 flex items-center gap-2">
           <Folder className="h-3.5 w-3.5 text-evari-dimmer" />
           <span className="text-[12px] font-semibold text-evari-text">Save to folder</span>
         </div>
 
-        <div className="px-3 py-2 border-b border-evari-line/30">
+        <div className="px-3 py-2">
           {creating ? (
             <div className="flex items-center gap-1.5">
               <input

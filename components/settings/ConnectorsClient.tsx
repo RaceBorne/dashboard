@@ -402,7 +402,7 @@ function ConfigurePanel({
                     setValues((prev) => ({ ...prev, [f.key]: e.target.value }))
                   }
                   placeholder={f.placeholder ?? (f.secret ? '••••••••  (leave blank to keep current)' : '')}
-                  className="w-full rounded-md bg-evari-surface border border-evari-line/30 px-3 py-2 text-[13px] text-evari-text placeholder:text-evari-dimmer/60 focus:outline-none focus:border-evari-gold/50"
+                  className="w-full rounded-md bg-white/[0.03] px-3 py-2 text-[13px] text-evari-text placeholder:text-evari-dimmer/60 focus:outline-none focus:bg-white/[0.06] transition-colors"
                   autoComplete="off"
                   spellCheck={false}
                 />

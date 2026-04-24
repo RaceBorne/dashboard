@@ -202,7 +202,7 @@ export function SaveDestinationPanel({
                   }
                 }}
                 placeholder="e.g. UK Knee Clinics"
-                className="flex-1 min-w-0 rounded-md border border-evari-line/40 bg-white px-3 py-2 text-[13px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent"
+                className="flex-1 min-w-0 rounded-md bg-white/[0.04] px-3 py-2 text-[13px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:bg-white/[0.08] transition-colors"
               />
               <button
                 type="button"
@@ -218,7 +218,7 @@ export function SaveDestinationPanel({
             <button
               type="button"
               onClick={() => setCreating(true)}
-              className="w-full inline-flex items-center gap-2 rounded-md border border-dashed border-evari-line/60 bg-white/40 px-3 py-2.5 text-[12.5px] text-evari-text hover:border-evari-accent hover:text-evari-accent"
+              className="w-full inline-flex items-center gap-2 rounded-md bg-white/[0.04] px-3 py-2.5 text-[12.5px] text-evari-text hover:bg-white/[0.08] hover:text-evari-gold transition-colors"
             >
               <FolderPlus className="h-3.5 w-3.5" />
               Create new folder

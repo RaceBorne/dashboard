@@ -1004,7 +1004,7 @@ export function DiscoverClient({ plays }: Props) {
         {/* Toolbar — lozenge row. Everything is whitespace-nowrap and
             rounded-full so the narrow 50/50 column never wraps. The
             title shrinks/truncates; buttons keep their full shape. */}
-        <div className="shrink-0 border-b border-evari-line/30 px-4 py-2.5 flex items-center gap-2">
+        <div className="shrink-0 px-4 py-2.5 flex items-center gap-2">
           <h2 className="min-w-0 truncate text-[13px] font-semibold text-evari-text">
             {searching ? (
               <span className="inline-flex items-center gap-2 text-evari-dim">
@@ -1035,7 +1035,7 @@ export function DiscoverClient({ plays }: Props) {
             <button
               type="button"
               onClick={() => setSaveSetupOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-evari-line/60 px-3 py-1.5 text-[11.5px] text-evari-dim hover:text-evari-text hover:border-evari-dim whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.03] px-3 py-1.5 text-[11.5px] text-evari-dim hover:text-evari-text hover:bg-white/[0.06] transition-colors whitespace-nowrap"
               title="Pick a folder to auto-save results"
             >
               <Sparkles className="h-3 w-3" />
@@ -1058,12 +1058,12 @@ export function DiscoverClient({ plays }: Props) {
               onChange={(e) => setQuickAddValue(e.target.value)}
               placeholder="Add domain..."
               disabled={quickAddBusy}
-              className="h-7 rounded-full border border-evari-line/60 bg-white pl-3 pr-2 text-[11.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-evari-accent w-40 disabled:opacity-60"
+              className="h-7 rounded-full bg-white/[0.04] pl-3 pr-2 text-[11.5px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:bg-white/[0.08] transition-colors w-40 disabled:opacity-60"
             />
             <button
               type="submit"
               disabled={quickAddBusy || !quickAddValue.trim()}
-              className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-evari-line/60 text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-40"
+              className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-white/[0.04] text-evari-dim hover:text-evari-text hover:bg-white/[0.08] transition-colors disabled:opacity-40"
               title="Add this company to the results"
               aria-label="Add domain"
             >
@@ -1081,7 +1081,7 @@ export function DiscoverClient({ plays }: Props) {
             type="button"
             onClick={() => void additiveRerun()}
             disabled={searching || expanding}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-full border border-evari-line/60 text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-40 whitespace-nowrap shrink-0"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-white/[0.04] text-evari-dim hover:text-evari-text hover:bg-white/[0.08] transition-colors disabled:opacity-40 whitespace-nowrap shrink-0"
             title="Expand the search: ask Claude for new angles and add to the list"
             aria-label="Expand search"
           >
@@ -1105,7 +1105,7 @@ export function DiscoverClient({ plays }: Props) {
               else for (const c of cards) next.add(c.domain);
               setCompanyChecked(next);
             }}
-            className="inline-flex items-center gap-1.5 rounded-full border border-evari-line/60 px-3 py-1.5 text-[11.5px] text-evari-text hover:bg-evari-surfaceSoft whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-[11.5px] text-evari-text hover:bg-white/[0.08] transition-colors whitespace-nowrap shrink-0"
           >
             <span className={cn(
               'h-3.5 w-3.5 rounded-[3px] border inline-flex items-center justify-center shrink-0',
@@ -1147,7 +1147,7 @@ export function DiscoverClient({ plays }: Props) {
 
         {/* Picker summary bar */}
         {totalPicked > 0 ? (
-          <div className="border-b border-evari-line/40 bg-evari-accent/5 px-4 py-2 flex items-center gap-3">
+          <div className="bg-evari-accent/5 px-4 py-2 flex items-center gap-3">
             <Mail className="h-3.5 w-3.5 text-evari-accent" />
             <div className="text-[12px] text-evari-text">
               {totalPicked} email{totalPicked === 1 ? '' : 's'} picked across{' '}
@@ -1156,7 +1156,7 @@ export function DiscoverClient({ plays }: Props) {
             <select
               value={playId}
               onChange={(e) => setPlayId(e.target.value)}
-              className="rounded-md bg-evari-surface border border-evari-line/40 px-2 py-1 text-[11px] text-evari-text focus:outline-none focus:border-evari-accent"
+              className="rounded-md bg-white/[0.04] px-2 py-1 text-[11px] text-evari-text focus:outline-none focus:bg-white/[0.08] transition-colors"
             >
               {plays.length === 0 ? (
                 <option value="">No plays yet</option>
@@ -1189,7 +1189,7 @@ export function DiscoverClient({ plays }: Props) {
         ) : null}
 
         {sendResult ? (
-          <div className="border-b border-evari-line/40 bg-evari-success/10 px-4 py-2 text-[12px] text-evari-success">
+          <div className="bg-evari-success/10 px-4 py-2 text-[12px] text-evari-success">
             Created {sendResult.created} prospect{sendResult.created === 1 ? '' : 's'}
             {sendResult.skipped > 0 ? ` (skipped ${sendResult.skipped} dupes)` : ''}.{' '}
             <button
@@ -1412,7 +1412,7 @@ function EmptyDetailsPlaceholder({ onOpenPicker, hasSearched }: { onOpenPicker: 
       <button
         type="button"
         onClick={onOpenPicker}
-        className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-dashed border-evari-line/60 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dim"
+        className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-white/[0.03] px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:bg-white/[0.06] transition-colors"
       >
         <Sparkles className="h-3 w-3" />
         Choose a save destination
