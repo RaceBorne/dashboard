@@ -663,7 +663,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <div className="p-[5px] text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
+      <div className="pt-[10px] pb-[10px] pl-[20px] pr-[5px] text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
         {label}
       </div>
       {children}
