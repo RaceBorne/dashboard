@@ -17,6 +17,7 @@ import {
   listProducts,
   listShopifyPages,
 } from '@/lib/integrations/shopify';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { ensureScanHydrated, getCachedScan } from '@/lib/seo/scan';
 import type {
   CheckSeverity,
@@ -97,8 +98,66 @@ export async function getPagesOverview(): Promise<PagesOverview> {
   const scan = getCachedScan();
 
   const connected = isShopifyConnected();
-  const gscConnected = false; // TODO: flip when OAuth ingest lands.
   const warnings: string[] = [];
+
+  // ----- GSC rollup lookup ---------------------------------------------
+  // Pull dashboard_gsc_pages_28d once and key it by bare path so each row
+  // below can do an O(1) lookup. GSC stores full URLs like
+  //   https://www.evari.cc/products/856-core-skandium
+  // but storefront rows carry bare paths (/products/856-core-skandium) —
+  // so we strip the origin when building the map. Falls back to an empty
+  // map (all rows show dashes) if the ingest hasn't run yet.
+  const supabase = createSupabaseAdmin();
+  const gscByPath = new Map<string, {
+    impressions: number;
+    clicks: number;
+    ctr: number;
+    position: number;
+  }>();
+  let gscConnected = false;
+  if (supabase) {
+    const { data } = await supabase
+      .from('dashboard_gsc_pages_28d')
+      .select('page, impressions, clicks, ctr, position')
+      .limit(2000);
+    if (data && data.length > 0) {
+      gscConnected = true;
+      for (const row of data as Array<{
+        page: string;
+        impressions: number;
+        clicks: number;
+        ctr: number;
+        position: number;
+      }>) {
+        const path = normalisePath(row.page);
+        if (!path) continue;
+        // Dedupe by path — keep the row with the most impressions.
+        const existing = gscByPath.get(path);
+        if (!existing || row.impressions > existing.impressions) {
+          gscByPath.set(path, row);
+        }
+      }
+    }
+  }
+  function gscForPath(path: string): GscStubColumns {
+    const hit = gscByPath.get(path);
+    if (!hit) {
+      return {
+        connected: gscConnected,
+        impressions28d: null,
+        clicks28d: null,
+        avgPosition28d: null,
+        ctr28d: null,
+      };
+    }
+    return {
+      connected: true,
+      impressions28d: hit.impressions,
+      clicks28d: hit.clicks,
+      avgPosition28d: hit.position,
+      ctr28d: hit.ctr,
+    };
+  }
 
   const storeBase = await getStorefrontBaseUrl().catch(() => {
     warnings.push('Could not resolve storefront base URL; using evari.cc');
@@ -136,13 +195,6 @@ export async function getPagesOverview(): Promise<PagesOverview> {
   }
 
   const rows: PageOverviewRow[] = [];
-  const gscStub: GscStubColumns = {
-    connected: false,
-    impressions28d: null,
-    clicks28d: null,
-    avgPosition28d: null,
-    ctr28d: null,
-  };
 
   for (const p of products) {
     const path = `/products/${p.handle}`;
@@ -165,7 +217,7 @@ export async function getPagesOverview(): Promise<PagesOverview> {
       updatedAt: p.updatedAt,
       findings,
       ...summarizeFindings(findings),
-      gsc: gscStub,
+      gsc: gscForPath(path),
     });
   }
 
@@ -190,7 +242,7 @@ export async function getPagesOverview(): Promise<PagesOverview> {
       updatedAt: p.updatedAt,
       findings,
       ...summarizeFindings(findings),
-      gsc: gscStub,
+      gsc: gscForPath(path),
     });
   }
 
@@ -215,7 +267,7 @@ export async function getPagesOverview(): Promise<PagesOverview> {
       updatedAt: a.updatedAt,
       findings,
       ...summarizeFindings(findings),
-      gsc: gscStub,
+      gsc: gscForPath(path),
     });
   }
 
@@ -277,6 +329,30 @@ function summarizeFindings(findings: ScanFinding[]): {
     issuesBySeverity[f.check.severity] += 1;
   }
   return { totalIssues: findings.length, issuesBySeverity };
+}
+
+/**
+ * Strip protocol + host + trailing slash so a GSC `page` URL matches a
+ * Shopify storefront path. Examples:
+ *   https://www.evari.cc/products/856-core-skandium -> /products/856-core-skandium
+ *   https://www.evari.cc/                           -> /
+ *   /blogs/shows/856-exp-launch                     -> /blogs/shows/856-exp-launch
+ */
+function normalisePath(raw: string): string {
+  if (!raw) return '';
+  let s = raw.trim();
+  // Drop querystring + fragment; they don't survive the join.
+  const q = s.indexOf('?');
+  if (q > -1) s = s.slice(0, q);
+  const h = s.indexOf('#');
+  if (h > -1) s = s.slice(0, h);
+  s = s.replace(/^https?:\/\//, '');
+  s = s.replace(/^www\./, '');
+  const slash = s.indexOf('/');
+  if (slash === -1) return '/';
+  const path = s.slice(slash) || '/';
+  // Drop trailing slash except for the root itself.
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
 }
 
 function errMsg(e: unknown): string {
