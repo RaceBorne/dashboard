@@ -410,7 +410,14 @@ code {
   gap: 2px;
   padding: 3px;
   border-radius: 9999px;
-  background: rgb(var(--evari-trough));
+  /* Trough with a subtle darkening overlay so the capsule reads as a
+     defined container that binds the pills together. 6% black lifts
+     contrast noticeably in light mode where trough sits close to ink,
+     and barely moves the already-dark trough in dark mode. Craig,
+     2026-04-24. */
+  background:
+    linear-gradient(rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.06)),
+    rgb(var(--evari-trough));
 }
 
 .pill-tab {

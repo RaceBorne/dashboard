@@ -298,7 +298,7 @@ export function JournalEditor({ draft, blogs }: Props) {
             <button
               onClick={handlePublish}
               disabled={publishState === 'publishing'}
-              className="inline-flex items-center gap-2 bg-evari-accent text-evari-ink text-sm font-medium px-4 py-1.5 rounded-md hover:opacity-90 transition disabled:opacity-60"
+              className="inline-flex items-center gap-2 bg-evari-gold text-evari-goldInk text-sm font-medium px-4 py-1.5 rounded-md hover:opacity-90 transition disabled:opacity-60"
             >
               <Send className="h-4 w-4" />
               {publishState === 'publishing'

@@ -162,7 +162,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
           <button
             onClick={newJournal}
             disabled={creating}
-            className="inline-flex items-center gap-2 bg-evari-accent text-evari-ink text-sm font-medium px-4 py-1.5 rounded-md hover:opacity-90 transition disabled:opacity-60"
+            className="inline-flex items-center gap-2 bg-evari-gold text-evari-goldInk text-sm font-medium px-4 py-1.5 rounded-md hover:opacity-90 transition disabled:opacity-60"
           >
             <Plus className="h-4 w-4" />
             {creating ? 'Creating…' : `New ${lane.key === 'cs_plus' ? 'CS+ build' : 'Blog'}`}
@@ -175,7 +175,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
         {pendingDrafts.length > 0 ? (
           <section>
             <header className="flex items-baseline gap-2 mb-3">
-              <Clock className="h-3.5 w-3.5 text-evari-accent" />
+              <Clock className="h-3.5 w-3.5 text-evari-gold" />
               <h2 className="text-xs uppercase tracking-[0.16em] text-evari-dim">
                 Pending
               </h2>
@@ -234,6 +234,26 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Tiles — mirror the evari.cc Shopify thumbnail layout exactly:
+//   • image top (square, crops to fill — matches the storefront blog
+//     card aspect, which is taller than the previous 4:3)
+//   • tiny uppercase date
+//   • bigger serif-weighted title (2-line clamp)
+//   • 3-line body excerpt (greyed)
+//   • tiny uppercase "BY <AUTHOR>" byline
+// Column width is unchanged — only the internal rhythm shifts.
+// ─────────────────────────────────────────────────────────────────────
+
+function formatShopifyDate(iso: string | null | undefined): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).toUpperCase();
+}
+
 function DraftTile({
   draft,
   badge,
@@ -244,16 +264,16 @@ function DraftTile({
   onClick?: () => void;
 }) {
   const title = draft.title.trim() || 'Untitled draft';
-  const updated = new Date(draft.updatedAt).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
+  const date = formatShopifyDate(draft.updatedAt);
+  const excerpt = draft.summary?.trim() || '';
+  const author = draft.author?.trim() || 'Evari';
   return (
     <button
       onClick={onClick}
-      className="group relative text-left rounded-lg border border-white/5 bg-evari-surface/50 hover:bg-evari-surface transition-colors overflow-hidden"
+      className="group relative text-left flex flex-col overflow-hidden"
     >
-      <div className="aspect-[4/3] bg-gradient-to-br from-evari-surfaceSoft/50 to-evari-surface/20 flex items-center justify-center">
+      {/* Image — square, matches evari.cc blog card ratio */}
+      <div className="aspect-square bg-gradient-to-br from-evari-surfaceSoft/50 to-evari-surface/20 overflow-hidden rounded-sm">
         {draft.coverImageUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -262,28 +282,41 @@ function DraftTile({
             className="w-full h-full object-cover"
           />
         ) : (
-          <FileText className="h-7 w-7 text-evari-dimmer" />
+          <div className="w-full h-full flex items-center justify-center">
+            <FileText className="h-7 w-7 text-evari-dimmer" />
+          </div>
         )}
       </div>
-      <div className="p-3">
-        <div className="flex items-center gap-2">
+      {/* Detail — no card background, just type on the page */}
+      <div className="pt-4">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+          <span>{date}</span>
           <span
             className={cn(
-              'text-[10px] uppercase tracking-[0.14em] px-1.5 py-0.5 rounded',
+              'px-1.5 py-0.5 rounded',
               badge
                 ? 'bg-evari-success/15 text-evari-success'
-                : 'bg-evari-accent/15 text-evari-accent',
+                : 'bg-evari-gold/15 text-evari-gold',
             )}
           >
             {badge ?? 'Draft'}
           </span>
-          <span className="text-[10px] text-evari-dimmer tabular-nums">
-            {updated}
-          </span>
         </div>
-        <h3 className="mt-2 text-sm text-evari-text line-clamp-2 group-hover:text-evari-accent transition-colors">
+        <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
           {title}
         </h3>
+        {excerpt ? (
+          <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
+            {excerpt}
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-evari-dimmer/70 italic leading-snug">
+            Empty draft — click to start writing.
+          </p>
+        )}
+        <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+          By {author}
+        </p>
       </div>
     </button>
   );
@@ -298,18 +331,15 @@ function PublishedTile({
   linked: boolean;
   onClick?: () => void;
 }) {
-  const date = (article.publishedAt ?? article.updatedAt)
-    ? new Date(article.publishedAt ?? article.updatedAt).toLocaleDateString(
-        undefined,
-        { month: 'short', day: 'numeric' },
-      )
-    : '';
+  const date = formatShopifyDate(article.publishedAt ?? article.updatedAt);
+  const excerpt = (article.summary ?? '').trim();
+  const author = article.author?.name?.trim() || 'Evari';
   return (
     <button
       onClick={onClick}
-      className="group text-left rounded-lg border border-white/5 bg-evari-surface/50 hover:bg-evari-surface transition-colors overflow-hidden"
+      className="group text-left flex flex-col overflow-hidden"
     >
-      <div className="aspect-[4/3] bg-evari-surface/30 overflow-hidden">
+      <div className="aspect-square bg-evari-surface/30 overflow-hidden rounded-sm">
         {article.image?.url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -323,21 +353,26 @@ function PublishedTile({
           </div>
         )}
       </div>
-      <div className="p-3">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-[0.14em] px-1.5 py-0.5 rounded bg-evari-success/15 text-evari-success">
-            Live
-          </span>
-          <span className="text-[10px] text-evari-dimmer tabular-nums">
-            {date}
-          </span>
+      <div className="pt-4">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+          <span>{date}</span>
           {linked ? (
-            <span className="text-[10px] text-evari-dimmer">· editable</span>
+            <span className="px-1.5 py-0.5 rounded bg-evari-gold/15 text-evari-gold">
+              Editable
+            </span>
           ) : null}
         </div>
-        <h3 className="mt-2 text-sm text-evari-text line-clamp-2 group-hover:text-evari-accent transition-colors">
+        <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
           {article.title}
         </h3>
+        {excerpt ? (
+          <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
+            {excerpt}
+          </p>
+        ) : null}
+        <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+          By {author}
+        </p>
       </div>
     </button>
   );
