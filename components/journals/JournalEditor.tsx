@@ -477,14 +477,14 @@ export function JournalEditor({ draft, blogs }: Props) {
             onHeaderClick={scrollPreviewToTop}
           >
             <div className="space-y-4">
-              <Field label="Destination">
+              <Field label="Destination" onLabelClick={scrollPreviewToTop}>
                 <SelectInput
                   value={blogTarget}
                   onChange={setBlogTarget}
                   options={lanes.map((l) => ({ value: l.key, label: l.label }))}
                 />
               </Field>
-              <Field label="Cover image">
+              <Field label="Cover image" onLabelClick={scrollPreviewToTop}>
                 <div className="space-y-2">
                   {coverImageUrl ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -510,7 +510,7 @@ export function JournalEditor({ draft, blogs }: Props) {
                   </button>
                 </div>
               </Field>
-              <Field label="Summary">
+              <Field label="Summary" onLabelClick={scrollPreviewToTop}>
                 <textarea
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
@@ -518,14 +518,14 @@ export function JournalEditor({ draft, blogs }: Props) {
                   className={cn(INPUT_CLS, 'resize-y min-h-[108px]')}
                 />
               </Field>
-              <Field label="Tags">
+              <Field label="Tags" onLabelClick={scrollPreviewToTop}>
                 <input
                   value={tagsText}
                   onChange={(e) => setTagsText(e.target.value)}
                   className={INPUT_CLS}
                 />
               </Field>
-              <Field label="Author">
+              <Field label="Author" onLabelClick={scrollPreviewToTop}>
                 <input
                   value={author}
                   onChange={(e) => setAuthor(e.target.value)}
@@ -543,14 +543,14 @@ export function JournalEditor({ draft, blogs }: Props) {
             onHeaderClick={scrollPreviewToTop}
           >
             <div className="space-y-4">
-              <Field label="Meta title">
+              <Field label="Meta title" onLabelClick={scrollPreviewToTop}>
                 <input
                   value={seoTitle}
                   onChange={(e) => setSeoTitle(e.target.value)}
                   className={INPUT_CLS}
                 />
               </Field>
-              <Field label="Meta description">
+              <Field label="Meta description" onLabelClick={scrollPreviewToTop}>
                 <textarea
                   value={seoDescription}
                   onChange={(e) => setSeoDescription(e.target.value)}
@@ -682,27 +682,42 @@ const INPUT_CLS = [
 ].join(' ');
 
 /**
- * Label-only field wrapper. No helper text, no code-style hints,
- * no kebab-case placeholder examples — the label names the thing
- * and the input speaks for itself. Craig asked to drop every
- * "bits of code" hint that cluttered the sidebar.
+ * Label-only field wrapper.
  *
- * The label now carries 5px of padding on every side so it has
- * breathing room instead of sitting flush against the panel edge
- * and feeling bunched up (Craig's note on META TITLE etc).
+ * Clicking the label scrolls:
+ *   - itself to the top of the right pane (so the field you want
+ *     to work in sits at the top of your editing viewport)
+ *   - the left preview to its top (so the cover + title + summary
+ *     area these metadata fields control is visible)
+ *
+ * The anchor is a ref on the wrapper <label>, not a DOM id, so the
+ * behaviour is self-contained and can't collide with other pages.
+ *
+ * Label chrome: 10px top/bottom, 20px left, 5px right per Craig.
  */
 function Field({
   label,
   children,
+  onLabelClick,
 }: {
   label: string;
   children: React.ReactNode;
+  onLabelClick?: () => void;
 }) {
+  const labelRef = useRef<HTMLLabelElement | null>(null);
+  function handleHeaderClick() {
+    labelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    onLabelClick?.();
+  }
   return (
-    <label className="block">
-      <div className="pt-[10px] pb-[10px] pl-[20px] pr-[5px] text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
+    <label ref={labelRef} className="block">
+      <button
+        type="button"
+        onClick={handleHeaderClick}
+        className="w-full text-left pt-[10px] pb-[10px] pl-[20px] pr-[5px] text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold cursor-pointer hover:text-evari-text transition-colors"
+      >
         {label}
-      </div>
+      </button>
       {children}
     </label>
   );
