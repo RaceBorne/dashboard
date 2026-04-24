@@ -11,11 +11,14 @@ import {
   ArrowLeft,
   Pencil,
   ExternalLink,
+  Copy,
+  Loader2,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import type { JournalDraft } from '@/lib/journals/repository';
 import type { ShopifyArticle, ShopifyBlog } from '@/lib/shopify';
+import { htmlToBlocks } from '@/lib/journals/htmlToBlocks';
 import { ShopifyPreview, type JournalBlock } from './ShopifyPreview';
 
 type Lane = { key: string; label: string; blogId?: string };
@@ -143,6 +146,54 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
     startTransition(() => router.refresh());
   }
 
+  /**
+   * Duplicate whatever the reader is showing into a new draft and
+   * jump straight into the composer. Works off either a dashboard
+   * draft (blocks already exist) or a Shopify article (bodyHtml is
+   * parsed into blocks via htmlToBlocks — client-only since it uses
+   * DOMParser).
+   */
+  async function duplicateAsTemplate() {
+    if (!reader) return;
+    const meta =
+      reader.kind === 'draft'
+        ? {
+            title: `Copy of ${reader.draft.title || 'Untitled draft'}`,
+            summary: reader.draft.summary ?? undefined,
+            coverImageUrl: reader.draft.coverImageUrl ?? undefined,
+            tags: reader.draft.tags,
+            author: reader.draft.author ?? undefined,
+            seoTitle: reader.draft.seoTitle ?? undefined,
+            seoDescription: reader.draft.seoDescription ?? undefined,
+            editorData: reader.draft.editorData as { blocks: unknown[] },
+          }
+        : {
+            title: `Copy of ${reader.article.title}`,
+            summary: reader.article.summary ?? undefined,
+            coverImageUrl: reader.article.image?.url ?? undefined,
+            tags: reader.article.tags,
+            author: reader.article.author?.name ?? undefined,
+            seoTitle: reader.article.seo?.title ?? undefined,
+            seoDescription: reader.article.seo?.description ?? undefined,
+            // Parse the published HTML back into blocks so the
+            // duplicate opens in the block editor (not as a wall of
+            // pre-baked HTML). The parse is lossy on purpose — Craig
+            // will edit blocks anyway.
+            editorData: {
+              blocks: htmlToBlocks(reader.article.bodyHtml || ''),
+            },
+          };
+    const res = await fetch('/api/journals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blogTarget: lane.key, initial: meta }),
+    });
+    const data = (await res.json()) as { ok?: boolean; draft?: { id: string } };
+    if (data.ok && data.draft) {
+      router.push(`/journals/${data.draft.id}`);
+    }
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] bg-evari-ink">
       {/* Sticky lane + actions bar */}
@@ -198,6 +249,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
           reader={reader}
           onClose={() => setReader(null)}
           onEdit={(id) => router.push(`/journals/${id}`)}
+          onUseAsTemplate={duplicateAsTemplate}
           laneLabel={lane.label}
         />
       ) : (
@@ -308,6 +360,7 @@ function ArticleReader({
   reader,
   onClose,
   onEdit,
+  onUseAsTemplate,
   laneLabel,
 }: {
   reader:
@@ -315,6 +368,7 @@ function ArticleReader({
     | { kind: 'article'; article: ShopifyArticle; linkedDraftId?: string };
   onClose: () => void;
   onEdit: (draftId: string) => void;
+  onUseAsTemplate: () => Promise<void>;
   laneLabel: string;
 }) {
   if (reader.kind === 'draft') {
@@ -333,6 +387,7 @@ function ArticleReader({
           subtitle={laneLabel}
           onClose={onClose}
           editHref={() => onEdit(d.id)}
+          onUseAsTemplate={onUseAsTemplate}
         />
         <div className="max-w-3xl mx-auto px-10 py-10">
           <ShopifyPreview
@@ -359,6 +414,7 @@ function ArticleReader({
         onClose={onClose}
         editHref={reader.linkedDraftId ? () => onEdit(reader.linkedDraftId as string) : undefined}
         externalHref={a.handle ? `https://evari.cc/blogs/${a.blog.handle}/${a.handle}` : undefined}
+        onUseAsTemplate={onUseAsTemplate}
       />
       <article className="shopify-preview max-w-3xl mx-auto px-10 py-10">
         {a.image?.url ? (
@@ -402,12 +458,24 @@ function ReaderBar({
   onClose,
   editHref,
   externalHref,
+  onUseAsTemplate,
 }: {
   subtitle: string;
   onClose: () => void;
   editHref?: () => void;
   externalHref?: string;
+  onUseAsTemplate?: () => Promise<void>;
 }) {
+  const [templating, setTemplating] = useState(false);
+  async function handleTemplate() {
+    if (!onUseAsTemplate) return;
+    setTemplating(true);
+    try {
+      await onUseAsTemplate();
+    } finally {
+      setTemplating(false);
+    }
+  }
   return (
     <div className="flex items-center justify-between gap-3 px-6 pt-4 pb-3 border-b border-evari-edge sticky top-0 bg-evari-ink z-10">
       <button
@@ -431,6 +499,21 @@ function ReaderBar({
             <ExternalLink className="h-3.5 w-3.5" />
             Open on Shopify
           </a>
+        ) : null}
+        {onUseAsTemplate ? (
+          <button
+            onClick={handleTemplate}
+            disabled={templating}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-[rgb(var(--evari-input-fill))] text-evari-dim hover:text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors disabled:opacity-60"
+            title="Duplicate this article into a new draft"
+          >
+            {templating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+            {templating ? 'Cloning…' : 'Use as template'}
+          </button>
         ) : null}
         {editHref ? (
           <button
