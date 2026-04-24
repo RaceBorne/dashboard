@@ -1215,7 +1215,7 @@ export function DiscoverClient({ plays }: Props) {
               No companies match. Tweak the filters on the left, or ask the AI to broaden the search.
             </div>
           ) : null}
-          <ul className="divide-y divide-evari-line/40">
+          <ul className="space-y-1">
             {cards.map((c) => {
               const picks = emailPicksByDomain.get(c.domain);
               const checked = companyChecked.has(c.domain);
@@ -1309,7 +1309,7 @@ export function DiscoverClient({ plays }: Props) {
                         void findSimilar(c.domain);
                       }}
                       disabled={similarBusy.has(c.domain)}
-                      className="inline-flex items-center gap-1 rounded-md border border-evari-line/60 bg-white px-2 py-1 text-[11px] text-evari-dim hover:text-evari-text hover:border-evari-dimmer disabled:opacity-50 whitespace-nowrap"
+                      className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] px-2 py-1 text-[11px] text-evari-dim hover:text-evari-text hover:bg-white/[0.08] transition-colors disabled:opacity-50 whitespace-nowrap"
                       title={'Find 5 peer companies at the same tier as ' + c.name}
                     >
                       {similarBusy.has(c.domain) ? (

@@ -91,12 +91,12 @@ export const DASHBOARD_MAP: DashboardSection[] = [
     ],
   },
   {
-    label: 'Ventures',
+    label: 'Campaigns',
     pages: [
-      { href: '/ventures', label: 'Ventures', blurb: 'Strategic bets you’re exploring — new products, new markets, new lead sources.' },
+      { href: '/ventures', label: 'Campaigns', blurb: 'Campaigns you’re running — new products, new markets, new lead sources.' },
       { href: '/prospects', label: 'Prospects', blurb: 'Pre-lead outbound suspects being tested. Promote to leads when they bite.' },
       { href: '/leads', label: 'Leads', blurb: 'Active sales pipeline with stages, source attribution, estimated value.' },
-      { href: '/conversations', label: 'Conversations', blurb: 'Gmail threads + AI-drafted replies in a three-pane viewer.' },
+      { href: '/conversations', label: 'Outreach', blurb: 'Gmail threads + AI-drafted replies in a three-pane viewer.' },
     ],
   },
   {

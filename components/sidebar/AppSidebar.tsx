@@ -34,7 +34,7 @@ const VENTURE_PREFIXES = ['/ventures', '/plays', '/discover', '/prospects', '/le
 const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
-  { href: '/ventures', label: 'Ventures', icon: Rocket, group: 'pipeline' },
+  { href: '/ventures', label: 'Campaigns', icon: Rocket, group: 'pipeline' },
   { href: '/traffic', label: 'Traffic', icon: TrendingUp, group: 'web' },
   { href: '/seo', label: 'SEO Health', icon: Search, group: 'web', warn: true },
   { href: '/pages', label: 'Pages', icon: FileText, group: 'web' },
@@ -52,7 +52,7 @@ const NAV = [
 
 const GROUP_LABELS: Record<string, string> = {
   today: 'Today',
-  pipeline: 'Ventures',
+  pipeline: 'Campaigns',
   web: 'Website',
   broadcast: 'Broadcast',
   marketing: 'Marketing',

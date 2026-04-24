@@ -84,7 +84,7 @@ export function VentureHero() {
   return (
     <section className="rounded-2xl bg-evari-surface p-6 space-y-4">
       <div className="space-y-1">
-        <h2 className="text-base font-semibold text-evari-text">New venture</h2>
+        <h2 className="text-base font-semibold text-evari-text">New campaign</h2>
         <p className="text-[13px] text-evari-dim leading-relaxed">
           Name it, pitch it in a sentence. Claude picks up from there — the
           pitch seeds the Spitball chat so the first turn has real context.
@@ -135,8 +135,8 @@ export function VentureHero() {
           <button
             type="submit"
             disabled={disabled}
-            aria-label="Create venture"
-            title={disabled && !busy ? 'Add a title and a short pitch' : 'Create venture'}
+            aria-label="Create campaign"
+            title={disabled && !busy ? 'Add a title and a short pitch' : 'Create campaign'}
             className={cn(
               'absolute right-2 bottom-2 h-9 w-9 inline-flex items-center justify-center rounded-lg bg-evari-gold text-evari-goldInk transition-colors',
               disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-evari-gold/90',

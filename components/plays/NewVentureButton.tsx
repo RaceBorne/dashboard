@@ -6,7 +6,7 @@ import { Plus, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * "New venture" CTA + intake modal.
+ * "New campaign" CTA + intake modal.
  *
  * Kills the old one-click "Untitled strategy" pattern. Creating a venture
  * now requires two things: a working title and a one-sentence pitch
@@ -120,7 +120,7 @@ export function NewVentureButton() {
         )}
       >
         <Plus className="h-3.5 w-3.5" />
-        New venture
+        New campaign
       </button>
 
       {open ? (
@@ -138,7 +138,7 @@ export function NewVentureButton() {
             <div className="flex items-start justify-between px-6 pt-5 pb-3">
               <div className="space-y-1">
                 <div id="new-venture-title" className="text-base font-semibold text-evari-text">
-                  New venture
+                  New campaign
                 </div>
                 <div className="text-xs text-evari-dim">
                   Two fields to kick things off. You can refine everything later.

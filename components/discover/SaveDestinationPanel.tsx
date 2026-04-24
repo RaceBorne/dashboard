@@ -251,7 +251,7 @@ export function SaveDestinationPanel({
                     type="button"
                     onClick={() => onPick(f.name)}
                     className={cn(
-                      'w-full inline-flex items-center gap-2 rounded-md border border-evari-line/40 bg-white px-3 py-2 text-left text-[12.5px] text-evari-text hover:border-evari-accent hover:text-evari-accent',
+                      'w-full inline-flex items-center gap-2 rounded-md bg-white/[0.04] px-3 py-2 text-left text-[12.5px] text-evari-text hover:bg-white/[0.08] transition-colors',
                     )}
                   >
                     <Folder className="h-3.5 w-3.5 text-evari-dimmer" />
@@ -271,7 +271,7 @@ export function SaveDestinationPanel({
         </section>
       </div>
 
-      <footer className="shrink-0 border-t border-evari-line/30 px-5 py-3">
+      <footer className="shrink-0 px-5 py-3">
         <button
           type="button"
           onClick={onDismiss}

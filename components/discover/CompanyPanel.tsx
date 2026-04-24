@@ -506,7 +506,7 @@ export function CompanyPanel({
                 const labels: Record<Tab, string> = {
                   contacts: 'Contacts',
                   notes: 'Notes',
-                  strategy: 'Strategy',
+                  strategy: 'Ideas',
                 };
                 const active = tab === t;
                 return (

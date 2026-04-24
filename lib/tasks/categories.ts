@@ -64,7 +64,7 @@ export const TASK_CATEGORY_META: Record<TaskCategory, TaskCategoryMeta> = {
   },
   conversations: {
     key: 'conversations',
-    label: 'Conversations',
+    label: 'Outreach',
     description: 'Email, DMs, phone follow-ups',
     accent: 'text-evari-dim',
     icon: 'MessageSquare',

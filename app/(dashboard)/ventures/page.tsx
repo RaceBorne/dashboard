@@ -48,7 +48,7 @@ export default async function VenturesPage() {
   return (
     <>
       <TopBar
-        title="Ventures"
+        title="Campaigns"
         subtitle={total + ' in flight — idea → live'}
       />
 

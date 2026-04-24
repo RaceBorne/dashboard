@@ -12,6 +12,7 @@
 
 :root,
 :root[data-theme='dark'] {
+  color-scheme: dark;
   /* Lozenge (kept for anywhere we still want a darker inset) */
   --evari-lozenge: 14 14 14;
   --evari-lozenge-ring: 0 0 0;
@@ -191,6 +192,7 @@
 /* Default light = shade 2 */
 :root[data-theme='light'],
 :root[data-theme='light'][data-shade='2'] {
+  color-scheme: light;
   --evari-ink: 245 245 245;
   --evari-carbon: 238 238 238;
   --evari-surface: 253 253 253;
