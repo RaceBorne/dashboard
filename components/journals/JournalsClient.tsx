@@ -248,8 +248,13 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
 // of every journal thumbnail, change this one constant.
 // ─────────────────────────────────────────────────────────────────────
 
-/** Shared image aspect across DraftTile + PublishedTile. */
-const IMAGE_ASPECT = 'aspect-[10/11]';
+/**
+ * Shared image aspect across DraftTile + PublishedTile.
+ * 5:6 = 1 : 1.2 (slightly portrait) — matches the evari.cc
+ * storefront blog card. Change this one value to restyle every
+ * journal thumbnail on the page.
+ */
+const IMAGE_ASPECT = 'aspect-[5/6]';
 
 function formatShopifyDate(iso: string | null | undefined): string {
   if (!iso) return '';
