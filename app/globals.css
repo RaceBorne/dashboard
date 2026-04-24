@@ -713,15 +713,29 @@ code {
    by `lib/journals/editorToHtml`, which is deliberately class-free
    so the storefront template drives its own look on the real site.
    --------------------------------------------------------------------------- */
+/* ─── Storefront-matched type scale ───
+   Every value here mirrors a typical Shopify theme at 1x viewport.
+   Evari's theme is a Dawn-adjacent build so these numbers read the
+   same in the composer as they will on evari.cc after publish:
+
+     body       16px / 1.6          (Shopify default)
+     title      2.25rem / 1.15 / 700  ~36px
+     h1         1.875rem / 1.2 / 700  ~30px
+     h2         1.5rem   / 1.25 / 600 ~24px
+     h3         1.25rem  / 1.3 / 600  ~20px
+     h4         1.0625rem / 1.3 / 600 ~17px
+     figure     1.5rem vertical margin
+     paragraph  1.25rem gap between blocks
+
+   Do not push these up because the preview "looks small" — that's
+   how Shopify renders on the storefront. Inflating the preview
+   would break the WYSIWYG promise Craig is paying for. */
 .shopify-preview {
-  /* Inter via next/font — CSS variable set on <html> in layout.tsx.
-     Fallback stack mirrors a typical Shopify theme so the preview
-     reads the same even before the webfont lands. */
   font-family: var(--font-shopify-preview), 'Inter', -apple-system,
     BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   color: rgb(var(--evari-text, 245 245 245));
-  line-height: 1.7;
-  font-size: 17px;
+  line-height: 1.6;
+  font-size: 16px;
   font-feature-settings: 'ss01', 'cv11';
 }
 .shopify-preview__cover {
@@ -763,24 +777,24 @@ code {
   margin-bottom: 1rem;
 }
 .shopify-preview__title {
-  font-size: 2.6rem;
+  font-size: 2.25rem;
   line-height: 1.15;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.018em;
   color: rgb(var(--evari-text, 245 245 245));
   margin: 0;
 }
 .shopify-preview__body {
   display: flex;
   flex-direction: column;
-  gap: 1.45rem;
-  font-size: 17px;
+  gap: 1.25rem;
+  font-size: 16px;
 }
 .shopify-preview__p {
   margin: 0;
   color: rgb(var(--evari-text, 245 245 245));
-  line-height: 1.7;
-  font-size: 17px;
+  line-height: 1.6;
+  font-size: 16px;
 }
 .shopify-preview__p a {
   color: rgb(var(--evari-gold));
@@ -809,33 +823,32 @@ code {
    its first paragraph. Bottom margin tight so the heading feels
    attached to the paragraph it introduces. */
 .shopify-preview__h1 {
-  font-size: 2.1rem;
+  font-size: 1.875rem;
   line-height: 1.2;
   font-weight: 700;
-  letter-spacing: -0.015em;
-  margin: 2.2rem 0 0.6rem;
+  letter-spacing: -0.01em;
+  margin: 1.75rem 0 0.5rem;
   color: rgb(var(--evari-text, 245 245 245));
 }
 .shopify-preview__h2 {
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   line-height: 1.25;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  margin: 2rem 0 0.5rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.4rem;
   color: rgb(var(--evari-text, 245 245 245));
 }
 .shopify-preview__h3 {
-  font-size: 1.3rem;
+  font-size: 1.25rem;
   line-height: 1.3;
   font-weight: 600;
-  margin: 1.6rem 0 0.4rem;
+  margin: 1.25rem 0 0.35rem;
   color: rgb(var(--evari-text, 245 245 245));
 }
 .shopify-preview__h4 {
-  font-size: 1.08rem;
+  font-size: 1.0625rem;
+  line-height: 1.3;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  margin: 1.3rem 0 0.3rem;
+  margin: 1rem 0 0.25rem;
   color: rgb(var(--evari-text, 245 245 245));
 }
 .shopify-preview__ul,
@@ -849,7 +862,7 @@ code {
   margin: 0.25rem 0;
 }
 .shopify-preview__figure {
-  margin: 1.75rem 0;
+  margin: 1.5rem 0;
   border-radius: 6px;
   overflow: hidden;
   background: rgb(var(--evari-surface, 44 44 44) / 0.3);

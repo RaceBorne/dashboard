@@ -77,7 +77,10 @@ export function JournalEditor({ draft, blogs }: Props) {
     draft.shopifyArticleId ? 'published' : 'idle',
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [metaOpen, setMetaOpen] = useState(false);
+  // Metadata accordion defaults open so Craig lands on editable
+  // fields rather than a stack of closed strips. SEO stays closed
+  // because it's a power-user tail-end step.
+  const [metaOpen, setMetaOpen] = useState(true);
   const [seoOpen, setSeoOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeBrief, setComposeBrief] = useState('');
@@ -358,7 +361,7 @@ export function JournalEditor({ draft, blogs }: Props) {
       </div>
 
       {/* ── RIGHT: block composer + metadata ──────────────────────── */}
-      <aside className="w-[420px] shrink-0 border-l border-evari-edge bg-evari-carbon overflow-y-auto">
+      <aside className="w-[460px] shrink-0 border-l border-evari-edge bg-evari-carbon overflow-y-auto">
         <div className="p-5 space-y-5">
           {/* Publish CTA + title */}
           <section className="space-y-3">
@@ -389,7 +392,7 @@ export function JournalEditor({ draft, blogs }: Props) {
 
           {/* Metadata */}
           <Accordion label="Article metadata" open={metaOpen} onToggle={() => setMetaOpen((v) => !v)}>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <Field label="Destination">
                 <SelectInput
                   value={blogTarget}
@@ -404,39 +407,31 @@ export function JournalEditor({ draft, blogs }: Props) {
                     <img
                       src={coverImageUrl}
                       alt=""
-                      className="w-full h-32 object-cover rounded-md"
+                      className="w-full h-36 object-cover rounded-md"
                     />
                   ) : null}
                   <button
                     type="button"
                     onClick={() => setMediaTarget({ kind: 'cover' })}
-                    className="w-full inline-flex items-center justify-center gap-2 py-2 text-xs font-medium rounded-md bg-[rgb(var(--evari-input-fill))] text-evari-dim hover:text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md bg-[rgb(var(--evari-input-fill))] text-evari-dim hover:text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors"
                   >
                     <FolderOpen className="h-3.5 w-3.5" />
-                    {coverImageUrl ? 'Change cover from Shopify library' : 'Pick cover from Shopify library'}
+                    {coverImageUrl ? 'Change cover' : 'Pick from Shopify library'}
                   </button>
-                  <input
-                    value={coverImageUrl}
-                    onChange={(e) => setCoverImageUrl(e.target.value)}
-                    placeholder="…or paste URL"
-                    className={INPUT_CLS}
-                  />
                 </div>
               </Field>
-              <Field label="Summary" hint="Shown under the title on listings">
+              <Field label="Summary">
                 <textarea
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
-                  rows={2}
-                  placeholder="One-sentence summary"
-                  className={cn(INPUT_CLS, 'resize-none')}
+                  rows={4}
+                  className={cn(INPUT_CLS, 'resize-y min-h-[108px]')}
                 />
               </Field>
-              <Field label="Tags" hint="Comma-separated">
+              <Field label="Tags">
                 <input
                   value={tagsText}
                   onChange={(e) => setTagsText(e.target.value)}
-                  placeholder="cs-plus, bike-build"
                   className={INPUT_CLS}
                 />
               </Field>
@@ -452,12 +447,11 @@ export function JournalEditor({ draft, blogs }: Props) {
 
           {/* SEO */}
           <Accordion label="SEO" open={seoOpen} onToggle={() => setSeoOpen((v) => !v)}>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <Field label="Meta title">
                 <input
                   value={seoTitle}
                   onChange={(e) => setSeoTitle(e.target.value)}
-                  placeholder="Defaults to article title"
                   className={INPUT_CLS}
                 />
               </Field>
@@ -465,9 +459,8 @@ export function JournalEditor({ draft, blogs }: Props) {
                 <textarea
                   value={seoDescription}
                   onChange={(e) => setSeoDescription(e.target.value)}
-                  rows={2}
-                  placeholder="Defaults to summary"
-                  className={cn(INPUT_CLS, 'resize-none')}
+                  rows={4}
+                  className={cn(INPUT_CLS, 'resize-y min-h-[108px]')}
                 />
               </Field>
             </div>
@@ -592,24 +585,23 @@ const INPUT_CLS = [
   'transition-colors',
 ].join(' ');
 
+/**
+ * Label-only field wrapper. No helper text, no code-style hints,
+ * no kebab-case placeholder examples — the label names the thing
+ * and the input speaks for itself. Craig asked to drop every
+ * "bits of code" hint that cluttered the sidebar.
+ */
 function Field({
   label,
-  hint,
   children,
 }: {
   label: string;
-  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
-      <div className="flex items-baseline justify-between mb-1.5">
-        <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
-          {label}
-        </span>
-        {hint ? (
-          <span className="text-[10px] text-evari-dimmer truncate ml-2">{hint}</span>
-        ) : null}
+      <div className="mb-2 text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
+        {label}
       </div>
       {children}
     </label>
