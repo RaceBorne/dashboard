@@ -8,11 +8,15 @@ import {
   Image as ImageIcon,
   Clock,
   CheckCircle2,
+  ArrowLeft,
+  Pencil,
+  ExternalLink,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import type { JournalDraft } from '@/lib/journals/repository';
 import type { ShopifyArticle, ShopifyBlog } from '@/lib/shopify';
+import { ShopifyPreview, type JournalBlock } from './ShopifyPreview';
 
 type Lane = { key: string; label: string; blogId?: string };
 
@@ -111,17 +115,28 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
     }
   }
 
-  async function openDraft(id: string) {
-    router.push(`/journals/${id}`);
+  // The in-page reader — when this is non-null we swap the tile grid
+  // for a full-article view inside the same viewport, exactly how it
+  // reads on evari.cc. The reader carries its own Back button so the
+  // user can step back to the grid without a route change.
+  type ReaderSelection =
+    | { kind: 'draft'; draft: JournalDraft }
+    | { kind: 'article'; article: ShopifyArticle; linkedDraftId?: string };
+  const [reader, setReader] = useState<ReaderSelection | null>(null);
+
+  function openDraft(draft: JournalDraft) {
+    setReader({ kind: 'draft', draft });
   }
 
-  async function openPublished(article: ShopifyArticle) {
-    // If there's a local draft linked to this article, open that so
-    // further edits go through the EditorJS source of truth.
+  function openPublished(article: ShopifyArticle) {
+    // If there's a local draft linked to this article, remember its
+    // id so the reader's Edit button jumps into the composer.
     const linked = laneDrafts.find((d) => d.shopifyArticleId === article.id);
-    if (linked) router.push(`/journals/${linked.id}`);
-    // Otherwise nothing to edit — just offer a link out to Shopify. We
-    // store that as a hover affordance on the tile.
+    setReader({
+      kind: 'article',
+      article,
+      linkedDraftId: linked?.id,
+    });
   }
 
   function laneRefresh() {
@@ -178,6 +193,14 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
         </div>
       </div>
 
+      {reader ? (
+        <ArticleReader
+          reader={reader}
+          onClose={() => setReader(null)}
+          onEdit={(id) => router.push(`/journals/${id}`)}
+          laneLabel={lane.label}
+        />
+      ) : (
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
         {/* Pending (unpublished drafts) */}
         {pendingDrafts.length > 0 ? (
@@ -193,7 +216,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
             </header>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {pendingDrafts.map((d) => (
-                <DraftTile key={d.id} draft={d} onClick={() => openDraft(d.id)} />
+                <DraftTile key={d.id} draft={d} onClick={() => openDraft(d)} />
               ))}
             </div>
           </section>
@@ -261,12 +284,163 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                   key={d.id}
                   draft={d}
                   badge="Published"
-                  onClick={() => openDraft(d.id)}
+                  onClick={() => openDraft(d)}
                 />
               ))}
             </div>
           )}
         </section>
+      </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ArticleReader — the in-page Shopify-style reader.
+//
+// Renders inside the same viewable area as the tile grid, so clicking
+// a thumbnail feels like "opening" the article (not navigating away).
+// Sticky top bar gives the user Back + Edit + Open on Shopify.
+// ─────────────────────────────────────────────────────────────────────
+
+function ArticleReader({
+  reader,
+  onClose,
+  onEdit,
+  laneLabel,
+}: {
+  reader:
+    | { kind: 'draft'; draft: JournalDraft }
+    | { kind: 'article'; article: ShopifyArticle; linkedDraftId?: string };
+  onClose: () => void;
+  onEdit: (draftId: string) => void;
+  laneLabel: string;
+}) {
+  if (reader.kind === 'draft') {
+    const d = reader.draft;
+    const rawBlocks = (d.editorData as { blocks?: unknown })?.blocks;
+    const blocks: JournalBlock[] = Array.isArray(rawBlocks)
+      ? (rawBlocks as JournalBlock[]).map((b, i) => ({
+          id: (b as { id?: string }).id ?? `b${i}`,
+          type: (b as { type?: string }).type ?? 'paragraph',
+          data: (b as { data?: Record<string, unknown> }).data ?? {},
+        }))
+      : [];
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <ReaderBar
+          subtitle={laneLabel}
+          onClose={onClose}
+          editHref={() => onEdit(d.id)}
+        />
+        <div className="max-w-3xl mx-auto px-10 py-10">
+          <ShopifyPreview
+            title={d.title || 'Untitled draft'}
+            author={d.author}
+            publishedAt={d.publishedAt}
+            coverImageUrl={d.coverImageUrl}
+            blocks={blocks}
+            subLabel={laneLabel}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Shopify article — we only have bodyHtml (the HTML Shopify stores).
+  // Render it inside the shopify-preview scope so it picks up the same
+  // type treatment as the live composer preview.
+  const a = reader.article;
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <ReaderBar
+        subtitle={laneLabel}
+        onClose={onClose}
+        editHref={reader.linkedDraftId ? () => onEdit(reader.linkedDraftId as string) : undefined}
+        externalHref={a.handle ? `https://evari.cc/blogs/${a.blog.handle}/${a.handle}` : undefined}
+      />
+      <article className="shopify-preview max-w-3xl mx-auto px-10 py-10">
+        {a.image?.url ? (
+          <div className="shopify-preview__cover">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={a.image.url} alt={a.image.altText ?? a.title} />
+            {laneLabel ? (
+              <span className="shopify-preview__sublabel">{laneLabel}</span>
+            ) : null}
+          </div>
+        ) : null}
+        <header className="shopify-preview__head">
+          <h1 className="shopify-preview__title">{a.title}</h1>
+        </header>
+        <div
+          className="shopify-preview__body"
+          // Shopify's bodyHtml is curated by the merchant in the admin
+          // and displayed on the storefront as-is; we render it the
+          // same way so the reader view matches the published post.
+          dangerouslySetInnerHTML={{ __html: a.bodyHtml || '' }}
+        />
+        {(a.author?.name ?? '').trim() ? (
+          <p className="shopify-preview__byline">By {a.author?.name}</p>
+        ) : null}
+        {a.publishedAt ? (
+          <p className="shopify-preview__date">
+            {new Date(a.publishedAt).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
+          </p>
+        ) : null}
+      </article>
+    </div>
+  );
+}
+
+function ReaderBar({
+  subtitle,
+  onClose,
+  editHref,
+  externalHref,
+}: {
+  subtitle: string;
+  onClose: () => void;
+  editHref?: () => void;
+  externalHref?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-6 pt-4 pb-3 border-b border-evari-edge sticky top-0 bg-evari-ink z-10">
+      <button
+        onClick={onClose}
+        className="inline-flex items-center gap-1.5 text-xs text-evari-dim hover:text-evari-text transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Back to Journals
+      </button>
+      <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+        {subtitle} · Preview
+      </span>
+      <div className="flex items-center gap-2">
+        {externalHref ? (
+          <a
+            href={externalHref}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-evari-dim hover:text-evari-text transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open on Shopify
+          </a>
+        ) : null}
+        {editHref ? (
+          <button
+            onClick={editHref}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-evari-gold text-evari-goldInk hover:brightness-105 transition"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </button>
+        ) : null}
       </div>
     </div>
   );
