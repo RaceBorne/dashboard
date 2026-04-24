@@ -1,7 +1,25 @@
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
+import { Inter } from 'next/font/google';
 import './globals.css';
+
+/**
+ * Inter, subset for the Journals storefront preview.
+ *
+ * We scope this to the .shopify-preview class (see globals.css) so
+ * the Journals composer + reader render in the same face Shopify
+ * uses by default on the evari.cc blog template, while the rest of
+ * the dashboard keeps Geist. Variable weight + fallback metrics
+ * adjuster keeps the preview faithful even while the Google Fonts
+ * file is still loading.
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-shopify-preview',
+});
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { ConfirmProvider } from '@/components/ui/confirm-dialog';
 
@@ -56,7 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       data-theme="dark"
       data-shade="2"
-      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${inter.variable}`}
       // The THEME_BOOTSTRAP script below mutates data-theme / data-shade /
       // inline CSS vars on <html> before React hydrates (to avoid a theme
       // flash). Without this attribute, React sees "dark"/"2" in its SSR

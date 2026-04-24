@@ -57,7 +57,7 @@ export function htmlToBlocks(html: string): Array<ParsedBlock & { id: string }> 
       case 'h2':
       case 'h3':
       case 'h4': {
-        const level = Math.max(2, Math.min(4, Number(tag.slice(1))));
+        const level = Math.max(1, Math.min(4, Number(tag.slice(1))));
         const text = textOf(el);
         if (text) out.push({ id: newId(), type: 'header', data: { level, text } });
         return;

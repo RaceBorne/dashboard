@@ -110,16 +110,37 @@ function PreviewBlock({ block }: { block: JournalBlock }) {
       );
     }
     case 'header': {
-      const level = Math.max(2, Math.min(4, Number(data.level ?? 2)));
+      const level = Math.max(1, Math.min(4, Number(data.level ?? 2)));
       const text = String(data.text ?? '');
       if (!text.trim()) {
         return (
           <p className="shopify-preview__placeholder">Empty heading</p>
         );
       }
+      if (level === 1) return <h1 className="shopify-preview__h1">{text}</h1>;
       if (level === 2) return <h2 className="shopify-preview__h2">{text}</h2>;
       if (level === 3) return <h3 className="shopify-preview__h3">{text}</h3>;
       return <h4 className="shopify-preview__h4">{text}</h4>;
+    }
+    case 'spacer': {
+      const size = data.size;
+      const presets: Record<string, string> = {
+        sm: 'shopify-preview__spacer--sm',
+        md: 'shopify-preview__spacer--md',
+        lg: 'shopify-preview__spacer--lg',
+      };
+      const cls = typeof size === 'string' && presets[size]
+        ? presets[size]
+        : typeof size === 'number'
+          ? ''
+          : presets.md;
+      return (
+        <div
+          aria-hidden
+          className={`shopify-preview__spacer ${cls}`}
+          style={typeof size === 'number' ? { height: `${size}px` } : undefined}
+        />
+      );
     }
     case 'list': {
       const items = Array.isArray(data.items) ? (data.items as string[]) : [];

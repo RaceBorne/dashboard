@@ -47,10 +47,24 @@ function renderParagraph(b: Block): string {
 }
 
 function renderHeader(b: Block): string {
-  const lvl = Math.max(2, Math.min(4, Number(b.data.level ?? 2)));
+  const lvl = Math.max(1, Math.min(4, Number(b.data.level ?? 2)));
   const text = String(b.data.text ?? '').trim();
   if (!text) return '';
   return `<h${lvl}>${text}</h${lvl}>`;
+}
+
+function renderSpacer(b: Block): string {
+  // Serialise to a plain div with an inline height so the gap
+  // survives Shopify's storefront theme without depending on any
+  // theme-specific class. Size is either a named preset or a raw
+  // pixel number.
+  const presets: Record<string, number> = { sm: 12, md: 32, lg: 64 };
+  const raw = b.data.size;
+  const px =
+    typeof raw === 'number'
+      ? Math.max(1, Math.min(240, Math.round(raw)))
+      : presets[String(raw ?? 'md')] ?? 32;
+  return `<div aria-hidden="true" style="height:${px}px"></div>`;
 }
 
 function renderList(b: Block): string {
@@ -141,6 +155,9 @@ export function editorDataToHtml(data: OutputData | Record<string, unknown> | nu
         break;
       case 'video':
         out.push(renderVideo(block));
+        break;
+      case 'spacer':
+        out.push(renderSpacer(block));
         break;
       default:
         // Unknown block type — skip rather than corrupt output.

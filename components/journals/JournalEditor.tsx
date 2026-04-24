@@ -366,7 +366,12 @@ export function JournalEditor({ draft, blogs }: Props) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Article title"
-              className={cn(INPUT_CLS, 'text-lg font-semibold py-2.5')}
+              className={cn(
+                INPUT_CLS,
+                // Tracks the preview's .shopify-preview__title so what
+                // you type feels like the real headline.
+                'text-xl font-bold py-3 tracking-tight',
+              )}
             />
             <button
               onClick={handlePublish}

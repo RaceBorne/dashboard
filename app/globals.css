@@ -714,9 +714,15 @@ code {
    so the storefront template drives its own look on the real site.
    --------------------------------------------------------------------------- */
 .shopify-preview {
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  /* Inter via next/font — CSS variable set on <html> in layout.tsx.
+     Fallback stack mirrors a typical Shopify theme so the preview
+     reads the same even before the webfont lands. */
+  font-family: var(--font-shopify-preview), 'Inter', -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   color: rgb(var(--evari-text, 245 245 245));
-  line-height: 1.65;
+  line-height: 1.7;
+  font-size: 17px;
+  font-feature-settings: 'ss01', 'cv11';
 }
 .shopify-preview__cover {
   position: relative;
@@ -757,22 +763,29 @@ code {
   margin-bottom: 1rem;
 }
 .shopify-preview__title {
-  font-size: 2rem;
-  line-height: 1.2;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 2.6rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: rgb(var(--evari-text, 245 245 245));
   margin: 0;
 }
 .shopify-preview__body {
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
-  font-size: 15px;
+  gap: 1.45rem;
+  font-size: 17px;
 }
 .shopify-preview__p {
   margin: 0;
   color: rgb(var(--evari-text, 245 245 245));
+  line-height: 1.7;
+  font-size: 17px;
+}
+.shopify-preview__p a {
+  color: rgb(var(--evari-gold));
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .shopify-preview__placeholder {
   margin: 0;
@@ -790,24 +803,39 @@ code {
   text-align: center;
   font-size: 14px;
 }
+/* Heading scale follows a typical Shopify blog template's 1.125
+   modular rhythm, tuned for 17px body. Top margin sized so a new
+   heading creates a clear section break rather than floating with
+   its first paragraph. Bottom margin tight so the heading feels
+   attached to the paragraph it introduces. */
+.shopify-preview__h1 {
+  font-size: 2.1rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 2.2rem 0 0.6rem;
+  color: rgb(var(--evari-text, 245 245 245));
+}
 .shopify-preview__h2 {
-  font-size: 1.45rem;
-  line-height: 1.3;
-  font-weight: 600;
-  margin: 1.5rem 0 0.4rem;
+  font-size: 1.6rem;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 2rem 0 0.5rem;
   color: rgb(var(--evari-text, 245 245 245));
 }
 .shopify-preview__h3 {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   line-height: 1.3;
   font-weight: 600;
-  margin: 1.25rem 0 0.35rem;
+  margin: 1.6rem 0 0.4rem;
   color: rgb(var(--evari-text, 245 245 245));
 }
 .shopify-preview__h4 {
-  font-size: 1.02rem;
+  font-size: 1.08rem;
   font-weight: 600;
-  margin: 1rem 0 0.25rem;
+  letter-spacing: 0.01em;
+  margin: 1.3rem 0 0.3rem;
   color: rgb(var(--evari-text, 245 245 245));
 }
 .shopify-preview__ul,
@@ -821,11 +849,18 @@ code {
   margin: 0.25rem 0;
 }
 .shopify-preview__figure {
-  margin: 1rem 0;
+  margin: 1.75rem 0;
   border-radius: 6px;
   overflow: hidden;
   background: rgb(var(--evari-surface, 44 44 44) / 0.3);
 }
+.shopify-preview__spacer {
+  width: 100%;
+  pointer-events: none;
+}
+.shopify-preview__spacer--sm { height: 0.75rem; }
+.shopify-preview__spacer--md { height: 2rem; }
+.shopify-preview__spacer--lg { height: 4rem; }
 .shopify-preview__figure img {
   display: block;
   width: 100%;

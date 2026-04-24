@@ -32,6 +32,7 @@ import {
   X,
   Film,
   FolderOpen,
+  ArrowUpDown,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -86,6 +87,7 @@ const BLOCK_TYPES: {
   { type: 'doubleImage', label: 'Double image', icon: Images, init: () => ({ left: { url: '', caption: '' }, right: { url: '', caption: '' } }) },
   { type: 'video', label: 'Video', icon: Film, init: () => ({ url: '', poster: '', caption: '' }) },
   { type: 'quote', label: 'Quote', icon: QuoteIcon, init: () => ({ text: '', caption: '' }) },
+  { type: 'spacer', label: 'Spacer', icon: ArrowUpDown, init: () => ({ size: 'md' }) },
   { type: 'delimiter', label: 'Divider', icon: Minus, init: () => ({}) },
 ];
 
@@ -429,6 +431,7 @@ function BlockBody({
             onChange={(e) => onChange({ ...d, level: Number(e.target.value) })}
             className={cn(INPUT_SM_CLS, 'w-auto appearance-none cursor-pointer pr-6 font-semibold')}
           >
+            <option value={1}>H1</option>
             <option value={2}>H2</option>
             <option value={3}>H3</option>
             <option value={4}>H4</option>
@@ -650,6 +653,73 @@ function BlockBody({
       return (
         <div className="h-px bg-[rgb(var(--evari-edge))]" aria-hidden />
       );
+    case 'spacer': {
+      const size = d.size as 'sm' | 'md' | 'lg' | number | undefined;
+      const current = typeof size === 'number' ? 'custom' : size ?? 'md';
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-0.5 bg-[rgb(var(--evari-trough))] rounded-full p-0.5 w-fit">
+            {([
+              { key: 'sm', label: 'Small' },
+              { key: 'md', label: 'Medium' },
+              { key: 'lg', label: 'Large' },
+              { key: 'custom', label: 'Custom' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...d,
+                    size: opt.key === 'custom' ? (typeof size === 'number' ? size : 24) : opt.key,
+                  })
+                }
+                className={cn(
+                  'px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.14em] font-semibold transition-colors',
+                  current === opt.key
+                    ? 'bg-evari-surfaceSoft text-evari-text'
+                    : 'text-evari-dim hover:text-evari-text',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {typeof size === 'number' ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={240}
+                value={size}
+                onChange={(e) =>
+                  onChange({
+                    ...d,
+                    size: Math.max(1, Math.min(240, Number(e.target.value) || 1)),
+                  })
+                }
+                className={cn(INPUT_SM_CLS, 'w-24')}
+              />
+              <span className="text-[11px] text-evari-dim">px tall</span>
+            </div>
+          ) : null}
+          <div
+            aria-hidden
+            className="w-full rounded-md bg-[rgb(var(--evari-input-fill))] border border-dashed border-evari-edge"
+            style={{
+              height:
+                typeof size === 'number'
+                  ? `${size}px`
+                  : size === 'sm'
+                    ? '12px'
+                    : size === 'lg'
+                      ? '64px'
+                      : '32px',
+            }}
+          />
+        </div>
+      );
+    }
     default:
       return null;
   }
