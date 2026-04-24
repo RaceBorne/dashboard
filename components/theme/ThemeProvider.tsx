@@ -46,7 +46,7 @@ const STORAGE_INK = (t: Theme) => `evari-ink-${t}`;
 const STORAGE_LOGO = (t: Theme) => `evari-logo-${t}`;
 
 const DEFAULT_ACCENT = '#FEC700';
-const DEFAULT_SHADE: Shade = 3;
+const DEFAULT_SHADE: Shade = 2;
 const DEFAULT_INK_DARK: Ink = 'auto';
 const DEFAULT_INK_LIGHT: Ink = 'light';
 

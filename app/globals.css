@@ -173,14 +173,13 @@
 }
 
 :root[data-theme='light'][data-shade='3'] {
-  --evari-ink: 238 238 238;
-  --evari-carbon: 230 230 230;
-  --evari-surface: 248 248 248;
-  --evari-surface-soft: 222 222 222;
-  /* was 208 → 232 */
-  --evari-trough: 232 232 232;
-  --evari-edge: 204 204 204;
-  --evari-mute: 184 184 184;
+  --evari-ink: 245 245 245;
+  --evari-carbon: 238 238 238;
+  --evari-surface: 253 253 253;
+  --evari-surface-soft: 232 232 232;
+  --evari-trough: 237 237 237;
+  --evari-edge: 214 214 214;
+  --evari-mute: 192 192 192;
 }
 
 :root[data-theme='light'][data-shade='4'] {
@@ -194,20 +193,21 @@
   --evari-mute: 176 176 176;
 }
 
-/* Default light = shade 2 */
+/* Default light = shade 2, which now holds the 'soft grey' Craig
+   picked. Slider dot sits in the middle, giving room to go lighter
+   (shades 3-4) or darker (shades 0-1). */
 :root[data-theme='light'],
 :root[data-theme='light'][data-shade='2'] {
   color-scheme: light;
   --evari-input-fill: 0 0 0 / 0.05;
   --evari-input-fill-focus: 0 0 0 / 0.08;
-  --evari-ink: 245 245 245;
-  --evari-carbon: 238 238 238;
-  --evari-surface: 253 253 253;
-  --evari-surface-soft: 232 232 232;
-  /* was 218 → 237 */
-  --evari-trough: 237 237 237;
-  --evari-edge: 214 214 214;
-  --evari-mute: 192 192 192;
+  --evari-ink: 238 238 238;
+  --evari-carbon: 230 230 230;
+  --evari-surface: 248 248 248;
+  --evari-surface-soft: 222 222 222;
+  --evari-trough: 232 232 232;
+  --evari-edge: 204 204 204;
+  --evari-mute: 184 184 184;
 
   --evari-lozenge: 30 30 30;
   --evari-lozenge-ring: 18 18 18;

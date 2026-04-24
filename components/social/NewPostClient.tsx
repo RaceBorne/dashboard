@@ -58,8 +58,20 @@ function aspectFor(spec: string): string {
   return `${w} / ${h}`;
 }
 
-export function NewPostClient() {
-  const [platform, setPlatform] = useState<SocialPlatform>('instagram');
+export function NewPostClient({
+  lockedPlatform,
+}: {
+  /**
+   * When supplied, the Step 1 platform picker is hidden and the composer
+   * initialises locked to this platform. Used by the per-platform pages
+   * (/social/instagram, /tiktok, /linkedin, /articles) so each is a
+   * single-purpose composer with no tab-picker friction.
+   */
+  lockedPlatform?: SocialPlatform;
+} = {}) {
+  const [platform, setPlatform] = useState<SocialPlatform>(
+    lockedPlatform ?? 'instagram',
+  );
   const formats = useMemo(() => formatsFor(platform), [platform]);
   const [formatId, setFormatId] = useState<PostFormat['id']>(formats[0].id);
   const format = useMemo(
@@ -117,7 +129,9 @@ export function NewPostClient() {
         </Link>
       </div>
 
-      {/* 1. Platform */}
+      {/* 1. Platform — hidden when the caller has locked to a specific
+          platform (per-platform pages at /social/<platform> + /articles). */}
+      {!lockedPlatform ? (
       <section className="rounded-xl bg-evari-surface p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -160,6 +174,7 @@ export function NewPostClient() {
           />
         </div>
       </section>
+      ) : null}
 
       {/* 2. Format */}
       <section className="rounded-xl bg-evari-surface p-5 space-y-4">

@@ -21,6 +21,10 @@ import {
   Mail,
   PanelLeft,
   Stethoscope,
+  ChevronDown,
+  Instagram,
+  Linkedin,
+  Music,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme/ThemeProvider';
@@ -42,9 +46,13 @@ const NAV = [
   { href: '/performance', label: 'Performance', icon: Gauge, group: 'web' },
   { href: '/backlinks', label: 'Backlinks', icon: Link2, group: 'web' },
   { href: '/synopsis', label: 'Synopsis', icon: Stethoscope, group: 'web' },
-  { href: '/social', label: 'Social & blogs', icon: CalendarDays, group: 'broadcast' },
+  { href: '/social', label: 'Calendar', icon: CalendarDays, group: 'broadcast' },
+  { href: '/social/instagram', label: 'Instagram', icon: Instagram, group: 'broadcast' },
+  { href: '/social/tiktok', label: 'TikTok', icon: Music, group: 'broadcast' },
+  { href: '/social/linkedin', label: 'LinkedIn', icon: Linkedin, group: 'broadcast' },
+  { href: '/articles', label: 'Articles', icon: FileText, group: 'broadcast' },
   { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'marketing' },
-  { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'commerce' },
+  { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'marketing' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
   { href: '/users', label: 'Users', icon: Users, group: 'system' },
   { href: '/settings', label: 'Settings', icon: Settings, group: 'system' },
@@ -56,11 +64,15 @@ const GROUP_LABELS: Record<string, string> = {
   web: 'Website',
   broadcast: 'Broadcast',
   marketing: 'Marketing',
-  commerce: 'Commerce',
   system: 'System',
 };
 
 const LS_KEY = 'evari.sidebar.collapsed';
+const LS_OPEN_GROUPS = 'evari.sidebar.openGroups';
+// Every group is expanded by default. User collapses whichever
+// sections they want out of the way, and the choice is remembered
+// per-device.
+const DEFAULT_OPEN_GROUPS: string[] = ['today', 'pipeline', 'web', 'broadcast', 'marketing', 'system'];
 
 // Don't steal arrow keys while the user is typing.
 function isTypingTarget(t: EventTarget | null): boolean {
@@ -77,14 +89,23 @@ export function AppSidebar() {
   const [openTaskCount, setOpenTaskCount] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  // Which groups are expanded. Set for O(1) membership checks.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(DEFAULT_OPEN_GROUPS));
 
   // Hydrate from localStorage on mount.
   useEffect(() => {
     try {
       const v = window.localStorage.getItem(LS_KEY);
       if (v === '1') setCollapsed(true);
+      const raw = window.localStorage.getItem(LS_OPEN_GROUPS);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          setOpenGroups(new Set(parsed.filter((k): k is string => typeof k === 'string')));
+        }
+      }
     } catch {
-      // localStorage unavailable — default to expanded.
+      // localStorage unavailable — defaults stand.
     }
     setHydrated(true);
   }, []);
@@ -94,10 +115,11 @@ export function AppSidebar() {
     if (!hydrated) return;
     try {
       window.localStorage.setItem(LS_KEY, collapsed ? '1' : '0');
+      window.localStorage.setItem(LS_OPEN_GROUPS, JSON.stringify([...openGroups]));
     } catch {
       // Non-fatal.
     }
-  }, [collapsed, hydrated]);
+  }, [collapsed, hydrated, openGroups]);
 
   // Arrow-key shortcut. Left → collapse, Right → expand. Skip while
   // the user is typing so filter boxes, edit fields, etc. still work.
@@ -131,6 +153,14 @@ export function AppSidebar() {
   }, []);
 
   const toggle = useCallback(() => setCollapsed((c) => !c), []);
+  const toggleGroup = useCallback((group: string) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  }, []);
 
   // Group items
   const groups = NAV.reduce<Record<string, typeof NAV[number][]>>((acc, item) => {
@@ -185,24 +215,49 @@ export function AppSidebar() {
           collapsed ? 'px-1.5' : 'px-2',
         )}
       >
-        {Object.entries(groups).map(([group, items]) => (
+        {Object.entries(groups).map(([group, items]) => {
+          const groupOpen = openGroups.has(group);
+          return (
           <div key={group} className="mb-4">
             {!collapsed ? (
-              <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium">
-                {GROUP_LABELS[group]}
-              </div>
+              <button
+                type="button"
+                onClick={() => toggleGroup(group)}
+                className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium hover:text-evari-dim transition-colors"
+                aria-expanded={groupOpen}
+              >
+                <ChevronDown
+                  className={cn(
+                    'h-3 w-3 text-evari-dimmer/70 transition-transform',
+                    groupOpen ? '' : '-rotate-90',
+                  )}
+                />
+                <span className="flex-1 text-left">{GROUP_LABELS[group]}</span>
+              </button>
             ) : (
               /* thin divider between groups when collapsed */
               <div className="mx-2 my-2 h-px bg-evari-line/20 first:hidden" />
             )}
-            <div className="space-y-0.5">
+            <div
+              className={cn(
+                'space-y-0.5',
+                !collapsed && !groupOpen ? 'hidden' : '',
+              )}
+            >
               {items.map((item) => {
                 const active =
                   item.group === 'pipeline'
                     ? VENTURE_PREFIXES.some((px) => pathname === px || pathname.startsWith(px + '/') || pathname.startsWith(px + '?'))
                     : item.href === '/'
                       ? pathname === '/'
-                      : pathname.startsWith(item.href);
+                      : item.href === '/social'
+                        ? // Calendar: exact match only, so it doesn't
+                          // stay active on /social/instagram etc.
+                          pathname === '/social' ||
+                          pathname.startsWith('/social?') ||
+                          pathname === '/social/new' ||
+                          pathname.startsWith('/social/new/')
+                        : pathname.startsWith(item.href);
                 const Icon = item.icon;
                 const navCount =
                   item.href === '/tasks' && openTaskCount && openTaskCount > 0
@@ -270,7 +325,8 @@ export function AppSidebar() {
               })}
             </div>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Footer */}

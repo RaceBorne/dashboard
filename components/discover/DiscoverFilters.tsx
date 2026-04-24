@@ -188,10 +188,10 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
                       });
                     }}
                     className={cn(
-                      'rounded-full px-2.5 py-1 text-[11px] border capitalize transition-colors',
+                      'rounded-full px-2.5 py-1 text-[11px] capitalize transition-colors',
                       on
-                        ? 'bg-evari-accent text-evari-ink border-evari-accent'
-                        : 'border-evari-line/60 text-evari-dim hover:border-evari-dimmer hover:text-evari-text',
+                        ? 'bg-evari-gold text-evari-goldInk'
+                        : 'bg-white/[0.04] text-evari-dim hover:bg-white/[0.08] hover:text-evari-text',
                     )}
                   >
                     {ct}
@@ -232,10 +232,10 @@ export function DiscoverFilters({ filters, onChange, onAiRefine, onClearAll, aiB
                   onChange({ ...filters, sizeBands: Array.from(set) });
                 }}
                 className={cn(
-                  'rounded-full px-2.5 py-1 text-[11px] border transition-colors',
+                  'rounded-full px-2.5 py-1 text-[11px] transition-colors',
                   on
-                    ? 'bg-evari-accent text-evari-ink border-evari-accent'
-                    : 'border-evari-line/60 text-evari-dim hover:border-evari-dimmer hover:text-evari-text',
+                    ? 'bg-evari-gold text-evari-goldInk'
+                    : 'bg-white/[0.04] text-evari-dim hover:bg-white/[0.08] hover:text-evari-text',
                 )}
               >
                 {band}
