@@ -259,8 +259,19 @@ function CountItem({ n, label }: { n: number; label: string }) {
 }
 
 function RowMeta({ play }: { play: Play }) {
+  // A scan is only considered 'scanning' if its startedAt is fresh.
+  // Vercel functions can time out mid-run and leave status='running'
+  // without ever writing finishedAt — so we treat anything older than
+  // 10 minutes as stale and stop rendering the lozenge. The server-side
+  // sweep (clearing status='stale') happens separately via SQL; this
+  // just stops false positives in the UI.
+  const startedAt = play.autoScan?.startedAt;
+  const startedRecently =
+    startedAt != null &&
+    Date.now() - new Date(startedAt).getTime() < 10 * 60_000;
   const scanning =
-    play.autoScan?.status === 'pending' || play.autoScan?.status === 'running';
+    (play.autoScan?.status === 'pending' || play.autoScan?.status === 'running') &&
+    startedRecently;
   const recentScan =
     play.autoScan?.status === 'done' &&
     play.autoScan.finishedAt &&
