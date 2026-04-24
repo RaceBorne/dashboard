@@ -143,6 +143,33 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setInkByTheme({ dark: inkDark, light: inkLight });
     setLogoByTheme({ dark: logoDark, light: logoLight });
 
+    // Hydrate from Supabase so the logos persist across browsers / devices.
+    // localStorage is kept as a fast-path cache for the next paint.
+    void (async () => {
+      try {
+        const res = await fetch('/api/theme/branding', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          ok?: boolean;
+          logoLight?: string | null;
+          logoDark?: string | null;
+        };
+        if (!data.ok) return;
+        const remoteLight = parseLogo(data.logoLight ?? null);
+        const remoteDark = parseLogo(data.logoDark ?? null);
+        setLogoByTheme((prev) => ({
+          light: remoteLight ?? prev.light,
+          dark: remoteDark ?? prev.dark,
+        }));
+        // Mirror the remote values into localStorage so the next mount
+        // paints immediately from cache instead of waiting for the fetch.
+        if (remoteLight) window.localStorage.setItem(STORAGE_LOGO('light'), remoteLight);
+        if (remoteDark) window.localStorage.setItem(STORAGE_LOGO('dark'), remoteDark);
+      } catch {
+        // Silent — fall back to localStorage values.
+      }
+    })();
+
     const activeShade = resolvedTheme === 'dark' ? shadeDark : shadeLight;
     const activeAccent = resolvedTheme === 'dark' ? accentDark : accentLight;
     const activeInk = resolvedTheme === 'dark' ? inkDark : inkLight;
@@ -187,11 +214,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   function setLogo(which: Theme, dataUrl: string | null) {
     setLogoByTheme((prev) => ({ ...prev, [which]: dataUrl }));
     if (typeof window === 'undefined') return;
+    // Fast path: keep localStorage so first paint on next mount is instant.
     if (dataUrl === null) {
       window.localStorage.removeItem(STORAGE_LOGO(which));
     } else {
       window.localStorage.setItem(STORAGE_LOGO(which), dataUrl);
     }
+    // Durable path: persist to Supabase so other browsers / devices pick it up.
+    void fetch('/api/theme/branding', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ which, dataUrl }),
+    }).catch(() => {
+      // Non-fatal — localStorage still has the value.
+    });
   }
 
   function toggle() {

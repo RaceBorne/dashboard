@@ -56,7 +56,7 @@ export async function POST() {
       temperature: 0.4,
     });
 
-    const { narrative, actions } = parseNarrative(text);
+    const { narrative, actions, groups } = parseNarrative(text);
     if (!narrative) {
       return NextResponse.json(
         { ok: false, error: 'Narrative parsing failed. Raw text: ' + text.slice(0, 200) },
@@ -68,6 +68,7 @@ export async function POST() {
       ok: true,
       narrative,
       actions,
+      groups,
       context: synopsis.context,
       generatedAt: new Date().toISOString(),
     });
@@ -136,10 +137,39 @@ function buildNarrativePrompt(ctx: SynopsisContext): string {
     '  "narrative": "3-5 sentence assessment in plain prose. Start with the single biggest issue, then walk through the 2-3 next leverage points, close with the one highest-leverage in-house move for this month. Direct, not corporate.",',
     '  "actions": [',
     '    { "title": "imperative short task title (<80 chars)", "detail": "1 sentence on what done looks like", "category": "seo | shopify | content", "priority": "low | medium | high" }',
+    '  ],',
+    '  "groups": [',
+    '    {',
+    '      "id": "kebab-case-stable-id",',
+    '      "title": "short group title (<60 chars)",',
+    '      "description": "1-2 sentences on what this group covers and why it matters right now",',
+    '      "impact": "high | medium | low",',
+    '      "subject": "short hint like \"mobile perf score ~45/100\" or \"14 pages affected\"",',
+    '      "children": [',
+    '        {',
+    '          "title": "short child title (<80 chars)",',
+    '          "description": "1-2 sentences on what this discrete job is + what done looks like",',
+    '          "category": "seo | shopify | content",',
+    '          "priority": "low | medium | high"',
+    '        }',
+    '      ]',
+    '    }',
     '  ]',
     '}',
     '',
-    'Between 4 and 8 actions. Each action must be executable in-house using code, content, design or configuration. Do not propose hiring anyone. Do not propose outside agencies or consultants. Paid advertising spend is the only external spend allowed, and only if it is genuinely the cheapest fastest lever for a specific keyword. Output valid JSON only, no markdown fences, no commentary.',
+    'Rules for actions:',
+    '  - Between 4 and 8 actions.',
+    '  - Each action must be executable in-house with code, content, design or configuration.',
+    '  - Do not propose hiring anyone, outside agencies, or consultants. Paid advertising is the only external spend allowed, and only when paid search is the clearest lever for a specific keyword.',
+    '',
+    'Rules for groups:',
+    '  - Between 2 and 5 groups.',
+    '  - Pick the groups most relevant to the current state. Examples of groups you might pick (but do not limit yourself to): Technical SEO cleanup, Mobile rebuild, Performance audit, Conversion rate audit, Accessibility pass, Content refresh, Schema / structured data rollout, Shopify theme refactor, Checkout flow audit, Image optimisation, Internal linking overhaul, Site search quality, Email capture + onboarding.',
+    '  - Each group has 4-8 children. Children are discrete in-house jobs each with a clear done state.',
+    '  - Do not re-create these: keyword research, meta title/description rewrites, internal link proposals, blog topic proposals. Those already live elsewhere in the UI.',
+    '  - Priority + impact should reflect the actual numbers above, not generic advice.',
+    '',
+    'Output valid JSON only, no markdown fences, no commentary, no em-dashes or en-dashes anywhere.',
   ];
   return lines.filter(Boolean).join('\n');
 }
@@ -160,7 +190,50 @@ interface NarrativeAction {
   priority: 'low' | 'medium' | 'high';
 }
 
-function parseNarrative(raw: string): { narrative: string | null; actions: NarrativeAction[] } {
+interface NarrativeGroupChild {
+  title: string;
+  description: string;
+  category: NarrativeAction['category'];
+  priority: NarrativeAction['priority'];
+}
+
+interface NarrativeGroup {
+  id: string;
+  title: string;
+  description: string;
+  impact: 'high' | 'medium' | 'low';
+  subject: string;
+  children: NarrativeGroupChild[];
+}
+
+const TEXT_MAX = 400;
+
+function scrub(s: string, max = TEXT_MAX): string {
+  return s.replace(/[—–]/g, ',').trim().slice(0, max);
+}
+
+function parseCategory(v: unknown): NarrativeAction['category'] {
+  return v === 'shopify' || v === 'content' ? v : 'seo';
+}
+function parsePriority(v: unknown): NarrativeAction['priority'] {
+  return v === 'low' || v === 'high' ? v : 'medium';
+}
+function parseImpact(v: unknown): NarrativeGroup['impact'] {
+  return v === 'high' || v === 'low' ? v : 'medium';
+}
+function slugish(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || 'group';
+}
+
+function parseNarrative(raw: string): {
+  narrative: string | null;
+  actions: NarrativeAction[];
+  groups: NarrativeGroup[];
+} {
   const cleaned = raw
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -175,38 +248,74 @@ function parseNarrative(raw: string): { narrative: string | null; actions: Narra
     return {
       narrative: cleaned.replace(/[—–]/g, ',').trim() || null,
       actions: [],
+      groups: [],
     };
   }
-  if (!parsed || typeof parsed !== 'object') return { narrative: null, actions: [] };
-  const root = parsed as { narrative?: unknown; actions?: unknown };
+  if (!parsed || typeof parsed !== 'object') return { narrative: null, actions: [], groups: [] };
+  const root = parsed as { narrative?: unknown; actions?: unknown; groups?: unknown };
   const narrative =
-    typeof root.narrative === 'string'
-      ? root.narrative.replace(/[—–]/g, ',').trim()
-      : null;
+    typeof root.narrative === 'string' ? scrub(root.narrative, 1200) : null;
   const actions: NarrativeAction[] = [];
   if (Array.isArray(root.actions)) {
     for (const a of root.actions) {
       if (!a || typeof a !== 'object') continue;
       const act = a as Partial<NarrativeAction>;
       if (typeof act.title !== 'string') continue;
-      const category: NarrativeAction['category'] =
-        act.category === 'seo' || act.category === 'shopify' || act.category === 'content'
-          ? act.category
-          : 'seo';
-      const priority: NarrativeAction['priority'] =
-        act.priority === 'low' || act.priority === 'medium' || act.priority === 'high'
-          ? act.priority
-          : 'medium';
       actions.push({
-        title: act.title.replace(/[—–]/g, ',').trim().slice(0, 120),
-        detail:
-          typeof act.detail === 'string'
-            ? act.detail.replace(/[—–]/g, ',').trim().slice(0, 260)
-            : '',
-        category,
-        priority,
+        title: scrub(act.title, 120),
+        detail: typeof act.detail === 'string' ? scrub(act.detail, 260) : '',
+        category: parseCategory(act.category),
+        priority: parsePriority(act.priority),
       });
     }
   }
-  return { narrative, actions: actions.slice(0, 10) };
+  const groups: NarrativeGroup[] = [];
+  const seenGroupIds = new Set<string>();
+  if (Array.isArray(root.groups)) {
+    for (const g of root.groups) {
+      if (!g || typeof g !== 'object') continue;
+      const grp = g as Partial<NarrativeGroup>;
+      if (typeof grp.title !== 'string') continue;
+      let id =
+        typeof grp.id === 'string' && grp.id.trim()
+          ? slugish(grp.id)
+          : slugish(grp.title);
+      // Disambiguate if Claude reuses an id.
+      let suffix = 2;
+      while (seenGroupIds.has(id)) {
+        id = slugish(grp.title) + '-' + suffix;
+        suffix++;
+      }
+      seenGroupIds.add(id);
+      const children: NarrativeGroupChild[] = [];
+      if (Array.isArray(grp.children)) {
+        for (const c of grp.children) {
+          if (!c || typeof c !== 'object') continue;
+          const ch = c as Partial<NarrativeGroupChild>;
+          if (typeof ch.title !== 'string') continue;
+          children.push({
+            title: scrub(ch.title, 120),
+            description:
+              typeof ch.description === 'string' ? scrub(ch.description, 320) : '',
+            category: parseCategory(ch.category),
+            priority: parsePriority(ch.priority),
+          });
+        }
+      }
+      if (children.length === 0) continue;
+      groups.push({
+        id,
+        title: scrub(grp.title, 80),
+        description: typeof grp.description === 'string' ? scrub(grp.description, 320) : '',
+        impact: parseImpact(grp.impact),
+        subject: typeof grp.subject === 'string' ? scrub(grp.subject, 120) : '',
+        children: children.slice(0, 10),
+      });
+    }
+  }
+  return {
+    narrative,
+    actions: actions.slice(0, 10),
+    groups: groups.slice(0, 6),
+  };
 }

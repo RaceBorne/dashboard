@@ -35,6 +35,22 @@ interface NarrativeAction {
   priority: SynopsisTaskPriority;
 }
 
+interface NarrativeGroupChild {
+  title: string;
+  description: string;
+  category: SynopsisTaskCategory;
+  priority: SynopsisTaskPriority;
+}
+
+interface NarrativeGroup {
+  id: string;
+  title: string;
+  description: string;
+  impact: 'high' | 'medium' | 'low';
+  subject: string;
+  children: NarrativeGroupChild[];
+}
+
 /**
  * SynopsisClient
  *
@@ -64,6 +80,7 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
   // Narrative state: fetched async so the page renders immediately.
   const [narrative, setNarrative] = useState<string | null>(null);
   const [narrativeActions, setNarrativeActions] = useState<NarrativeAction[]>([]);
+  const [narrativeGroups, setNarrativeGroups] = useState<NarrativeGroup[]>([]);
   const [narrativeBusy, setNarrativeBusy] = useState(false);
   const [narrativeError, setNarrativeError] = useState<string | null>(null);
   const [narrativeAt, setNarrativeAt] = useState<string | null>(null);
@@ -94,6 +111,7 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
         ok?: boolean;
         narrative?: string;
         actions?: NarrativeAction[];
+        groups?: NarrativeGroup[];
         generatedAt?: string;
         error?: string;
       };
@@ -102,6 +120,7 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
       }
       setNarrative(data.narrative);
       setNarrativeActions(Array.isArray(data.actions) ? data.actions : []);
+      setNarrativeGroups(Array.isArray(data.groups) ? data.groups : []);
       setNarrativeAt(data.generatedAt ?? new Date().toISOString());
     } catch (err) {
       setNarrativeError(err instanceof Error ? err.message : 'Narrative failed');
@@ -278,6 +297,52 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
   const autoFixable = issues.filter((i) => i.kind !== 'manual');
   const manual = issues.filter((i) => i.kind === 'manual');
   const canFixAll = autoFixable.length > 0;
+
+  // Merge the four executable enhancements (from the analyser) with the AI-
+  // generated grouped enhancements (from the narrative endpoint). The order:
+  //   - executable high-impact first (keyword research, meta rewrite, etc)
+  //   - then AI groups, sorted high/medium/low by impact
+  //   - any executable medium-low at the bottom.
+  const mergedEnhancements: SynopsisEnhancement[] = (() => {
+    const dynamic: SynopsisEnhancement[] = narrativeGroups.map((g) => ({
+      id: 'dyn:' + g.id,
+      kind: 'group' as const,
+      title: g.title,
+      description: g.description || '',
+      cta: 'Expand',
+      impact: g.impact,
+      subject: g.subject || g.children.length + ' in-house jobs',
+      executable: false,
+      taskDefaults: {
+        title: g.title,
+        description:
+          (g.description || '') + ' Decomposed into ' + g.children.length + ' in-house jobs.',
+        category: 'seo',
+        priority: g.impact === 'high' ? 'high' : g.impact === 'medium' ? 'medium' : 'low',
+      },
+      children: g.children.map((c, i) => ({
+        id: 'dyn:' + g.id + ':child:' + i,
+        kind: 'seo-cleanup-item' as const,
+        title: c.title,
+        description: c.description,
+        cta: 'Plan',
+        impact:
+          c.priority === 'high' ? 'high' : c.priority === 'medium' ? 'medium' : 'low',
+        executable: false,
+        taskDefaults: {
+          title: c.title,
+          description: c.description,
+          category: c.category,
+          priority: c.priority,
+        },
+      })),
+    }));
+
+    const rank: Record<SynopsisEnhancement['impact'], number> = { high: 0, medium: 1, low: 2 };
+    const all = [...synopsis.enhancements, ...dynamic];
+    all.sort((a, b) => rank[a.impact] - rank[b.impact]);
+    return all;
+  })();
 
   return (
     <div className="px-6 py-6 space-y-6 max-w-[1400px]">
@@ -465,12 +530,12 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
             <Sparkles className="h-3.5 w-3.5 text-evari-dimmer" />
             Enhance
             <span className="text-[11px] text-evari-dimmer font-normal ml-2">
-              {totalEnhanceCount(synopsis.enhancements)} opportunities, all in-house
+              {totalEnhanceCount(mergedEnhancements)} opportunities, all in-house
             </span>
           </div>
         </header>
         <ul className="space-y-1">
-          {synopsis.enhancements.map((e) => (
+          {mergedEnhancements.map((e) => (
             <EnhanceRow
               key={e.id}
               enhancement={e}
@@ -652,17 +717,20 @@ function EnhanceRow({
 
   return (
     <li className="rounded-md bg-evari-surface overflow-hidden">
-      <div className="px-5 py-4 flex items-start gap-4">
-        <button
-          type="button"
-          onClick={isGroup ? onToggleGroup : undefined}
-          className={cn(
-            'pt-0.5 shrink-0 inline-flex items-center justify-center rounded',
-            isGroup ? 'cursor-pointer hover:bg-evari-surfaceSoft/40 transition-colors h-6 w-6 -my-1 -ml-1' : '',
-          )}
-          aria-label={isGroup ? (expanded ? 'Collapse' : 'Expand') : undefined}
-          disabled={!isGroup}
-        >
+      <div
+        className={cn(
+          'px-5 py-4 flex items-start gap-4',
+          isGroup ? 'cursor-pointer hover:bg-evari-surface/70 transition-colors' : '',
+        )}
+        onClick={(e) => {
+          if (!isGroup) return;
+          // Don't toggle when the click originated inside a button (Todo, Add all, etc).
+          const target = e.target as HTMLElement;
+          if (target.closest('button')) return;
+          onToggleGroup();
+        }}
+      >
+        <div className="pt-0.5 shrink-0 inline-flex items-center justify-center h-5 w-5">
           {isGroup ? (
             <ChevronRight
               className={cn(
@@ -673,7 +741,7 @@ function EnhanceRow({
           ) : (
             <Sparkles className="h-4 w-4 text-evari-gold" />
           )}
-        </button>
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[13px] font-semibold text-evari-text">
@@ -733,10 +801,6 @@ function EnhanceRow({
             >
               <Wand2 className="h-3 w-3" />
               {enhancement.cta}
-            </Button>
-          ) : isGroup ? (
-            <Button size="sm" variant="primary" onClick={onToggleGroup}>
-              {expanded ? 'Collapse' : enhancement.cta}
             </Button>
           ) : null}
         </div>
