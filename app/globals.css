@@ -701,3 +701,203 @@ code {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 8px;
 }
+
+/* ---------------------------------------------------------------------------
+   Shopify article preview — typography tuned to mirror the evari.cc
+   Shopify blog post template (see CS+ | Samurai Edition reference).
+
+   Scoped under `.shopify-preview` so these rules never leak into the
+   rest of the dashboard. Uses the dashboard's theme tokens where
+   sensible so the preview still reads well against the dark ink.
+   The final HTML that ships to Shopify at publish time is produced
+   by `lib/journals/editorToHtml`, which is deliberately class-free
+   so the storefront template drives its own look on the real site.
+   --------------------------------------------------------------------------- */
+.shopify-preview {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  color: rgb(var(--evari-text, 245 245 245));
+  line-height: 1.65;
+}
+.shopify-preview__cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgb(var(--evari-surface) / 0.4);
+  margin-bottom: 2rem;
+}
+.shopify-preview__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.shopify-preview__sublabel {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+.shopify-preview__head {
+  margin-bottom: 2rem;
+}
+.shopify-preview__share {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgb(var(--evari-dimmer, 150 150 150));
+  margin-bottom: 1rem;
+}
+.shopify-preview__title {
+  font-size: 2rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: rgb(var(--evari-text, 245 245 245));
+  margin: 0;
+}
+.shopify-preview__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  font-size: 15px;
+}
+.shopify-preview__p {
+  margin: 0;
+  color: rgb(var(--evari-text, 245 245 245));
+}
+.shopify-preview__placeholder {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-style: italic;
+  color: rgb(var(--evari-dimmer, 130 130 130));
+  background: rgb(var(--evari-surface, 44 44 44) / 0.2);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.shopify-preview__empty {
+  color: rgb(var(--evari-dimmer, 130 130 130));
+  font-style: italic;
+  padding: 3rem 0;
+  text-align: center;
+  font-size: 14px;
+}
+.shopify-preview__h2 {
+  font-size: 1.45rem;
+  line-height: 1.3;
+  font-weight: 600;
+  margin: 1.5rem 0 0.4rem;
+  color: rgb(var(--evari-text, 245 245 245));
+}
+.shopify-preview__h3 {
+  font-size: 1.2rem;
+  line-height: 1.3;
+  font-weight: 600;
+  margin: 1.25rem 0 0.35rem;
+  color: rgb(var(--evari-text, 245 245 245));
+}
+.shopify-preview__h4 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin: 1rem 0 0.25rem;
+  color: rgb(var(--evari-text, 245 245 245));
+}
+.shopify-preview__ul,
+.shopify-preview__ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: rgb(var(--evari-text, 245 245 245));
+}
+.shopify-preview__ul li,
+.shopify-preview__ol li {
+  margin: 0.25rem 0;
+}
+.shopify-preview__figure {
+  margin: 1rem 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgb(var(--evari-surface, 44 44 44) / 0.3);
+}
+.shopify-preview__figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.shopify-preview__figure figcaption {
+  font-size: 12px;
+  color: rgb(var(--evari-dim, 170 170 170));
+  padding: 0.5rem 0 0;
+  text-align: center;
+}
+.shopify-preview__double {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 1rem 0;
+}
+.shopify-preview__double-cell img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+.shopify-preview__double-cell--empty {
+  aspect-ratio: 4 / 3;
+  background: rgb(var(--evari-surface, 44 44 44) / 0.3);
+  border-radius: 6px;
+}
+.shopify-preview__double-cell figcaption {
+  font-size: 12px;
+  color: rgb(var(--evari-dim, 170 170 170));
+  padding: 0.5rem 0 0;
+}
+.shopify-preview__image-placeholder {
+  padding: 1.5rem;
+  text-align: center;
+  background: rgb(var(--evari-surface, 44 44 44) / 0.3);
+  border: 1px dashed rgb(var(--evari-edge, 70 70 70));
+  border-radius: 6px;
+  font-size: 13px;
+  color: rgb(var(--evari-dimmer, 150 150 150));
+  font-style: italic;
+}
+.shopify-preview__quote {
+  margin: 1.5rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid rgb(var(--evari-gold));
+  font-style: italic;
+  color: rgb(var(--evari-text, 245 245 245));
+}
+.shopify-preview__quote cite {
+  display: block;
+  margin-top: 0.5rem;
+  font-style: normal;
+  font-size: 13px;
+  color: rgb(var(--evari-dim, 170 170 170));
+}
+.shopify-preview__hr {
+  margin: 2rem auto;
+  border: 0;
+  border-top: 1px solid rgb(var(--evari-edge, 70 70 70));
+  width: 80%;
+}
+.shopify-preview__byline {
+  margin-top: 2.5rem;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgb(var(--evari-dim, 170 170 170));
+}
+.shopify-preview__date {
+  margin-top: 0.25rem;
+  font-size: 12px;
+  color: rgb(var(--evari-dimmer, 150 150 150));
+}
