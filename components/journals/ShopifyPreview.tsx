@@ -202,6 +202,30 @@ function PreviewBlock({ block }: { block: JournalBlock }) {
     }
     case 'delimiter':
       return <hr className="shopify-preview__hr" />;
+    case 'video': {
+      const url = String(data.url ?? '');
+      const poster = (data.poster as string | undefined) ?? undefined;
+      const caption = String(data.caption ?? '').trim();
+      if (!url) {
+        return (
+          <div className="shopify-preview__image-placeholder">
+            Video block — pick a clip from the media library on the right
+          </div>
+        );
+      }
+      return (
+        <figure className="shopify-preview__figure">
+          <video
+            src={url}
+            poster={poster}
+            controls
+            playsInline
+            style={{ width: '100%', height: 'auto', display: 'block' }}
+          />
+          {caption ? <figcaption>{caption}</figcaption> : null}
+        </figure>
+      );
+    }
     default:
       return null;
   }

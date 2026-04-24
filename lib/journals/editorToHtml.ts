@@ -100,6 +100,18 @@ function renderDelimiter(): string {
   return '<hr />';
 }
 
+function renderVideo(b: Block): string {
+  const url = String(b.data.url ?? '');
+  if (!url) return '';
+  const poster = String(b.data.poster ?? '');
+  const caption = String(b.data.caption ?? '').trim();
+  const video = `<video controls playsinline${attr('poster', poster)}${attr('src', url)} style="width:100%;height:auto;display:block;border-radius:6px"></video>`;
+  if (caption) {
+    return `<figure>${video}<figcaption>${caption}</figcaption></figure>`;
+  }
+  return `<figure>${video}</figure>`;
+}
+
 export function editorDataToHtml(data: OutputData | Record<string, unknown> | null | undefined): string {
   if (!data || typeof data !== 'object') return '';
   const blocks = ((data as OutputData).blocks ?? []) as Block[];
@@ -126,6 +138,9 @@ export function editorDataToHtml(data: OutputData | Record<string, unknown> | nu
         break;
       case 'delimiter':
         out.push(renderDelimiter());
+        break;
+      case 'video':
+        out.push(renderVideo(block));
         break;
       default:
         // Unknown block type — skip rather than corrupt output.

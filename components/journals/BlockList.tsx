@@ -30,6 +30,8 @@ import {
   Minus,
   Loader2,
   X,
+  Film,
+  FolderOpen,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -46,6 +48,19 @@ const INPUT_CLS =
 const INPUT_SM_CLS =
   'w-full rounded-md px-2 py-1.5 text-xs bg-[rgb(var(--evari-input-fill))] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:bg-[rgb(var(--evari-input-fill-focus))] transition-colors';
 
+/**
+ * When the user asks to insert from the Shopify media library, we need
+ * to tell the parent which block slot to write into. For single-image
+ * and video blocks, `slot` is omitted. For double-image blocks, the
+ * parent uses `slot` to know which side of the block to update.
+ */
+export interface MediaTarget {
+  blockId: string;
+  slot?: 'left' | 'right';
+  /** What kinds of files make sense in this target. */
+  accept: 'image' | 'video' | 'any';
+}
+
 interface Props {
   blocks: JournalBlock[];
   onChange: (next: JournalBlock[]) => void;
@@ -53,6 +68,9 @@ interface Props {
   articleTitle: string;
   articleSummary?: string;
   blogLane: string;
+  /** Opens the Shopify media library drawer. The parent decides how
+   *  to handle the resulting file pick. */
+  onOpenMediaLibrary?: (target: MediaTarget) => void;
 }
 
 const BLOCK_TYPES: {
@@ -66,6 +84,7 @@ const BLOCK_TYPES: {
   { type: 'list', label: 'List', icon: ListIcon, init: () => ({ style: 'unordered', items: [''] }) },
   { type: 'image', label: 'Image', icon: ImageIcon, init: () => ({ file: { url: '' }, caption: '' }) },
   { type: 'doubleImage', label: 'Double image', icon: Images, init: () => ({ left: { url: '', caption: '' }, right: { url: '', caption: '' } }) },
+  { type: 'video', label: 'Video', icon: Film, init: () => ({ url: '', poster: '', caption: '' }) },
   { type: 'quote', label: 'Quote', icon: QuoteIcon, init: () => ({ text: '', caption: '' }) },
   { type: 'delimiter', label: 'Divider', icon: Minus, init: () => ({}) },
 ];
@@ -102,6 +121,7 @@ export function BlockList({
   articleTitle,
   articleSummary,
   blogLane,
+  onOpenMediaLibrary,
 }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const [addMenu, setAddMenu] = useState(false);
@@ -142,6 +162,7 @@ export function BlockList({
               otherContext={articleContext(blocks, b.id)}
               onChange={(data) => updateBlock(b.id, data)}
               onDelete={() => deleteBlock(b.id)}
+              onOpenMediaLibrary={onOpenMediaLibrary}
             />
           ))}
         </SortableContext>
@@ -205,6 +226,7 @@ function SortableCard(props: {
   otherContext: string;
   onChange: (data: Record<string, unknown>) => void;
   onDelete: () => void;
+  onOpenMediaLibrary?: (target: MediaTarget) => void;
 }) {
   const { block } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
@@ -361,7 +383,12 @@ function SortableCard(props: {
 
       {/* Card body — switches on block type */}
       <div className="p-3">
-        <BlockBody block={block} onChange={props.onChange} onRunAiCaption={() => runAi('caption')} />
+        <BlockBody
+          block={block}
+          onChange={props.onChange}
+          onRunAiCaption={() => runAi('caption')}
+          onOpenMediaLibrary={props.onOpenMediaLibrary}
+        />
       </div>
     </div>
   );
@@ -375,10 +402,12 @@ function BlockBody({
   block,
   onChange,
   onRunAiCaption,
+  onOpenMediaLibrary,
 }: {
   block: JournalBlock;
   onChange: (data: Record<string, unknown>) => void;
   onRunAiCaption?: () => void;
+  onOpenMediaLibrary?: (target: MediaTarget) => void;
 }) {
   const d = block.data;
   switch (block.type) {
@@ -465,10 +494,22 @@ function BlockBody({
               className="w-full max-h-48 object-cover rounded-md"
             />
           ) : null}
+          {onOpenMediaLibrary ? (
+            <button
+              type="button"
+              onClick={() =>
+                onOpenMediaLibrary({ blockId: block.id, accept: 'image' })
+              }
+              className="w-full inline-flex items-center justify-center gap-2 py-2 text-xs font-medium rounded-md bg-[rgb(var(--evari-input-fill))] text-evari-dim hover:text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Pick from Shopify library
+            </button>
+          ) : null}
           <input
             value={file.url ?? ''}
             onChange={(e) => onChange({ ...d, file: { ...file, url: e.target.value } })}
-            placeholder="Image URL"
+            placeholder="…or paste image URL"
             className={INPUT_CLS}
           />
           <div className="flex gap-2">
@@ -510,6 +551,18 @@ function BlockBody({
                 ) : (
                   <div className="w-full aspect-[4/3] rounded-md bg-[rgb(var(--evari-input-fill))]" />
                 )}
+                {onOpenMediaLibrary ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenMediaLibrary({ blockId: block.id, slot: side, accept: 'image' })
+                    }
+                    className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-medium rounded-md bg-[rgb(var(--evari-input-fill))] text-evari-dim hover:text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors"
+                  >
+                    <FolderOpen className="h-3 w-3" />
+                    Library
+                  </button>
+                ) : null}
                 <input
                   value={v.url ?? ''}
                   onChange={(e) => onChange({ ...d, [side]: { ...v, url: e.target.value } })}
@@ -525,6 +578,53 @@ function BlockBody({
               </div>
             );
           })}
+        </div>
+      );
+    }
+    case 'video': {
+      const vUrl = String(d.url ?? '');
+      const poster = String(d.poster ?? '');
+      return (
+        <div className="space-y-2">
+          {vUrl ? (
+            <video
+              src={vUrl}
+              poster={poster || undefined}
+              controls
+              playsInline
+              className="w-full max-h-60 rounded-md"
+            />
+          ) : null}
+          {onOpenMediaLibrary ? (
+            <button
+              type="button"
+              onClick={() =>
+                onOpenMediaLibrary({ blockId: block.id, accept: 'video' })
+              }
+              className="w-full inline-flex items-center justify-center gap-2 py-2 text-xs font-medium rounded-md bg-[rgb(var(--evari-input-fill))] text-evari-dim hover:text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Pick from Shopify library
+            </button>
+          ) : null}
+          <input
+            value={vUrl}
+            onChange={(e) => onChange({ ...d, url: e.target.value })}
+            placeholder="…or paste video URL (.mp4)"
+            className={INPUT_CLS}
+          />
+          <input
+            value={poster}
+            onChange={(e) => onChange({ ...d, poster: e.target.value })}
+            placeholder="Poster / thumbnail URL (optional)"
+            className={INPUT_SM_CLS}
+          />
+          <input
+            value={String(d.caption ?? '')}
+            onChange={(e) => onChange({ ...d, caption: e.target.value })}
+            placeholder="Caption (optional)"
+            className={INPUT_CLS}
+          />
         </div>
       );
     }

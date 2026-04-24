@@ -10,12 +10,14 @@ import {
   Loader2,
   X,
   ChevronDown,
+  FolderOpen,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import type { JournalDraft } from '@/lib/journals/repository';
 import type { ShopifyBlog } from '@/lib/shopify';
-import { BlockList } from './BlockList';
+import { BlockList, type MediaTarget } from './BlockList';
+import { MediaLibrary, type MediaFile } from './MediaLibrary';
 import { ShopifyPreview, type JournalBlock } from './ShopifyPreview';
 
 interface Props {
@@ -81,6 +83,21 @@ export function JournalEditor({ draft, blogs }: Props) {
   const [composeBrief, setComposeBrief] = useState('');
   const [composing, setComposing] = useState(false);
   const [composeError, setComposeError] = useState<string | null>(null);
+
+  /**
+   * Media library state. `mediaTarget` tells us what the user is
+   * trying to insert into:
+   *   - `{ kind: 'cover' }`     → set coverImageUrl
+   *   - `{ kind: 'new' }`       → append a new image/video block
+   *   - `{ kind: 'block', ... }` → update an existing block's URL slot
+   *
+   * If `mediaTarget` is null the drawer is closed.
+   */
+  type MediaTargetState =
+    | { kind: 'cover' }
+    | { kind: 'new'; accept: 'image' | 'video' | 'any' }
+    | { kind: 'block'; blockId: string; slot?: 'left' | 'right'; accept: 'image' | 'video' | 'any' };
+  const [mediaTarget, setMediaTarget] = useState<MediaTargetState | null>(null);
 
   const tags = useMemo(
     () =>
@@ -201,6 +218,88 @@ export function JournalEditor({ draft, blogs }: Props) {
     }
   }
 
+  /**
+   * A file got picked from the Shopify media library. Route the URL
+   * into the right place based on mediaTarget. Supports cover, new
+   * block, or existing block (image or doubleImage slot, or video).
+   */
+  function handleMediaPick(file: MediaFile) {
+    const url = file.url ?? file.previewUrl ?? '';
+    if (!url || !mediaTarget) {
+      setMediaTarget(null);
+      return;
+    }
+    if (mediaTarget.kind === 'cover') {
+      setCoverImageUrl(url);
+      setMediaTarget(null);
+      return;
+    }
+    if (mediaTarget.kind === 'new') {
+      if (file.kind === 'video') {
+        setBlocks((prev) => [
+          ...prev,
+          {
+            id: newId(),
+            type: 'video',
+            data: { url, poster: file.previewUrl ?? '', caption: file.alt ?? '' },
+          },
+        ]);
+      } else {
+        setBlocks((prev) => [
+          ...prev,
+          {
+            id: newId(),
+            type: 'image',
+            data: { file: { url }, caption: file.alt ?? '' },
+          },
+        ]);
+      }
+      setMediaTarget(null);
+      return;
+    }
+    // Update an existing block.
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== mediaTarget.blockId) return b;
+        if (b.type === 'image') {
+          return {
+            ...b,
+            data: { ...b.data, file: { url }, caption: b.data.caption ?? file.alt ?? '' },
+          };
+        }
+        if (b.type === 'doubleImage' && mediaTarget.slot) {
+          const side = mediaTarget.slot;
+          const existing =
+            (b.data[side] as { url?: string; caption?: string } | undefined) ?? {};
+          return {
+            ...b,
+            data: {
+              ...b.data,
+              [side]: { ...existing, url, caption: existing.caption || file.alt || '' },
+            },
+          };
+        }
+        if (b.type === 'video') {
+          return {
+            ...b,
+            data: {
+              ...b.data,
+              url,
+              poster: b.data.poster || file.previewUrl || '',
+              caption: b.data.caption || file.alt || '',
+            },
+          };
+        }
+        return b;
+      }),
+    );
+    setMediaTarget(null);
+  }
+
+  function openLibraryFromBlock(target: MediaTarget) {
+    setMediaTarget({ kind: 'block', ...target });
+  }
+
   async function handlePublish() {
     setErrorMsg(null);
     setPublishState('publishing');
@@ -293,13 +392,31 @@ export function JournalEditor({ draft, blogs }: Props) {
                   options={lanes.map((l) => ({ value: l.key, label: l.label }))}
                 />
               </Field>
-              <Field label="Cover image URL">
-                <input
-                  value={coverImageUrl}
-                  onChange={(e) => setCoverImageUrl(e.target.value)}
-                  placeholder="https://…"
-                  className={INPUT_CLS}
-                />
+              <Field label="Cover image">
+                <div className="space-y-2">
+                  {coverImageUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={coverImageUrl}
+                      alt=""
+                      className="w-full h-32 object-cover rounded-md"
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setMediaTarget({ kind: 'cover' })}
+                    className="w-full inline-flex items-center justify-center gap-2 py-2 text-xs font-medium rounded-md bg-[rgb(var(--evari-input-fill))] text-evari-dim hover:text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    {coverImageUrl ? 'Change cover from Shopify library' : 'Pick cover from Shopify library'}
+                  </button>
+                  <input
+                    value={coverImageUrl}
+                    onChange={(e) => setCoverImageUrl(e.target.value)}
+                    placeholder="…or paste URL"
+                    className={INPUT_CLS}
+                  />
+                </div>
               </Field>
               <Field label="Summary" hint="Shown under the title on listings">
                 <textarea
@@ -350,6 +467,16 @@ export function JournalEditor({ draft, blogs }: Props) {
               </Field>
             </div>
           </Accordion>
+
+          {/* Shopify media library quick-open */}
+          <button
+            onClick={() => setMediaTarget({ kind: 'new', accept: 'any' })}
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-md bg-[rgb(var(--evari-input-fill))] text-evari-dim hover:text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors"
+            type="button"
+          >
+            <FolderOpen className="h-4 w-4" />
+            Shopify media library
+          </button>
 
           {/* AI compose */}
           {composeOpen ? (
@@ -420,10 +547,23 @@ export function JournalEditor({ draft, blogs }: Props) {
               articleTitle={title}
               articleSummary={summary}
               blogLane={laneLabel}
+              onOpenMediaLibrary={openLibraryFromBlock}
             />
           </section>
         </div>
       </aside>
+
+      {/* Shopify media library drawer — overlays everything when open */}
+      <MediaLibrary
+        open={mediaTarget !== null}
+        accept={
+          mediaTarget?.kind === 'block' || mediaTarget?.kind === 'new'
+            ? mediaTarget.accept
+            : 'image'
+        }
+        onClose={() => setMediaTarget(null)}
+        onPick={handleMediaPick}
+      />
     </div>
   );
 }

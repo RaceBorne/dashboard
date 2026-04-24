@@ -943,6 +943,268 @@ export async function createArticle(args: {
 }
 
 // ---------------------------------------------------------------------------
+// Files library (Content → Files in Shopify admin)
+// ---------------------------------------------------------------------------
+
+export interface ShopifyFile {
+  id: string; // GID
+  alt: string | null;
+  createdAt: string;
+  fileStatus: 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED';
+  /** 'MediaImage' | 'Video' | 'GenericFile' — the GraphQL union type name. */
+  kind: 'image' | 'video' | 'generic';
+  /** Public CDN URL suitable for embedding. For videos this is the hosted mp4 source. */
+  url: string | null;
+  /** Thumbnail URL. For images this is the same as `url`; for videos it's the preview image. */
+  previewUrl: string | null;
+  /** Display name — taken from alt, falling back to a slug of the GID. */
+  filename: string;
+  width?: number;
+  height?: number;
+  /** Video sources keyed by format for richer <video> tags. */
+  videoSources?: Array<{ url: string; mimeType: string; format: string; height: number; width: number }>;
+  mimeType?: string;
+  fileSize?: number;
+}
+
+const FILE_FRAGMENT = /* GraphQL */ `
+  id
+  alt
+  createdAt
+  fileStatus
+  ... on MediaImage {
+    image { url width height altText }
+  }
+  ... on Video {
+    sources { url mimeType format width height }
+    preview { image { url width height } }
+    originalSource { url width height }
+  }
+  ... on GenericFile {
+    url
+    mimeType
+    originalFileSize
+    preview { image { url width height } }
+  }
+  __typename
+`;
+
+interface RawFileNode {
+  id: string;
+  alt: string | null;
+  createdAt: string;
+  fileStatus: ShopifyFile['fileStatus'];
+  __typename: 'MediaImage' | 'Video' | 'GenericFile';
+  image?: { url: string; width: number; height: number; altText: string | null };
+  sources?: Array<{ url: string; mimeType: string; format: string; height: number; width: number }>;
+  originalSource?: { url: string; width: number; height: number } | null;
+  preview?: { image?: { url: string; width: number; height: number } } | null;
+  url?: string | null;
+  mimeType?: string | null;
+  originalFileSize?: number | null;
+}
+
+function projectFile(raw: RawFileNode): ShopifyFile {
+  const kind: ShopifyFile['kind'] =
+    raw.__typename === 'MediaImage'
+      ? 'image'
+      : raw.__typename === 'Video'
+        ? 'video'
+        : 'generic';
+  const image = raw.image;
+  const preview = raw.preview?.image ?? null;
+  const url =
+    kind === 'image'
+      ? image?.url ?? null
+      : kind === 'video'
+        ? (raw.sources?.[0]?.url ?? raw.originalSource?.url ?? null)
+        : (raw.url ?? null);
+  const previewUrl =
+    kind === 'image' ? image?.url ?? null : preview?.url ?? null;
+  // Shopify files don't expose the original filename through the API. We
+  // synthesise a short label from the ID so the UI has something to show,
+  // and fall through to the alt text if the user set one.
+  const fallback = raw.id.replace(/^gid:\/\/shopify\/[^/]+\//, '').slice(0, 12);
+  const filename = (raw.alt ?? '').trim() || fallback;
+  return {
+    id: raw.id,
+    alt: raw.alt,
+    createdAt: raw.createdAt,
+    fileStatus: raw.fileStatus,
+    kind,
+    url,
+    previewUrl,
+    filename,
+    width: image?.width ?? preview?.width,
+    height: image?.height ?? preview?.height,
+    videoSources: raw.sources ?? undefined,
+    mimeType: raw.mimeType ?? undefined,
+    fileSize: raw.originalFileSize ?? undefined,
+  };
+}
+
+/**
+ * List files in the Shopify Files library.
+ *
+ * Filters:
+ *   - type: 'image' | 'video' | 'all' (default all)
+ *   - query: free text (matched against alt text + filename)
+ *
+ * Returns the next-page cursor so the client can paginate.
+ */
+export async function listFiles(
+  opts: {
+    first?: number;
+    after?: string | null;
+    type?: 'image' | 'video' | 'all';
+    query?: string;
+  } = {},
+): Promise<{ files: ShopifyFile[]; hasNextPage: boolean; endCursor: string | null }> {
+  if (!isShopifyConnected()) {
+    return { files: [], hasNextPage: false, endCursor: null };
+  }
+  const first = Math.min(opts.first ?? 50, 100);
+  const filters: string[] = [];
+  if (opts.type === 'image') filters.push('media_type:IMAGE');
+  if (opts.type === 'video') filters.push('media_type:VIDEO');
+  if (opts.query) filters.push(opts.query);
+  const query = filters.join(' ');
+  const q = /* GraphQL */ `
+    query ListFiles($first: Int!, $after: String, $query: String) {
+      files(first: $first, after: $after, query: $query, sortKey: CREATED_AT, reverse: true) {
+        edges { cursor node { ${FILE_FRAGMENT} } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  `;
+  const { data } = await shopifyGraphql<{
+    files: {
+      edges: Array<{ cursor: string; node: RawFileNode }>;
+      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    };
+  }>(q, { first, after: opts.after ?? null, query: query || null });
+  return {
+    files: data.files.edges.map((e) => projectFile(e.node)),
+    hasNextPage: data.files.pageInfo.hasNextPage,
+    endCursor: data.files.pageInfo.endCursor,
+  };
+}
+
+/**
+ * Upload a single file into Shopify's Files library.
+ *
+ * This runs the full staged-upload dance:
+ *   1. stagedUploadsCreate → returns a Google Cloud Storage target + form params
+ *   2. POST the bytes to that target
+ *   3. fileCreate with the returned resourceUrl — Shopify then ingests the
+ *      file into the Files library (VIDEO may sit in PROCESSING for a bit)
+ *
+ * Returns the new file record so the UI can drop it into the grid
+ * immediately. Video uploads typically land in `PROCESSING`; the caller
+ * can re-query listFiles() to see it flip to READY.
+ */
+export async function uploadFileToShopify(input: {
+  filename: string;
+  mimeType: string;
+  bytes: ArrayBuffer;
+  altText?: string;
+}): Promise<
+  | { ok: true; file: ShopifyFile }
+  | { ok: false; error: string }
+> {
+  if (!isShopifyConnected()) {
+    return { ok: false, error: 'Shopify not connected' };
+  }
+  const { filename, mimeType, bytes, altText } = input;
+  const resource =
+    mimeType.startsWith('video/')
+      ? 'VIDEO'
+      : mimeType.startsWith('image/')
+        ? 'IMAGE'
+        : 'FILE';
+  // Step 1 — stagedUploadsCreate
+  const stageQuery = /* GraphQL */ `
+    mutation StageUpload($input: [StagedUploadInput!]!) {
+      stagedUploadsCreate(input: $input) {
+        stagedTargets { url resourceUrl parameters { name value } }
+        userErrors { field message }
+      }
+    }
+  `;
+  let stagedTarget: { url: string; resourceUrl: string; parameters: Array<{ name: string; value: string }> };
+  try {
+    const res = await shopifyMutation<{
+      stagedTargets: Array<typeof stagedTarget>;
+    }>(stageQuery, {
+      input: [
+        {
+          filename,
+          mimeType,
+          fileSize: String(bytes.byteLength),
+          resource,
+          httpMethod: 'POST',
+        },
+      ],
+    }, { payloadKey: 'stagedUploadsCreate' });
+    if (!res.stagedTargets.length) throw new Error('stagedUploadsCreate returned no targets');
+    stagedTarget = res.stagedTargets[0];
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'stage upload failed' };
+  }
+
+  // Step 2 — POST the bytes to the staged URL.
+  try {
+    const form = new FormData();
+    for (const p of stagedTarget.parameters) form.append(p.name, p.value);
+    // GCS requires the file field last.
+    form.append('file', new Blob([bytes], { type: mimeType }), filename);
+    const putRes = await fetch(stagedTarget.url, {
+      method: 'POST',
+      body: form,
+    });
+    if (!putRes.ok) {
+      const text = await putRes.text().catch(() => '');
+      throw new Error(`staged POST ${putRes.status}: ${text.slice(0, 200)}`);
+    }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'upload to GCS failed' };
+  }
+
+  // Step 3 — fileCreate with the resourceUrl.
+  const createQuery = /* GraphQL */ `
+    mutation FileCreate($files: [FileCreateInput!]!) {
+      fileCreate(files: $files) {
+        files { ${FILE_FRAGMENT} }
+        userErrors { field message }
+      }
+    }
+  `;
+  try {
+    const contentType =
+      mimeType.startsWith('image/')
+        ? 'IMAGE'
+        : mimeType.startsWith('video/')
+          ? 'VIDEO'
+          : 'FILE';
+    const res = await shopifyMutation<{
+      files: RawFileNode[];
+    }>(createQuery, {
+      files: [
+        {
+          originalSource: stagedTarget.resourceUrl,
+          contentType,
+          alt: altText ?? filename,
+        },
+      ],
+    }, { payloadKey: 'fileCreate' });
+    if (!res.files.length) throw new Error('fileCreate returned no files');
+    return { ok: true, file: projectFile(res.files[0]) };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'fileCreate failed' };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Orders
 // ---------------------------------------------------------------------------
 
