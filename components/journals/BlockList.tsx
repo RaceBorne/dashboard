@@ -508,7 +508,11 @@ function BlockBody({
             <img
               src={file.url}
               alt=""
-              className="w-full max-h-48 object-cover rounded-md"
+              // Match the main preview's image crop so what Craig
+              // sees in this sidebar thumbnail is framed identically
+              // to how it will render in the published article.
+              className="w-full object-cover rounded-md"
+              style={{ aspectRatio: '16 / 10' }}
             />
           ) : null}
           {onOpenMediaLibrary ? (
@@ -563,10 +567,10 @@ function BlockBody({
                   <img
                     src={v.url}
                     alt=""
-                    className="w-full aspect-[4/3] object-cover rounded-md"
+                    className="w-full aspect-[16/10] object-cover rounded-md"
                   />
                 ) : (
-                  <div className="w-full aspect-[4/3] rounded-md bg-[rgb(var(--evari-input-fill))]" />
+                  <div className="w-full aspect-[16/10] rounded-md bg-[rgb(var(--evari-input-fill))]" />
                 )}
                 {onOpenMediaLibrary ? (
                   <button
@@ -609,7 +613,8 @@ function BlockBody({
               poster={poster || undefined}
               controls
               playsInline
-              className="w-full max-h-60 rounded-md"
+              className="w-full rounded-md object-cover"
+              style={{ aspectRatio: '16 / 10' }}
             />
           ) : null}
           {onOpenMediaLibrary ? (

@@ -16,8 +16,14 @@
   /* Input fills: additive white in dark mode so inputs sit 3% brighter
      than the parent panel; in light mode the override below flips to a
      5% black wash so inputs sit slightly darker than the surface. */
-  --evari-input-fill: 255 255 255 / 0.03;
-  --evari-input-fill-focus: 255 255 255 / 0.06;
+  /* Input fills: bumped for visibility. Was 0.03 / 0.06 — too
+     close to the panel background (Craig on Journals sidebar:
+     "none of these can be the same colour as the background").
+     New values give inputs a clear ~15 unit lift vs the panel in
+     dark mode, strong enough to read as a field without feeling
+     heavy. */
+  --evari-input-fill: 255 255 255 / 0.06;
+  --evari-input-fill-focus: 255 255 255 / 0.10;
   /* Lozenge (kept for anywhere we still want a darker inset) */
   --evari-lozenge: 14 14 14;
   --evari-lozenge-ring: 0 0 0;
@@ -199,8 +205,11 @@
 :root[data-theme='light'],
 :root[data-theme='light'][data-shade='2'] {
   color-scheme: light;
-  --evari-input-fill: 0 0 0 / 0.05;
-  --evari-input-fill-focus: 0 0 0 / 0.08;
+  /* Light-mode counterpart — was 0.05 / 0.08, bumped for the same
+     reason as the dark tokens above. 0.10 black over a ~230 panel
+     gives a ~207 input, clearly darker than the surrounding card. */
+  --evari-input-fill: 0 0 0 / 0.10;
+  --evari-input-fill-focus: 0 0 0 / 0.14;
   --evari-ink: 238 238 238;
   --evari-carbon: 230 230 230;
   --evari-surface: 248 248 248;

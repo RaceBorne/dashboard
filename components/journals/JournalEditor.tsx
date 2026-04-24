@@ -484,7 +484,13 @@ export function JournalEditor({ draft, blogs }: Props) {
                     <img
                       src={coverImageUrl}
                       alt=""
-                      className="w-full h-36 object-cover rounded-md"
+                      // Sidebar cover preview matches the main
+                      // article preview's 16:10 hero crop, so what
+                      // Craig sees on the right is framed exactly
+                      // like what will render on the left + the
+                      // storefront.
+                      className="w-full object-cover rounded-md"
+                      style={{ aspectRatio: '16 / 10' }}
                     />
                   ) : null}
                   <button
