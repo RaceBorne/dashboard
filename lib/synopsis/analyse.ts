@@ -107,6 +107,7 @@ export interface SynopsisContext {
   };
   keywords: {
     connected: boolean;
+    hasData: boolean;
     ownCount: number;
     competitorListCount: number;
     totalTrackedKeywords: number;
@@ -124,6 +125,7 @@ export interface SynopsisContext {
   };
   traffic: {
     connected: boolean;
+    hasData: boolean;
     sessions28d: number | null;
     sessionsDelta: number | null; // 0-1 vs previous
     bounceRate: number | null;
@@ -233,7 +235,11 @@ export function analyseSynopsis({
     ownRd != null && peerMedian != null ? ownRd - peerMedian : null;
 
   // -------- Traffic --------
-  const trafficConnected = Boolean(traffic && traffic.connected && traffic.hasData);
+  // 'connected' = credentials present (can we authenticate?).
+  // 'hasData'   = rows are actually present in the rollup.
+  // These are two different states and the narrative prompt needs both.
+  const trafficConnected = Boolean(traffic?.connected);
+  const trafficHasData = Boolean(traffic?.hasData);
   // GA4 doesn't give us a bounce-rate tile in the current snapshot shape — we
   // derive a rough one from the daily trend if available.
   const sessionsTile = traffic?.kpi?.sessions ?? null;
@@ -504,6 +510,7 @@ export function analyseSynopsis({
     },
     keywords: {
       connected: kwConnected,
+      hasData: (keywords?.hasData ?? false) || ownMembers.length > 0,
       ownCount: ownMembers.length,
       competitorListCount: competitorLists.length,
       totalTrackedKeywords: ownMembers.length,
@@ -521,6 +528,7 @@ export function analyseSynopsis({
     },
     traffic: {
       connected: trafficConnected,
+      hasData: trafficHasData,
       sessions28d: sessionsTile?.value ?? null,
       sessionsDelta: sessionsTile?.deltaPct ?? null,
       bounceRate: bounceFromTrend,

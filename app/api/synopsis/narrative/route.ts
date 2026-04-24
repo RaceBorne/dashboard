@@ -97,9 +97,11 @@ function buildNarrativePrompt(ctx: SynopsisContext): string {
     '  - ' + ctx.pages.rankingButNoDesc + ' pages rank top 20 with no meta description',
     '',
     'KEYWORDS:',
-    ctx.keywords.connected
-      ? '  - tracking ' + ctx.keywords.ownCount + ' own keywords across ' + ctx.keywords.competitorListCount + ' competitor lists'
-      : '  - DataForSEO not connected, no keyword visibility',
+    !ctx.keywords.connected
+      ? '  - DataForSEO credentials not configured; add DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD to enable'
+      : !ctx.keywords.hasData
+        ? '  - DataForSEO is connected but no keywords have been ingested yet; run the ingest'
+        : '  - tracking ' + ctx.keywords.ownCount + ' own keywords across ' + ctx.keywords.competitorListCount + ' competitor lists',
     ctx.keywords.connected && ctx.keywords.ownCount > 0
       ? '  - ' + ctx.keywords.inTop3 + ' in top 3, ' + ctx.keywords.inTop10 + ' in top 10, ' + ctx.keywords.ranking11to20 + ' in 11-20, ' + ctx.keywords.notRanking + ' not ranking'
       : '',
@@ -116,12 +118,14 @@ function buildNarrativePrompt(ctx: SynopsisContext): string {
       : '',
     '',
     'TRAFFIC (28 day):',
-    ctx.traffic.connected
-      ? '  - sessions: ' + ctx.traffic.sessions28d +
-        (ctx.traffic.sessionsDelta != null
-          ? ' (' + (ctx.traffic.sessionsDelta >= 0 ? '+' : '') + Math.round(ctx.traffic.sessionsDelta * 100) + '% vs previous)'
-          : '')
-      : '  - GA4 not connected, no traffic data',
+    !ctx.traffic.connected
+      ? '  - GA4 credentials not configured; add GA4_PROPERTY_ID and the Google OAuth vars to enable'
+      : !ctx.traffic.hasData
+        ? '  - GA4 is connected but no traffic data has been ingested yet; run the ingest'
+        : '  - sessions: ' + ctx.traffic.sessions28d +
+          (ctx.traffic.sessionsDelta != null
+            ? ' (' + (ctx.traffic.sessionsDelta >= 0 ? '+' : '') + Math.round(ctx.traffic.sessionsDelta * 100) + '% vs previous)'
+            : ''),
     ctx.traffic.topChannel ? '  - top channel: ' + ctx.traffic.topChannel : '',
     ctx.traffic.bounceRate != null ? '  - bounce rate: ' + (ctx.traffic.bounceRate * 100).toFixed(1) + '%' : '',
     '',
@@ -161,6 +165,8 @@ function buildNarrativePrompt(ctx: SynopsisContext): string {
     '  - Between 4 and 8 actions.',
     '  - Each action must be executable in-house with code, content, design or configuration.',
     '  - Do not propose hiring anyone, outside agencies, or consultants. Paid advertising is the only external spend allowed, and only when paid search is the clearest lever for a specific keyword.',
+    '',
+    'IMPORTANT: do not describe a service as "disconnected" or "not connected" unless its credentials are explicitly missing above. "Connected but no data ingested" is a different state — call it that. Example: if DataForSEO is connected but no keywords are ingested, say "DataForSEO is connected but keyword ingest has not run", NOT "DataForSEO disconnected".',
     '',
     'Rules for groups:',
     '  - Between 2 and 5 groups.',
