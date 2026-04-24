@@ -775,6 +775,12 @@ code {
 .shopify-preview__head {
   margin-bottom: 2rem;
 }
+.shopify-preview__lede {
+  margin: 0.75rem 0 0;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: rgb(var(--evari-dim, 170 170 170));
+}
 .shopify-preview__share {
   display: flex;
   align-items: center;

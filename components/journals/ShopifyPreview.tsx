@@ -15,6 +15,10 @@ interface Props {
   coverImageUrl?: string | null;
   blocks: JournalBlock[];
   subLabel?: string | null;
+  /** Article summary — rendered as a lede paragraph below the title
+   *  so a break the author types in the Summary textarea is visible
+   *  in the preview. */
+  summary?: string | null;
 }
 
 /**
@@ -36,6 +40,7 @@ export function ShopifyPreview({
   coverImageUrl,
   blocks,
   subLabel,
+  summary,
 }: Props) {
   return (
     <article className="shopify-preview">
@@ -60,6 +65,15 @@ export function ShopifyPreview({
         <h1 className="shopify-preview__title">
           {title.trim() || 'Untitled article'}
         </h1>
+        {summary && summary.trim() ? (
+          // Summary renders as a lede below the title. `whitespace-
+          // pre-line` keeps every \n the author typed in the Summary
+          // textarea so paragraph breaks look identical here as in
+          // the published article.
+          <p className="shopify-preview__lede" style={{ whiteSpace: 'pre-line' }}>
+            {summary}
+          </p>
+        ) : null}
       </header>
 
       <div className="shopify-preview__body">
@@ -108,9 +122,13 @@ function PreviewBlock({ block }: { block: JournalBlock }) {
           </p>
         );
       }
+      // `whitespace-pre-line` honours every \n the author typed so
+      // a soft return inside a paragraph paints as a real line
+      // break in the preview + publishes with matching <br>s.
       return (
         <p
           className="shopify-preview__p"
+          style={{ whiteSpace: 'pre-line' }}
           // Safe: the text is either plain or EditorJS inline HTML which
           // we already allow (b, i, a, code). Preview-only.
           dangerouslySetInnerHTML={{ __html: text }}

@@ -554,6 +554,7 @@ function ArticleReader({
             coverImageUrl={d.coverImageUrl}
             blocks={blocks}
             subLabel={laneLabel}
+            summary={d.summary}
           />
         </div>
       </div>
@@ -746,18 +747,29 @@ function formatShopifyDate(iso: string | null | undefined): string {
 }
 
 /**
- * Strip every HTML tag + entity out of a Shopify-sourced string and
- * collapse whitespace. Shopify's article.summary is supposed to be
- * plain text but in practice a lot of the Evari catalogue has
- * raw <p class="p1">…</p> / </h3> / </h4> leaking through, especially
- * on older imports where the summary was copy-pasted out of the
- * body. Titles get the same treatment as belt-and-braces.
+ * Strip every HTML tag + entity out of a Shopify-sourced string.
+ *
+ * Crucially this preserves vertical whitespace: <br>, <p> and <div>
+ * boundaries become real \n characters so paragraph breaks a user
+ * wrote on Shopify (or in the Journals composer Summary textarea)
+ * survive the wash. The tile renderer uses `whitespace-pre-line`
+ * on the excerpt so \n paints as a real line break.
+ *
+ * Older Evari imports have raw <p class="p1">…</p> / </h3> / </h4>
+ * leaking into Summary — those tags are stripped too but the break
+ * between paragraphs is kept.
  */
 function stripHtml(raw: string | null | undefined): string {
   if (!raw) return '';
   return String(raw)
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
+    // Preserve paragraph + line breaks as \n before we nuke tags.
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p\s*>/gi, '\n\n')
+    .replace(/<\/div\s*>/gi, '\n')
+    .replace(/<\/h[1-6]\s*>/gi, '\n\n')
+    .replace(/<\/li\s*>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -765,8 +777,11 @@ function stripHtml(raw: string | null | undefined): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+    // Collapse runs of spaces/tabs but leave \n alone, then clamp
+    // consecutive blank lines to one blank.
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s+|\s+$/g, '');
 }
 
 /**
@@ -889,7 +904,7 @@ function DraftTile({
             {title}
           </h3>
           {excerpt ? (
-            <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
+            <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3 whitespace-pre-line">
               {excerpt}
             </p>
           ) : (
@@ -950,7 +965,7 @@ function PublishedTile({
           <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
             {title}
           </h3>
-          <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
+          <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3 whitespace-pre-line">
             {excerpt || 'No summary on Shopify yet.'}
           </p>
           <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">

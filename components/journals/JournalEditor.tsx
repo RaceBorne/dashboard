@@ -44,6 +44,11 @@ function stripHtml(raw: string | null | undefined): string {
   return String(raw)
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p\s*>/gi, '\n\n')
+    .replace(/<\/div\s*>/gi, '\n')
+    .replace(/<\/h[1-6]\s*>/gi, '\n\n')
+    .replace(/<\/li\s*>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -51,8 +56,9 @@ function stripHtml(raw: string | null | undefined): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s+|\s+$/g, '');
 }
 
 /**
@@ -422,6 +428,7 @@ export function JournalEditor({ draft, blogs }: Props) {
             coverImageUrl={coverImageUrl}
             blocks={blocks}
             subLabel={laneLabel}
+            summary={summary}
           />
           {errorMsg ? (
             <div className="mt-4 inline-flex items-center gap-2 text-sm text-evari-warn">

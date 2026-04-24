@@ -43,7 +43,14 @@ interface Block {
 function renderParagraph(b: Block): string {
   const text = String(b.data.text ?? '').trim();
   if (!text) return '';
-  return `<p>${text}</p>`;
+  // A double newline splits into separate <p>s; a single newline
+  // becomes a <br> inside the current paragraph. Mirrors how the
+  // preview's whitespace:pre-line reads the same text, so WYSIWYG
+  // stays intact on publish to Shopify.
+  const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim().length > 0);
+  return paragraphs
+    .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+    .join('');
 }
 
 function renderHeader(b: Block): string {
