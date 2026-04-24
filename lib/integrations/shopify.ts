@@ -942,6 +942,46 @@ export async function createArticle(args: {
   }
 }
 
+/**
+ * Delete a Shopify Article via the admin `articleDelete` mutation.
+ * `articleId` may be a GID or numeric id. Returns the id that
+ * Shopify confirms was removed so the caller can wipe it from
+ * local caches with the same token they stored.
+ *
+ * No `isPublished` guard here — callers decide whether a stub (or
+ * even a live article) is safe to delete. The Journals UI only
+ * exposes delete on dashboard drafts + unpublished-on-Shopify
+ * articles, so the live storefront is never touched.
+ */
+export async function deleteArticle(
+  articleId: string,
+): Promise<{ ok: true; deletedId: string } | { ok: false; error: string }> {
+  if (!isShopifyConnected()) {
+    return { ok: false, error: 'Shopify not connected' };
+  }
+  const gid = articleId.startsWith('gid://')
+    ? articleId
+    : `gid://shopify/Article/${articleId}`;
+  const mutation = /* GraphQL */ `
+    mutation DeleteArticle($id: ID!) {
+      articleDelete(id: $id) {
+        deletedArticleId
+        userErrors { field message code }
+      }
+    }
+  `;
+  try {
+    const payload = await shopifyMutation<{ deletedArticleId: string }>(
+      mutation,
+      { id: gid },
+      { payloadKey: 'articleDelete' },
+    );
+    return { ok: true, deletedId: payload.deletedArticleId };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Files library (Content → Files in Shopify admin)
 // ---------------------------------------------------------------------------

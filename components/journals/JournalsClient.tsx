@@ -13,6 +13,8 @@ import {
   ExternalLink,
   Copy,
   Loader2,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -126,6 +128,46 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
     | { kind: 'draft'; draft: JournalDraft }
     | { kind: 'article'; article: ShopifyArticle; linkedDraftId?: string };
   const [reader, setReader] = useState<ReaderSelection | null>(null);
+
+  /**
+   * Delete confirmation state. A tile's trash button populates this
+   * with the target's kind, id, and display title; the modal
+   * handles the actual DELETE and refreshes the page on success.
+   * The warning is emphatic on purpose: Shopify article deletes are
+   * permanent and dashboard drafts aren't recoverable either.
+   */
+  type DeleteTarget =
+    | { kind: 'draft'; id: string; title: string }
+    | { kind: 'article'; id: string; title: string };
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const url =
+        deleteTarget.kind === 'draft'
+          ? `/api/journals/${deleteTarget.id}`
+          : `/api/shopify/articles/${encodeURIComponent(deleteTarget.id)}`;
+      const res = await fetch(url, { method: 'DELETE' });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      setDeleteTarget(null);
+      startTransition(() => router.refresh());
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function openDraft(draft: JournalDraft) {
     setReader({ kind: 'draft', draft });
@@ -268,7 +310,18 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
             </header>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {pendingDrafts.map((d) => (
-                <DraftTile key={d.id} draft={d} onClick={() => openDraft(d)} />
+                <DraftTile
+                  key={d.id}
+                  draft={d}
+                  onClick={() => openDraft(d)}
+                  onDelete={() =>
+                    setDeleteTarget({
+                      kind: 'draft',
+                      id: d.id,
+                      title: d.title.trim() || 'Untitled draft',
+                    })
+                  }
+                />
               ))}
             </div>
           </section>
@@ -298,6 +351,13 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                   article={a}
                   linked={publishedDraftIds.has(a.id)}
                   onClick={() => openPublished(a)}
+                  onDelete={() =>
+                    setDeleteTarget({
+                      kind: 'article',
+                      id: a.id,
+                      title: a.title || 'Untitled article',
+                    })
+                  }
                 />
               ))}
             </div>
@@ -344,6 +404,99 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
         </section>
       </div>
       )}
+
+      {/* Delete confirmation — emphatic language because Shopify
+          article deletes are permanent and dashboard drafts aren't
+          recoverable either. */}
+      {deleteTarget ? (
+        <DeleteConfirm
+          target={deleteTarget}
+          busy={deleting}
+          error={deleteError}
+          onCancel={() => {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }}
+          onConfirm={confirmDelete}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function DeleteConfirm({
+  target,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  target:
+    | { kind: 'draft'; id: string; title: string }
+    | { kind: 'article'; id: string; title: string };
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const where =
+    target.kind === 'draft'
+      ? 'from the Evari dashboard'
+      : 'from your Shopify store';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={busy ? undefined : onCancel}
+        aria-hidden
+      />
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        className="relative w-full max-w-md rounded-lg bg-evari-carbon shadow-[0_12px_40px_rgba(0,0,0,0.5)] ring-1 ring-evari-edge"
+      >
+        <div className="p-5">
+          <div className="flex items-start gap-3">
+            <div className="h-8 w-8 rounded-full bg-evari-warn/15 text-evari-warn flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-semibold text-evari-text">
+                Delete this {target.kind === 'draft' ? 'draft' : 'article'}?
+              </h3>
+              <p className="mt-2 text-sm text-evari-dim leading-snug">
+                <span className="font-medium text-evari-text">“{target.title}”</span>{' '}
+                will be permanently removed {where}.{' '}
+                <span className="text-evari-warn font-medium">
+                  This cannot be recovered.
+                </span>
+              </p>
+              {error ? (
+                <p className="mt-3 text-xs text-evari-warn">{error}</p>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              className="text-sm px-4 py-2 rounded-md text-evari-dim hover:text-evari-text hover:bg-evari-surface/60 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-md bg-evari-warn text-white hover:brightness-105 disabled:opacity-60"
+            >
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              {busy ? 'Deleting…' : 'Delete permanently'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -659,56 +812,61 @@ function DraftTile({
   draft,
   badge,
   onClick,
+  onDelete,
 }: {
   draft: JournalDraft;
   badge?: string;
   onClick?: () => void;
+  onDelete?: () => void;
 }) {
   const title = stripHtml(draft.title) || 'Untitled draft';
   const date = formatShopifyDate(draft.updatedAt);
   const excerpt = stripHtml(draft.summary);
   const author = (draft.author?.trim()) || 'Evari';
   return (
-    <button
-      onClick={onClick}
-      className="group relative text-left flex flex-col"
-    >
-      <Thumbnail
-        src={draft.coverImageUrl}
-        fallback={<FileText className="h-7 w-7 text-evari-dimmer" />}
-        fromPalette="draft"
-      />
-      <div className="pt-4">
-        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
-          <span>{date}</span>
-          <span
-            className={cn(
-              'px-1.5 py-0.5 rounded',
-              badge
-                ? 'bg-evari-success/15 text-evari-success'
-                : 'bg-evari-gold/15 text-evari-gold',
-            )}
-          >
-            {badge ?? 'Draft'}
-          </span>
+    <div className="group relative flex flex-col">
+      <button
+        onClick={onClick}
+        className="text-left flex flex-col w-full"
+      >
+        <Thumbnail
+          src={draft.coverImageUrl}
+          fallback={<FileText className="h-7 w-7 text-evari-dimmer" />}
+          fromPalette="draft"
+        />
+        <div className="pt-4">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+            <span>{date}</span>
+            <span
+              className={cn(
+                'px-1.5 py-0.5 rounded',
+                badge
+                  ? 'bg-evari-success/15 text-evari-success'
+                  : 'bg-evari-gold/15 text-evari-gold',
+              )}
+            >
+              {badge ?? 'Draft'}
+            </span>
+          </div>
+          <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
+            {title}
+          </h3>
+          {excerpt ? (
+            <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
+              {excerpt}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-evari-dimmer/70 italic leading-snug">
+              Empty draft, click to start writing.
+            </p>
+          )}
+          <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+            By {author}
+          </p>
         </div>
-        <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
-          {title}
-        </h3>
-        {excerpt ? (
-          <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
-            {excerpt}
-          </p>
-        ) : (
-          <p className="mt-2 text-sm text-evari-dimmer/70 italic leading-snug">
-            Empty draft, click to start writing.
-          </p>
-        )}
-        <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
-          By {author}
-        </p>
-      </div>
-    </button>
+      </button>
+      {onDelete ? <TileDeleteButton onClick={onDelete} /> : null}
+    </div>
   );
 }
 
@@ -716,10 +874,12 @@ function PublishedTile({
   article,
   linked,
   onClick,
+  onDelete,
 }: {
   article: ShopifyArticle;
   linked: boolean;
   onClick?: () => void;
+  onDelete?: () => void;
 }) {
   const date = formatShopifyDate(article.publishedAt ?? article.updatedAt);
   const title = stripHtml(article.title) || 'Untitled article';
@@ -730,35 +890,61 @@ function PublishedTile({
   const excerpt = articleExcerpt(article);
   const author = article.author?.name?.trim() || 'Evari';
   return (
-    <button
-      onClick={onClick}
-      className="group text-left flex flex-col"
-    >
-      <Thumbnail
-        src={article.image?.url ?? null}
-        alt={article.image?.altText ?? article.title}
-        fallback={<ImageIcon className="h-7 w-7 text-evari-dimmer" />}
-        fromPalette="published"
-      />
-      <div className="pt-4">
-        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
-          <span>{date}</span>
-          {linked ? (
-            <span className="px-1.5 py-0.5 rounded bg-evari-gold/15 text-evari-gold">
-              Editable
-            </span>
-          ) : null}
+    <div className="group relative flex flex-col">
+      <button
+        onClick={onClick}
+        className="text-left flex flex-col w-full"
+      >
+        <Thumbnail
+          src={article.image?.url ?? null}
+          alt={article.image?.altText ?? article.title}
+          fallback={<ImageIcon className="h-7 w-7 text-evari-dimmer" />}
+          fromPalette="published"
+        />
+        <div className="pt-4">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+            <span>{date}</span>
+            {linked ? (
+              <span className="px-1.5 py-0.5 rounded bg-evari-gold/15 text-evari-gold">
+                Editable
+              </span>
+            ) : null}
+          </div>
+          <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
+            {title}
+          </h3>
+          <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
+            {excerpt || 'No summary on Shopify yet.'}
+          </p>
+          <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+            By {author}
+          </p>
         </div>
-        <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
-          {title}
-        </h3>
-        <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
-          {excerpt || 'No summary on Shopify yet.'}
-        </p>
-        <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
-          By {author}
-        </p>
-      </div>
+      </button>
+      {onDelete ? <TileDeleteButton onClick={onDelete} /> : null}
+    </div>
+  );
+}
+
+/**
+ * Small trash button overlaid on the top-right of a deletable tile.
+ * Visible at rest so discovery is easy; clearly marked so the click
+ * target reads as destructive (warn tone, subtle hover lift). Stops
+ * propagation so the parent tile's open-reader click doesn't fire.
+ */
+function TileDeleteButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      title="Delete"
+      aria-label="Delete"
+      className="absolute top-2 right-2 h-7 w-7 inline-flex items-center justify-center rounded-md bg-black/50 text-white/80 hover:bg-evari-warn hover:text-white backdrop-blur-sm transition-colors"
+    >
+      <Trash2 className="h-3.5 w-3.5" />
     </button>
   );
 }
