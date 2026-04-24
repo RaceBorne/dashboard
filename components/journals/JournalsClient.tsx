@@ -261,6 +261,51 @@ function formatShopifyDate(iso: string | null | undefined): string {
 }
 
 /**
+ * Strip every HTML tag + entity out of a Shopify-sourced string and
+ * collapse whitespace. Shopify's article.summary is supposed to be
+ * plain text but in practice a lot of the Evari catalogue has
+ * raw <p class="p1">…</p> / </h3> / </h4> leaking through, especially
+ * on older imports where the summary was copy-pasted out of the
+ * body. Titles get the same treatment as belt-and-braces.
+ */
+function stripHtml(raw: string | null | undefined): string {
+  if (!raw) return '';
+  return String(raw)
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Pull a presentable excerpt from an article. Prefers the clean
+ * `summary` field; falls back to the first ~200 chars of stripped
+ * bodyHtml so every tile reads with the same rhythm (title +
+ * description + byline) even when an author forgot to fill the
+ * summary on Shopify.
+ */
+function articleExcerpt(article: ShopifyArticle, max = 180): string {
+  const fromSummary = stripHtml(article.summary);
+  if (fromSummary) {
+    return fromSummary.length <= max
+      ? fromSummary
+      : fromSummary.slice(0, max - 1).trimEnd() + '…';
+  }
+  const fromBody = stripHtml(article.bodyHtml);
+  if (!fromBody) return '';
+  return fromBody.length <= max
+    ? fromBody
+    : fromBody.slice(0, max - 1).trimEnd() + '…';
+}
+
+/**
  * Uniform thumbnail wrapper used by both DraftTile and PublishedTile
  * so the image frame, aspect ratio, radius, and hover chrome match
  * perfectly across every tile on the Journals page.
@@ -278,6 +323,11 @@ function Thumbnail({
    *  or a flat evari-surface tone for published tiles. */
   fromPalette: 'draft' | 'published';
 }) {
+  // Track broken image loads so we fall back to the placeholder
+  // instead of the browser's default broken-image icon (which is what
+  // Craig saw on the CS+ RR Edition tile).
+  const [broken, setBroken] = useState(false);
+  const showImage = src && !broken;
   return (
     <div
       className={cn(
@@ -288,12 +338,13 @@ function Thumbnail({
           : 'bg-evari-surface/30',
       )}
     >
-      {src ? (
+      {showImage ? (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
           src={src}
           alt={alt ?? ''}
           className="w-full h-full object-cover"
+          onError={() => setBroken(true)}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
@@ -313,10 +364,10 @@ function DraftTile({
   badge?: string;
   onClick?: () => void;
 }) {
-  const title = draft.title.trim() || 'Untitled draft';
+  const title = stripHtml(draft.title) || 'Untitled draft';
   const date = formatShopifyDate(draft.updatedAt);
-  const excerpt = draft.summary?.trim() || '';
-  const author = draft.author?.trim() || 'Evari';
+  const excerpt = stripHtml(draft.summary);
+  const author = (draft.author?.trim()) || 'Evari';
   return (
     <button
       onClick={onClick}
@@ -371,7 +422,12 @@ function PublishedTile({
   onClick?: () => void;
 }) {
   const date = formatShopifyDate(article.publishedAt ?? article.updatedAt);
-  const excerpt = (article.summary ?? '').trim();
+  const title = stripHtml(article.title) || 'Untitled article';
+  // Every tile gets both a title AND an excerpt. If the article's
+  // `summary` field is empty, articleExcerpt() falls back to the
+  // first ~180 chars of the stripped body so the rhythm stays
+  // consistent across the grid.
+  const excerpt = articleExcerpt(article);
   const author = article.author?.name?.trim() || 'Evari';
   return (
     <button
@@ -394,13 +450,11 @@ function PublishedTile({
           ) : null}
         </div>
         <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
-          {article.title}
+          {title}
         </h3>
-        {excerpt ? (
-          <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
-            {excerpt}
-          </p>
-        ) : null}
+        <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3">
+          {excerpt || 'No summary on Shopify yet.'}
+        </p>
         <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
           By {author}
         </p>
