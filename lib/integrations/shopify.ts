@@ -820,6 +820,128 @@ export async function updateArticleMetadata(args: {
   };
 }
 
+/**
+ * Create a new Shopify Article on a given blog. Returns the created
+ * article (as a `ShopifyArticle`). SEO metafields are written after
+ * creation in the same mutation chain as `updateArticleMetadata`.
+ *
+ * Shopify's `articleCreate` accepts a top-level `blogId` input
+ * alongside an `ArticleCreateInput`. The input takes the same fields
+ * as `ArticleUpdateInput` minus the `blogId` override.
+ */
+export async function createArticle(args: {
+  blogId: string;
+  title: string;
+  bodyHtml: string;
+  summary?: string;
+  author?: string;
+  tags?: string[];
+  isPublished?: boolean;
+  metaTitle?: string;
+  metaDescription?: string;
+}): Promise<{ ok: true; article: ShopifyArticle; dryRun?: boolean } | { ok: false; error: string }> {
+  if (!isShopifyConnected()) {
+    return {
+      ok: true,
+      dryRun: true,
+      article: {
+        id: 'gid://shopify/Article/0',
+        handle: args.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+        title: args.title,
+        author: { name: args.author ?? 'Evari' },
+        tags: args.tags ?? [],
+        bodyHtml: args.bodyHtml,
+        summary: args.summary ?? null,
+        isPublished: args.isPublished ?? false,
+        publishedAt: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        blog: { id: args.blogId, handle: '', title: '' },
+        seo: { title: args.metaTitle ?? null, description: args.metaDescription ?? null },
+        image: null,
+      },
+    };
+  }
+  const mutation = /* GraphQL */ `
+    mutation CreateArticle($article: ArticleCreateInput!) {
+      articleCreate(article: $article) {
+        article { ${ARTICLE_FIELDS} }
+        userErrors { field message code }
+      }
+    }
+  `;
+  const article: Record<string, unknown> = {
+    blogId: args.blogId,
+    title: args.title,
+    body: args.bodyHtml,
+    isPublished: args.isPublished ?? false,
+  };
+  if (args.summary !== undefined) article.summary = args.summary;
+  if (args.author) article.author = { name: args.author };
+  if (args.tags && args.tags.length > 0) article.tags = args.tags;
+  try {
+    const payload = await shopifyMutation<{
+      article: ShopifyArticle & { body: string; metaTitle: { value: string } | null; metaDescription: { value: string } | null };
+    }>(mutation, { article }, { payloadKey: 'articleCreate' });
+    const created = payload.article;
+    // SEO metafields — same pattern as updateArticleMetadata.
+    if (args.metaTitle !== undefined || args.metaDescription !== undefined) {
+      const metafields: Array<{
+        ownerId: string;
+        namespace: string;
+        key: string;
+        value: string;
+        type: string;
+      }> = [];
+      if (args.metaTitle !== undefined) {
+        metafields.push({
+          ownerId: created.id,
+          namespace: 'global',
+          key: 'title_tag',
+          value: args.metaTitle,
+          type: 'single_line_text_field',
+        });
+      }
+      if (args.metaDescription !== undefined) {
+        metafields.push({
+          ownerId: created.id,
+          namespace: 'global',
+          key: 'description_tag',
+          value: args.metaDescription,
+          type: 'single_line_text_field',
+        });
+      }
+      const metaMutation = /* GraphQL */ `
+        mutation SetArticleSeoMetafields($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key }
+            userErrors { field message code }
+          }
+        }
+      `;
+      await shopifyMutation(
+        metaMutation,
+        { metafields },
+        { payloadKey: 'metafieldsSet' },
+      );
+    }
+    const { body, metaTitle, metaDescription, ...rest } = created;
+    return {
+      ok: true,
+      article: {
+        ...rest,
+        bodyHtml: body,
+        seo: {
+          title: metaTitle?.value ?? args.metaTitle ?? null,
+          description: metaDescription?.value ?? args.metaDescription ?? null,
+        },
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Orders
 // ---------------------------------------------------------------------------

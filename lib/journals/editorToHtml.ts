@@ -1,0 +1,160 @@
+/**
+ * Serialise EditorJS JSON → Shopify-safe HTML.
+ *
+ * The Shopify Online Store renders article.body as raw HTML inside
+ * whatever the blog template provides. We keep the markup plain and
+ * class-free so it inherits the theme's typography and spacing, and
+ * so the same HTML renders predictably inside the Shopify admin
+ * preview (no Evari dashboard classes leaking across).
+ *
+ * Block types supported in v1:
+ *   - paragraph          → <p>
+ *   - header (h2–h4)     → <h2> / <h3> / <h4>
+ *   - list               → <ul> / <ol>
+ *   - image              → <figure><img ...></figure>
+ *   - doubleImage        → <figure class="evari-double"> wrapping two imgs
+ *   - quote              → <blockquote>
+ *   - delimiter          → <hr>
+ *
+ * Unknown block types are skipped with a warning — better to ship
+ * whitespace than break article rendering.
+ */
+import type { OutputData } from '@editorjs/editorjs';
+
+function escape(html: string): string {
+  return html
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function attr(name: string, value: string | null | undefined): string {
+  if (value == null || value === '') return '';
+  return ` ${name}="${escape(value)}"`;
+}
+
+interface Block {
+  type: string;
+  data: Record<string, unknown>;
+}
+
+function renderParagraph(b: Block): string {
+  const text = String(b.data.text ?? '').trim();
+  if (!text) return '';
+  return `<p>${text}</p>`;
+}
+
+function renderHeader(b: Block): string {
+  const lvl = Math.max(2, Math.min(4, Number(b.data.level ?? 2)));
+  const text = String(b.data.text ?? '').trim();
+  if (!text) return '';
+  return `<h${lvl}>${text}</h${lvl}>`;
+}
+
+function renderList(b: Block): string {
+  const style = b.data.style === 'ordered' ? 'ol' : 'ul';
+  const items = Array.isArray(b.data.items) ? (b.data.items as string[]) : [];
+  if (items.length === 0) return '';
+  const li = items.map((it) => `<li>${it}</li>`).join('');
+  return `<${style}>${li}</${style}>`;
+}
+
+function renderImage(b: Block): string {
+  const file = b.data.file as { url?: string } | undefined;
+  const url = (file?.url ?? b.data.url) as string | undefined;
+  if (!url) return '';
+  const caption = String(b.data.caption ?? '').trim();
+  const alt = caption || 'Evari';
+  const withBorder = b.data.withBorder ? ' style="border:1px solid #e5e5e5"' : '';
+  const img = `<img${attr('src', url)}${attr('alt', alt)}${withBorder ? withBorder : ''} />`;
+  if (caption) {
+    return `<figure>${img}<figcaption>${caption}</figcaption></figure>`;
+  }
+  return `<figure>${img}</figure>`;
+}
+
+function renderDoubleImage(b: Block): string {
+  const left = b.data.left as { url?: string; caption?: string } | undefined;
+  const right = b.data.right as { url?: string; caption?: string } | undefined;
+  if (!left?.url && !right?.url) return '';
+  const cell = (img: { url?: string; caption?: string } | undefined) => {
+    if (!img?.url) return '';
+    const cap = (img.caption ?? '').trim();
+    return `<div style="flex:1 1 0;min-width:0"><img${attr('src', img.url)}${attr('alt', cap || 'Evari')} style="width:100%;height:auto;display:block" />${
+      cap ? `<p style="font-size:0.875rem;color:#666;margin-top:0.5rem">${escape(cap)}</p>` : ''
+    }</div>`;
+  };
+  return `<figure style="display:flex;gap:1rem;align-items:flex-start;margin:1.5rem 0">${cell(left)}${cell(right)}</figure>`;
+}
+
+function renderQuote(b: Block): string {
+  const text = String(b.data.text ?? '').trim();
+  if (!text) return '';
+  const caption = String(b.data.caption ?? '').trim();
+  return `<blockquote>${text}${caption ? `<cite> — ${caption}</cite>` : ''}</blockquote>`;
+}
+
+function renderDelimiter(): string {
+  return '<hr />';
+}
+
+export function editorDataToHtml(data: OutputData | Record<string, unknown> | null | undefined): string {
+  if (!data || typeof data !== 'object') return '';
+  const blocks = ((data as OutputData).blocks ?? []) as Block[];
+  const out: string[] = [];
+  for (const block of blocks) {
+    switch (block.type) {
+      case 'paragraph':
+        out.push(renderParagraph(block));
+        break;
+      case 'header':
+        out.push(renderHeader(block));
+        break;
+      case 'list':
+        out.push(renderList(block));
+        break;
+      case 'image':
+        out.push(renderImage(block));
+        break;
+      case 'doubleImage':
+        out.push(renderDoubleImage(block));
+        break;
+      case 'quote':
+        out.push(renderQuote(block));
+        break;
+      case 'delimiter':
+        out.push(renderDelimiter());
+        break;
+      default:
+        // Unknown block type — skip rather than corrupt output.
+        console.warn(`[editorToHtml] skipping unknown block type: ${block.type}`);
+    }
+  }
+  return out.filter(Boolean).join('\n');
+}
+
+/**
+ * Cheap plaintext summariser — grabs the first paragraph/header and
+ * trims to ~160 chars. Used when the author hasn't set a summary and
+ * we need one for SEO / article listings.
+ */
+export function editorDataToSummary(
+  data: OutputData | Record<string, unknown> | null | undefined,
+  max = 160,
+): string {
+  if (!data || typeof data !== 'object') return '';
+  const blocks = ((data as OutputData).blocks ?? []) as Block[];
+  for (const b of blocks) {
+    if (b.type === 'paragraph' || b.type === 'header') {
+      const text = String(b.data.text ?? '')
+        .replace(/<[^>]+>/g, '')
+        .trim();
+      if (text) {
+        return text.length <= max ? text : text.slice(0, max - 1).trimEnd() + '…';
+      }
+    }
+  }
+  return '';
+}

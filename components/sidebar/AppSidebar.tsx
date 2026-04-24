@@ -50,7 +50,7 @@ const NAV = [
   { href: '/social/instagram', label: 'Instagram', icon: Instagram, group: 'broadcast' },
   { href: '/social/tiktok', label: 'TikTok', icon: Music, group: 'broadcast' },
   { href: '/social/linkedin', label: 'LinkedIn', icon: Linkedin, group: 'broadcast' },
-  { href: '/articles', label: 'Articles', icon: FileText, group: 'broadcast' },
+  { href: '/journals', label: 'Journals', icon: FileText, group: 'broadcast' },
   { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'marketing' },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'marketing' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },

@@ -607,3 +607,90 @@ code {
     0 24px 40px rgba(0, 0, 0, 0.05),
     0 48px 80px rgba(0, 0, 0, 0.03);
 }
+
+/* ---------------------------------------------------------------------------
+   EditorJS (Journals) — dark theme chrome.
+
+   EditorJS ships its own minimal styles. These overrides tweak the inline
+   toolbar, placeholder, and block chrome so it reads as "part of the
+   dashboard" on our dark surface, not as a white document pane.
+   --------------------------------------------------------------------------- */
+.journals-editor-root .codex-editor {
+  color: var(--evari-text, #fff);
+}
+.journals-editor-root .ce-block__content,
+.journals-editor-root .ce-toolbar__content {
+  max-width: none;
+}
+.journals-editor-root .ce-paragraph[data-placeholder]:empty::before,
+.journals-editor-root .ce-header[data-placeholder]:empty::before {
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: inherit;
+}
+.journals-editor-root .ce-paragraph {
+  color: var(--evari-text, #fff);
+  line-height: 1.65;
+  font-size: 16px;
+}
+.journals-editor-root h1.ce-header,
+.journals-editor-root h2.ce-header,
+.journals-editor-root h3.ce-header,
+.journals-editor-root h4.ce-header {
+  color: var(--evari-text, #fff);
+  margin-top: 1.25em;
+}
+.journals-editor-root .ce-toolbar__actions {
+  color: rgba(255, 255, 255, 0.6);
+}
+.journals-editor-root .ce-toolbar__plus,
+.journals-editor-root .ce-toolbar__settings-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+}
+.journals-editor-root .ce-toolbar__plus:hover,
+.journals-editor-root .ce-toolbar__settings-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.journals-editor-root .ce-popover {
+  background: #1c1c1c;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.journals-editor-root .ce-popover-item:hover,
+.journals-editor-root .ce-popover-item--focused {
+  background: rgba(255, 255, 255, 0.06);
+}
+.journals-editor-root .ce-popover-item__icon {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.journals-editor-root .ce-block--selected .ce-block__content {
+  background: rgba(254, 199, 0, 0.06);
+  border-radius: 6px;
+}
+.journals-editor-root .ce-inline-toolbar {
+  background: #1c1c1c;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.journals-editor-root .ce-inline-tool {
+  color: rgba(255, 255, 255, 0.7);
+}
+.journals-editor-root .ce-inline-tool:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+.journals-editor-root .cdx-quote,
+.journals-editor-root .cdx-input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.journals-editor-root .image-tool__caption,
+.journals-editor-root .image-tool__image {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
