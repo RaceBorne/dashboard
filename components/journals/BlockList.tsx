@@ -35,6 +35,17 @@ import {
 import { cn } from '@/lib/utils';
 import type { JournalBlock } from './ShopifyPreview';
 
+/**
+ * Shared input chrome for every editable surface inside a block
+ * card. Matches the app-wide input-fill convention (bg shifts with
+ * theme, no visible border, focus brightens). Kept local so the
+ * BlockList file is self-contained.
+ */
+const INPUT_CLS =
+  'w-full rounded-md px-3 py-2 text-sm bg-[rgb(var(--evari-input-fill))] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:bg-[rgb(var(--evari-input-fill-focus))] transition-colors';
+const INPUT_SM_CLS =
+  'w-full rounded-md px-2 py-1.5 text-xs bg-[rgb(var(--evari-input-fill))] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:bg-[rgb(var(--evari-input-fill-focus))] transition-colors';
+
 interface Props {
   blocks: JournalBlock[];
   onChange: (next: JournalBlock[]) => void;
@@ -139,9 +150,9 @@ export function BlockList({
       {/* Add block menu */}
       <div className="relative">
         {addMenu ? (
-          <div className="rounded-lg border border-white/5 bg-evari-carbon/60 p-2">
+          <div className="rounded-lg bg-evari-surface/40 p-2">
             <div className="flex items-center justify-between px-1 pb-2">
-              <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dim">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
                 Add block
               </span>
               <button
@@ -159,9 +170,9 @@ export function BlockList({
                   <button
                     key={t.type}
                     onClick={() => addBlock(t.type)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-evari-dim hover:text-evari-text hover:bg-evari-surface/60 transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors"
                   >
-                    <Icon className="h-3.5 w-3.5" />
+                    <Icon className="h-3.5 w-3.5 text-evari-dim" />
                     {t.label}
                   </button>
                 );
@@ -171,7 +182,7 @@ export function BlockList({
         ) : (
           <button
             onClick={() => setAddMenu(true)}
-            className="w-full inline-flex items-center justify-center gap-2 py-2.5 text-sm rounded-lg border border-dashed border-white/10 text-evari-dim hover:text-evari-text hover:bg-evari-surface/30 transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-md bg-[rgb(var(--evari-input-fill))] text-evari-dim hover:text-evari-text hover:bg-[rgb(var(--evari-input-fill-focus))] transition-colors"
           >
             <Plus className="h-4 w-4" />
             Add block
@@ -277,12 +288,12 @@ function SortableCard(props: {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'rounded-lg border border-white/5 bg-evari-carbon/40 transition-shadow',
-        isDragging ? 'shadow-[0_8px_24px_rgba(0,0,0,0.4)] ring-1 ring-white/10 z-10' : '',
+        'rounded-lg bg-evari-surface/40 transition-shadow',
+        isDragging ? 'shadow-[0_8px_24px_rgba(0,0,0,0.4)] ring-1 ring-evari-gold/40 z-10' : '',
       )}
     >
       {/* Card header — drag handle, type label, AI, delete */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-white/5">
+      <div className="flex items-center gap-1 px-2 py-1.5">
         <button
           {...attributes}
           {...listeners}
@@ -291,7 +302,7 @@ function SortableCard(props: {
         >
           <GripVertical className="h-3.5 w-3.5" />
         </button>
-        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-evari-dim flex-1">
+        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-evari-dim font-semibold flex-1">
           <Icon className="h-3 w-3" />
           {def?.label ?? block.type}
         </div>
@@ -299,10 +310,10 @@ function SortableCard(props: {
           <button
             onClick={() => setAiOpen((v) => !v)}
             className={cn(
-              'inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] px-2 py-1 rounded transition-colors',
+              'inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] font-semibold px-2 py-1 rounded transition-colors',
               aiOpen
                 ? 'bg-evari-gold text-evari-goldInk'
-                : 'text-evari-dim hover:text-evari-text hover:bg-evari-surface/60',
+                : 'text-evari-gold hover:bg-evari-gold/15',
             )}
           >
             <Sparkles className="h-3 w-3" />
@@ -320,7 +331,7 @@ function SortableCard(props: {
 
       {/* AI instruction strip */}
       {aiOpen ? (
-        <div className="px-3 py-2 border-b border-white/5 bg-evari-gold/5 space-y-2">
+        <div className="mx-2 mb-2 rounded-md bg-evari-gold/10 ring-1 ring-evari-gold/30 p-2.5 space-y-2">
           <textarea
             value={aiInstruction}
             onChange={(e) => setAiInstruction(e.target.value)}
@@ -330,7 +341,7 @@ function SortableCard(props: {
                 ? 'e.g. "tighten this" / "make it 3 sentences" / "rewrite in Tom\u2019s voice"'
                 : 'e.g. "write a 3-sentence intro about the Samurai paint process"'
             }
-            className="w-full bg-evari-surface/60 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text resize-none"
+            className={cn(INPUT_CLS, 'resize-none')}
           />
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-evari-dimmer">
@@ -378,7 +389,7 @@ function BlockBody({
           onChange={(e) => onChange({ ...d, text: e.target.value })}
           rows={3}
           placeholder="Write a paragraph…"
-          className="w-full bg-evari-surface/40 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text resize-y min-h-[76px]"
+          className={cn(INPUT_CLS, 'resize-y min-h-[76px]')}
         />
       );
     case 'header':
@@ -387,7 +398,7 @@ function BlockBody({
           <select
             value={Number(d.level ?? 2)}
             onChange={(e) => onChange({ ...d, level: Number(e.target.value) })}
-            className="bg-evari-surface/40 border border-white/5 rounded-md px-2 py-2 text-xs text-evari-dim"
+            className={cn(INPUT_SM_CLS, 'w-auto appearance-none cursor-pointer pr-6 font-semibold')}
           >
             <option value={2}>H2</option>
             <option value={3}>H3</option>
@@ -397,19 +408,21 @@ function BlockBody({
             value={String(d.text ?? '')}
             onChange={(e) => onChange({ ...d, text: e.target.value })}
             placeholder="Heading"
-            className="flex-1 bg-evari-surface/40 border border-white/5 rounded-md px-3 py-2 text-sm font-semibold text-evari-text"
+            className={cn(INPUT_CLS, 'flex-1 font-semibold')}
           />
         </div>
       );
     case 'list':
       return (
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dim">
+          <div className="inline-flex items-center gap-0.5 bg-[rgb(var(--evari-trough))] rounded-full p-0.5">
             <button
               onClick={() => onChange({ ...d, style: 'unordered' })}
               className={cn(
-                'px-2 py-1 rounded',
-                d.style === 'unordered' ? 'bg-evari-surface/60 text-evari-text' : 'hover:text-evari-text',
+                'px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.14em] font-semibold transition-colors',
+                d.style === 'unordered'
+                  ? 'bg-evari-surfaceSoft text-evari-text'
+                  : 'text-evari-dim hover:text-evari-text',
               )}
             >
               Bulleted
@@ -417,8 +430,10 @@ function BlockBody({
             <button
               onClick={() => onChange({ ...d, style: 'ordered' })}
               className={cn(
-                'px-2 py-1 rounded',
-                d.style === 'ordered' ? 'bg-evari-surface/60 text-evari-text' : 'hover:text-evari-text',
+                'px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.14em] font-semibold transition-colors',
+                d.style === 'ordered'
+                  ? 'bg-evari-surfaceSoft text-evari-text'
+                  : 'text-evari-dim hover:text-evari-text',
               )}
             >
               Numbered
@@ -434,7 +449,7 @@ function BlockBody({
             }
             rows={4}
             placeholder="One item per line"
-            className="w-full bg-evari-surface/40 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text resize-y"
+            className={cn(INPUT_CLS, 'resize-y')}
           />
         </div>
       );
@@ -447,27 +462,27 @@ function BlockBody({
             <img
               src={file.url}
               alt=""
-              className="w-full max-h-48 object-cover rounded-md border border-white/5"
+              className="w-full max-h-48 object-cover rounded-md"
             />
           ) : null}
           <input
             value={file.url ?? ''}
             onChange={(e) => onChange({ ...d, file: { ...file, url: e.target.value } })}
             placeholder="Image URL"
-            className="w-full bg-evari-surface/40 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text"
+            className={INPUT_CLS}
           />
           <div className="flex gap-2">
             <input
               value={String(d.caption ?? '')}
               onChange={(e) => onChange({ ...d, caption: e.target.value })}
               placeholder="Caption (optional)"
-              className="flex-1 bg-evari-surface/40 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text"
+              className={cn(INPUT_CLS, 'flex-1')}
             />
             {onRunAiCaption ? (
               <button
                 onClick={onRunAiCaption}
                 title="AI caption"
-                className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] px-2 rounded text-evari-dim hover:text-evari-text hover:bg-evari-surface/60"
+                className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] font-semibold px-2.5 rounded-md text-evari-gold hover:bg-evari-gold/15 transition-colors"
               >
                 <Sparkles className="h-3 w-3" /> AI
               </button>
@@ -490,22 +505,22 @@ function BlockBody({
                   <img
                     src={v.url}
                     alt=""
-                    className="w-full aspect-[4/3] object-cover rounded-md border border-white/5"
+                    className="w-full aspect-[4/3] object-cover rounded-md"
                   />
                 ) : (
-                  <div className="w-full aspect-[4/3] rounded-md border border-white/5 bg-evari-surface/30" />
+                  <div className="w-full aspect-[4/3] rounded-md bg-[rgb(var(--evari-input-fill))]" />
                 )}
                 <input
                   value={v.url ?? ''}
                   onChange={(e) => onChange({ ...d, [side]: { ...v, url: e.target.value } })}
                   placeholder={`${side} image URL`}
-                  className="w-full bg-evari-surface/40 border border-white/5 rounded-md px-2 py-1.5 text-xs text-evari-text"
+                  className={INPUT_SM_CLS}
                 />
                 <input
                   value={v.caption ?? ''}
                   onChange={(e) => onChange({ ...d, [side]: { ...v, caption: e.target.value } })}
                   placeholder="Caption"
-                  className="w-full bg-evari-surface/40 border border-white/5 rounded-md px-2 py-1.5 text-xs text-evari-text"
+                  className={INPUT_SM_CLS}
                 />
               </div>
             );
@@ -521,19 +536,19 @@ function BlockBody({
             onChange={(e) => onChange({ ...d, text: e.target.value })}
             rows={3}
             placeholder="The quote"
-            className="w-full bg-evari-surface/40 border border-white/5 rounded-md px-3 py-2 text-sm italic text-evari-text resize-y"
+            className={cn(INPUT_CLS, 'italic resize-y')}
           />
           <input
             value={String(d.caption ?? '')}
             onChange={(e) => onChange({ ...d, caption: e.target.value })}
             placeholder="Attribution (optional)"
-            className="w-full bg-evari-surface/40 border border-white/5 rounded-md px-3 py-2 text-xs text-evari-dim"
+            className={cn(INPUT_SM_CLS, 'text-evari-dim')}
           />
         </div>
       );
     case 'delimiter':
       return (
-        <div className="h-px bg-white/10" aria-hidden />
+        <div className="h-px bg-[rgb(var(--evari-edge))]" aria-hidden />
       );
     default:
       return null;

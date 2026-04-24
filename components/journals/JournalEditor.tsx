@@ -10,7 +10,6 @@ import {
   Loader2,
   X,
   ChevronDown,
-  ChevronRight,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -260,20 +259,20 @@ export function JournalEditor({ draft, blogs }: Props) {
       </div>
 
       {/* ── RIGHT: block composer + metadata ──────────────────────── */}
-      <aside className="w-[420px] shrink-0 border-l border-white/5 bg-evari-carbon/40 overflow-y-auto">
-        <div className="p-4 space-y-4">
-          {/* Publish + title */}
-          <div className="space-y-3">
+      <aside className="w-[420px] shrink-0 border-l border-evari-edge bg-evari-carbon overflow-y-auto">
+        <div className="p-5 space-y-5">
+          {/* Publish CTA + title */}
+          <section className="space-y-3">
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Article title"
-              className="w-full bg-transparent text-lg font-semibold text-evari-text placeholder:text-evari-dimmer outline-none"
+              className={cn(INPUT_CLS, 'text-lg font-semibold py-2.5')}
             />
             <button
               onClick={handlePublish}
               disabled={publishState === 'publishing'}
-              className="w-full inline-flex items-center justify-center gap-2 bg-evari-gold text-evari-goldInk text-sm font-medium px-4 py-2 rounded-md hover:opacity-90 transition disabled:opacity-60"
+              className="w-full inline-flex items-center justify-center gap-2 bg-evari-gold text-evari-goldInk text-sm font-semibold px-4 py-2.5 rounded-md hover:brightness-105 transition disabled:opacity-60 shadow-[0_1px_0_rgba(0,0,0,0.06)]"
             >
               <Send className="h-4 w-4" />
               {publishState === 'publishing'
@@ -282,34 +281,24 @@ export function JournalEditor({ draft, blogs }: Props) {
                   ? 'Update on Shopify'
                   : 'Publish to Shopify'}
             </button>
-          </div>
+          </section>
 
-          {/* Metadata accordion */}
-          <Accordion
-            label="Article metadata"
-            open={metaOpen}
-            onToggle={() => setMetaOpen((v) => !v)}
-          >
+          {/* Metadata */}
+          <Accordion label="Article metadata" open={metaOpen} onToggle={() => setMetaOpen((v) => !v)}>
             <div className="space-y-3">
               <Field label="Destination">
-                <select
+                <SelectInput
                   value={blogTarget}
-                  onChange={(e) => setBlogTarget(e.target.value)}
-                  className="w-full bg-evari-surface/60 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text"
-                >
-                  {lanes.map((l) => (
-                    <option key={l.key} value={l.key}>
-                      {l.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setBlogTarget}
+                  options={lanes.map((l) => ({ value: l.key, label: l.label }))}
+                />
               </Field>
               <Field label="Cover image URL">
                 <input
                   value={coverImageUrl}
                   onChange={(e) => setCoverImageUrl(e.target.value)}
                   placeholder="https://…"
-                  className="w-full bg-evari-surface/60 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text"
+                  className={INPUT_CLS}
                 />
               </Field>
               <Field label="Summary" hint="Shown under the title on listings">
@@ -318,7 +307,7 @@ export function JournalEditor({ draft, blogs }: Props) {
                   onChange={(e) => setSummary(e.target.value)}
                   rows={2}
                   placeholder="One-sentence summary"
-                  className="w-full bg-evari-surface/60 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text resize-none"
+                  className={cn(INPUT_CLS, 'resize-none')}
                 />
               </Field>
               <Field label="Tags" hint="Comma-separated">
@@ -326,19 +315,20 @@ export function JournalEditor({ draft, blogs }: Props) {
                   value={tagsText}
                   onChange={(e) => setTagsText(e.target.value)}
                   placeholder="cs-plus, bike-build"
-                  className="w-full bg-evari-surface/60 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text"
+                  className={INPUT_CLS}
                 />
               </Field>
               <Field label="Author">
                 <input
                   value={author}
                   onChange={(e) => setAuthor(e.target.value)}
-                  className="w-full bg-evari-surface/60 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text"
+                  className={INPUT_CLS}
                 />
               </Field>
             </div>
           </Accordion>
 
+          {/* SEO */}
           <Accordion label="SEO" open={seoOpen} onToggle={() => setSeoOpen((v) => !v)}>
             <div className="space-y-3">
               <Field label="Meta title">
@@ -346,7 +336,7 @@ export function JournalEditor({ draft, blogs }: Props) {
                   value={seoTitle}
                   onChange={(e) => setSeoTitle(e.target.value)}
                   placeholder="Defaults to article title"
-                  className="w-full bg-evari-surface/60 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text"
+                  className={INPUT_CLS}
                 />
               </Field>
               <Field label="Meta description">
@@ -355,23 +345,24 @@ export function JournalEditor({ draft, blogs }: Props) {
                   onChange={(e) => setSeoDescription(e.target.value)}
                   rows={2}
                   placeholder="Defaults to summary"
-                  className="w-full bg-evari-surface/60 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text resize-none"
+                  className={cn(INPUT_CLS, 'resize-none')}
                 />
               </Field>
             </div>
           </Accordion>
 
-          {/* AI compose article */}
+          {/* AI compose */}
           {composeOpen ? (
-            <div className="rounded-lg border border-evari-gold/30 bg-evari-gold/5 p-3 space-y-2">
+            <section className="rounded-lg bg-evari-gold/10 ring-1 ring-evari-gold/40 p-3 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-evari-gold">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-evari-gold">
                   <Sparkles className="h-3.5 w-3.5" />
                   Compose from a brief
                 </span>
                 <button
                   onClick={() => setComposeOpen(false)}
                   className="text-evari-dimmer hover:text-evari-text"
+                  aria-label="Close compose"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -381,28 +372,32 @@ export function JournalEditor({ draft, blogs }: Props) {
                 onChange={(e) => setComposeBrief(e.target.value)}
                 rows={5}
                 placeholder={
-                  'A few bullets about what the article should cover. e.g.\n- CS+ Samurai paintjob with Kustomflow\n- Jaw Droppers show at Alexandra Palace\n- How Tom and Craig developed the purple + black colourway'
+                  'A few bullets about what the article should cover. e.g.\n- CS+ Samurai paintjob with Kustomflow\n- Jaw Droppers show at Alexandra Palace\n- How Tom and Craig developed the purple and black colourway'
                 }
-                className="w-full bg-evari-surface/60 border border-white/5 rounded-md px-3 py-2 text-sm text-evari-text resize-y"
+                className={cn(INPUT_CLS, 'resize-y')}
               />
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-evari-dimmer">
-                  {composeError ?? 'Adds generated blocks to the end of the current article.'}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-evari-dim leading-snug">
+                  {composeError ?? 'Adds generated blocks to the end of the article.'}
                 </span>
                 <button
                   onClick={runCompose}
                   disabled={composing || !composeBrief.trim()}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-evari-gold text-evari-goldInk disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-evari-gold text-evari-goldInk disabled:opacity-60 shrink-0"
                 >
-                  {composing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {composing ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
                   {composing ? 'Composing…' : 'Compose'}
                 </button>
               </div>
-            </div>
+            </section>
           ) : (
             <button
               onClick={() => setComposeOpen(true)}
-              className="w-full inline-flex items-center justify-center gap-2 py-2 text-sm rounded-md border border-evari-gold/30 text-evari-gold hover:bg-evari-gold/10 transition-colors"
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-md bg-evari-gold/15 text-evari-gold hover:bg-evari-gold/20 transition-colors"
             >
               <Sparkles className="h-4 w-4" />
               AI Compose article
@@ -410,9 +405,9 @@ export function JournalEditor({ draft, blogs }: Props) {
           )}
 
           {/* Blocks */}
-          <div className="pt-1">
+          <section className="pt-1">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dim font-medium">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
                 Blocks
               </span>
               <span className="text-[10px] text-evari-dimmer tabular-nums">
@@ -426,7 +421,7 @@ export function JournalEditor({ draft, blogs }: Props) {
               articleSummary={summary}
               blogLane={laneLabel}
             />
-          </div>
+          </section>
         </div>
       </aside>
     </div>
@@ -436,6 +431,21 @@ export function JournalEditor({ draft, blogs }: Props) {
 // ─────────────────────────────────────────────────────────────────────
 // Small helpers
 // ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Shared input chrome. Uses the app-wide input-fill tokens so inputs
+ * sit a notch darker than the panel in light mode and a notch brighter
+ * in dark mode, without any visible border. Focus state brightens the
+ * fill further. No outline ring, per the input-chrome convention
+ * established in task #196.
+ */
+const INPUT_CLS = [
+  'w-full rounded-md px-3 py-2 text-sm',
+  'bg-[rgb(var(--evari-input-fill))]',
+  'text-evari-text placeholder:text-evari-dimmer',
+  'focus:outline-none focus:bg-[rgb(var(--evari-input-fill-focus))]',
+  'transition-colors',
+].join(' ');
 
 function Field({
   label,
@@ -449,7 +459,7 @@ function Field({
   return (
     <label className="block">
       <div className="flex items-baseline justify-between mb-1.5">
-        <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dim font-medium">
+        <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
           {label}
         </span>
         {hint ? (
@@ -461,6 +471,44 @@ function Field({
   );
 }
 
+/**
+ * Custom select — drops the native chevron and focus ring for a
+ * clean look that matches the rest of the app's input chrome.
+ */
+function SelectInput({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          INPUT_CLS,
+          'appearance-none pr-9 cursor-pointer',
+        )}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-evari-dim" />
+    </div>
+  );
+}
+
+/**
+ * Accordion section inside the right pane. Uses the same pill-style
+ * header + subtle trough for the body that the app uses elsewhere.
+ */
 function Accordion({
   label,
   open,
@@ -473,14 +521,20 @@ function Accordion({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-white/5 overflow-hidden">
+    <div className="rounded-lg bg-evari-surface/40 overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-[0.14em] text-evari-dim font-medium hover:text-evari-text"
+        aria-expanded={open}
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-[10px] uppercase tracking-[0.14em] text-evari-dim font-semibold hover:text-evari-text transition-colors"
       >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        {label}
+        <ChevronDown
+          className={cn(
+            'h-3 w-3 transition-transform',
+            open ? '' : '-rotate-90',
+          )}
+        />
+        <span className="flex-1 text-left">{label}</span>
       </button>
       {open ? <div className="px-3 pb-3 pt-1">{children}</div> : null}
     </div>
