@@ -13,6 +13,11 @@
 :root,
 :root[data-theme='dark'] {
   color-scheme: dark;
+  /* Input fills: additive white in dark mode so inputs sit 3% brighter
+     than the parent panel; in light mode the override below flips to a
+     5% black wash so inputs sit slightly darker than the surface. */
+  --evari-input-fill: 255 255 255 / 0.03;
+  --evari-input-fill-focus: 255 255 255 / 0.06;
   /* Lozenge (kept for anywhere we still want a darker inset) */
   --evari-lozenge: 14 14 14;
   --evari-lozenge-ring: 0 0 0;
@@ -193,6 +198,8 @@
 :root[data-theme='light'],
 :root[data-theme='light'][data-shade='2'] {
   color-scheme: light;
+  --evari-input-fill: 0 0 0 / 0.05;
+  --evari-input-fill-focus: 0 0 0 / 0.08;
   --evari-ink: 245 245 245;
   --evari-carbon: 238 238 238;
   --evari-surface: 253 253 253;
