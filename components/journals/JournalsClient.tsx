@@ -235,15 +235,21 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Tiles — mirror the evari.cc Shopify thumbnail layout exactly:
-//   • image top (square, crops to fill — matches the storefront blog
-//     card aspect, which is taller than the previous 4:3)
+// Tiles — mirror the evari.cc Shopify journal layout exactly:
+//   • slightly-portrait cover image, cover-cropped (matches the
+//     storefront ratio measured off Craig's reference screenshot)
 //   • tiny uppercase date
-//   • bigger serif-weighted title (2-line clamp)
-//   • 3-line body excerpt (greyed)
+//   • bigger title (2-line clamp)
+//   • 3-line body excerpt (dim)
 //   • tiny uppercase "BY <AUTHOR>" byline
 // Column width is unchanged — only the internal rhythm shifts.
+// Both tile variants share the exact same IMAGE_ASPECT so draft
+// rows and published rows line up perfectly. To change the shape
+// of every journal thumbnail, change this one constant.
 // ─────────────────────────────────────────────────────────────────────
+
+/** Shared image aspect across DraftTile + PublishedTile. */
+const IMAGE_ASPECT = 'aspect-[10/11]';
 
 function formatShopifyDate(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -252,6 +258,50 @@ function formatShopifyDate(iso: string | null | undefined): string {
     day: 'numeric',
     year: 'numeric',
   }).toUpperCase();
+}
+
+/**
+ * Uniform thumbnail wrapper used by both DraftTile and PublishedTile
+ * so the image frame, aspect ratio, radius, and hover chrome match
+ * perfectly across every tile on the Journals page.
+ */
+function Thumbnail({
+  src,
+  alt,
+  fallback,
+  fromPalette,
+}: {
+  src?: string | null;
+  alt?: string;
+  fallback: React.ReactNode;
+  /** Use the muted dashboard palette when no image is available (drafts),
+   *  or a flat evari-surface tone for published tiles. */
+  fromPalette: 'draft' | 'published';
+}) {
+  return (
+    <div
+      className={cn(
+        IMAGE_ASPECT,
+        'w-full overflow-hidden rounded-sm',
+        fromPalette === 'draft'
+          ? 'bg-gradient-to-br from-evari-surfaceSoft/50 to-evari-surface/20'
+          : 'bg-evari-surface/30',
+      )}
+    >
+      {src ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={src}
+          alt={alt ?? ''}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          {fallback}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DraftTile({
@@ -270,24 +320,13 @@ function DraftTile({
   return (
     <button
       onClick={onClick}
-      className="group relative text-left flex flex-col overflow-hidden"
+      className="group relative text-left flex flex-col"
     >
-      {/* Image — square, matches evari.cc blog card ratio */}
-      <div className="aspect-square bg-gradient-to-br from-evari-surfaceSoft/50 to-evari-surface/20 overflow-hidden rounded-sm">
-        {draft.coverImageUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={draft.coverImageUrl}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <FileText className="h-7 w-7 text-evari-dimmer" />
-          </div>
-        )}
-      </div>
-      {/* Detail — no card background, just type on the page */}
+      <Thumbnail
+        src={draft.coverImageUrl}
+        fallback={<FileText className="h-7 w-7 text-evari-dimmer" />}
+        fromPalette="draft"
+      />
       <div className="pt-4">
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
           <span>{date}</span>
@@ -311,7 +350,7 @@ function DraftTile({
           </p>
         ) : (
           <p className="mt-2 text-sm text-evari-dimmer/70 italic leading-snug">
-            Empty draft — click to start writing.
+            Empty draft, click to start writing.
           </p>
         )}
         <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
@@ -337,22 +376,14 @@ function PublishedTile({
   return (
     <button
       onClick={onClick}
-      className="group text-left flex flex-col overflow-hidden"
+      className="group text-left flex flex-col"
     >
-      <div className="aspect-square bg-evari-surface/30 overflow-hidden rounded-sm">
-        {article.image?.url ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={article.image.url}
-            alt={article.image.altText ?? article.title}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <ImageIcon className="h-7 w-7 text-evari-dimmer" />
-          </div>
-        )}
-      </div>
+      <Thumbnail
+        src={article.image?.url ?? null}
+        alt={article.image?.altText ?? article.title}
+        fallback={<ImageIcon className="h-7 w-7 text-evari-dimmer" />}
+        fromPalette="published"
+      />
       <div className="pt-4">
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
           <span>{date}</span>
