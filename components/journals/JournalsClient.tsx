@@ -76,7 +76,15 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
       .filter((d) => d.shopifyArticleId)
       .map((d) => d.shopifyArticleId as string),
   );
-  const publishedArticles = laneArticles;
+  // Split Shopify articles into truly-published vs unpublished-on-
+  // Shopify. Shopify's `articles` connection returns both by default;
+  // the unpublished ones are usually stub posts someone started in
+  // the Shopify admin but never finished, and they look broken in a
+  // "Published" grid (no cover, no summary). We show them in their
+  // own lane so they stay visible without polluting the published
+  // set.
+  const publishedArticles = laneArticles.filter((a) => a.isPublished);
+  const unpublishedArticles = laneArticles.filter((a) => !a.isPublished);
   const draftOnlyPublished = laneDrafts.filter(
     (d) =>
       d.shopifyArticleId &&
@@ -186,6 +194,36 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {pendingDrafts.map((d) => (
                 <DraftTile key={d.id} draft={d} onClick={() => openDraft(d.id)} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Unpublished on Shopify — stubs Craig started in Shopify admin
+            but hasn't published yet. Kept in their own lane so they
+            don't pollute the Published grid with broken-looking tiles. */}
+        {unpublishedArticles.length > 0 ? (
+          <section>
+            <header className="flex items-baseline gap-2 mb-3">
+              <Clock className="h-3.5 w-3.5 text-evari-dim" />
+              <h2 className="text-xs uppercase tracking-[0.16em] text-evari-dim">
+                Unpublished on Shopify
+              </h2>
+              <span className="text-xs text-evari-dimmer tabular-nums">
+                {unpublishedArticles.length}
+              </span>
+              <span className="ml-2 text-[10px] text-evari-dimmer italic">
+                Stubs started in Shopify admin, not yet live
+              </span>
+            </header>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              {unpublishedArticles.map((a) => (
+                <PublishedTile
+                  key={a.id}
+                  article={a}
+                  linked={publishedDraftIds.has(a.id)}
+                  onClick={() => openPublished(a)}
+                />
               ))}
             </div>
           </section>
