@@ -699,17 +699,28 @@ function ReaderBar({
 /**
  * Shared image aspect across DraftTile + PublishedTile.
  *
- *   5:6 = 1 : 1.2 (slightly portrait) — the evari.cc storefront
- *   blog card ratio, confirmed by Craig. Change this one value to
+ *   1 : 1.2 (slightly portrait) — the evari.cc storefront blog
+ *   card ratio, confirmed by Craig. Change this one value to
  *   restyle every journal thumbnail on the page.
  *
  * ─── DO NOT regress this ───
  *
- * History:
- *   - aspect-square (1:1)         — too square, rejected
- *   - aspect-[4/3] (1.33:1)       — too landscape, rejected
- *   - aspect-[10/11] (1:1.1)      — too close to square, rejected
- *   - aspect-[5/6] (1:1.2)        — ✓ Craig confirmed this ratio
+ * History of what got rejected and why:
+ *   - 1 : 1    (square)        — too square
+ *   - 4 : 3    (landscape)     — too landscape
+ *   - 10 : 11  (1 : 1.1)       — still too close to square
+ *   - 5 : 6    (1 : 1.2)       — ✓ Craig confirmed this ratio
+ *
+ * WHY WE USE INLINE STYLE, NOT A TAILWIND CLASS:
+ *
+ * Tailwind's JIT scanner only emits CSS for class names that
+ * appear as unbroken literal strings in source files. Storing
+ * `aspect-[5/6]` in a `const` and composing it via cn() worked
+ * in dev but dropped out of the production CSS bundle on some
+ * builds, which is why the ratio kept snapping back after
+ * deploys / clean rebuilds. `aspectRatio` is a standard CSS
+ * property with full browser support, so the inline style wins
+ * every time and can never be purged.
  *
  * The Thumbnail component below is the single place in the app
  * that owns this aspect; every tile renders through it. If you
@@ -719,7 +730,7 @@ function ReaderBar({
  * The grids above use `items-start` so a short tile can't stretch
  * to match a tall sibling and invent dead space under its image.
  */
-const IMAGE_ASPECT = 'aspect-[5/6]';
+const IMAGE_ASPECT_RATIO = '5 / 6';
 
 function formatShopifyDate(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -800,9 +811,14 @@ function Thumbnail({
   const showImage = src && !broken;
   return (
     <div
+      // Inline style + hardcoded class (not a computed Tailwind
+      // expression) so the 1:1.2 aspect cannot be lost to JIT purging
+      // or to a CSS override lower in the cascade. Keep BOTH — the
+      // class handles the common case, the inline style is the
+      // belt-and-braces guarantee.
+      style={{ aspectRatio: IMAGE_ASPECT_RATIO }}
       className={cn(
-        IMAGE_ASPECT,
-        'w-full overflow-hidden rounded-sm',
+        'aspect-[5/6] w-full overflow-hidden rounded-sm',
         fromPalette === 'draft'
           ? 'bg-gradient-to-br from-evari-surfaceSoft/50 to-evari-surface/20'
           : 'bg-evari-surface/30',
