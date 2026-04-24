@@ -7,6 +7,7 @@ import {
   Check,
   ChevronRight,
   Copy,
+  ListPlus,
   Loader2,
   Lightbulb,
   RotateCcw,
@@ -23,7 +24,16 @@ import type {
   SynopsisEnhancement,
   SynopsisIssue,
   SynopsisEnhanceKind,
+  SynopsisTaskCategory,
+  SynopsisTaskPriority,
 } from '@/lib/synopsis/analyse';
+
+interface NarrativeAction {
+  title: string;
+  detail: string;
+  category: SynopsisTaskCategory;
+  priority: SynopsisTaskPriority;
+}
 
 /**
  * SynopsisClient
@@ -53,12 +63,22 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
 
   // Narrative state: fetched async so the page renders immediately.
   const [narrative, setNarrative] = useState<string | null>(null);
+  const [narrativeActions, setNarrativeActions] = useState<NarrativeAction[]>([]);
   const [narrativeBusy, setNarrativeBusy] = useState(false);
   const [narrativeError, setNarrativeError] = useState<string | null>(null);
   const [narrativeAt, setNarrativeAt] = useState<string | null>(null);
 
-  // Enhance modal state: which enhancement is open and what it returned.
+  // Enhance modal state: which executable enhancement is open.
   const [activeEnhance, setActiveEnhance] = useState<SynopsisEnhanceKind | null>(null);
+
+  // Which group rows are currently expanded in the Enhance list.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // IDs of rows that have been successfully added as todos. Sticky so the
+  // button stays green and disabled after a click.
+  const [addedTodos, setAddedTodos] = useState<Set<string>>(new Set());
+  const [addingTodos, setAddingTodos] = useState<Set<string>>(new Set());
+  const [todoErrors, setTodoErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void loadNarrative();
@@ -70,16 +90,107 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
     setNarrativeError(null);
     try {
       const res = await fetch('/api/synopsis/narrative', { method: 'POST' });
-      const data = (await res.json()) as { ok?: boolean; narrative?: string; generatedAt?: string; error?: string };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        narrative?: string;
+        actions?: NarrativeAction[];
+        generatedAt?: string;
+        error?: string;
+      };
       if (!res.ok || !data.ok || !data.narrative) {
         throw new Error(data.error ?? 'Narrative unavailable');
       }
       setNarrative(data.narrative);
+      setNarrativeActions(Array.isArray(data.actions) ? data.actions : []);
       setNarrativeAt(data.generatedAt ?? new Date().toISOString());
     } catch (err) {
       setNarrativeError(err instanceof Error ? err.message : 'Narrative failed');
     } finally {
       setNarrativeBusy(false);
+    }
+  }
+
+  async function addTodo(args: {
+    id: string;
+    title: string;
+    description: string;
+    category: SynopsisTaskCategory;
+    priority: SynopsisTaskPriority;
+  }): Promise<boolean> {
+    if (addedTodos.has(args.id) || addingTodos.has(args.id)) return false;
+    setAddingTodos((prev) => {
+      const n = new Set(prev);
+      n.add(args.id);
+      return n;
+    });
+    setTodoErrors((prev) => {
+      const n = { ...prev };
+      delete n[args.id];
+      return n;
+    });
+    try {
+      const taskCategory =
+        args.category === 'shopify'
+          ? 'shopify'
+          : args.category === 'content'
+            ? 'content'
+            : args.category === 'other'
+              ? 'content'
+              : 'seo';
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: args.title,
+          description: args.description,
+          category: taskCategory,
+          status: 'planned',
+          priority: args.priority,
+          source: 'auto',
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'HTTP ' + res.status);
+      setAddedTodos((prev) => {
+        const n = new Set(prev);
+        n.add(args.id);
+        return n;
+      });
+      return true;
+    } catch (err) {
+      setTodoErrors((prev) => ({
+        ...prev,
+        [args.id]: err instanceof Error ? err.message : 'Add failed',
+      }));
+      return false;
+    } finally {
+      setAddingTodos((prev) => {
+        const n = new Set(prev);
+        n.delete(args.id);
+        return n;
+      });
+    }
+  }
+
+  function toggleGroup(id: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function addAllFromGroup(group: SynopsisEnhancement) {
+    if (!group.children) return;
+    for (const child of group.children) {
+      await addTodo({
+        id: child.id,
+        title: child.taskDefaults.title,
+        description: child.taskDefaults.description,
+        category: child.taskDefaults.category,
+        priority: child.taskDefaults.priority,
+      });
     }
   }
 
@@ -209,9 +320,63 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
             Narrative failed: {narrativeError}. Falling back to bullet summary below.
           </div>
         ) : narrative ? (
-          <p className="text-[14px] leading-relaxed text-evari-text">
-            {narrative}
-          </p>
+          <>
+            <p className="text-[14px] leading-relaxed text-evari-text">
+              {narrative}
+            </p>
+            {narrativeActions.length > 0 ? (
+              <div className="mt-3 rounded-md bg-evari-surfaceSoft/40 px-3 py-2.5 space-y-1.5">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+                  Turn the assessment into tasks
+                </div>
+                <ul className="space-y-1">
+                  {narrativeActions.map((a, i) => {
+                    const id = 'narrative-action:' + i + ':' + a.title;
+                    const added = addedTodos.has(id);
+                    const adding = addingTodos.has(id);
+                    const err = todoErrors[id];
+                    return (
+                      <li key={id} className="flex items-start gap-2 text-[12px] text-evari-text">
+                        <span className="text-evari-dimmer mt-1">•</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium">{a.title}</div>
+                          {a.detail ? (
+                            <div className="text-[11px] text-evari-dim leading-relaxed">{a.detail}</div>
+                          ) : null}
+                          {err ? (
+                            <div className="text-[10px] text-evari-danger mt-0.5">{err}</div>
+                          ) : null}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={added ? 'default' : 'primary'}
+                          disabled={added || adding}
+                          onClick={() =>
+                            void addTodo({
+                              id,
+                              title: a.title,
+                              description: a.detail,
+                              category: a.category,
+                              priority: a.priority,
+                            })
+                          }
+                        >
+                          {adding ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : added ? (
+                            <Check className="h-3 w-3" />
+                          ) : (
+                            <ListPlus className="h-3 w-3" />
+                          )}
+                          {added ? 'Added' : adding ? 'Adding' : 'Todo'}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+          </>
         ) : null}
 
         {/* Bullets stay underneath so the specifics are still one glance away */}
@@ -300,7 +465,7 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
             <Sparkles className="h-3.5 w-3.5 text-evari-dimmer" />
             Enhance
             <span className="text-[11px] text-evari-dimmer font-normal ml-2">
-              {synopsis.enhancements.length} opportunities
+              {totalEnhanceCount(synopsis.enhancements)} opportunities, all in-house
             </span>
           </div>
         </header>
@@ -309,7 +474,14 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
             <EnhanceRow
               key={e.id}
               enhancement={e}
-              onOpen={() => setActiveEnhance(e.kind)}
+              expanded={expandedGroups.has(e.id)}
+              onToggleGroup={() => toggleGroup(e.id)}
+              onOpenModal={(kind) => setActiveEnhance(kind)}
+              onAddTodo={addTodo}
+              onAddAllFromGroup={addAllFromGroup}
+              addedTodos={addedTodos}
+              addingTodos={addingTodos}
+              todoErrors={todoErrors}
             />
           ))}
         </ul>
@@ -438,50 +610,217 @@ function IssueRow({
 
 /* ------------------------------ Enhance row ------------------------------- */
 
+type AddTodoFn = (args: {
+  id: string;
+  title: string;
+  description: string;
+  category: SynopsisTaskCategory;
+  priority: SynopsisTaskPriority;
+}) => Promise<boolean>;
+
 function EnhanceRow({
   enhancement,
-  onOpen,
+  expanded,
+  onToggleGroup,
+  onOpenModal,
+  onAddTodo,
+  onAddAllFromGroup,
+  addedTodos,
+  addingTodos,
+  todoErrors,
 }: {
   enhancement: SynopsisEnhancement;
-  onOpen: () => void;
+  expanded: boolean;
+  onToggleGroup: () => void;
+  onOpenModal: (kind: SynopsisEnhanceKind) => void;
+  onAddTodo: AddTodoFn;
+  onAddAllFromGroup: (group: SynopsisEnhancement) => Promise<void>;
+  addedTodos: Set<string>;
+  addingTodos: Set<string>;
+  todoErrors: Record<string, string>;
 }) {
+  const isGroup = enhancement.kind === 'group';
   const impactColor =
     enhancement.impact === 'high'
       ? 'bg-evari-gold/15 text-evari-gold'
       : enhancement.impact === 'medium'
         ? 'bg-evari-accent/15 text-evari-accent'
         : 'bg-evari-surfaceSoft text-evari-dim';
+  const added = addedTodos.has(enhancement.id);
+  const adding = addingTodos.has(enhancement.id);
+  const err = todoErrors[enhancement.id];
+
   return (
-    <li className="rounded-md bg-evari-surface px-5 py-4 flex items-start gap-4">
-      <div className="pt-0.5 shrink-0">
-        <Sparkles className="h-4 w-4 text-evari-gold" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[13px] font-semibold text-evari-text">
-            {enhancement.title}
-          </span>
-          <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide font-semibold', impactColor)}>
-            {enhancement.impact} impact
-          </span>
-          {enhancement.subject ? (
-            <span className="text-[11px] text-evari-dimmer">
-              {enhancement.subject}
+    <li className="rounded-md bg-evari-surface overflow-hidden">
+      <div className="px-5 py-4 flex items-start gap-4">
+        <button
+          type="button"
+          onClick={isGroup ? onToggleGroup : undefined}
+          className={cn(
+            'pt-0.5 shrink-0 inline-flex items-center justify-center rounded',
+            isGroup ? 'cursor-pointer hover:bg-evari-surfaceSoft/40 transition-colors h-6 w-6 -my-1 -ml-1' : '',
+          )}
+          aria-label={isGroup ? (expanded ? 'Collapse' : 'Expand') : undefined}
+          disabled={!isGroup}
+        >
+          {isGroup ? (
+            <ChevronRight
+              className={cn(
+                'h-4 w-4 text-evari-dimmer transition-transform',
+                expanded ? 'rotate-90' : '',
+              )}
+            />
+          ) : (
+            <Sparkles className="h-4 w-4 text-evari-gold" />
+          )}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[13px] font-semibold text-evari-text">
+              {enhancement.title}
             </span>
+            <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide font-semibold', impactColor)}>
+              {enhancement.impact} impact
+            </span>
+            {enhancement.subject ? (
+              <span className="text-[11px] text-evari-dimmer">
+                {enhancement.subject}
+              </span>
+            ) : null}
+            {isGroup && enhancement.children ? (
+              <span className="text-[11px] text-evari-dimmer">
+                {enhancement.children.length} sub-tasks
+              </span>
+            ) : null}
+          </div>
+          <div className="text-[12px] text-evari-dim mt-1 leading-relaxed">
+            {enhancement.description}
+          </div>
+          {err ? (
+            <div className="mt-1 text-[11px] text-evari-danger">{err}</div>
           ) : null}
         </div>
-        <div className="text-[12px] text-evari-dim mt-1 leading-relaxed">
-          {enhancement.description}
+        <div className="shrink-0 flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={added ? 'default' : 'default'}
+            disabled={added || adding}
+            onClick={() =>
+              void onAddTodo({
+                id: enhancement.id,
+                title: enhancement.taskDefaults.title,
+                description: enhancement.taskDefaults.description,
+                category: enhancement.taskDefaults.category,
+                priority: enhancement.taskDefaults.priority,
+              })
+            }
+            title={added ? 'Added to todo' : 'Add as a task in the todo list'}
+          >
+            {adding ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : added ? (
+              <Check className="h-3 w-3" />
+            ) : (
+              <ListPlus className="h-3 w-3" />
+            )}
+            {added ? 'Added' : adding ? 'Adding' : 'Todo'}
+          </Button>
+          {enhancement.executable ? (
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => onOpenModal(enhancement.kind as SynopsisEnhanceKind)}
+            >
+              <Wand2 className="h-3 w-3" />
+              {enhancement.cta}
+            </Button>
+          ) : isGroup ? (
+            <Button size="sm" variant="primary" onClick={onToggleGroup}>
+              {expanded ? 'Collapse' : enhancement.cta}
+            </Button>
+          ) : null}
         </div>
       </div>
-      <div className="shrink-0 flex items-center">
-        <Button size="sm" variant="primary" onClick={onOpen}>
-          <Wand2 className="h-3 w-3" />
-          {enhancement.cta}
-        </Button>
-      </div>
+      {isGroup && expanded && enhancement.children ? (
+        <div className="border-t border-evari-line/20 bg-evari-surfaceSoft/30 px-5 py-3 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+              {enhancement.children.length} in-house jobs
+            </div>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => void onAddAllFromGroup(enhancement)}
+              title="Add every sub-task to the todo list"
+            >
+              <ListPlus className="h-3 w-3" />
+              Add all to todo
+            </Button>
+          </div>
+          <ul className="space-y-1.5">
+            {enhancement.children.map((child) => {
+              const cAdded = addedTodos.has(child.id);
+              const cAdding = addingTodos.has(child.id);
+              const cErr = todoErrors[child.id];
+              return (
+                <li
+                  key={child.id}
+                  className="rounded-md bg-evari-surface px-3 py-2.5 flex items-start gap-3"
+                >
+                  <ChevronRight className="h-3 w-3 text-evari-dimmer mt-1 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold text-evari-text">
+                      {child.title}
+                    </div>
+                    <div className="text-[11px] text-evari-dim mt-0.5 leading-relaxed">
+                      {child.description}
+                    </div>
+                    {cErr ? (
+                      <div className="text-[10px] text-evari-danger mt-0.5">{cErr}</div>
+                    ) : null}
+                  </div>
+                  <div className="shrink-0">
+                    <Button
+                      size="sm"
+                      variant={cAdded ? 'default' : 'primary'}
+                      disabled={cAdded || cAdding}
+                      onClick={() =>
+                        void onAddTodo({
+                          id: child.id,
+                          title: child.taskDefaults.title,
+                          description: child.taskDefaults.description,
+                          category: child.taskDefaults.category,
+                          priority: child.taskDefaults.priority,
+                        })
+                      }
+                    >
+                      {cAdding ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : cAdded ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <ListPlus className="h-3 w-3" />
+                      )}
+                      {cAdded ? 'Added' : cAdding ? 'Adding' : 'Todo'}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
     </li>
   );
+}
+
+function totalEnhanceCount(list: SynopsisEnhancement[]): number {
+  let n = 0;
+  for (const e of list) {
+    n += 1;
+    if (e.children) n += e.children.length;
+  }
+  return n;
 }
 
 /* ------------------------------ Modals base ------------------------------- */

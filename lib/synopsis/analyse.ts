@@ -46,14 +46,28 @@ export type SynopsisEnhanceKind =
   | 'keywords-research'
   | 'meta-rewrite'
   | 'internal-links'
-  | 'blog-topics';
+  | 'blog-topics'
+  | 'seo-cleanup-item'
+  | 'mobile-rebuild-item'
+  | 'performance-audit-item';
+
+export type SynopsisTaskCategory = 'seo' | 'shopify' | 'content' | 'other';
+export type SynopsisTaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface SynopsisTaskDefaults {
+  title: string;
+  description: string;
+  category: SynopsisTaskCategory;
+  priority: SynopsisTaskPriority;
+}
 
 export interface SynopsisEnhancement {
   /** Stable key per row. */
   id: string;
-  kind: SynopsisEnhanceKind;
+  /** The kind drives which modal opens when the row's CTA is clicked. */
+  kind: SynopsisEnhanceKind | 'group';
   title: string;
-  /** One paragraph explaining what this enhancement will do + why it matters. */
+  /** One paragraph explaining what this enhancement does + why it matters. */
   description: string;
   /** Short action label for the button. */
   cta: string;
@@ -62,11 +76,21 @@ export interface SynopsisEnhancement {
   /** Numeric hint the row can display (e.g. "14 pages"). */
   subject?: string;
   /**
-   * True = clicking the button executes the change (possibly via a
-   * confirmation modal).  False = still proposes only; the modal
-   * shows the proposals and the Apply inside does the work.
+   * True = clicking the CTA opens a modal / executes work.  False = the
+   * row is reference-only; only the Add-to-todo button is useful.
    */
   executable: boolean;
+  /**
+   * Sensible defaults when the operator hits 'Add to todo' on this row.
+   * Always present so the UI can hand a clean payload to /api/tasks.
+   */
+  taskDefaults: SynopsisTaskDefaults;
+  /**
+   * When populated, this row is a group header. Children render as
+   * indented sub-rows when expanded. A group row can still be added
+   * to the todo list as a single parent task.
+   */
+  children?: SynopsisEnhancement[];
 }
 
 export interface SynopsisContext {
@@ -367,8 +391,16 @@ export function analyseSynopsis({
   // -------- Enhancements --------
   const enhancements: SynopsisEnhancement[] = [];
 
-  // 1. Keyword research + competitors. Always offer. Impact scales with
-  //    how sparse the workspace currently is.
+  // Helper to stamp a clean task-default payload on every row. Every
+  // enhancement must carry one so the Add-to-todo button can fire the
+  // task without any client-side guessing.
+  const kwSubject =
+    competitorLists.length === 0
+      ? 'no competitors tracked yet'
+      : competitorLists.length + ' competitor lists · ' + String(ownMembers.length) + ' own keywords';
+  const rewriteCount = weakTitle.length + weakDesc.length;
+
+  // 1. Keyword research + competitors.
   enhancements.push({
     id: 'enhance:keywords-research',
     kind: 'keywords-research',
@@ -377,16 +409,18 @@ export function analyseSynopsis({
       'I research the top UK e-bike sites, propose which to track as competitors, and queue their best-performing keywords for your own list. You confirm the competitor shortlist before anything is added.',
     cta: 'Research',
     impact: competitorLists.length < 3 ? 'high' : 'medium',
-    subject:
-      competitorLists.length === 0
-        ? 'no competitors tracked yet'
-        : competitorLists.length + ' competitor lists · ' + String(ownMembers.length) + ' own keywords',
+    subject: kwSubject,
     executable: true,
+    taskDefaults: {
+      title: 'Run keyword research and add UK e-bike competitors',
+      description:
+        'Use the Synopsis enhance flow to research UK e-bike competitors, pick the shortlist, and seed Evari own list + per-competitor lists with their best keywords. ' + kwSubject,
+      category: 'seo',
+      priority: competitorLists.length < 3 ? 'high' : 'medium',
+    },
   });
 
-  // 2. Meta rewrites. Only surface if there are weak metas in play —
-  //    missing metas are already the Fix list's job.
-  const rewriteCount = weakTitle.length + weakDesc.length;
+  // 2. Meta rewrites. Only surface if there are weak metas in play.
   if (rewriteCount > 0) {
     enhancements.push({
       id: 'enhance:meta-rewrite',
@@ -398,32 +432,45 @@ export function analyseSynopsis({
       impact: rewriteCount >= 10 ? 'high' : 'medium',
       subject: rewriteCount + ' pages need a rewrite',
       executable: true,
+      taskDefaults: {
+        title: 'Rewrite ' + rewriteCount + ' weak meta titles or descriptions',
+        description:
+          'Every meta outside the 30-65 / 80-165 character band or duplicated across pages gets rewritten via the Synopsis enhance flow. ' + rewriteCount + ' entries queued.',
+        category: 'seo',
+        priority: rewriteCount >= 10 ? 'high' : 'medium',
+      },
     });
   }
 
-  // 3. Internal link proposals. Only if we have GSC data + at least one
-  //    high-impression low-click page.
+  // 3. Internal link proposals.
   if (highImpLowClick.length > 0) {
     enhancements.push({
       id: 'enhance:internal-links',
       kind: 'internal-links',
       title: 'Propose internal links to lift stuck pages',
       description:
-        'I find pages getting impressions but no clicks and suggest specific links from higher-authority pages that would push them up. You review the proposals and decide which to apply.',
+        'I find pages getting impressions but no clicks and suggest specific links from higher-authority pages that would push them up. You review the proposals and apply them in-line on each page.',
       cta: 'Propose',
       impact: 'medium',
       subject: highImpLowClick.length + ' pages are stuck',
       executable: false,
+      taskDefaults: {
+        title: 'Add internal links to ' + highImpLowClick.length + ' stuck pages',
+        description:
+          'Review the Synopsis Propose internal links modal and add the suggested anchors on each source page. Target: lift CTR on pages getting impressions with zero clicks.',
+        category: 'seo',
+        priority: 'medium',
+      },
     });
   }
 
-  // 4. Blog topic proposals. Always useful — most sites have content gaps.
+  // 4. Blog topic proposals.
   enhancements.push({
     id: 'enhance:blog-topics',
     kind: 'blog-topics',
     title: 'Propose blog topics from keyword gaps',
     description:
-      'I compare your keyword coverage against competitors and propose five blog post briefs where the gap is biggest. Saves them as Shopify blog drafts for you to polish and publish.',
+      'I compare your keyword coverage against competitors and propose five blog post briefs where the gap is biggest. Copy any brief to clipboard and paste into a Shopify blog draft.',
     cta: 'Propose',
     impact: competitorLists.length > 0 ? 'medium' : 'low',
     subject:
@@ -431,9 +478,149 @@ export function analyseSynopsis({
         ? 'using ' + competitorLists.length + ' competitor lists as the benchmark'
         : 'add competitors first for sharper proposals',
     executable: true,
+    taskDefaults: {
+      title: 'Write 5 blog posts from the Synopsis keyword-gap briefs',
+      description:
+        'Open the Synopsis Propose blog topics modal, copy each brief, and draft the posts in Shopify. One post per sprint.',
+      category: 'content',
+      priority: 'medium',
+    },
   });
 
-  // Sort: high-impact first.
+  // 5. Technical SEO cleanup — grouped. These are concrete in-house jobs
+  //    that Google weighs heavily and that nobody ever audits in full.
+  enhancements.push({
+    id: 'enhance:seo-cleanup',
+    kind: 'group',
+    title: 'Technical SEO cleanup',
+    description:
+      'A top-to-bottom pass on the technical hygiene Google uses to decide how much to trust the site. Each child is a discrete in-house job with a clear done state.',
+    cta: 'Expand',
+    impact: 'high',
+    subject: '7 discrete jobs',
+    executable: false,
+    taskDefaults: {
+      title: 'Technical SEO cleanup sprint',
+      description: 'Work through every Synopsis Technical SEO cleanup child row. Estimate 1 sprint.',
+      category: 'seo',
+      priority: 'high',
+    },
+    children: [
+      mkChild('seo-cleanup-canonicals', 'Add canonical tags to product + variant pages',
+        'Every product page must self-reference with a rel=canonical tag. Variants and tagged URLs must canonicalise to the base product URL to stop Google splitting link equity across duplicates.',
+        'Add canonical tags to all Shopify product + variant URLs', 'seo', 'high'),
+      mkChild('seo-cleanup-sitemap', 'Submit and verify sitemap.xml in Google Search Console',
+        'Confirm Shopify\'s auto-generated sitemap is submitted to GSC, indexed, and returning zero errors. Re-submit after content changes.',
+        'Submit Shopify sitemap.xml to GSC and verify indexation', 'seo', 'high'),
+      mkChild('seo-cleanup-robots', 'Audit robots.txt against what we actually want crawled',
+        'Walk the robots.txt line by line. Block /cart, /checkout, /account, search result pages. Allow every product, collection, and article. Confirm with GSC\'s robots.txt tester.',
+        'Rewrite robots.txt to block transactional URLs only', 'seo', 'medium'),
+      mkChild('seo-cleanup-schema', 'Add Product + Offer + AggregateRating schema to every product page',
+        'Shopify ships bare Organization + WebSite schema. Product pages need a full Product/Offer schema with price, availability, SKU, and brand. Test every template with GSC\'s rich results tool.',
+        'Add full Product/Offer/AggregateRating JSON-LD to product templates', 'seo', 'high'),
+      mkChild('seo-cleanup-h1', 'Audit every template for exactly one H1',
+        'Collections and articles sometimes double up on H1s or skip it entirely. Walk each template, confirm exactly one H1 that matches the primary keyword.',
+        'Verify one H1 per template (product, collection, article, page)', 'seo', 'medium'),
+      mkChild('seo-cleanup-redirects', 'Audit 301 redirect chains',
+        'Any redirect chain more than 1 hop leaks equity. Export the current redirect list from Shopify, trace every chain, collapse multi-hops to a direct 301.',
+        'Collapse redirect chains in Shopify to single 301 hops', 'seo', 'medium'),
+      mkChild('seo-cleanup-404s', 'Pull the 404 list from GSC and assign a destination to each',
+        'Every dead URL is either redirected to the closest live equivalent or intentionally left 404. No URL stays in a 404 state without a decision.',
+        'Resolve every 404 reported in GSC Coverage', 'seo', 'high'),
+    ],
+  });
+
+  // 6. Mobile rebuild — grouped. Flagged as high-impact when mobile perf
+  //    score is meaningfully under 80.
+  const mobileImpact: 'high' | 'medium' | 'low' =
+    avgPerfScore != null && avgPerfScore < 0.8 ? 'high' : 'medium';
+  enhancements.push({
+    id: 'enhance:mobile-rebuild',
+    kind: 'group',
+    title: 'Mobile rebuild',
+    description:
+      'Rebuild the mobile experience end to end so Google stops discounting us in mobile search and so conversions stop dropping on phones. All in-house, starting from an audit.',
+    cta: 'Expand',
+    impact: mobileImpact,
+    subject:
+      avgPerfScore != null
+        ? 'current mobile perf score ~' + Math.round(avgPerfScore * 100) + '/100'
+        : 'PSI not wired up yet',
+    executable: false,
+    taskDefaults: {
+      title: 'Plan and execute mobile rebuild',
+      description: 'Work through the Synopsis Mobile rebuild children in order. Ends with shipped new mobile templates.',
+      category: 'shopify',
+      priority: mobileImpact,
+    },
+    children: [
+      mkChild('mobile-audit', 'Audit mobile Lighthouse on the top 20 pages',
+        'Run Lighthouse mobile on the 20 highest-traffic pages, record LCP, INP, CLS, TBT per page in a sheet. Identifies where the bleeding is worst.',
+        'Run Lighthouse mobile audit across top 20 pages', 'shopify', 'high'),
+      mkChild('mobile-nav', 'Redesign mobile nav for one-thumb use',
+        'Current nav assumes desktop hover. Redesign the mobile header + menu for thumb-reach, larger touch targets, and sub-menu depth.',
+        'Redesign mobile nav for one-thumb use', 'shopify', 'high'),
+      mkChild('mobile-product-template', 'Rebuild the product template for mobile',
+        'Product page above-the-fold on mobile should be: hero image, price, CTA, one-line pitch. Everything else below the fold. Use sticky CTA on scroll.',
+        'Rebuild Shopify product template for mobile-first layout', 'shopify', 'high'),
+      mkChild('mobile-images', 'Ship responsive image sizes for every breakpoint',
+        'Shopify serves desktop-resolution images to phones, which is the biggest single LCP cost. Use Shopify\'s srcset helpers or a Liquid snippet to emit mobile-sized sources.',
+        'Add responsive srcset to all Shopify product/article images', 'shopify', 'high'),
+      mkChild('mobile-fonts', 'Adopt font-display: swap + preload the single critical font',
+        'Blocking font loads are a hidden LCP killer. Declare font-display: swap in CSS, preload only the one font above-the-fold.',
+        'Optimise font loading (font-display swap + preload one font)', 'shopify', 'medium'),
+      mkChild('mobile-thumbzone', 'Touch-target audit on every template',
+        'Every tappable element must be >=44x44px and have >=8px spacing from neighbours. Walk product, collection, cart, checkout, account.',
+        'Run touch-target audit across all mobile templates', 'shopify', 'medium'),
+    ],
+  });
+
+  // 7. Performance audit — grouped. Sits alongside mobile rebuild;
+  //    some overlap is fine, these focus on the engineering side.
+  const perfImpact: 'high' | 'medium' | 'low' =
+    avgPerfScore != null && avgPerfScore < 0.7 ? 'high' : 'medium';
+  enhancements.push({
+    id: 'enhance:performance-audit',
+    kind: 'group',
+    title: 'Performance audit',
+    description:
+      'Core Web Vitals and the engineering hygiene that feeds them. Each child is a measurable target with a pass/fail state.',
+    cta: 'Expand',
+    impact: perfImpact,
+    subject:
+      medianLcp != null
+        ? 'median mobile LCP ' + medianLcp.toFixed(1) + 's'
+        : 'PSI not wired up yet',
+    executable: false,
+    taskDefaults: {
+      title: 'Hit Core Web Vitals targets across every template',
+      description: 'Work through the Synopsis Performance audit children. LCP <2.5s, INP <200ms, CLS zero.',
+      category: 'shopify',
+      priority: perfImpact,
+    },
+    children: [
+      mkChild('perf-lcp', 'LCP <2.5s on every major template',
+        'Measure median mobile LCP on product, collection, home, article. Identify the largest-contentful-paint element per template and pre-render or preload it.',
+        'Ship LCP <2.5s on product/collection/home/article templates', 'shopify', 'high'),
+      mkChild('perf-inp', 'INP <200ms across the site',
+        'Cut long JavaScript tasks. Move non-critical scripts behind user interaction. Audit Shopify apps and remove any that aren\'t earning their bundle cost.',
+        'Ship INP <200ms site-wide', 'shopify', 'high'),
+      mkChild('perf-cls', 'CLS of zero on every template',
+        'Every image, embed, and ad slot must have explicit width/height or aspect-ratio. Audit with Lighthouse and fix shift sources one by one.',
+        'Remove layout shift on every template (CLS 0)', 'shopify', 'high'),
+      mkChild('perf-thirdparty', 'Third-party script audit',
+        'List every third-party script loading on the site. Remove any not actively used. Lazy-load the rest behind user interaction where possible.',
+        'Audit and prune third-party scripts', 'shopify', 'medium'),
+      mkChild('perf-image-format', 'Serve AVIF or WebP with JPEG fallback',
+        'Shopify serves JPEGs by default. Update the image helper to emit AVIF sources + WebP fallback + JPEG final. Cuts image weight by 30-60 percent.',
+        'Update image pipeline to emit AVIF + WebP + JPEG', 'shopify', 'medium'),
+      mkChild('perf-bundle', 'Budget and measure the JS bundle per route',
+        'Set a hard budget (e.g. 70KB gzipped) per route. Add a CI check that fails the build if any route exceeds it. Start by deleting dead code.',
+        'Set and enforce JS bundle budget per route', 'shopify', 'medium'),
+    ],
+  });
+
+  // Sort parents by impact; children keep the author-specified order.
   const impactRank: Record<SynopsisEnhancement['impact'], number> = { high: 0, medium: 1, low: 2 };
   enhancements.sort((a, b) => impactRank[a.impact] - impactRank[b.impact]);
 
@@ -493,6 +680,36 @@ export function analyseSynopsis({
       criticalFindings,
     },
     context,
+  };
+}
+
+function mkChild(
+  idSuffix: string,
+  title: string,
+  description: string,
+  taskTitle: string,
+  category: SynopsisTaskCategory,
+  priority: SynopsisTaskPriority,
+): SynopsisEnhancement {
+  return {
+    id: 'enhance:' + idSuffix,
+    kind:
+      idSuffix.startsWith('seo-cleanup')
+        ? 'seo-cleanup-item'
+        : idSuffix.startsWith('mobile')
+          ? 'mobile-rebuild-item'
+          : 'performance-audit-item',
+    title,
+    description,
+    cta: 'Plan',
+    impact: priority === 'high' ? 'high' : priority === 'medium' ? 'medium' : 'low',
+    executable: false,
+    taskDefaults: {
+      title: taskTitle,
+      description: description,
+      category,
+      priority,
+    },
   };
 }
 

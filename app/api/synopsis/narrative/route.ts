@@ -46,7 +46,7 @@ export async function POST() {
     const prompt = buildNarrativePrompt(synopsis.context);
     const system = await buildSystemPrompt({
       voice: 'analyst',
-      task: 'Write a candid assessment of a Shopify e-bike site right now, grounded on the provided numbers. 3-5 sentences, direct. Name rough pound figures where spend would help (e.g. "~£3k/month for 6 months on a UK outreach agency"). Never use em-dashes or en-dashes, use commas, colons or full stops. No headers, no bullets, no preamble, no caveats about being an AI. Just the paragraph.',
+      task: 'Write a candid assessment of a Shopify e-bike site that is being fixed entirely in-house. Return JSON only, no prose wrapper. The prose is in the "narrative" field. Rules: never suggest hiring, agencies, contractors, consultants, or any outside help. Every recommendation must be something a small in-house team can do with code, content, design or configuration. The only external spend permitted to mention is paid advertising, and only when paid search is the clearest lever for a specific keyword opportunity. Never use em-dashes or en-dashes.',
     });
 
     const { text } = await generateTextWithFallback({
@@ -56,15 +56,18 @@ export async function POST() {
       temperature: 0.4,
     });
 
-    const cleaned = text
-      .trim()
-      .replace(/^["'`]+|["'`]+$/g, '')
-      .replace(/[—–]/g, ',')
-      .trim();
+    const { narrative, actions } = parseNarrative(text);
+    if (!narrative) {
+      return NextResponse.json(
+        { ok: false, error: 'Narrative parsing failed. Raw text: ' + text.slice(0, 200) },
+        { status: 502 },
+      );
+    }
 
     return NextResponse.json({
       ok: true,
-      narrative: cleaned,
+      narrative,
+      actions,
       context: synopsis.context,
       generatedAt: new Date().toISOString(),
     });
@@ -128,7 +131,15 @@ function buildNarrativePrompt(ctx: SynopsisContext): string {
     ctx.performance.mobileLcpSec != null ? '  - mobile LCP: ' + ctx.performance.mobileLcpSec.toFixed(1) + 's' : '',
     ctx.performance.mobileInpMs != null ? '  - mobile INP: ' + Math.round(ctx.performance.mobileInpMs) + 'ms' : '',
     '',
-    'Write the paragraph now. Start with the single biggest issue, then walk through the 2-3 next leverage points, then close with one specific spend or action recommendation with a rough pound figure. Be direct, not corporate.',
+    'Return JSON shaped exactly like:',
+    '{',
+    '  "narrative": "3-5 sentence assessment in plain prose. Start with the single biggest issue, then walk through the 2-3 next leverage points, close with the one highest-leverage in-house move for this month. Direct, not corporate.",',
+    '  "actions": [',
+    '    { "title": "imperative short task title (<80 chars)", "detail": "1 sentence on what done looks like", "category": "seo | shopify | content", "priority": "low | medium | high" }',
+    '  ]',
+    '}',
+    '',
+    'Between 4 and 8 actions. Each action must be executable in-house using code, content, design or configuration. Do not propose hiring anyone. Do not propose outside agencies or consultants. Paid advertising spend is the only external spend allowed, and only if it is genuinely the cheapest fastest lever for a specific keyword. Output valid JSON only, no markdown fences, no commentary.',
   ];
   return lines.filter(Boolean).join('\n');
 }
@@ -139,4 +150,63 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+
+interface NarrativeAction {
+  title: string;
+  detail: string;
+  category: 'seo' | 'shopify' | 'content';
+  priority: 'low' | 'medium' | 'high';
+}
+
+function parseNarrative(raw: string): { narrative: string | null; actions: NarrativeAction[] } {
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    // Defensive fallback: treat the whole text as the narrative so
+    // we don't 500 the page on a malformed model response.
+    return {
+      narrative: cleaned.replace(/[—–]/g, ',').trim() || null,
+      actions: [],
+    };
+  }
+  if (!parsed || typeof parsed !== 'object') return { narrative: null, actions: [] };
+  const root = parsed as { narrative?: unknown; actions?: unknown };
+  const narrative =
+    typeof root.narrative === 'string'
+      ? root.narrative.replace(/[—–]/g, ',').trim()
+      : null;
+  const actions: NarrativeAction[] = [];
+  if (Array.isArray(root.actions)) {
+    for (const a of root.actions) {
+      if (!a || typeof a !== 'object') continue;
+      const act = a as Partial<NarrativeAction>;
+      if (typeof act.title !== 'string') continue;
+      const category: NarrativeAction['category'] =
+        act.category === 'seo' || act.category === 'shopify' || act.category === 'content'
+          ? act.category
+          : 'seo';
+      const priority: NarrativeAction['priority'] =
+        act.priority === 'low' || act.priority === 'medium' || act.priority === 'high'
+          ? act.priority
+          : 'medium';
+      actions.push({
+        title: act.title.replace(/[—–]/g, ',').trim().slice(0, 120),
+        detail:
+          typeof act.detail === 'string'
+            ? act.detail.replace(/[—–]/g, ',').trim().slice(0, 260)
+            : '',
+        category,
+        priority,
+      });
+    }
+  }
+  return { narrative, actions: actions.slice(0, 10) };
 }
