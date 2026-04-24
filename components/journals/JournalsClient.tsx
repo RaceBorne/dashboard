@@ -308,7 +308,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 {pendingDrafts.length}
               </span>
             </header>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
               {pendingDrafts.map((d) => (
                 <DraftTile
                   key={d.id}
@@ -344,7 +344,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 Stubs started in Shopify admin, not yet live
               </span>
             </header>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
               {unpublishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}
@@ -382,7 +382,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 : 'No published articles in this lane yet. Click New above to start one.'}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
               {publishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}
@@ -698,9 +698,26 @@ function ReaderBar({
 
 /**
  * Shared image aspect across DraftTile + PublishedTile.
- * 5:6 = 1 : 1.2 (slightly portrait) — matches the evari.cc
- * storefront blog card. Change this one value to restyle every
- * journal thumbnail on the page.
+ *
+ *   5:6 = 1 : 1.2 (slightly portrait) — the evari.cc storefront
+ *   blog card ratio, confirmed by Craig. Change this one value to
+ *   restyle every journal thumbnail on the page.
+ *
+ * ─── DO NOT regress this ───
+ *
+ * History:
+ *   - aspect-square (1:1)         — too square, rejected
+ *   - aspect-[4/3] (1.33:1)       — too landscape, rejected
+ *   - aspect-[10/11] (1:1.1)      — too close to square, rejected
+ *   - aspect-[5/6] (1:1.2)        — ✓ Craig confirmed this ratio
+ *
+ * The Thumbnail component below is the single place in the app
+ * that owns this aspect; every tile renders through it. If you
+ * find yourself adding a new aspect constant somewhere else,
+ * route it through here instead so they can never drift apart.
+ *
+ * The grids above use `items-start` so a short tile can't stretch
+ * to match a tall sibling and invent dead space under its image.
  */
 const IMAGE_ASPECT = 'aspect-[5/6]';
 
@@ -824,10 +841,10 @@ function DraftTile({
   const excerpt = stripHtml(draft.summary);
   const author = (draft.author?.trim()) || 'Evari';
   return (
-    <div className="group relative flex flex-col">
+    <div className="group relative block">
       <button
         onClick={onClick}
-        className="text-left flex flex-col w-full"
+        className="text-left block w-full"
       >
         <Thumbnail
           src={draft.coverImageUrl}
@@ -890,10 +907,10 @@ function PublishedTile({
   const excerpt = articleExcerpt(article);
   const author = article.author?.name?.trim() || 'Evari';
   return (
-    <div className="group relative flex flex-col">
+    <div className="group relative block">
       <button
         onClick={onClick}
-        className="text-left flex flex-col w-full"
+        className="text-left block w-full"
       >
         <Thumbnail
           src={article.image?.url ?? null}
