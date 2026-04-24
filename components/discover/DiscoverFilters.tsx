@@ -266,7 +266,7 @@ function Section({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-b border-evari-line/30">
+    <div>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
