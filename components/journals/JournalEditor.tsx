@@ -341,6 +341,16 @@ export function JournalEditor({ draft, blogs }: Props) {
     };
   }, []);
 
+  /**
+   * Smooth-scroll the left preview to its top. Used when the user
+   * clicks the Article metadata or SEO accordion headers so the
+   * cover + title area — which those fields control — comes into
+   * view at the same time as the fields themselves.
+   */
+  function scrollPreviewToTop() {
+    previewScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   async function handlePublish() {
     setErrorMsg(null);
     setPublishState('publishing');
@@ -429,7 +439,12 @@ export function JournalEditor({ draft, blogs }: Props) {
           </section>
 
           {/* Metadata */}
-          <Accordion label="Article metadata" open={metaOpen} onToggle={() => setMetaOpen((v) => !v)}>
+          <Accordion
+            label="Article metadata"
+            open={metaOpen}
+            onToggle={() => setMetaOpen((v) => !v)}
+            onHeaderClick={scrollPreviewToTop}
+          >
             <div className="space-y-4">
               <Field label="Destination">
                 <SelectInput
@@ -484,7 +499,12 @@ export function JournalEditor({ draft, blogs }: Props) {
           </Accordion>
 
           {/* SEO */}
-          <Accordion label="SEO" open={seoOpen} onToggle={() => setSeoOpen((v) => !v)}>
+          <Accordion
+            label="SEO"
+            open={seoOpen}
+            onToggle={() => setSeoOpen((v) => !v)}
+            onHeaderClick={scrollPreviewToTop}
+          >
             <div className="space-y-4">
               <Field label="Meta title">
                 <input
@@ -629,6 +649,10 @@ const INPUT_CLS = [
  * no kebab-case placeholder examples — the label names the thing
  * and the input speaks for itself. Craig asked to drop every
  * "bits of code" hint that cluttered the sidebar.
+ *
+ * The label now carries 5px of padding on every side so it has
+ * breathing room instead of sitting flush against the panel edge
+ * and feeling bunched up (Craig's note on META TITLE etc).
  */
 function Field({
   label,
@@ -639,7 +663,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <div className="mb-2 text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
+      <div className="p-[5px] text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold">
         {label}
       </div>
       {children}
@@ -684,25 +708,35 @@ function SelectInput({
 /**
  * Accordion section inside the right pane. Uses the same pill-style
  * header + subtle trough for the body that the app uses elsewhere.
+ *
+ * Clicking the header also scrolls the left preview up to its top
+ * so the user jumps to "the place this accordion is about" —
+ * Metadata and SEO both concern the article's title + cover area,
+ * so both scroll to the top of the preview.
  */
 function Accordion({
   label,
   open,
   onToggle,
+  onHeaderClick,
   children,
 }: {
   label: string;
   open: boolean;
   onToggle: () => void;
+  onHeaderClick?: () => void;
   children: React.ReactNode;
 }) {
   return (
     <div className="rounded-lg bg-evari-surface/40 overflow-hidden">
       <button
         type="button"
-        onClick={onToggle}
+        onClick={() => {
+          onHeaderClick?.();
+          onToggle();
+        }}
         aria-expanded={open}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-[10px] uppercase tracking-[0.14em] text-evari-dim font-semibold hover:text-evari-text transition-colors"
+        className="w-full flex items-center gap-2 p-[5px] px-3 py-2.5 text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold hover:text-evari-text transition-colors"
       >
         <ChevronDown
           className={cn(
