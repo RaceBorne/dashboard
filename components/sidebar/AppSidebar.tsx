@@ -20,6 +20,7 @@ import {
   Link2,
   Mail,
   PanelLeft,
+  Stethoscope,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme/ThemeProvider';
@@ -36,6 +37,7 @@ const NAV = [
   { href: '/ventures', label: 'Ventures', icon: Rocket, group: 'pipeline' },
   { href: '/traffic', label: 'Traffic', icon: TrendingUp, group: 'web' },
   { href: '/seo', label: 'SEO Health', icon: Search, group: 'web', warn: true },
+  { href: '/synopsis', label: 'Synopsis', icon: Stethoscope, group: 'web' },
   { href: '/pages', label: 'Pages', icon: FileText, group: 'web' },
   { href: '/keywords', label: 'Keywords', icon: Hash, group: 'web' },
   { href: '/performance', label: 'Performance', icon: Gauge, group: 'web' },

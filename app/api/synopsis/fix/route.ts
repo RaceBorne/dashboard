@@ -1,0 +1,223 @@
+import { NextResponse } from 'next/server';
+import { generateText } from 'ai';
+import { gateway } from '@ai-sdk/gateway';
+import { anthropic } from '@ai-sdk/anthropic';
+import { buildSystemPrompt } from '@/lib/ai/gateway';
+import {
+  getProduct,
+  listArticles,
+  listShopifyPages,
+  updateArticleMetadata,
+  updatePageMetadata,
+  updateProduct,
+} from '@/lib/integrations/shopify';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+const MODEL = process.env.AI_MODEL || 'anthropic/claude-haiku-4-5';
+
+/**
+ * POST /api/synopsis/fix
+ *
+ * Body: { kind: 'meta-title' | 'meta-desc', pageId: string, pageType: 'product' | 'page' | 'article' }
+ *
+ * One-click auto-fix for a missing meta title or meta description:
+ *   1. Look up the entity in Shopify by id (with its current body / title /
+ *      existing SEO fields).
+ *   2. Ask Claude to generate a new title (50-60 chars) or description
+ *      (120-160 chars) in Evari's voice, grounded in the entity's content.
+ *   3. Write it back to Shopify via the right updater.
+ *   4. Return { title?, description? } so the client can show what was set.
+ *
+ * Never uses em-dashes — the CLAUDE.md house rule is enforced in the prompt.
+ */
+interface Body {
+  kind?: 'meta-title' | 'meta-desc';
+  pageId?: string;
+  pageType?: 'product' | 'page' | 'article';
+}
+
+export async function POST(req: Request) {
+  const body = (await req.json().catch(() => ({}))) as Body;
+  const { kind, pageId, pageType } = body;
+  if (!kind || !pageId || !pageType) {
+    return NextResponse.json(
+      { ok: false, error: 'kind, pageId, pageType required' },
+      { status: 400 },
+    );
+  }
+  if (kind !== 'meta-title' && kind !== 'meta-desc') {
+    return NextResponse.json(
+      { ok: false, error: 'kind must be meta-title or meta-desc' },
+      { status: 400 },
+    );
+  }
+
+  // -------- 1. Resolve the entity from Shopify -----------------------------
+  let entityTitle = '';
+  let entityBody = '';
+  let existingTitle = '';
+  let existingDescription = '';
+  try {
+    if (pageType === 'product') {
+      const p = await getProduct(pageId);
+      if (!p) {
+        return NextResponse.json(
+          { ok: false, error: 'Product not found' },
+          { status: 404 },
+        );
+      }
+      entityTitle = p.title;
+      entityBody = stripHtml(p.descriptionHtml || '');
+      existingTitle = p.seo?.title ?? '';
+      existingDescription = p.seo?.description ?? '';
+    } else if (pageType === 'page') {
+      const list = await listShopifyPages({ first: 100, maxPages: 10 });
+      const hit = list.find((x) => x.id === pageId);
+      if (!hit) {
+        return NextResponse.json(
+          { ok: false, error: 'Page not found' },
+          { status: 404 },
+        );
+      }
+      entityTitle = hit.title;
+      entityBody = stripHtml(hit.bodyHtml || '');
+      existingTitle = hit.seo?.title ?? '';
+      existingDescription = hit.seo?.description ?? '';
+    } else {
+      const list = await listArticles({ first: 100, maxPages: 10 });
+      const hit = list.find((x) => x.id === pageId);
+      if (!hit) {
+        return NextResponse.json(
+          { ok: false, error: 'Article not found' },
+          { status: 404 },
+        );
+      }
+      entityTitle = hit.title;
+      entityBody = stripHtml(hit.bodyHtml || '');
+      existingTitle = hit.seo?.title ?? '';
+      existingDescription = hit.seo?.description ?? '';
+    }
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: err instanceof Error ? err.message : 'Shopify read failed' },
+      { status: 500 },
+    );
+  }
+
+  // -------- 2. Ask Claude for the new copy ---------------------------------
+  const instruction =
+    kind === 'meta-title'
+      ? 'Write a meta title for this page. Target 50-60 characters (55 ideal). Must read naturally, front-load the primary term, include the brand (Evari) only if natural, no clickbait.'
+      : 'Write a meta description for this page. Target 140-155 characters. Must stand alone as a SERP snippet, highlight the concrete value to the reader, end with a soft call to action when it fits. Do not pad.';
+
+  const prompt = [
+    'Page: ' + entityTitle,
+    'Type: ' + pageType,
+    '',
+    'Page body (first 1,500 chars):',
+    entityBody.slice(0, 1500),
+    '',
+    existingTitle ? 'Existing meta title: ' + existingTitle : '',
+    existingDescription ? 'Existing meta description: ' + existingDescription : '',
+    '',
+    'House rules (strict):',
+    '  - Never use em-dashes or en-dashes. Use commas, colons or full stops.',
+    '  - Plain sentence case. No emoji.',
+    '  - Output ONLY the meta text. No quotes, no prefix, no commentary.',
+    '',
+    instruction,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const system = await buildSystemPrompt({ voice: 'evari', task: instruction });
+
+  let text: string;
+  try {
+    const res = await generateText({ model: gateway(MODEL), system, prompt });
+    text = res.text.trim();
+  } catch (gatewayErr) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'No model available. Set AI_GATEWAY_API_KEY or ANTHROPIC_API_KEY in Vercel env.',
+          detail: gatewayErr instanceof Error ? gatewayErr.message : String(gatewayErr),
+        },
+        { status: 502 },
+      );
+    }
+    try {
+      const bareModel = MODEL.replace(/^anthropic\//, '');
+      const res = await generateText({
+        model: anthropic(bareModel),
+        system,
+        prompt,
+      });
+      text = res.text.trim();
+    } catch (anthropicErr) {
+      return NextResponse.json(
+        { ok: false, error: anthropicErr instanceof Error ? anthropicErr.message : 'AI failed' },
+        { status: 502 },
+      );
+    }
+  }
+
+  // Strip stray surrounding quotes Claude sometimes adds.
+  const cleaned = text
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .replace(/[—–]/g, ',')  // Defensive: replace any stray em/en-dashes with commas.
+    .trim();
+
+  if (!cleaned) {
+    return NextResponse.json(
+      { ok: false, error: 'Model returned no text' },
+      { status: 502 },
+    );
+  }
+
+  // -------- 3. Write back to Shopify ---------------------------------------
+  try {
+    if (pageType === 'product') {
+      await updateProduct({
+        id: pageId,
+        ...(kind === 'meta-title' ? { seoTitle: cleaned } : { seoDescription: cleaned }),
+      });
+    } else if (pageType === 'page') {
+      await updatePageMetadata({
+        pageId,
+        ...(kind === 'meta-title' ? { metaTitle: cleaned } : { metaDescription: cleaned }),
+      });
+    } else {
+      await updateArticleMetadata({
+        articleId: pageId,
+        ...(kind === 'meta-title' ? { metaTitle: cleaned } : { metaDescription: cleaned }),
+      });
+    }
+  } catch (err) {
+    return NextResponse.json(
+      { ok: false, error: err instanceof Error ? err.message : 'Shopify write failed', generated: cleaned },
+      { status: 502 },
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    kind,
+    pageId,
+    ...(kind === 'meta-title' ? { title: cleaned } : { description: cleaned }),
+  });
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
