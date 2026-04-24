@@ -200,23 +200,27 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
     const meta =
       reader.kind === 'draft'
         ? {
-            title: `Copy of ${reader.draft.title || 'Untitled draft'}`,
-            summary: reader.draft.summary ?? undefined,
+            title: `Copy of ${stripHtml(reader.draft.title) || 'Untitled draft'}`,
+            summary: stripHtml(reader.draft.summary) || undefined,
             coverImageUrl: reader.draft.coverImageUrl ?? undefined,
             tags: reader.draft.tags,
             author: reader.draft.author ?? undefined,
-            seoTitle: reader.draft.seoTitle ?? undefined,
-            seoDescription: reader.draft.seoDescription ?? undefined,
+            seoTitle: stripHtml(reader.draft.seoTitle) || undefined,
+            seoDescription: stripHtml(reader.draft.seoDescription) || undefined,
             editorData: reader.draft.editorData as { blocks: unknown[] },
           }
         : {
-            title: `Copy of ${reader.article.title}`,
-            summary: reader.article.summary ?? undefined,
+            title: `Copy of ${stripHtml(reader.article.title)}`,
+            // Summary + SEO description land in plain-text fields
+            // (textareas). Strip any stray <p class='p1'>…</p> that
+            // older Shopify imports left in those columns so Craig
+            // sees clean copy he can edit, not markup.
+            summary: stripHtml(reader.article.summary) || undefined,
             coverImageUrl: reader.article.image?.url ?? undefined,
             tags: reader.article.tags,
             author: reader.article.author?.name ?? undefined,
-            seoTitle: reader.article.seo?.title ?? undefined,
-            seoDescription: reader.article.seo?.description ?? undefined,
+            seoTitle: stripHtml(reader.article.seo?.title) || undefined,
+            seoDescription: stripHtml(reader.article.seo?.description) || undefined,
             // Parse the published HTML back into blocks so the
             // duplicate opens in the block editor (not as a wall of
             // pre-baked HTML). The parse is lossy on purpose — Craig

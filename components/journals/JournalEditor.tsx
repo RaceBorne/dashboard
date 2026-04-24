@@ -32,6 +32,30 @@ function newId(): string {
 }
 
 /**
+ * Remove every HTML tag + entity from a string and collapse
+ * whitespace. Used to wash any leaky HTML out of fields that are
+ * supposed to be plain text (Summary, Meta description) before
+ * they land in a textarea. Cloning a Shopify article as a template
+ * was dumping raw <p class='p1'>…</p> into Summary because some of
+ * Evari's older imports have HTML in the summary column.
+ */
+function stripHtml(raw: string | null | undefined): string {
+  if (!raw) return '';
+  return String(raw)
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Two-pane composer.
  *
  *  LEFT  — live Shopify-faithful preview of the article as readers
@@ -48,12 +72,12 @@ export function JournalEditor({ draft, blogs }: Props) {
   const router = useRouter();
   const saveTimerRef = useRef<number | null>(null);
 
-  const [title, setTitle] = useState(draft.title);
-  const [summary, setSummary] = useState(draft.summary ?? '');
+  const [title, setTitle] = useState(stripHtml(draft.title));
+  const [summary, setSummary] = useState(stripHtml(draft.summary));
   const [tagsText, setTagsText] = useState(draft.tags.join(', '));
   const [coverImageUrl, setCoverImageUrl] = useState(draft.coverImageUrl ?? '');
-  const [seoTitle, setSeoTitle] = useState(draft.seoTitle ?? '');
-  const [seoDescription, setSeoDescription] = useState(draft.seoDescription ?? '');
+  const [seoTitle, setSeoTitle] = useState(stripHtml(draft.seoTitle));
+  const [seoDescription, setSeoDescription] = useState(stripHtml(draft.seoDescription));
   const [author, setAuthor] = useState(draft.author ?? 'Evari');
   const [blogTarget, setBlogTarget] = useState(draft.blogTarget);
 
