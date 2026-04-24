@@ -124,7 +124,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
     <div className="flex flex-col h-[calc(100vh-56px)] bg-evari-ink">
       {/* Sticky lane + actions bar */}
       <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-3 border-b border-white/5 sticky top-0 bg-evari-ink z-10">
-        <div className="flex items-center gap-1">
+        {/* Pill-group lane toggle — same chrome as the Light/Dark
+            theme switch. Active lane wears the accent fill, inactive
+            stays as dim text inside a single rounded trough. */}
+        <div className="pill-group">
           {lanes.map((l) => {
             const active = l.key === lane.key;
             const count =
@@ -133,21 +136,14 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
             return (
               <button
                 key={l.key}
+                type="button"
+                aria-pressed={active}
+                data-active={active}
                 onClick={() => setLane(l)}
-                className={cn(
-                  'px-4 py-1.5 rounded-full text-sm transition-colors',
-                  active
-                    ? 'bg-evari-accent text-evari-ink font-medium shadow-[0_0_0_1px_rgba(254,199,0,0.4)]'
-                    : 'text-evari-dim hover:text-evari-text hover:bg-evari-surface/60',
-                )}
+                className="pill-tab"
               >
                 {l.label}
-                <span
-                  className={cn(
-                    'ml-2 text-[10px] tabular-nums',
-                    active ? 'text-evari-ink/60' : 'text-evari-dimmer',
-                  )}
-                >
+                <span className="ml-1 text-[10px] tabular-nums opacity-70">
                   {count}
                 </span>
               </button>
