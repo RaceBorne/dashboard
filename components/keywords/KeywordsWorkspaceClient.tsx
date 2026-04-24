@@ -907,7 +907,7 @@ function TopTabBar({
         active={tab === 'strategy'}
         onClick={() => setTab('strategy')}
         icon={<MessageSquare className="h-3.5 w-3.5" />}
-        label="Ideas"
+        label="Strategy"
       />
     </div>
   );

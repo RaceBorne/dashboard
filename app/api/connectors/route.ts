@@ -31,6 +31,32 @@ export async function GET() {
 
   const items = CONNECTORS.map((spec) => {
     const row = byProvider.get(spec.id);
+
+    // A connector is effectively "configured" if every required field
+    // has a value available from either the saved row (Supabase) or
+    // the legacy env fallback. This mirrors what getCredentials()
+    // actually returns at request time, so the status pill matches
+    // whether the API will successfully authenticate.
+    const requiredFields = spec.fields.filter((f) => !f.optional);
+    const allRequiredAvailable = requiredFields.every(
+      (f) => envKeys[spec.id + ':' + f.key] === true,
+    );
+
+    let effectiveStatus: string;
+    if (row?.status === 'live' || row?.status === 'error' || row?.status === 'degraded') {
+      // Explicit state from a recent Test click — trust it.
+      effectiveStatus = row.status;
+    } else if (row?.status === 'configured') {
+      // User saved credentials in the UI.
+      effectiveStatus = 'configured';
+    } else if (allRequiredAvailable) {
+      // Env fallback covers every required field — connector will work
+      // even though nothing's been saved in the UI yet.
+      effectiveStatus = 'configured';
+    } else {
+      effectiveStatus = 'not_configured';
+    }
+
     return {
       id: spec.id,
       name: spec.name,
@@ -42,7 +68,7 @@ export async function GET() {
       oauth: spec.oauth ?? false,
       hasTest: Boolean(spec.tester),
       fields: spec.fields,
-      status: row?.status ?? 'not_configured',
+      status: effectiveStatus,
       config: (row?.config ?? {}) as Record<string, unknown>,
       connectedAt: row?.connected_at ?? null,
       lastTestedAt: row?.last_tested_at ?? null,
