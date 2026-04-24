@@ -9,7 +9,6 @@ import {
   Copy,
   ListPlus,
   Loader2,
-  Lightbulb,
   RotateCcw,
   Sparkles,
   Wand2,
@@ -384,89 +383,91 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
           <div className="text-[13px] text-evari-danger">
             Narrative failed: {narrativeError}. Falling back to bullet summary below.
           </div>
-        ) : narrative ? (
-          <>
-            <p className="text-[14px] leading-relaxed text-evari-text">
-              {narrative}
-            </p>
-            {narrativeActions.length > 0 ? (
-              <div className="mt-3 rounded-md bg-evari-surfaceSoft/40 px-3 py-2.5 space-y-1.5">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-                  Turn the assessment into tasks
-                </div>
-                <ul className="space-y-1">
-                  {narrativeActions.map((a, i) => {
-                    const id = 'narrative-action:' + i + ':' + a.title;
-                    const added = addedTodos.has(id);
-                    const adding = addingTodos.has(id);
-                    const err = todoErrors[id];
-                    return (
-                      <li key={id} className="flex items-start gap-2 text-[12px] text-evari-text">
-                        <span className="text-evari-dimmer mt-1">•</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium">{a.title}</div>
-                          {a.detail ? (
-                            <div className="text-[11px] text-evari-dim leading-relaxed">{a.detail}</div>
-                          ) : null}
-                          {err ? (
-                            <div className="text-[10px] text-evari-danger mt-0.5">{err}</div>
-                          ) : null}
+        ) : narrativeActions.length > 0 ? (
+          <ol className="space-y-1.5 list-none">
+            {[...narrativeActions]
+              .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority))
+              .map((a, i) => {
+                const id = 'narrative-action:' + i + ':' + a.title;
+                const added = addedTodos.has(id);
+                const adding = addingTodos.has(id);
+                const err = todoErrors[id];
+                const prColor =
+                  a.priority === 'high'
+                    ? 'bg-evari-danger/15 text-evari-danger'
+                    : a.priority === 'medium'
+                      ? 'bg-evari-warn/15 text-evari-warn'
+                      : 'bg-evari-surfaceSoft text-evari-dim';
+                return (
+                  <li
+                    key={id}
+                    className="flex items-start gap-3 rounded-md bg-evari-surfaceSoft/40 px-3 py-2.5"
+                  >
+                    <span className="text-[12px] font-mono tabular-nums text-evari-dimmer pt-0.5 shrink-0 w-5 text-right">
+                      {i + 1}.
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[13px] font-semibold text-evari-text">
+                          {a.title}
+                        </span>
+                        <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide font-semibold', prColor)}>
+                          {a.priority}
+                        </span>
+                      </div>
+                      {a.detail ? (
+                        <div className="text-[12px] text-evari-dim leading-relaxed mt-0.5">
+                          {a.detail}
                         </div>
-                        <Button
-                          size="sm"
-                          variant={added ? 'default' : 'primary'}
-                          disabled={added || adding}
-                          onClick={() =>
-                            void addTodo({
-                              id,
-                              title: a.title,
-                              description: a.detail,
-                              category: a.category,
-                              priority: a.priority,
-                            })
-                          }
-                        >
-                          {adding ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : added ? (
-                            <Check className="h-3 w-3" />
-                          ) : (
-                            <ListPlus className="h-3 w-3" />
-                          )}
-                          {added ? 'Added' : adding ? 'Adding' : 'Todo'}
-                        </Button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : null}
-          </>
+                      ) : null}
+                      {err ? (
+                        <div className="text-[11px] text-evari-danger mt-0.5">{err}</div>
+                      ) : null}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={added ? 'default' : 'primary'}
+                      disabled={added || adding}
+                      onClick={() =>
+                        void addTodo({
+                          id,
+                          title: a.title,
+                          description: a.detail,
+                          category: a.category,
+                          priority: a.priority,
+                        })
+                      }
+                    >
+                      {adding ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : added ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <ListPlus className="h-3 w-3" />
+                      )}
+                      {added ? 'Added' : adding ? 'Adding' : 'Todo'}
+                    </Button>
+                  </li>
+                );
+              })}
+          </ol>
+        ) : narrative ? (
+          /* Fallback: no structured actions came back, show the prose
+             so the user still sees something. */
+          <p className="text-[14px] leading-relaxed text-evari-text">
+            {narrative}
+          </p>
         ) : null}
 
-        {/* Bullets stay underneath so the specifics are still one glance away */}
-        <div className="pt-1 border-t border-evari-line/20 space-y-3">
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-            <Lightbulb className="h-3.5 w-3.5" />
-            Why the site is underperforming
-          </div>
-          <ul className="space-y-2">
-            {synopsis.summary.map((line, i) => (
-              <li
-                key={i}
-                className="flex items-start gap-2 text-[13px] leading-relaxed text-evari-text"
-              >
-                <span className="text-evari-dimmer mt-1.5 shrink-0">•</span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="pt-2 grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
-            <Stat label="Pages scanned" value={synopsis.totals.pages} />
-            <Stat label="Missing titles" value={synopsis.totals.missingMetaTitle} tone={synopsis.totals.missingMetaTitle > 0 ? 'danger' : 'ok'} />
-            <Stat label="Missing descriptions" value={synopsis.totals.missingMetaDesc} tone={synopsis.totals.missingMetaDesc > 0 ? 'warn' : 'ok'} />
-            <Stat label="Critical findings" value={synopsis.totals.criticalFindings} tone={synopsis.totals.criticalFindings > 0 ? 'danger' : 'ok'} />
-          </div>
+        {/* Factual counts are still handy at a glance. The previous bulleted
+            'Why the site is underperforming' block was deterministic and
+            now lives inside the AI narrative above, which regenerates on
+            every Refresh. */}
+        <div className="pt-3 border-t border-evari-line/20 grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+          <Stat label="Pages scanned" value={synopsis.totals.pages} />
+          <Stat label="Missing titles" value={synopsis.totals.missingMetaTitle} tone={synopsis.totals.missingMetaTitle > 0 ? 'danger' : 'ok'} />
+          <Stat label="Missing descriptions" value={synopsis.totals.missingMetaDesc} tone={synopsis.totals.missingMetaDesc > 0 ? 'warn' : 'ok'} />
+          <Stat label="Critical findings" value={synopsis.totals.criticalFindings} tone={synopsis.totals.criticalFindings > 0 ? 'danger' : 'ok'} />
         </div>
       </section>
 
@@ -1586,6 +1587,10 @@ function Stat({
       </div>
     </div>
   );
+}
+
+function priorityRank(p: SynopsisTaskPriority): number {
+  return p === 'high' ? 0 : p === 'medium' ? 1 : p === 'low' ? 2 : 3;
 }
 
 function formatRelativeTime(iso: string): string {

@@ -179,23 +179,39 @@ export async function POST(req: Request) {
     );
   }
 
-  // -------- 3. Write back to Shopify ---------------------------------------
+  // -------- 3. Write back to Shopify + verify -----------------------------
+  let verifiedTitle: string | null | undefined = undefined;
+  let verifiedDesc: string | null | undefined = undefined;
   try {
     if (pageType === 'product') {
       await updateProduct({
         id: pageId,
         ...(kind === 'meta-title' ? { seoTitle: cleaned } : { seoDescription: cleaned }),
       });
+      // Re-read to verify the write stuck. If Shopify accepted the
+      // mutation but didn't actually change the SEO field (a known
+      // silent-drop mode), we surface a warning to the client.
+      const fresh = await getProduct(pageId);
+      verifiedTitle = fresh?.seo?.title ?? null;
+      verifiedDesc = fresh?.seo?.description ?? null;
     } else if (pageType === 'page') {
       await updatePageMetadata({
         pageId,
         ...(kind === 'meta-title' ? { metaTitle: cleaned } : { metaDescription: cleaned }),
       });
+      const list = await listShopifyPages({ first: 250, maxPages: 20 });
+      const hit = list.find((x) => x.id === pageId);
+      verifiedTitle = hit?.seo?.title ?? null;
+      verifiedDesc = hit?.seo?.description ?? null;
     } else {
       await updateArticleMetadata({
         articleId: pageId,
         ...(kind === 'meta-title' ? { metaTitle: cleaned } : { metaDescription: cleaned }),
       });
+      const list = await listArticles({ first: 250, maxPages: 20 });
+      const hit = list.find((x) => x.id === pageId);
+      verifiedTitle = hit?.seo?.title ?? null;
+      verifiedDesc = hit?.seo?.description ?? null;
     }
   } catch (err) {
     return NextResponse.json(
@@ -204,10 +220,45 @@ export async function POST(req: Request) {
     );
   }
 
+  // Did the write actually stick? Compare what we sent vs what Shopify
+  // returns on a fresh read.
+  const verifiedValue = kind === 'meta-title' ? verifiedTitle : verifiedDesc;
+  const stuck = typeof verifiedValue === 'string' && verifiedValue.trim() === cleaned.trim();
+
+  // Log for Vercel runtime-log visibility. Both sent and returned so we
+  // can tell whether the mutation was silently dropped.
+  // eslint-disable-next-line no-console
+  console.log(
+    '[synopsis/fix] ' + pageType + ':' + pageId + ' ' + kind +
+      ' sent=' + JSON.stringify(cleaned.slice(0, 80)) +
+      ' verified=' + JSON.stringify((verifiedValue ?? null) && String(verifiedValue).slice(0, 80)) +
+      ' stuck=' + stuck,
+  );
+
+  if (!stuck) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          'Shopify accepted the mutation but the ' +
+          kind +
+          ' did not change. Current value: ' +
+          JSON.stringify(verifiedValue) +
+          '. See server logs for full sent/returned dump.',
+        generated: cleaned,
+        verified: verifiedValue,
+        pageType,
+        pageId,
+      },
+      { status: 502 },
+    );
+  }
+
   return NextResponse.json({
     ok: true,
     kind,
     pageId,
+    verified: verifiedValue,
     ...(kind === 'meta-title' ? { title: cleaned } : { description: cleaned }),
   });
 }
