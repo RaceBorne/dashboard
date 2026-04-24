@@ -53,6 +53,7 @@ interface Connector {
   oauth: boolean;
   hasTest: boolean;
   fields: ConnectorField[];
+  setupSteps?: string[];
   status: Status;
   config: Record<string, unknown>;
   connectedAt: string | null;
@@ -356,7 +357,7 @@ function ConfigurePanel({
       }}
     >
       <div className="w-full max-w-[520px] h-full bg-evari-carbon shadow-2xl flex flex-col">
-        <header className="flex items-center justify-between px-5 py-3 border-b border-evari-line/30">
+        <header className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-2 text-[13px] font-semibold text-evari-text">
             {connector.name}
           </div>
@@ -382,6 +383,27 @@ function ConfigurePanel({
             >
               API docs <ExternalLink className="h-3 w-3" />
             </a>
+          ) : null}
+
+          {connector.setupSteps && connector.setupSteps.length > 0 ? (
+            <div className="rounded-md bg-evari-surface/60 px-3 py-3 space-y-2">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+                How to get these credentials
+              </div>
+              <ol className="space-y-1.5 list-none">
+                {connector.setupSteps.map((step, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 text-[12px] text-evari-text leading-relaxed"
+                  >
+                    <span className="text-[11px] font-mono tabular-nums text-evari-dimmer pt-0.5 shrink-0 w-5 text-right">
+                      {i + 1}.
+                    </span>
+                    <span className="min-w-0 flex-1">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           ) : null}
 
           <div className="space-y-3 pt-2">
@@ -450,7 +472,7 @@ function ConfigurePanel({
             ) : null}
           </div>
         </div>
-        <footer className="px-5 py-3 border-t border-evari-line/30 flex items-center gap-2">
+        <footer className="px-5 py-3 flex items-center gap-2">
           <Button
             size="sm"
             variant="ghost"

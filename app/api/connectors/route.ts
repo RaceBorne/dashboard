@@ -68,6 +68,7 @@ export async function GET() {
       oauth: spec.oauth ?? false,
       hasTest: Boolean(spec.tester),
       fields: spec.fields,
+      setupSteps: spec.setupSteps ?? [],
       status: effectiveStatus,
       config: (row?.config ?? {}) as Record<string, unknown>,
       connectedAt: row?.connected_at ?? null,
