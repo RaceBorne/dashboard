@@ -72,6 +72,10 @@ interface Props {
   /** Opens the Shopify media library drawer. The parent decides how
    *  to handle the resulting file pick. */
   onOpenMediaLibrary?: (target: MediaTarget) => void;
+  /** Fires when a card is clicked or an input inside a card gets
+   *  focus — parent uses it to scroll the matching preview block
+   *  into view. */
+  onFocusBlock?: (blockId: string) => void;
 }
 
 const BLOCK_TYPES: {
@@ -124,6 +128,7 @@ export function BlockList({
   articleSummary,
   blogLane,
   onOpenMediaLibrary,
+  onFocusBlock,
 }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const [addMenu, setAddMenu] = useState(false);
@@ -165,6 +170,7 @@ export function BlockList({
               onChange={(data) => updateBlock(b.id, data)}
               onDelete={() => deleteBlock(b.id)}
               onOpenMediaLibrary={onOpenMediaLibrary}
+              onFocusBlock={onFocusBlock}
             />
           ))}
         </SortableContext>
@@ -229,6 +235,7 @@ function SortableCard(props: {
   onChange: (data: Record<string, unknown>) => void;
   onDelete: () => void;
   onOpenMediaLibrary?: (target: MediaTarget) => void;
+  onFocusBlock?: (blockId: string) => void;
 }) {
   const { block } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
@@ -311,6 +318,13 @@ function SortableCard(props: {
     <div
       ref={setNodeRef}
       style={style}
+      // Clicking anywhere on the card — and focusing any input
+      // inside it — flags this block so the parent can scroll the
+      // matching preview element into view. onFocus bubbles from
+      // textareas / inputs, so we only need the handler on the
+      // root.
+      onClick={() => props.onFocusBlock?.(block.id)}
+      onFocus={() => props.onFocusBlock?.(block.id)}
       className={cn(
         'rounded-lg bg-evari-surface/40 transition-shadow',
         isDragging ? 'shadow-[0_8px_24px_rgba(0,0,0,0.4)] ring-1 ring-evari-gold/40 z-10' : '',

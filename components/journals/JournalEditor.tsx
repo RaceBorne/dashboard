@@ -303,6 +303,44 @@ export function JournalEditor({ draft, blogs }: Props) {
     setMediaTarget({ kind: 'block', ...target });
   }
 
+  /**
+   * When a block card on the right is clicked / focused, smooth-
+   * scroll the matching preview element on the left into view and
+   * flash a brief accent ring around it so the connection between
+   * the two panes is obvious.
+   *
+   * Debounced (via the 600ms highlight class timer) so rapid
+   * focus-jumps across inputs in the same card don't stack
+   * animations.
+   */
+  const previewScrollRef = useRef<HTMLDivElement | null>(null);
+  const highlightTimerRef = useRef<number | null>(null);
+  function scrollPreviewToBlock(blockId: string) {
+    const root = previewScrollRef.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLElement>(`#j-block-${blockId}`);
+    if (!el) return;
+    // Smooth-scroll so the block lands in the viewport's vertical
+    // middle — 'center' feels intentional, 'nearest' can be a
+    // no-op when the block is already partly visible.
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Strip any existing highlight before re-adding so consecutive
+    // clicks re-trigger the CSS animation.
+    el.classList.remove('shopify-preview__highlight');
+    // Force reflow so the animation restarts cleanly.
+    void el.offsetWidth;
+    el.classList.add('shopify-preview__highlight');
+    if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(() => {
+      el.classList.remove('shopify-preview__highlight');
+    }, 1400);
+  }
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
+
   async function handlePublish() {
     setErrorMsg(null);
     setPublishState('publishing');
@@ -326,7 +364,7 @@ export function JournalEditor({ draft, blogs }: Props) {
   return (
     <div className="flex h-[calc(100vh-56px)] bg-evari-ink">
       {/* ── LEFT: live Shopify preview ───────────────────────────── */}
-      <div className="flex-1 min-w-0 overflow-y-auto">
+      <div ref={previewScrollRef} className="flex-1 min-w-0 overflow-y-auto">
         <div className="px-6 pt-4 pb-2 flex items-center justify-between gap-4 border-b border-white/5 sticky top-0 bg-evari-ink z-10">
           <button
             onClick={() => router.push('/journals')}
@@ -546,6 +584,7 @@ export function JournalEditor({ draft, blogs }: Props) {
               articleSummary={summary}
               blogLane={laneLabel}
               onOpenMediaLibrary={openLibraryFromBlock}
+              onFocusBlock={scrollPreviewToBlock}
             />
           </section>
         </div>

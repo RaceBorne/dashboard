@@ -68,7 +68,15 @@ export function ShopifyPreview({
             Your article will appear here as you add blocks on the right.
           </p>
         ) : (
-          blocks.map((b) => <PreviewBlock key={b.id} block={b} />)
+          blocks.map((b) => (
+            // Wrap each block in an anchor div so the editor can
+            // scrollIntoView when a card is clicked on the right.
+            // The wrapper is a bare block container — no margin / no
+            // padding — so it's invisible to the body's flex gap.
+            <div key={b.id} id={`j-block-${b.id}`} data-journal-block>
+              <PreviewBlock block={b} />
+            </div>
+          ))
         )}
       </div>
 

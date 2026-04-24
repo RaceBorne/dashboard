@@ -874,6 +874,35 @@ code {
 .shopify-preview__spacer--sm { height: 0.75rem; }
 .shopify-preview__spacer--md { height: 2rem; }
 .shopify-preview__spacer--lg { height: 4rem; }
+
+/* ─── Cross-pane highlight ───
+   Applied by JournalEditor when a block card on the right is
+   clicked / focused. The wrapper [data-journal-block] div in
+   ShopifyPreview picks up the class, flashes a gold outline +
+   soft backdrop, then fades out. 1.4s total so it's noticeable
+   but doesn't linger. */
+[data-journal-block] {
+  position: relative;
+  border-radius: 8px;
+  transition: background-color 200ms ease, box-shadow 200ms ease;
+}
+.shopify-preview__highlight {
+  animation: shopify-preview-highlight 1.4s ease-out;
+}
+@keyframes shopify-preview-highlight {
+  0% {
+    background: rgb(var(--evari-gold) / 0.18);
+    box-shadow: 0 0 0 3px rgb(var(--evari-gold) / 0.55);
+  }
+  60% {
+    background: rgb(var(--evari-gold) / 0.10);
+    box-shadow: 0 0 0 3px rgb(var(--evari-gold) / 0.20);
+  }
+  100% {
+    background: transparent;
+    box-shadow: 0 0 0 0 rgb(var(--evari-gold) / 0);
+  }
+}
 .shopify-preview__figure img {
   display: block;
   width: 100%;
