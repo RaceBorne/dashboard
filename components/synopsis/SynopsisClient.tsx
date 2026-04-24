@@ -1,31 +1,98 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertTriangle, Check, Loader2, Lightbulb, Wrench, XCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  AlertTriangle,
+  Check,
+  ChevronRight,
+  Copy,
+  Loader2,
+  Lightbulb,
+  RotateCcw,
+  Sparkles,
+  Wand2,
+  Wrench,
+  X,
+  XCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import type { Synopsis, SynopsisIssue } from '@/lib/synopsis/analyse';
+import type {
+  Synopsis,
+  SynopsisEnhancement,
+  SynopsisIssue,
+  SynopsisEnhanceKind,
+} from '@/lib/synopsis/analyse';
 
 /**
- * SynopsisClient — two sections.
+ * SynopsisClient
  *
- *   1. Top summary card: bullet list of the current problems. Pure
- *      read-only text.
- *
- *   2. Fix list: one row per issue. Auto-fixable rows get a gold
- *      "Fix" button that fires /api/synopsis/fix and optimistically
- *      drops the row on success. Manual rows show the recommendation
- *      below the title.
+ *   1. Header with a Refresh button. Refresh hard-reloads the page so
+ *      every source of truth is re-read + the narrative is regenerated.
+ *   2. Narrative paragraph fetched from /api/synopsis/narrative. Shown
+ *      above the bullet summary. This is the human-facing "what's going
+ *      on with the site" assessment.
+ *   3. Deterministic bullet summary (unchanged).
+ *   4. Fix list — one-click fixes for missing meta, plus manual-guide
+ *      items for scan findings.
+ *   5. Enhance list — broader improvements. Each row runs a flow:
+ *        keywords-research → confirmation modal → keywords-apply
+ *        meta-rewrite      → confirmation modal → meta-rewrite apply
+ *        internal-links    → proposals modal (review only)
+ *        blog-topics       → proposals modal (copy-to-clipboard)
  */
 export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
+  const router = useRouter();
   const [issues, setIssues] = useState<SynopsisIssue[]>(synopsis.issues);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fixed, setFixed] = useState<Record<string, { title?: string; description?: string }>>({});
+  const [fixAllRunning, setFixAllRunning] = useState(false);
+  const fixAllAbortRef = useRef(false);
 
-  async function runFix(issue: SynopsisIssue) {
-    if (!issue.pageId || issue.kind === 'manual') return;
-    if (busy.has(issue.id)) return;
+  // Narrative state: fetched async so the page renders immediately.
+  const [narrative, setNarrative] = useState<string | null>(null);
+  const [narrativeBusy, setNarrativeBusy] = useState(false);
+  const [narrativeError, setNarrativeError] = useState<string | null>(null);
+  const [narrativeAt, setNarrativeAt] = useState<string | null>(null);
+
+  // Enhance modal state: which enhancement is open and what it returned.
+  const [activeEnhance, setActiveEnhance] = useState<SynopsisEnhanceKind | null>(null);
+
+  useEffect(() => {
+    void loadNarrative();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function loadNarrative() {
+    setNarrativeBusy(true);
+    setNarrativeError(null);
+    try {
+      const res = await fetch('/api/synopsis/narrative', { method: 'POST' });
+      const data = (await res.json()) as { ok?: boolean; narrative?: string; generatedAt?: string; error?: string };
+      if (!res.ok || !data.ok || !data.narrative) {
+        throw new Error(data.error ?? 'Narrative unavailable');
+      }
+      setNarrative(data.narrative);
+      setNarrativeAt(data.generatedAt ?? new Date().toISOString());
+    } catch (err) {
+      setNarrativeError(err instanceof Error ? err.message : 'Narrative failed');
+    } finally {
+      setNarrativeBusy(false);
+    }
+  }
+
+  async function refreshEverything() {
+    // Regen the narrative then force a router refresh so the server
+    // re-runs the analyser with fresh data.
+    await loadNarrative();
+    router.refresh();
+  }
+
+  async function runFix(issue: SynopsisIssue): Promise<boolean> {
+    if (!issue.pageId || issue.kind === 'manual') return false;
+    if (busy.has(issue.id)) return false;
     setBusy((prev) => {
       const next = new Set(prev);
       next.add(issue.id);
@@ -59,16 +126,16 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
         ...prev,
         [issue.id]: { title: data.title, description: data.description },
       }));
-      // Drop the row after a short beat so the user sees the success
-      // state first.
       setTimeout(() => {
         setIssues((prev) => prev.filter((x) => x.id !== issue.id));
-      }, 1800);
+      }, 1200);
+      return true;
     } catch (err) {
       setErrors((prev) => ({
         ...prev,
         [issue.id]: err instanceof Error ? err.message : 'Fix failed',
       }));
+      return false;
     } finally {
       setBusy((prev) => {
         const next = new Set(prev);
@@ -78,51 +145,140 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
     }
   }
 
+  async function runFixAll() {
+    if (fixAllRunning) {
+      fixAllAbortRef.current = true;
+      return;
+    }
+    fixAllAbortRef.current = false;
+    setFixAllRunning(true);
+    try {
+      const queue = issues.filter((i) => i.kind !== 'manual' && !fixed[i.id]);
+      for (const issue of queue) {
+        if (fixAllAbortRef.current) break;
+        await runFix(issue);
+      }
+    } finally {
+      setFixAllRunning(false);
+      fixAllAbortRef.current = false;
+    }
+  }
+
   const autoFixable = issues.filter((i) => i.kind !== 'manual');
   const manual = issues.filter((i) => i.kind === 'manual');
+  const canFixAll = autoFixable.length > 0;
 
   return (
     <div className="px-6 py-6 space-y-6 max-w-[1400px]">
-      {/* Section 1: why we're underperforming */}
-      <section className="rounded-xl bg-evari-surface p-5 space-y-3">
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-          <Lightbulb className="h-3.5 w-3.5" />
-          Why the site is underperforming
+      {/* Header strip with refresh */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-evari-dimmer font-medium">
+          <Sparkles className="h-3.5 w-3.5" />
+          Site state
+          {narrativeAt ? (
+            <span className="text-[10px] text-evari-dimmer/70 normal-case tracking-normal ml-2">
+              updated {formatRelativeTime(narrativeAt)}
+            </span>
+          ) : null}
         </div>
-        <ul className="space-y-2">
-          {synopsis.summary.map((line, i) => (
-            <li key={i} className="flex items-start gap-2 text-[14px] leading-relaxed text-evari-text">
-              <span className="text-evari-dimmer mt-2 shrink-0">•</span>
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="pt-2 grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
-          <Stat label="Pages scanned" value={synopsis.totals.pages} />
-          <Stat label="Missing titles" value={synopsis.totals.missingMetaTitle} tone={synopsis.totals.missingMetaTitle > 0 ? 'danger' : 'ok'} />
-          <Stat label="Missing descriptions" value={synopsis.totals.missingMetaDesc} tone={synopsis.totals.missingMetaDesc > 0 ? 'warn' : 'ok'} />
-          <Stat label="Critical findings" value={synopsis.totals.criticalFindings} tone={synopsis.totals.criticalFindings > 0 ? 'danger' : 'ok'} />
+        <Button
+          size="sm"
+          variant="default"
+          onClick={() => void refreshEverything()}
+          disabled={narrativeBusy}
+          title="Regenerate narrative and reload signals"
+        >
+          {narrativeBusy ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RotateCcw className="h-3 w-3" />
+          )}
+          Refresh
+        </Button>
+      </div>
+
+      {/* Section 0: narrative paragraph */}
+      <section className="rounded-xl bg-evari-surface p-5 space-y-4">
+        {narrativeBusy && !narrative ? (
+          <div className="flex items-center gap-2 text-[13px] text-evari-dim">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Reading every signal and assembling the picture…
+          </div>
+        ) : narrativeError ? (
+          <div className="text-[13px] text-evari-danger">
+            Narrative failed: {narrativeError}. Falling back to bullet summary below.
+          </div>
+        ) : narrative ? (
+          <p className="text-[14px] leading-relaxed text-evari-text">
+            {narrative}
+          </p>
+        ) : null}
+
+        {/* Bullets stay underneath so the specifics are still one glance away */}
+        <div className="pt-1 border-t border-evari-line/20 space-y-3">
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
+            <Lightbulb className="h-3.5 w-3.5" />
+            Why the site is underperforming
+          </div>
+          <ul className="space-y-2">
+            {synopsis.summary.map((line, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-2 text-[13px] leading-relaxed text-evari-text"
+              >
+                <span className="text-evari-dimmer mt-1.5 shrink-0">•</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="pt-2 grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+            <Stat label="Pages scanned" value={synopsis.totals.pages} />
+            <Stat label="Missing titles" value={synopsis.totals.missingMetaTitle} tone={synopsis.totals.missingMetaTitle > 0 ? 'danger' : 'ok'} />
+            <Stat label="Missing descriptions" value={synopsis.totals.missingMetaDesc} tone={synopsis.totals.missingMetaDesc > 0 ? 'warn' : 'ok'} />
+            <Stat label="Critical findings" value={synopsis.totals.criticalFindings} tone={synopsis.totals.criticalFindings > 0 ? 'danger' : 'ok'} />
+          </div>
         </div>
       </section>
 
-      {/* Section 2: fix list */}
-      <section className="rounded-xl bg-evari-surface overflow-hidden">
-        <header className="flex items-center justify-between px-5 py-3 border-b border-evari-line/30">
+      {/* Section 1: fix list */}
+      <section className="space-y-3">
+        <header className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2 text-[13px] font-medium text-evari-text">
             <Wrench className="h-3.5 w-3.5 text-evari-dimmer" />
             Fix list
+            <span className="text-[11px] text-evari-dimmer font-normal ml-2">
+              {autoFixable.length} auto-fixable · {manual.length} manual
+            </span>
           </div>
-          <div className="text-[11px] text-evari-dimmer">
-            {autoFixable.length} auto-fixable · {manual.length} manual
-          </div>
+          {canFixAll ? (
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void runFixAll()}
+              disabled={!fixAllRunning && autoFixable.length === 0}
+            >
+              {fixAllRunning ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-3 w-3" />
+                  Fix all ({autoFixable.length})
+                </>
+              )}
+            </Button>
+          ) : null}
         </header>
+
         {issues.length === 0 ? (
-          <div className="px-5 py-10 text-center text-[13px] text-evari-dim">
+          <div className="rounded-md bg-evari-surface px-5 py-10 text-center text-[13px] text-evari-dim">
             <Check className="h-5 w-5 mx-auto text-evari-success mb-2" />
-            Nothing to fix. Enjoy.
+            Nothing to fix right now. Next move is in the Enhance list below.
           </div>
         ) : (
-          <ul className="divide-y divide-evari-line/30">
+          <ul className="space-y-1">
             {issues.map((issue) => (
               <IssueRow
                 key={issue.id}
@@ -136,9 +292,59 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
           </ul>
         )}
       </section>
+
+      {/* Section 2: enhance list */}
+      <section className="space-y-3">
+        <header className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2 text-[13px] font-medium text-evari-text">
+            <Sparkles className="h-3.5 w-3.5 text-evari-dimmer" />
+            Enhance
+            <span className="text-[11px] text-evari-dimmer font-normal ml-2">
+              {synopsis.enhancements.length} opportunities
+            </span>
+          </div>
+        </header>
+        <ul className="space-y-1">
+          {synopsis.enhancements.map((e) => (
+            <EnhanceRow
+              key={e.id}
+              enhancement={e}
+              onOpen={() => setActiveEnhance(e.kind)}
+            />
+          ))}
+        </ul>
+      </section>
+
+      {/* Enhance modals */}
+      {activeEnhance === 'keywords-research' ? (
+        <KeywordsResearchModal
+          onClose={() => setActiveEnhance(null)}
+          onApplied={() => {
+            setActiveEnhance(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+      {activeEnhance === 'meta-rewrite' ? (
+        <MetaRewriteModal
+          onClose={() => setActiveEnhance(null)}
+          onApplied={() => {
+            setActiveEnhance(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+      {activeEnhance === 'internal-links' ? (
+        <InternalLinksModal onClose={() => setActiveEnhance(null)} />
+      ) : null}
+      {activeEnhance === 'blog-topics' ? (
+        <BlogTopicsModal onClose={() => setActiveEnhance(null)} />
+      ) : null}
     </div>
   );
 }
+
+/* ------------------------------- Issue row -------------------------------- */
 
 function IssueRow({
   issue,
@@ -161,7 +367,9 @@ function IssueRow({
         ? 'bg-evari-warn/15 text-evari-warn'
         : 'bg-evari-surfaceSoft text-evari-dim';
   return (
-    <li className="px-5 py-4 flex items-start gap-4">
+    <li className="rounded-md bg-evari-surface px-5 py-4 flex items-start gap-4 relative overflow-hidden">
+      {busy ? <ProgressBar /> : null}
+
       <div className="pt-0.5 shrink-0">
         {issue.severity === 'critical' ? (
           <XCircle className="h-4 w-4 text-evari-danger" />
@@ -187,7 +395,7 @@ function IssueRow({
           {issue.description}
         </div>
         {fixedCopy ? (
-          <div className="mt-2 rounded-md bg-evari-success/10 border border-evari-success/30 p-2 text-[12px] text-evari-success space-y-1">
+          <div className="mt-2 rounded-md bg-evari-success/10 p-2 text-[12px] text-evari-success space-y-1">
             <div className="font-medium inline-flex items-center gap-1">
               <Check className="h-3 w-3" />
               Fixed.
@@ -212,16 +420,11 @@ function IssueRow({
           <div className="mt-2 text-[11px] text-evari-danger">{error}</div>
         ) : null}
       </div>
-      <div className="shrink-0">
+      <div className="shrink-0 flex items-center">
         {autoFixable && !fixedCopy ? (
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={onFix}
-            disabled={busy}
-          >
+          <Button size="sm" variant="primary" onClick={onFix} disabled={busy}>
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wrench className="h-3 w-3" />}
-            {busy ? 'Fixing…' : 'Fix'}
+            {busy ? 'Fixing' : 'Fix'}
           </Button>
         ) : !autoFixable ? (
           <span className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
@@ -230,6 +433,726 @@ function IssueRow({
         ) : null}
       </div>
     </li>
+  );
+}
+
+/* ------------------------------ Enhance row ------------------------------- */
+
+function EnhanceRow({
+  enhancement,
+  onOpen,
+}: {
+  enhancement: SynopsisEnhancement;
+  onOpen: () => void;
+}) {
+  const impactColor =
+    enhancement.impact === 'high'
+      ? 'bg-evari-gold/15 text-evari-gold'
+      : enhancement.impact === 'medium'
+        ? 'bg-evari-accent/15 text-evari-accent'
+        : 'bg-evari-surfaceSoft text-evari-dim';
+  return (
+    <li className="rounded-md bg-evari-surface px-5 py-4 flex items-start gap-4">
+      <div className="pt-0.5 shrink-0">
+        <Sparkles className="h-4 w-4 text-evari-gold" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[13px] font-semibold text-evari-text">
+            {enhancement.title}
+          </span>
+          <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide font-semibold', impactColor)}>
+            {enhancement.impact} impact
+          </span>
+          {enhancement.subject ? (
+            <span className="text-[11px] text-evari-dimmer">
+              {enhancement.subject}
+            </span>
+          ) : null}
+        </div>
+        <div className="text-[12px] text-evari-dim mt-1 leading-relaxed">
+          {enhancement.description}
+        </div>
+      </div>
+      <div className="shrink-0 flex items-center">
+        <Button size="sm" variant="primary" onClick={onOpen}>
+          <Wand2 className="h-3 w-3" />
+          {enhancement.cta}
+        </Button>
+      </div>
+    </li>
+  );
+}
+
+/* ------------------------------ Modals base ------------------------------- */
+
+function ModalShell({
+  title,
+  onClose,
+  children,
+  widthClass = 'max-w-[720px]',
+  footer,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  widthClass?: string;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className={cn('w-full max-h-[85vh] flex flex-col rounded-xl bg-evari-carbon shadow-2xl', widthClass)}>
+        <header className="flex items-center justify-between px-5 py-3 border-b border-evari-line/30">
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-evari-text">
+            <Sparkles className="h-3.5 w-3.5 text-evari-gold" />
+            {title}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer ? (
+          <footer className="px-5 py-3 border-t border-evari-line/30 flex items-center justify-end gap-2">
+            {footer}
+          </footer>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/* --------------------- Modal: keyword research + apply --------------------- */
+
+interface CompetitorProposal {
+  name: string;
+  domain: string;
+  positioning: string;
+  whyTrack: string;
+  seedKeywords: string[];
+}
+
+function KeywordsResearchModal({
+  onClose,
+  onApplied,
+}: {
+  onClose: () => void;
+  onApplied: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [proposals, setProposals] = useState<CompetitorProposal[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/synopsis/enhance/keywords-research', { method: 'POST' });
+        const data = (await res.json()) as { ok?: boolean; proposals?: CompetitorProposal[]; error?: string };
+        if (!res.ok || !data.ok) throw new Error(data.error ?? 'Research failed');
+        const ps = data.proposals ?? [];
+        setProposals(ps);
+        // Default-select everyone, Craig can deselect.
+        setSelected(new Set(ps.map((p) => p.domain)));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Research failed');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  function toggle(domain: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(domain)) next.delete(domain);
+      else next.add(domain);
+      return next;
+    });
+  }
+
+  async function apply() {
+    setApplying(true);
+    setError(null);
+    try {
+      const body = {
+        competitors: proposals
+          .filter((p) => selected.has(p.domain))
+          .map((p) => ({ name: p.name, domain: p.domain, seedKeywords: p.seedKeywords })),
+      };
+      const res = await fetch('/api/synopsis/enhance/keywords-apply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        competitorLists?: Array<{ domain: string; keywordsAdded: number }>;
+        ownKeywordsAdded?: number;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? 'Apply failed');
+      setApplied(
+        (data.competitorLists?.length ?? 0) +
+          ' competitor list' +
+          ((data.competitorLists?.length ?? 0) === 1 ? '' : 's') +
+          ' created, ' +
+          (data.ownKeywordsAdded ?? 0) +
+          ' keywords added to Evari',
+      );
+      setTimeout(() => onApplied(), 1400);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Apply failed');
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  return (
+    <ModalShell
+      title="Research e-bike keywords and competitors"
+      onClose={onClose}
+      footer={
+        <>
+          <span className="text-[11px] text-evari-dimmer mr-auto">
+            {selected.size} of {proposals.length} selected
+          </span>
+          <Button size="sm" variant="default" onClick={onClose}>Cancel</Button>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => void apply()}
+            disabled={loading || applying || selected.size === 0}
+          >
+            {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            {applying ? 'Adding' : 'Add ' + selected.size + ' + their keywords'}
+          </Button>
+        </>
+      }
+    >
+      {loading ? (
+        <div className="flex items-center gap-2 text-[13px] text-evari-dim">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Researching top UK e-bike brands…
+        </div>
+      ) : error ? (
+        <div className="text-[13px] text-evari-danger">{error}</div>
+      ) : applied ? (
+        <div className="flex items-center gap-2 text-[13px] text-evari-success">
+          <Check className="h-3.5 w-3.5" />
+          {applied}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-[12px] text-evari-dim">
+            Pick which brands to track as competitors. I'll create a keyword list per brand seeded with their top terms, and mirror the union onto your own list so we can SERP-track them for evari.cc too.
+          </p>
+          <ul className="space-y-1.5">
+            {proposals.map((p) => {
+              const checked = selected.has(p.domain);
+              return (
+                <li
+                  key={p.domain}
+                  className={cn(
+                    'rounded-md border px-3 py-2.5 transition-colors cursor-pointer',
+                    checked
+                      ? 'border-evari-gold/60 bg-evari-gold/5'
+                      : 'border-evari-line/30 bg-evari-surface hover:bg-evari-surface/80',
+                  )}
+                  onClick={() => toggle(p.domain)}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-3.5 w-3.5 accent-evari-gold"
+                      checked={checked}
+                      onChange={() => toggle(p.domain)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-semibold text-evari-text">
+                          {p.name}
+                        </span>
+                        <span className="text-[11px] font-mono text-evari-dim">
+                          {p.domain}
+                        </span>
+                      </div>
+                      {p.positioning ? (
+                        <div className="text-[12px] text-evari-dim mt-0.5">
+                          {p.positioning}
+                        </div>
+                      ) : null}
+                      {p.whyTrack ? (
+                        <div className="text-[11px] text-evari-dimmer mt-0.5 italic">
+                          {p.whyTrack}
+                        </div>
+                      ) : null}
+                      {p.seedKeywords.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {p.seedKeywords.slice(0, 8).map((k) => (
+                            <span
+                              key={k}
+                              className="inline-block text-[10px] rounded px-1.5 py-0.5 bg-evari-surfaceSoft/60 text-evari-dim"
+                            >
+                              {k}
+                            </span>
+                          ))}
+                          {p.seedKeywords.length > 8 ? (
+                            <span className="text-[10px] text-evari-dimmer">+{p.seedKeywords.length - 8}</span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
+/* ---------------------------- Modal: meta rewrite -------------------------- */
+
+interface WeakTarget {
+  pageId: string;
+  pageType: 'product' | 'page' | 'article';
+  pagePath: string;
+  pageTitle: string;
+  kind: 'meta-title' | 'meta-desc';
+  current: string;
+  currentLen: number;
+  reason: 'too-short' | 'too-long' | 'duplicate';
+}
+
+function MetaRewriteModal({
+  onClose,
+  onApplied,
+}: {
+  onClose: () => void;
+  onApplied: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [targets, setTargets] = useState<WeakTarget[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [results, setResults] = useState<Array<{ pageId: string; kind: string; ok: boolean; generated?: string; error?: string }> | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/synopsis/enhance/meta-rewrite', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mode: 'list' }),
+        });
+        const data = (await res.json()) as { ok?: boolean; weak?: WeakTarget[]; error?: string };
+        if (!res.ok || !data.ok) throw new Error(data.error ?? 'List failed');
+        const w = data.weak ?? [];
+        setTargets(w);
+        setSelectedIds(new Set(w.map((t) => t.pageId + ':' + t.kind)));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'List failed');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  function rowKey(t: WeakTarget) {
+    return t.pageId + ':' + t.kind;
+  }
+  function toggle(t: WeakTarget) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const k = rowKey(t);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  }
+
+  async function apply() {
+    setApplying(true);
+    setError(null);
+    try {
+      const picked = targets.filter((t) => selectedIds.has(rowKey(t)));
+      const res = await fetch('/api/synopsis/enhance/meta-rewrite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'apply',
+          targets: picked.map((t) => ({ pageId: t.pageId, pageType: t.pageType, kind: t.kind })),
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        results?: Array<{ pageId: string; kind: string; ok: boolean; generated?: string; error?: string }>;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? 'Apply failed');
+      setResults(data.results ?? []);
+      setTimeout(() => onApplied(), 2200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Apply failed');
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  const reasonLabel = (r: WeakTarget['reason']): string =>
+    r === 'too-short' ? 'Too short' : r === 'too-long' ? 'Too long' : 'Duplicate';
+
+  return (
+    <ModalShell
+      title="Rewrite weak meta titles and descriptions"
+      onClose={onClose}
+      widthClass="max-w-[880px]"
+      footer={
+        results ? (
+          <>
+            <span className="text-[12px] text-evari-success mr-auto">
+              {results.filter((r) => r.ok).length} rewritten, {results.filter((r) => !r.ok).length} failed
+            </span>
+            <Button size="sm" variant="primary" onClick={onApplied}>
+              <Check className="h-3 w-3" />
+              Done
+            </Button>
+          </>
+        ) : (
+          <>
+            <span className="text-[11px] text-evari-dimmer mr-auto">
+              {selectedIds.size} of {targets.length} selected
+            </span>
+            <Button size="sm" variant="default" onClick={onClose}>Cancel</Button>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void apply()}
+              disabled={loading || applying || selectedIds.size === 0}
+            >
+              {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+              {applying ? 'Rewriting' : 'Rewrite ' + selectedIds.size + ' entries'}
+            </Button>
+          </>
+        )
+      }
+    >
+      {loading ? (
+        <div className="flex items-center gap-2 text-[13px] text-evari-dim">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Scanning for weak meta copy…
+        </div>
+      ) : error ? (
+        <div className="text-[13px] text-evari-danger">{error}</div>
+      ) : targets.length === 0 ? (
+        <div className="text-[13px] text-evari-dim">No weak meta copy detected right now.</div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-[12px] text-evari-dim">
+            I'll rewrite every selected entry via Claude, keeping Evari's voice and the house rules (no em-dashes, plain sentence case). Writes directly back to Shopify.
+          </p>
+          <ul className="space-y-1">
+            {targets.map((t) => {
+              const k = rowKey(t);
+              const checked = selectedIds.has(k);
+              const result = results?.find((r) => r.pageId === t.pageId && r.kind === t.kind);
+              return (
+                <li
+                  key={k}
+                  className={cn(
+                    'rounded-md border px-3 py-2.5 cursor-pointer transition-colors',
+                    result?.ok
+                      ? 'border-evari-success/30 bg-evari-success/5'
+                      : result?.error
+                        ? 'border-evari-danger/30 bg-evari-danger/5'
+                        : checked
+                          ? 'border-evari-gold/50 bg-evari-gold/5'
+                          : 'border-evari-line/30 bg-evari-surface hover:bg-evari-surface/80',
+                  )}
+                  onClick={() => !results && toggle(t)}
+                >
+                  <div className="flex items-start gap-3">
+                    {!results ? (
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-3.5 w-3.5 accent-evari-gold"
+                        checked={checked}
+                        onChange={() => toggle(t)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[12px] font-semibold text-evari-text">
+                          {t.pageTitle}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-evari-surfaceSoft text-evari-dim">
+                          {t.kind === 'meta-title' ? 'Title' : 'Description'}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-evari-warn/15 text-evari-warn">
+                          {reasonLabel(t.reason)} · {t.currentLen} chars
+                        </span>
+                        <span className="text-[11px] font-mono text-evari-dim truncate max-w-[260px]">
+                          {t.pagePath}
+                        </span>
+                      </div>
+                      <div className="text-[12px] text-evari-dim mt-1 leading-relaxed">
+                        <span className="text-evari-dimmer">Current:</span> {t.current}
+                      </div>
+                      {result?.ok && result.generated ? (
+                        <div className="text-[12px] text-evari-success mt-1 leading-relaxed">
+                          <span className="text-evari-dimmer">New:</span> {result.generated}
+                        </div>
+                      ) : null}
+                      {result?.error ? (
+                        <div className="text-[11px] text-evari-danger mt-1">
+                          Failed: {result.error}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
+/* -------------------------- Modal: internal links ------------------------- */
+
+interface LinkProposal {
+  target: { pageId: string; pagePath: string; pageTitle: string };
+  proposals: Array<{ fromPath: string; anchor: string; reason: string }>;
+}
+
+function InternalLinksModal({ onClose }: { onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [proposals, setProposals] = useState<LinkProposal[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/synopsis/enhance/internal-links', { method: 'POST' });
+        const data = (await res.json()) as { ok?: boolean; proposals?: LinkProposal[]; note?: string; error?: string };
+        if (!res.ok || !data.ok) throw new Error(data.error ?? 'Proposals failed');
+        setProposals(data.proposals ?? []);
+        if (data.note) setNote(data.note);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Proposals failed');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return (
+    <ModalShell
+      title="Internal link proposals"
+      onClose={onClose}
+      footer={
+        <Button size="sm" variant="primary" onClick={onClose}>Close</Button>
+      }
+    >
+      {loading ? (
+        <div className="flex items-center gap-2 text-[13px] text-evari-dim">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Looking for stuck pages and candidate source pages…
+        </div>
+      ) : error ? (
+        <div className="text-[13px] text-evari-danger">{error}</div>
+      ) : note && proposals.length === 0 ? (
+        <div className="text-[13px] text-evari-dim">{note}</div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-[12px] text-evari-dim">
+            These pages earn impressions but no clicks. Link into them from the listed source pages with the anchor text suggested and the click-through should lift. Review and apply manually, I don't modify page bodies autonomously.
+          </p>
+          <ul className="space-y-3">
+            {proposals.map((p) => (
+              <li key={p.target.pageId} className="rounded-md bg-evari-surface px-4 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[13px] font-semibold text-evari-text">{p.target.pageTitle}</span>
+                  <span className="text-[11px] font-mono text-evari-dim">{p.target.pagePath}</span>
+                </div>
+                <ul className="space-y-1.5">
+                  {p.proposals.map((l, i) => (
+                    <li key={i} className="text-[12px] leading-relaxed flex items-start gap-2">
+                      <ChevronRight className="h-3 w-3 mt-1 text-evari-dimmer shrink-0" />
+                      <div>
+                        <div>
+                          Link from <span className="font-mono text-evari-text">{l.fromPath}</span> with anchor <span className="italic text-evari-text">"{l.anchor}"</span>
+                        </div>
+                        <div className="text-[11px] text-evari-dimmer mt-0.5">{l.reason}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
+/* --------------------------- Modal: blog topics --------------------------- */
+
+interface BlogBrief {
+  title: string;
+  primaryKeyword: string;
+  competitorGap: string;
+  angle: string;
+  outline: string[];
+  estimatedWordCount: number;
+}
+
+function BlogTopicsModal({ onClose }: { onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [briefs, setBriefs] = useState<BlogBrief[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<number | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/synopsis/enhance/blog-topics', { method: 'POST' });
+        const data = (await res.json()) as { ok?: boolean; briefs?: BlogBrief[]; note?: string; error?: string };
+        if (!res.ok || !data.ok) throw new Error(data.error ?? 'Proposals failed');
+        setBriefs(data.briefs ?? []);
+        if (data.note) setNote(data.note);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Proposals failed');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  async function copyBrief(b: BlogBrief, idx: number) {
+    const text =
+      b.title + '\n\n' +
+      'Primary keyword: ' + b.primaryKeyword + '\n' +
+      'Competitor gap: ' + b.competitorGap + '\n' +
+      'Angle: ' + b.angle + '\n\n' +
+      'Outline:\n' +
+      b.outline.map((o) => '  - ' + o).join('\n') + '\n\n' +
+      'Target length: ~' + b.estimatedWordCount + ' words';
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(idx);
+      setTimeout(() => setCopied(null), 1400);
+    } catch {
+      // ignore
+    }
+  }
+
+  return (
+    <ModalShell
+      title="Blog topic briefs"
+      onClose={onClose}
+      widthClass="max-w-[880px]"
+      footer={<Button size="sm" variant="primary" onClick={onClose}>Close</Button>}
+    >
+      {loading ? (
+        <div className="flex items-center gap-2 text-[13px] text-evari-dim">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Finding keyword gaps and drafting briefs…
+        </div>
+      ) : error ? (
+        <div className="text-[13px] text-evari-danger">{error}</div>
+      ) : note && briefs.length === 0 ? (
+        <div className="text-[13px] text-evari-dim">{note}</div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-[12px] text-evari-dim">
+            Five briefs shaped by the biggest keyword gaps against your tracked competitors. Copy a brief to clipboard and paste into a Shopify blog draft.
+          </p>
+          <ul className="space-y-3">
+            {briefs.map((b, i) => (
+              <li key={i} className="rounded-md bg-evari-surface px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14px] font-semibold text-evari-text">{b.title}</div>
+                    <div className="text-[11px] text-evari-dimmer mt-0.5">
+                      Primary keyword: <span className="text-evari-text">{b.primaryKeyword}</span> · ~{b.estimatedWordCount} words
+                    </div>
+                    <div className="text-[12px] text-evari-dim mt-2 leading-relaxed">
+                      <span className="text-evari-dimmer">Gap: </span>{b.competitorGap}
+                    </div>
+                    <div className="text-[12px] text-evari-dim leading-relaxed">
+                      <span className="text-evari-dimmer">Angle: </span>{b.angle}
+                    </div>
+                    {b.outline.length > 0 ? (
+                      <ul className="mt-1.5 space-y-0.5">
+                        {b.outline.map((o, j) => (
+                          <li key={j} className="text-[12px] text-evari-text flex items-start gap-2">
+                            <span className="text-evari-dimmer mt-0.5">•</span>
+                            <span>{o}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                  <div className="shrink-0">
+                    <Button size="sm" variant="default" onClick={() => void copyBrief(b, i)}>
+                      {copied === i ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      {copied === i ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
+/* ---------------------------------- Bits --------------------------------- */
+
+function ProgressBar() {
+  const [pct, setPct] = useState(4);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    function tick(now: number) {
+      const t = Math.min(1, (now - start) / 4000);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setPct(4 + eased * 86);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return (
+    <div className="absolute left-0 right-0 bottom-0 h-0.5 bg-evari-line/20 overflow-hidden">
+      <div className="h-full bg-evari-gold transition-[width] duration-150 ease-out" style={{ width: pct + '%' }} />
+    </div>
   );
 }
 
@@ -251,7 +1174,7 @@ function Stat({
           ? 'text-evari-success'
           : 'text-evari-text';
   return (
-    <div className="rounded-md border border-evari-line/40 bg-evari-surfaceSoft/30 p-2">
+    <div className="rounded-md bg-evari-surfaceSoft/50 p-2">
       <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
         {label}
       </div>
@@ -260,4 +1183,17 @@ function Stat({
       </div>
     </div>
   );
+}
+
+function formatRelativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const diffSec = Math.floor((Date.now() - then) / 1000);
+  if (diffSec < 10) return 'just now';
+  if (diffSec < 60) return diffSec + 's ago';
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return min + 'm ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + 'h ago';
+  const d = Math.floor(hr / 24);
+  return d + 'd ago';
 }
