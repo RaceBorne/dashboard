@@ -39,16 +39,15 @@
 
   /* Wireframe "live" accent — the colour used for filled lozenges (CORE
      tier pill), the cluster outline, and the cluster title dot when every
-     required member is connected. Green in dark mode; orange in light
-     mode (see the light override below) because lime-green reads harsh
-     on a near-white canvas. */
-  --evari-wire-live: 126 168 88;          /* matches --evari-success */
-  --evari-wire-live-ink: 245 245 245;     /* text on the live fill pill */
+     required member is connected. Bright orange in both modes: Craig
+     wants parity so a connected service reads the same whether the
+     dashboard is dark or light. */
+  --evari-wire-live: 234 126 36;
+  --evari-wire-live-ink: 253 253 253;     /* text on the live fill pill */
   /* Plain-text variant (no pill behind it) — the live status strings like
-     "Database healthy" / "Deployed 13h ago". Green in dark mode so it
-     stays readable on the dark card; white in light mode per Craig's
-     request — the card background is a mid-grey wash so white reads. */
-  --evari-wire-live-text: 126 168 88;     /* matches --evari-success */
+     "Database healthy" / "Deployed 13h ago". Matches the pill colour in
+     dark mode so the live status stays visible on the dark card. */
+  --evari-wire-live-text: 234 126 36;
 
   /* Cluster rectangle fill — a very faint tint behind each cluster. In
      dark mode a near-transparent white lifts the cluster off the canvas;

@@ -77,17 +77,39 @@ export default function SettingsPage() {
         {/* Outreach senders */}
         <SendersSection />
 
-        {/* Pointer to Connections */}
+        {/* Pointer to Connectors */}
         <section className="rounded-xl bg-evari-surface p-5">
           <div className="flex items-start justify-between gap-6">
             <div className="min-w-0">
               <div className="text-sm font-medium text-evari-text">
-                Looking for integrations?
+                Connectors
               </div>
               <div className="text-xs text-evari-dim mt-0.5 max-w-sm">
-                Shopify, Google, Gmail, LinkedIn, Meta, TikTok, Supabase — every
-                integration lives on the Wireframe page now, with the live
-                architecture diagram and an AI audit panel.
+                Every external API the dashboard talks to. Paste credentials,
+                test them in place, see which connectors are live. Shopify,
+                Google, GA4, GSC, Klaviyo, DataForSEO, social, AI, and more.
+              </div>
+            </div>
+            <Link
+              href="/settings/connectors"
+              className="inline-flex items-center gap-1.5 rounded-md h-8 px-3 text-xs font-medium bg-evari-surfaceSoft text-evari-text hover:bg-evari-mute/60 transition"
+            >
+              Open Connectors
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </section>
+
+        {/* Pointer to Wireframe (kept separate, architectural) */}
+        <section className="rounded-xl bg-evari-surface p-5">
+          <div className="flex items-start justify-between gap-6">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-evari-text">
+                Architecture wireframe
+              </div>
+              <div className="text-xs text-evari-dim mt-0.5 max-w-sm">
+                A live diagram of how the pieces fit together. Handy for
+                pitching the product, or debugging when something breaks.
               </div>
             </div>
             <Link
