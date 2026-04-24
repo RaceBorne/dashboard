@@ -228,10 +228,10 @@ function StatusPill({ status }: { status: Status }) {
   // orange the wireframe uses for a lit-up service, so Craig gets a
   // consistent visual language across the two pages. Error / degraded
   // stay in their own accent so failures still read as failures.
+  // Solid orange fill, no outline — matches the wireframe's lit lozenge.
   const liveStyle: React.CSSProperties = {
-    background: 'rgb(var(--evari-wire-live) / 0.18)',
-    color: 'rgb(var(--evari-wire-live))',
-    border: '1px solid rgb(var(--evari-wire-live) / 0.45)',
+    background: 'rgb(var(--evari-wire-live))',
+    color: 'rgb(var(--evari-wire-live-ink))',
   };
   const style =
     status === 'error'
