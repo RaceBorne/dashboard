@@ -69,8 +69,19 @@ export function KeywordsWorkspaceClient({ workspace }: Props) {
   const activeList = workspace.lists.find((l) => l.id === activeListId) ?? null;
   const members = activeListId != null ? workspace.membersByList[activeListId] ?? [] : [];
 
+  /**
+   * Re-read the workspace after a mutation.
+   *
+   * router.refresh() is supposed to re-run the RSC and flow fresh props,
+   * but in practice on Next.js 16 + our Supabase read path the freshly
+   * inserted rows sometimes don't show up until a hard reload — the
+   * Add-keyword dialog has been the visible symptom (#187). Hard reload
+   * is a touch heavy but it is guaranteed to pick up anything the DB
+   * just wrote. Single workspace page, sub-second load, trade-off is
+   * fine.
+   */
   async function refresh() {
-    router.refresh();
+    window.location.reload();
   }
 
   async function runIngest(list: KeywordList) {
