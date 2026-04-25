@@ -887,7 +887,7 @@ function DraftTile({
           fromPalette="draft"
         />
         <div className="pt-[10px] pb-[10px] px-[6px]">
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+          <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.14em] text-evari-dimmer">
             <span>{date}</span>
             <span
               className={cn(
@@ -900,19 +900,19 @@ function DraftTile({
               {badge ?? 'Draft'}
             </span>
           </div>
-          <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
+          <h3 className="mt-2 text-[15px] font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
             {title}
           </h3>
           {excerpt ? (
-            <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3 whitespace-pre-line">
+            <p className="mt-2 text-[12px] text-evari-dim leading-snug line-clamp-3 whitespace-pre-line">
               {excerpt}
             </p>
           ) : (
-            <p className="mt-2 text-sm text-evari-dimmer/70 italic leading-snug">
+            <p className="mt-2 text-[12px] text-evari-dimmer/70 italic leading-snug">
               Empty draft, click to start writing.
             </p>
           )}
-          <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+          <p className="mt-3 text-[9px] uppercase tracking-[0.14em] text-evari-dimmer">
             By {author}
           </p>
         </div>
@@ -954,7 +954,7 @@ function PublishedTile({
           fromPalette="published"
         />
         <div className="pt-[10px] pb-[10px] px-[6px]">
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+          <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.14em] text-evari-dimmer">
             <span>{date}</span>
             {linked ? (
               <span className="px-1.5 py-0.5 rounded bg-evari-gold/15 text-evari-gold">
@@ -962,13 +962,13 @@ function PublishedTile({
               </span>
             ) : null}
           </div>
-          <h3 className="mt-2 text-lg font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
+          <h3 className="mt-2 text-[15px] font-semibold text-evari-text leading-snug line-clamp-2 group-hover:text-evari-gold transition-colors">
             {title}
           </h3>
-          <p className="mt-2 text-sm text-evari-dim leading-snug line-clamp-3 whitespace-pre-line">
+          <p className="mt-2 text-[12px] text-evari-dim leading-snug line-clamp-3 whitespace-pre-line">
             {excerpt || 'No summary on Shopify yet.'}
           </p>
-          <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+          <p className="mt-3 text-[9px] uppercase tracking-[0.14em] text-evari-dimmer">
             By {author}
           </p>
         </div>
