@@ -15,11 +15,18 @@ export const FIGURE_WIDTH_PERCENT: Record<string, number> = {
   lg: 75,
   full: 100,
 };
-function figureStyle(width: unknown): React.CSSProperties | undefined {
-  if (typeof width !== 'string') return undefined;
-  const pct = FIGURE_WIDTH_PERCENT[width];
+function figureStyle(
+  width: unknown,
+  align: unknown,
+): React.CSSProperties | undefined {
+  const pct = typeof width === 'string' ? FIGURE_WIDTH_PERCENT[width] : undefined;
   if (!pct || pct === 100) return undefined;
-  return { maxWidth: `${pct}%`, marginLeft: 'auto', marginRight: 'auto' };
+  const a = align === 'left' || align === 'right' ? align : 'center';
+  return {
+    maxWidth: `${pct}%`,
+    marginLeft: a === 'left' ? 0 : 'auto',
+    marginRight: a === 'right' ? 0 : 'auto',
+  };
 }
 
 interface Props {
@@ -233,7 +240,7 @@ function PreviewBlock({
       return (
         <figure
           className="shopify-preview__figure shopify-preview__figure--clickable"
-          style={figureStyle(data.width)}
+          style={figureStyle(data.width, data.align)}
           onClick={onImageClick ? handleFigureClick : undefined}
           role={onImageClick ? 'button' : undefined}
           tabIndex={onImageClick ? 0 : undefined}
@@ -257,7 +264,7 @@ function PreviewBlock({
       return (
         <figure
           className="shopify-preview__double shopify-preview__figure--clickable"
-          style={figureStyle(data.width)}
+          style={figureStyle(data.width, data.align)}
           onClick={onImageClick ? handleFigureClick : undefined}
           role={onImageClick ? 'button' : undefined}
           tabIndex={onImageClick ? 0 : undefined}
@@ -305,7 +312,7 @@ function PreviewBlock({
       return (
         <figure
           className="shopify-preview__figure shopify-preview__figure--clickable"
-          style={figureStyle(data.width)}
+          style={figureStyle(data.width, data.align)}
           onClick={onImageClick ? handleFigureClick : undefined}
           role={onImageClick ? 'button' : undefined}
           tabIndex={onImageClick ? 0 : undefined}

@@ -33,6 +33,9 @@ import {
   Film,
   FolderOpen,
   ArrowUpDown,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';

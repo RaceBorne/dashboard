@@ -243,7 +243,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] bg-evari-ink">
       {/* Sticky lane + actions bar */}
-      <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-3 border-b border-white/5 sticky top-0 bg-evari-ink z-10">
+      <div className="flex items-center justify-between gap-4 px-10 pt-4 pb-3 border-b border-white/5 sticky top-0 bg-evari-ink z-10">
         {/* Pill-group lane toggle — same chrome as the Light/Dark
             theme switch. Active lane wears the accent fill, inactive
             stays as dim text inside a single rounded trough. */}
@@ -299,7 +299,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
           laneLabel={lane.label}
         />
       ) : (
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
+      <div className="flex-1 overflow-y-auto px-10 py-8 space-y-10">
         {/* Pending (unpublished drafts) */}
         {pendingDrafts.length > 0 ? (
           <section>
@@ -312,7 +312,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 {pendingDrafts.length}
               </span>
             </header>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
               {pendingDrafts.map((d) => (
                 <DraftTile
                   key={d.id}
@@ -348,7 +348,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 Stubs started in Shopify admin, not yet live
               </span>
             </header>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
               {unpublishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}
@@ -386,7 +386,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 : 'No published articles in this lane yet. Click New above to start one.'}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
               {publishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}

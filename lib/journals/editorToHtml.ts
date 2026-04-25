@@ -44,11 +44,30 @@ export const FIGURE_WIDTH_PERCENT: Record<string, number> = {
   lg: 75,
   full: 100,
 };
+/**
+ * Compose width + alignment into a single inline `style` string for
+ * a figure. Alignment is meaningless at full (100%) width since the
+ * figure fills the column either way; we still emit the auto/auto
+ * margins so the published HTML stays predictable.
+ *
+ *   align 'left'   → margin-left:0;       margin-right:auto
+ *   align 'center' → margin-left:auto;    margin-right:auto    (default)
+ *   align 'right'  → margin-left:auto;    margin-right:0
+ */
+function figureStyleString(width: unknown, align: unknown): string {
+  const pct = typeof width === 'string' ? FIGURE_WIDTH_PERCENT[width] : undefined;
+  const a = align === 'left' || align === 'right' ? align : 'center';
+  if (!pct || pct === 100) {
+    // Full width — alignment doesn't visibly change anything.
+    return '';
+  }
+  const ml = a === 'left' ? '0' : 'auto';
+  const mr = a === 'right' ? '0' : 'auto';
+  return `max-width:${pct}%;margin-left:${ml};margin-right:${mr}`;
+}
+/** @deprecated kept for compatibility — prefer figureStyleString. */
 function widthStyle(raw: unknown): string {
-  if (typeof raw !== 'string') return '';
-  const pct = FIGURE_WIDTH_PERCENT[raw];
-  if (!pct || pct === 100) return '';
-  return `max-width:${pct}%;margin-left:auto;margin-right:auto`;
+  return figureStyleString(raw, undefined);
 }
 
 function attr(name: string, value: string | null | undefined): string {
@@ -111,7 +130,7 @@ function renderImage(b: Block): string {
   const alt = caption || 'Evari';
   const withBorder = b.data.withBorder ? 'border:1px solid #e5e5e5;' : '';
   const img = `<img${attr('src', url)}${attr('alt', alt)}${withBorder ? ` style="${withBorder.replace(/;$/, '')}"` : ''} />`;
-  const wrapStyle = widthStyle(b.data.width);
+  const wrapStyle = figureStyleString(b.data.width, b.data.align);
   const figOpen = wrapStyle ? `<figure style="${wrapStyle}">` : '<figure>';
   if (caption) {
     return `${figOpen}${img}<figcaption>${caption}</figcaption></figure>`;
@@ -130,9 +149,11 @@ function renderDoubleImage(b: Block): string {
       cap ? `<p style="font-size:0.875rem;color:#666;margin-top:0.5rem">${escape(cap)}</p>` : ''
     }</div>`;
   };
-  const wrapStyle = widthStyle(b.data.width);
-  const baseStyle = 'display:flex;gap:1rem;align-items:flex-start;margin:1.5rem auto';
-  const style = wrapStyle ? `${baseStyle};${wrapStyle}` : baseStyle;
+  const wrapStyle = figureStyleString(b.data.width, b.data.align);
+  const baseStyle = 'display:flex;gap:1rem;align-items:flex-start;margin-top:1.5rem;margin-bottom:1.5rem';
+  const style = wrapStyle
+    ? `${baseStyle};${wrapStyle}`
+    : `${baseStyle};margin-left:auto;margin-right:auto`;
   return `<figure style="${style}">${cell(left)}${cell(right)}</figure>`;
 }
 
@@ -153,7 +174,7 @@ function renderVideo(b: Block): string {
   const poster = String(b.data.poster ?? '');
   const caption = String(b.data.caption ?? '').trim();
   const video = `<video controls playsinline${attr('poster', poster)}${attr('src', url)} style="width:100%;height:auto;display:block;border-radius:6px"></video>`;
-  const wrapStyle = widthStyle(b.data.width);
+  const wrapStyle = figureStyleString(b.data.width, b.data.align);
   const figOpen = wrapStyle ? `<figure style="${wrapStyle}">` : '<figure>';
   if (caption) {
     return `${figOpen}${video}<figcaption>${caption}</figcaption></figure>`;
