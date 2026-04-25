@@ -1,6 +1,21 @@
 'use client';
 
-import { Facebook, Link2, Share2 } from 'lucide-react';
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Facebook, GripVertical, Link2, Share2 } from 'lucide-react';
 
 export interface JournalBlock {
   id: string;
@@ -44,6 +59,11 @@ interface Props {
    *  the preview, the editor uses this to open a width popover next
    *  to the clicked element. */
   onImageClick?: (blockId: string, anchor: HTMLElement) => void;
+  /** Optional reorder hook. When supplied, each preview block grows
+   *  a left-margin grip handle and the body becomes a dnd-kit sortable
+   *  list. The editor passes a callback that re-sequences its `blocks`
+   *  state. Reader views (no editing) leave this undefined. */
+  onReorder?: (orderedIds: string[]) => void;
 }
 
 /**
@@ -67,7 +87,24 @@ export function ShopifyPreview({
   subLabel,
   summary,
   onImageClick,
+  onReorder,
 }: Props) {
+  // Drag-reorder is opt-in. Sensors are stable across renders, so we
+  // wire them at the top of the component and reuse for every block
+  // even when onReorder is undefined (no DndContext mounts in that
+  // case, so the sensors are simply unused).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  );
+  const handleDragEnd = (ev: DragEndEvent) => {
+    if (!onReorder) return;
+    const { active, over } = ev;
+    if (!over || active.id === over.id) return;
+    const from = blocks.findIndex((b) => b.id === active.id);
+    const to = blocks.findIndex((b) => b.id === over.id);
+    if (from < 0 || to < 0) return;
+    onReorder(arrayMove(blocks, from, to).map((b) => b.id));
+  };
   return (
     <article className="shopify-preview">
       {/* Cover */}
@@ -107,12 +144,32 @@ export function ShopifyPreview({
           <p className="shopify-preview__empty">
             Your article will appear here as you add blocks on the right.
           </p>
+        ) : onReorder ? (
+          // Editable mode — blocks are draggable. We mount one
+          // DndContext + SortableContext that wraps every block,
+          // and each block grows a left-margin grip handle.
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={blocks.map((b) => b.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {blocks.map((b) => (
+                <SortablePreviewBlock
+                  key={b.id}
+                  block={b}
+                  onImageClick={onImageClick}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         ) : (
           blocks.map((b) => (
-            // Wrap each block in an anchor div so the editor can
-            // scrollIntoView when a card is clicked on the right.
-            // The wrapper is a bare block container — no margin / no
-            // padding — so it's invisible to the body's flex gap.
+            // Read-only mode (reader view, share link). Plain wrapper
+            // so the cross-pane scroll-to anchor still works.
             <div key={b.id} id={`j-block-${b.id}`} data-journal-block>
               <PreviewBlock block={b} onImageClick={onImageClick} />
             </div>
@@ -331,4 +388,62 @@ function PreviewBlock({
     default:
       return null;
   }
+}
+
+/**
+ * Sortable wrapper around PreviewBlock. Adds a left-margin grip
+ * handle (visible on hover) plus the dnd-kit transforms. The block
+ * itself still mounts via PreviewBlock so the rendered HTML stays
+ * pixel-identical to the read-only path; we just sit it inside a
+ * container that hosts the sortable behaviour.
+ */
+function SortablePreviewBlock({
+  block,
+  onImageClick,
+}: {
+  block: JournalBlock;
+  onImageClick?: (blockId: string, anchor: HTMLElement) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: block.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: 'relative',
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      id={`j-block-${block.id}`}
+      data-journal-block
+      data-journal-sortable
+      style={style}
+      className="group"
+    >
+      {/* Grip handle. Sits in the left margin so it doesn't shift the
+          block itself; only opacity changes on hover so the WYSIWYG
+          surface stays clean when not interacting. */}
+      <button
+        type="button"
+        aria-label="Drag to reorder block"
+        {...attributes}
+        {...listeners}
+        className="absolute -left-7 top-2 h-6 w-6 rounded flex items-center justify-center text-evari-dim opacity-0 group-hover:opacity-100 hover:text-evari-text hover:bg-evari-surface/60 cursor-grab active:cursor-grabbing transition-opacity"
+        // Stop the click bubbling into the figure-click handler so
+        // grabbing the handle on an image block doesn't pop the width
+        // popover at the same time.
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <PreviewBlock block={block} onImageClick={onImageClick} />
+    </div>
+  );
 }

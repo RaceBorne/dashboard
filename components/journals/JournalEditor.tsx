@@ -487,6 +487,19 @@ export function JournalEditor({ draft, blogs }: Props) {
             subLabel={laneLabel}
             summary={summary}
             onImageClick={openWidthPopover}
+            // Drag-reorder in the preview keeps the BlockList on the
+            // right authoritative: we re-sequence by id so the same
+            // block objects (with all their data) come back in the
+            // new order. BlockList's own DndContext handles the
+            // sidebar side of reordering separately.
+            onReorder={(orderedIds) => {
+              setBlocks((prev) => {
+                const byId = new Map(prev.map((b) => [b.id, b]));
+                return orderedIds
+                  .map((id) => byId.get(id))
+                  .filter((b): b is JournalBlock => Boolean(b));
+              });
+            }}
           />
           {widthPopover ? (
             <div
