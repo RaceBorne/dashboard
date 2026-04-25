@@ -804,6 +804,18 @@ code {
   flex-direction: column;
   gap: 1.25rem;
   font-size: 16px;
+  /* Hard cap so a wide block (image, double-image, video) can never
+     burst out of the column and push the sidebar off-screen. */
+  min-width: 0;
+  max-width: 100%;
+}
+/* Each block is wrapped in a [data-journal-block] anchor div for
+   the cross-pane scroll feature. Without min-width:0 + max-width:100%
+   here, an unconstrained child (a natural-resolution image) makes
+   the wrapper grow to its intrinsic size and the layout breaks. */
+.shopify-preview__body > [data-journal-block] {
+  min-width: 0;
+  max-width: 100%;
 }
 .shopify-preview__p {
   margin: 0;
@@ -877,10 +889,20 @@ code {
   margin: 0.25rem 0;
 }
 .shopify-preview__figure {
+  /* width:100% guarantees the figure fills its parent column even
+     when the user picks 'full' width (no inline max-width). Without
+     this the figure auto-sizes to the natural image dimensions and
+     the body bursts horizontally, pushing the sidebar off-screen. */
+  width: 100%;
   margin: 1.5rem 0;
   border-radius: 6px;
   overflow: hidden;
   background: rgb(var(--evari-surface, 44 44 44) / 0.3);
+}
+.shopify-preview__figure img {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 /* Click-to-resize affordance — figures show a subtle gold outline
    on hover so the user knows the image is interactive. Keeps the
@@ -944,6 +966,8 @@ code {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin: 1rem 0;
+  width: 100%;
+  min-width: 0;
 }
 .shopify-preview__double-cell img {
   display: block;
