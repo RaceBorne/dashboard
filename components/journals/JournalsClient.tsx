@@ -335,7 +335,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
           laneLabel={lane.label}
         />
       ) : (
-      <div className="flex-1 overflow-y-auto px-10 py-8 space-y-10">
+      <div
+        className="flex-1 overflow-y-auto px-10 py-8 space-y-10"
+        style={{ scrollbarGutter: 'stable both-edges' }}
+      >
         {/* Studio Design — drafts in progress (no Shopify article + no
             scheduled date). Each tile carries a 'Schedule' button to
             promote the draft into Departure Lounge. */}
