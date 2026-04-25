@@ -146,7 +146,7 @@ function renderDoubleImage(b: Block): string {
     if (!img?.url) return '';
     const cap = (img.caption ?? '').trim();
     return `<div style="flex:1 1 0;min-width:0"><img${attr('src', img.url)}${attr('alt', cap || 'Evari')} style="width:100%;height:auto;display:block" />${
-      cap ? `<p style="font-size:0.875rem;color:#666;margin-top:0.5rem">${escape(cap)}</p>` : ''
+      cap ? `<p style="font-size:11px;line-height:1.45;color:#666;margin-top:0.5rem;text-align:left">${escape(cap)}</p>` : ''
     }</div>`;
   };
   const wrapStyle = figureStyleString(b.data.width, b.data.align);

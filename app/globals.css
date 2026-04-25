@@ -897,7 +897,9 @@ code {
   margin: 1.5rem 0;
   border-radius: 6px;
   overflow: hidden;
-  background: rgb(var(--evari-surface, 44 44 44) / 0.3);
+  /* No background fill on the figure itself — Craig wants the
+     caption area underneath to sit on the page, not on a panel. */
+  background: transparent;
 }
 .shopify-preview__figure img {
   width: 100%;
@@ -956,10 +958,14 @@ code {
   height: auto;
 }
 .shopify-preview__figure figcaption {
-  font-size: 12px;
+  /* 8pt ≈ 11px. Ranged left, no background fill — caption sits on
+     the page beneath the image. Craig spec. */
+  font-size: 11px;
+  line-height: 1.45;
   color: rgb(var(--evari-dim, 170 170 170));
   padding: 0.5rem 0 0;
-  text-align: center;
+  text-align: left;
+  background: transparent;
 }
 .shopify-preview__double {
   display: grid;
@@ -981,9 +987,12 @@ code {
   border-radius: 6px;
 }
 .shopify-preview__double-cell figcaption {
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.45;
   color: rgb(var(--evari-dim, 170 170 170));
   padding: 0.5rem 0 0;
+  text-align: left;
+  background: transparent;
 }
 .shopify-preview__image-placeholder {
   padding: 1.5rem;
