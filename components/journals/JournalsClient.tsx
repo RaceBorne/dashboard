@@ -312,7 +312,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 {pendingDrafts.length}
               </span>
             </header>
-            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
               {pendingDrafts.map((d) => (
                 <DraftTile
                   key={d.id}
@@ -348,7 +348,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 Stubs started in Shopify admin, not yet live
               </span>
             </header>
-            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
               {unpublishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}
@@ -386,7 +386,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 : 'No published articles in this lane yet. Click New above to start one.'}
             </div>
           ) : (
-            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
               {publishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}
@@ -886,7 +886,7 @@ function DraftTile({
           fallback={<FileText className="h-7 w-7 text-evari-dimmer" />}
           fromPalette="draft"
         />
-        <div className="pt-4">
+        <div className="pt-[10px] pb-[10px] px-[6px]">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
             <span>{date}</span>
             <span
@@ -953,7 +953,7 @@ function PublishedTile({
           fallback={<ImageIcon className="h-7 w-7 text-evari-dimmer" />}
           fromPalette="published"
         />
-        <div className="pt-4">
+        <div className="pt-[10px] pb-[10px] px-[6px]">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
             <span>{date}</span>
             {linked ? (
