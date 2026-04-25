@@ -769,6 +769,10 @@ code {
 
 /* ---------- Hero (full-bleed image with overlaid title) ---------- */
 .shopify-preview__hero {
+  /* TEMPORARY visual marker — 4px gold strip at the top of the
+     hero so we can see at a glance whether the new full-bleed
+     code is loaded. Remove once layout is confirmed. */
+  border-top: 4px solid rgb(var(--evari-gold, 254 199 0));
   position: relative;
   width: 100%;
   /* Storefront hero is min-height: 100vh on >=990px. In the preview
