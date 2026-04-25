@@ -14,6 +14,8 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Search,
+  Lightbulb,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -87,6 +89,23 @@ export function JournalEditor({ draft, blogs }: Props) {
   const [coverImageUrl, setCoverImageUrl] = useState(draft.coverImageUrl ?? '');
   const [seoTitle, setSeoTitle] = useState(stripHtml(draft.seoTitle));
   const [seoDescription, setSeoDescription] = useState(stripHtml(draft.seoDescription));
+  // AI SEO suggestions — populated by the "Generate SEO" button. Not
+  // persisted to the draft (yet) — the user-facing meta title / desc /
+  // tags fields below ARE persisted; this object holds the focus
+  // keyword + secondary keywords + rationale strings the AI returned.
+  const [seoInsights, setSeoInsights] = useState<{
+    focusKeyword: string;
+    secondaryKeywords: string[];
+    rationale: {
+      focusKeyword?: string;
+      secondaryKeywords?: string;
+      tags?: string;
+      metaTitle?: string;
+      metaDescription?: string;
+    };
+  } | null>(null);
+  const [seoBusy, setSeoBusy] = useState(false);
+  const [seoError, setSeoError] = useState<string | null>(null);
   const [author, setAuthor] = useState(draft.author ?? 'Evari');
   const [blogTarget, setBlogTarget] = useState(draft.blogTarget);
 
@@ -211,6 +230,42 @@ export function JournalEditor({ draft, blogs }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, summary, tagsText, coverImageUrl, seoTitle, seoDescription, author, blogTarget, blocks]);
+
+  async function runSeo() {
+    setSeoBusy(true);
+    setSeoError(null);
+    try {
+      const res = await fetch('/api/journals/ai-seo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          summary,
+          blocks,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error ?? 'SEO generation failed');
+      }
+      // Auto-populate the editable fields.
+      if (Array.isArray(data.tags)) setTagsText(data.tags.join(', '));
+      if (typeof data.metaTitle === 'string') setSeoTitle(data.metaTitle);
+      if (typeof data.metaDescription === 'string') setSeoDescription(data.metaDescription);
+      // Keep the focus + secondary keywords + rationale in panel state.
+      setSeoInsights({
+        focusKeyword: typeof data.focusKeyword === 'string' ? data.focusKeyword : '',
+        secondaryKeywords: Array.isArray(data.secondaryKeywords) ? data.secondaryKeywords : [],
+        rationale: data.rationale ?? {},
+      });
+      // Open the SEO accordion so the user lands on the populated fields.
+      setSeoOpen(true);
+    } catch (err) {
+      setSeoError(err instanceof Error ? err.message : 'SEO generation failed');
+    } finally {
+      setSeoBusy(false);
+    }
+  }
 
   async function runCompose() {
     if (!composeBrief.trim()) return;
@@ -647,12 +702,38 @@ export function JournalEditor({ draft, blogs }: Props) {
             onHeaderClick={scrollPreviewToTop}
           >
             <div className="space-y-4">
+              {/* Generate SEO — Claude reads the title + body + summary
+                  and proposes meta title, meta description, tags, AND a
+                  focus keyword + secondary keywords with rationale.
+                  Auto-populates the fields below; rationale shows in the
+                  Keywords panel underneath. */}
+              <button
+                type="button"
+                onClick={runSeo}
+                disabled={seoBusy || !title.trim()}
+                className="w-full inline-flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-md bg-evari-gold/15 text-evari-gold hover:bg-evari-gold/20 disabled:opacity-60 transition-colors"
+              >
+                {seoBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {seoBusy ? 'Generating SEO…' : 'Generate SEO from article'}
+              </button>
+              {seoError ? (
+                <p className="text-[11px] text-evari-danger leading-snug">
+                  {seoError}
+                </p>
+              ) : null}
               <Field label="Meta title" onLabelClick={scrollPreviewToTop}>
                 <input
                   value={seoTitle}
                   onChange={(e) => setSeoTitle(e.target.value)}
                   className={INPUT_CLS}
                 />
+                <p className="mt-1 text-[10px] text-evari-dimmer tabular-nums">
+                  {seoTitle.length}/60 characters
+                </p>
               </Field>
               <Field label="Meta description" onLabelClick={scrollPreviewToTop}>
                 <textarea
@@ -661,7 +742,86 @@ export function JournalEditor({ draft, blogs }: Props) {
                   rows={4}
                   className={cn(INPUT_CLS, 'resize-y min-h-[108px]')}
                 />
+                <p className="mt-1 text-[10px] text-evari-dimmer tabular-nums">
+                  {seoDescription.length}/160 characters
+                </p>
               </Field>
+              {/* Keywords + rationale — only shown after Generate SEO has
+                  been clicked and returned. The focus keyword is the
+                  primary search term we're targeting; secondary keywords
+                  are the supporting long-tail terms. Rationale is the
+                  AI's one-sentence reasoning for each pick, so the user
+                  can sanity-check whether the SEO direction matches the
+                  article's actual intent. */}
+              {seoInsights ? (
+                <section className="rounded-md ring-1 ring-evari-edge bg-evari-surface/40 p-3 space-y-3">
+                  <header className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-evari-gold font-semibold">
+                    <Lightbulb className="h-3 w-3" />
+                    SEO insights
+                  </header>
+                  {seoInsights.focusKeyword ? (
+                    <div>
+                      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+                        <Search className="h-3 w-3" /> Focus keyword
+                      </div>
+                      <div className="mt-1 inline-flex items-center px-2 py-1 rounded bg-evari-gold text-evari-goldInk text-xs font-semibold">
+                        {seoInsights.focusKeyword}
+                      </div>
+                      {seoInsights.rationale.focusKeyword ? (
+                        <p className="mt-1.5 text-[11px] text-evari-dim leading-snug">
+                          {seoInsights.rationale.focusKeyword}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {seoInsights.secondaryKeywords.length > 0 ? (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+                        Secondary keywords
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {seoInsights.secondaryKeywords.map((k) => (
+                          <span
+                            key={k}
+                            className="inline-flex items-center px-1.5 py-0.5 rounded bg-evari-surface/80 text-evari-text text-[11px]"
+                          >
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                      {seoInsights.rationale.secondaryKeywords ? (
+                        <p className="mt-1.5 text-[11px] text-evari-dim leading-snug">
+                          {seoInsights.rationale.secondaryKeywords}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {(seoInsights.rationale.metaTitle ||
+                    seoInsights.rationale.metaDescription ||
+                    seoInsights.rationale.tags) ? (
+                    <div className="border-t border-evari-edge/60 pt-2 space-y-1.5">
+                      {seoInsights.rationale.tags ? (
+                        <p className="text-[11px] text-evari-dim leading-snug">
+                          <span className="text-evari-dimmer">Tags — </span>
+                          {seoInsights.rationale.tags}
+                        </p>
+                      ) : null}
+                      {seoInsights.rationale.metaTitle ? (
+                        <p className="text-[11px] text-evari-dim leading-snug">
+                          <span className="text-evari-dimmer">Meta title — </span>
+                          {seoInsights.rationale.metaTitle}
+                        </p>
+                      ) : null}
+                      {seoInsights.rationale.metaDescription ? (
+                        <p className="text-[11px] text-evari-dim leading-snug">
+                          <span className="text-evari-dimmer">Meta description — </span>
+                          {seoInsights.rationale.metaDescription}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
             </div>
           </Accordion>
 
