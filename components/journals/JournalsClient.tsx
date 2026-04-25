@@ -277,7 +277,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] bg-evari-ink">
+    <div className="flex flex-col h-[calc(100vh-56px)] bg-evari-ink w-full">
       {/* Sticky lane + actions bar */}
       <div className="flex items-center justify-between gap-4 px-10 pt-4 pb-3 border-b border-white/5 sticky top-0 bg-evari-ink z-10">
         {/* Pill-group lane toggle — same chrome as the Light/Dark
@@ -343,7 +343,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
             scheduled date). Each tile carries a 'Schedule' button to
             promote the draft into Departure Lounge. */}
         {studioDrafts.length > 0 ? (
-          <section>
+          <section className="w-full">
             <header className="flex items-baseline gap-2 mb-3">
               <Clock className="h-3.5 w-3.5 text-evari-gold" />
               <h2 className="text-xs uppercase tracking-[0.16em] text-evari-dim">
@@ -354,9 +354,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
               </span>
             </header>
             <div
-              className="journals-grid-v3 grid gap-6 items-start w-full"
+              className="journals-grid-v4 grid gap-6 items-start w-full"
               style={{
                 width: '100%',
+                minWidth: '100%',
                 maxWidth: 'none',
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(220px, 1fr))',
@@ -385,7 +386,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
             on each tile shows the scheduled time. Clicking opens
             the reader; the trash button cancels the schedule. */}
         {departureDrafts.length > 0 ? (
-          <section>
+          <section className="w-full">
             <header className="flex items-baseline gap-2 mb-3">
               <PlaneTakeoff className="h-3.5 w-3.5 text-evari-gold" />
               <h2 className="text-xs uppercase tracking-[0.16em] text-evari-dim">
@@ -399,9 +400,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
               </span>
             </header>
             <div
-              className="journals-grid-v3 grid gap-6 items-start w-full"
+              className="journals-grid-v4 grid gap-6 items-start w-full"
               style={{
                 width: '100%',
+                minWidth: '100%',
                 maxWidth: 'none',
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(220px, 1fr))',
@@ -432,7 +434,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
             but hasn't published yet. Kept in their own lane so they
             don't pollute the Published grid with broken-looking tiles. */}
         {unpublishedArticles.length > 0 ? (
-          <section>
+          <section className="w-full">
             <header className="flex items-baseline gap-2 mb-3">
               <Clock className="h-3.5 w-3.5 text-evari-dim" />
               <h2 className="text-xs uppercase tracking-[0.16em] text-evari-dim">
@@ -446,9 +448,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
               </span>
             </header>
             <div
-              className="journals-grid-v3 grid gap-6 items-start w-full"
+              className="journals-grid-v4 grid gap-6 items-start w-full"
               style={{
                 width: '100%',
+                minWidth: '100%',
                 maxWidth: 'none',
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(220px, 1fr))',
@@ -474,7 +477,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
         ) : null}
 
         {/* Published (live Shopify articles + any draft-linked ones not in the Shopify feed) */}
-        <section>
+        <section className="w-full">
           <header className="flex items-baseline gap-2 mb-3">
             <CheckCircle2 className="h-3.5 w-3.5 text-evari-success" />
             <h2 className="text-xs uppercase tracking-[0.16em] text-evari-dim">
@@ -492,9 +495,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
             </div>
           ) : (
             <div
-              className="journals-grid-v3 grid gap-6 items-start w-full"
+              className="journals-grid-v4 grid gap-6 items-start w-full"
               style={{
                 width: '100%',
+                minWidth: '100%',
                 maxWidth: 'none',
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(220px, 1fr))',
