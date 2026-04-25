@@ -112,9 +112,10 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
       });
     }
     // Departure Lounge journal drafts — scheduled-for journals that
-    // haven't published to Shopify yet. Rendered as accent-toned
-    // events so they sit next to scheduled social posts on the same
-    // day. Title prefixed with 'Journal' so the source is obvious.
+    // haven't published to Shopify yet. Rendered as solid orange
+    // lozenges (matches the Departure Lounge brand colour) and
+    // clicking one in the month view navigates to the week of that
+    // date for finer-grain inspection.
     for (const j of journalDrafts) {
       const d = new Date(j.scheduledFor);
       if (Number.isNaN(d.getTime())) continue;
@@ -125,7 +126,11 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         title: `Journal · ${captionSnippet(j.title, 28)}`,
         time: format(d, 'HH:mm'),
         durationMinutes: 30,
-        tone: 'accent',
+        tone: 'orange',
+        onClick: () => {
+          setWeekAnchor(d);
+          setView('week');
+        },
       });
     }
     return out;
@@ -213,7 +218,10 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
             week={weekAnchor}
             onWeekChange={setWeekAnchor}
             onEventClick={(e) => {
-              setSelectedDate(e.start ?? e.date);
+              const d = e.start ?? e.date;
+              setSelectedDate(d);
+              setDayAnchor(d);
+              setView('day');
             }}
             headerRight={
               <div className="flex items-center gap-2">

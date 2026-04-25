@@ -25,7 +25,8 @@ export type CalendarEventTone =
   | 'warn'
   | 'danger'
   | 'info'
-  | 'accent';
+  | 'accent'
+  | 'orange';
 
 export interface CalendarEvent {
   id: string;
@@ -86,6 +87,11 @@ function toneClasses(tone: CalendarEventTone = 'default') {
       return {
         bar: 'bg-evari-gold',
         fill: 'bg-evari-gold text-evari-goldInk',
+      };
+    case 'orange':
+      return {
+        bar: 'bg-orange-500',
+        fill: 'bg-orange-500 text-white',
       };
     default:
       return {
@@ -288,6 +294,31 @@ function EventRow({ event }: { event: CalendarEvent }) {
         }}
       >
         {event.title}
+      </li>
+    );
+  }
+
+  // Orange-tone events render as solid filled lozenges (used by the
+  // Departure Lounge journal entries — visually distinct from the
+  // stripe-style social posts).
+  if (event.tone === 'orange') {
+    return (
+      <li
+        className={cn(
+          'flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] cursor-pointer truncate',
+          t.fill,
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          event.onClick?.();
+        }}
+      >
+        <span className="truncate flex-1">{event.title}</span>
+        {event.time && (
+          <span className="shrink-0 text-[10px] tabular-nums opacity-90">
+            {event.time}
+          </span>
+        )}
       </li>
     );
   }
