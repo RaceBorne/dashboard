@@ -882,6 +882,16 @@ code {
   overflow: hidden;
   background: rgb(var(--evari-surface, 44 44 44) / 0.3);
 }
+/* Click-to-resize affordance — figures show a subtle gold outline
+   on hover so the user knows the image is interactive. Keeps the
+   storefront look intact at rest. */
+.shopify-preview__figure--clickable {
+  cursor: pointer;
+  transition: box-shadow 160ms ease;
+}
+.shopify-preview__figure--clickable:hover {
+  box-shadow: 0 0 0 2px rgb(var(--evari-gold) / 0.6);
+}
 .shopify-preview__spacer {
   width: 100%;
   pointer-events: none;

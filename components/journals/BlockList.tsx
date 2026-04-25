@@ -39,6 +39,53 @@ import { cn } from '@/lib/utils';
 import type { JournalBlock } from './ShopifyPreview';
 
 /**
+ * Width pill group shared by image / doubleImage / video block
+ * cards. Renders the four width presets — sm 33% / md 50% / lg
+ * 75% / full 100% — and writes the chosen key onto block.data.width.
+ * The same key is read by ShopifyPreview + editorToHtml so the
+ * preview, the live composer card, and the published HTML all
+ * paint the figure at the same width.
+ */
+function WidthPills({
+  value,
+  onChange,
+}: {
+  value: string | undefined;
+  onChange: (next: 'sm' | 'md' | 'lg' | 'full') => void;
+}) {
+  const current = (value && ['sm', 'md', 'lg', 'full'].includes(value) ? value : 'full') as
+    | 'sm'
+    | 'md'
+    | 'lg'
+    | 'full';
+  const opts: Array<{ key: 'sm' | 'md' | 'lg' | 'full'; label: string }> = [
+    { key: 'sm', label: 'Small' },
+    { key: 'md', label: 'Half' },
+    { key: 'lg', label: 'Wide' },
+    { key: 'full', label: 'Full' },
+  ];
+  return (
+    <div className="inline-flex items-center gap-0.5 bg-[rgb(var(--evari-trough))] rounded-full p-0.5">
+      {opts.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          onClick={() => onChange(o.key)}
+          className={cn(
+            'px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.14em] font-semibold transition-colors',
+            current === o.key
+              ? 'bg-evari-surfaceSoft text-evari-text'
+              : 'text-evari-dim hover:text-evari-text',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Shared input chrome for every editable surface inside a block
  * card. Matches the app-wide input-fill convention (bg shifts with
  * theme, no visible border, focus brightens). Kept local so the
@@ -503,6 +550,10 @@ function BlockBody({
       const file = (d.file as { url?: string } | undefined) ?? {};
       return (
         <div className="space-y-2">
+          <WidthPills
+            value={d.width as string | undefined}
+            onChange={(w) => onChange({ ...d, width: w })}
+          />
           {file.url ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -557,6 +608,11 @@ function BlockBody({
       const left = (d.left as { url?: string; caption?: string } | undefined) ?? {};
       const right = (d.right as { url?: string; caption?: string } | undefined) ?? {};
       return (
+        <div className="space-y-2">
+          <WidthPills
+            value={d.width as string | undefined}
+            onChange={(w) => onChange({ ...d, width: w })}
+          />
         <div className="grid grid-cols-2 gap-2">
           {(['left', 'right'] as const).map((side) => {
             const v = side === 'left' ? left : right;
@@ -600,6 +656,7 @@ function BlockBody({
             );
           })}
         </div>
+        </div>
       );
     }
     case 'video': {
@@ -607,6 +664,10 @@ function BlockBody({
       const poster = String(d.poster ?? '');
       return (
         <div className="space-y-2">
+          <WidthPills
+            value={d.width as string | undefined}
+            onChange={(w) => onChange({ ...d, width: w })}
+          />
           {vUrl ? (
             <video
               src={vUrl}

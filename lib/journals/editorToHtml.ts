@@ -30,6 +30,27 @@ function escape(html: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Image-block width presets. Stored as semantic keys on the block
+ * data (`width: 'sm' | 'md' | 'lg' | 'full'`). Resolves to a
+ * percentage applied as `max-width` on the rendered <figure>.
+ *
+ * Same map is used by ShopifyPreview to render the live preview,
+ * so the WYSIWYG match holds end-to-end.
+ */
+export const FIGURE_WIDTH_PERCENT: Record<string, number> = {
+  sm: 33,
+  md: 50,
+  lg: 75,
+  full: 100,
+};
+function widthStyle(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  const pct = FIGURE_WIDTH_PERCENT[raw];
+  if (!pct || pct === 100) return '';
+  return `max-width:${pct}%;margin-left:auto;margin-right:auto`;
+}
+
 function attr(name: string, value: string | null | undefined): string {
   if (value == null || value === '') return '';
   return ` ${name}="${escape(value)}"`;
@@ -88,12 +109,14 @@ function renderImage(b: Block): string {
   if (!url) return '';
   const caption = String(b.data.caption ?? '').trim();
   const alt = caption || 'Evari';
-  const withBorder = b.data.withBorder ? ' style="border:1px solid #e5e5e5"' : '';
-  const img = `<img${attr('src', url)}${attr('alt', alt)}${withBorder ? withBorder : ''} />`;
+  const withBorder = b.data.withBorder ? 'border:1px solid #e5e5e5;' : '';
+  const img = `<img${attr('src', url)}${attr('alt', alt)}${withBorder ? ` style="${withBorder.replace(/;$/, '')}"` : ''} />`;
+  const wrapStyle = widthStyle(b.data.width);
+  const figOpen = wrapStyle ? `<figure style="${wrapStyle}">` : '<figure>';
   if (caption) {
-    return `<figure>${img}<figcaption>${caption}</figcaption></figure>`;
+    return `${figOpen}${img}<figcaption>${caption}</figcaption></figure>`;
   }
-  return `<figure>${img}</figure>`;
+  return `${figOpen}${img}</figure>`;
 }
 
 function renderDoubleImage(b: Block): string {
@@ -107,7 +130,10 @@ function renderDoubleImage(b: Block): string {
       cap ? `<p style="font-size:0.875rem;color:#666;margin-top:0.5rem">${escape(cap)}</p>` : ''
     }</div>`;
   };
-  return `<figure style="display:flex;gap:1rem;align-items:flex-start;margin:1.5rem 0">${cell(left)}${cell(right)}</figure>`;
+  const wrapStyle = widthStyle(b.data.width);
+  const baseStyle = 'display:flex;gap:1rem;align-items:flex-start;margin:1.5rem auto';
+  const style = wrapStyle ? `${baseStyle};${wrapStyle}` : baseStyle;
+  return `<figure style="${style}">${cell(left)}${cell(right)}</figure>`;
 }
 
 function renderQuote(b: Block): string {
@@ -127,10 +153,12 @@ function renderVideo(b: Block): string {
   const poster = String(b.data.poster ?? '');
   const caption = String(b.data.caption ?? '').trim();
   const video = `<video controls playsinline${attr('poster', poster)}${attr('src', url)} style="width:100%;height:auto;display:block;border-radius:6px"></video>`;
+  const wrapStyle = widthStyle(b.data.width);
+  const figOpen = wrapStyle ? `<figure style="${wrapStyle}">` : '<figure>';
   if (caption) {
-    return `<figure>${video}<figcaption>${caption}</figcaption></figure>`;
+    return `${figOpen}${video}<figcaption>${caption}</figcaption></figure>`;
   }
-  return `<figure>${video}</figure>`;
+  return `${figOpen}${video}</figure>`;
 }
 
 export function editorDataToHtml(data: OutputData | Record<string, unknown> | null | undefined): string {

@@ -8,6 +8,20 @@ export interface JournalBlock {
   data: Record<string, unknown>;
 }
 
+/** Image-block width presets shared across preview + serializer. */
+export const FIGURE_WIDTH_PERCENT: Record<string, number> = {
+  sm: 33,
+  md: 50,
+  lg: 75,
+  full: 100,
+};
+function figureStyle(width: unknown): React.CSSProperties | undefined {
+  if (typeof width !== 'string') return undefined;
+  const pct = FIGURE_WIDTH_PERCENT[width];
+  if (!pct || pct === 100) return undefined;
+  return { maxWidth: `${pct}%`, marginLeft: 'auto', marginRight: 'auto' };
+}
+
 interface Props {
   title: string;
   author?: string | null;
@@ -19,6 +33,10 @@ interface Props {
    *  so a break the author types in the Summary textarea is visible
    *  in the preview. */
   summary?: string | null;
+  /** When the user clicks a figure (image / double-image / video) in
+   *  the preview, the editor uses this to open a width popover next
+   *  to the clicked element. */
+  onImageClick?: (blockId: string, anchor: HTMLElement) => void;
 }
 
 /**
@@ -41,6 +59,7 @@ export function ShopifyPreview({
   blocks,
   subLabel,
   summary,
+  onImageClick,
 }: Props) {
   return (
     <article className="shopify-preview">
@@ -88,7 +107,7 @@ export function ShopifyPreview({
             // The wrapper is a bare block container — no margin / no
             // padding — so it's invisible to the body's flex gap.
             <div key={b.id} id={`j-block-${b.id}`} data-journal-block>
-              <PreviewBlock block={b} />
+              <PreviewBlock block={b} onImageClick={onImageClick} />
             </div>
           ))
         )}
@@ -110,8 +129,19 @@ export function ShopifyPreview({
   );
 }
 
-function PreviewBlock({ block }: { block: JournalBlock }) {
+function PreviewBlock({
+  block,
+  onImageClick,
+}: {
+  block: JournalBlock;
+  onImageClick?: (blockId: string, anchor: HTMLElement) => void;
+}) {
   const { type, data } = block;
+  const handleFigureClick = (e: React.MouseEvent<HTMLElement>) => {
+    if (!onImageClick) return;
+    e.stopPropagation();
+    onImageClick(block.id, e.currentTarget);
+  };
   switch (type) {
     case 'paragraph': {
       const text = String(data.text ?? '');
@@ -201,7 +231,13 @@ function PreviewBlock({ block }: { block: JournalBlock }) {
         );
       }
       return (
-        <figure className="shopify-preview__figure">
+        <figure
+          className="shopify-preview__figure shopify-preview__figure--clickable"
+          style={figureStyle(data.width)}
+          onClick={onImageClick ? handleFigureClick : undefined}
+          role={onImageClick ? 'button' : undefined}
+          tabIndex={onImageClick ? 0 : undefined}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={url} alt={caption || 'Evari'} />
           {caption ? <figcaption>{caption}</figcaption> : null}
@@ -219,7 +255,13 @@ function PreviewBlock({ block }: { block: JournalBlock }) {
         );
       }
       return (
-        <figure className="shopify-preview__double">
+        <figure
+          className="shopify-preview__double shopify-preview__figure--clickable"
+          style={figureStyle(data.width)}
+          onClick={onImageClick ? handleFigureClick : undefined}
+          role={onImageClick ? 'button' : undefined}
+          tabIndex={onImageClick ? 0 : undefined}
+        >
           {[left, right].map((side, i) =>
             side?.url ? (
               <div key={i} className="shopify-preview__double-cell">
@@ -261,7 +303,13 @@ function PreviewBlock({ block }: { block: JournalBlock }) {
         );
       }
       return (
-        <figure className="shopify-preview__figure">
+        <figure
+          className="shopify-preview__figure shopify-preview__figure--clickable"
+          style={figureStyle(data.width)}
+          onClick={onImageClick ? handleFigureClick : undefined}
+          role={onImageClick ? 'button' : undefined}
+          tabIndex={onImageClick ? 0 : undefined}
+        >
           <video
             src={url}
             poster={poster}

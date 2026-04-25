@@ -345,6 +345,55 @@ export function JournalEditor({ draft, blogs }: Props) {
    */
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const highlightTimerRef = useRef<number | null>(null);
+
+  /**
+   * Width-popover state. When the user clicks an image / video /
+   * double-image figure in the preview, we capture the block id +
+   * the figure's bounding rect so the popover can position itself
+   * just above the clicked element. Click-outside or Escape closes.
+   */
+  const [widthPopover, setWidthPopover] = useState<
+    | { blockId: string; left: number; top: number }
+    | null
+  >(null);
+  function openWidthPopover(blockId: string, anchor: HTMLElement) {
+    const rect = anchor.getBoundingClientRect();
+    const containerRect = previewScrollRef.current?.getBoundingClientRect();
+    setWidthPopover({
+      blockId,
+      // Position relative to the preview scroll container so the
+      // popover travels with the page scroll naturally.
+      left: rect.left - (containerRect?.left ?? 0) + rect.width / 2,
+      top: rect.top - (containerRect?.top ?? 0) + (previewScrollRef.current?.scrollTop ?? 0),
+    });
+  }
+  function setBlockWidth(blockId: string, width: 'sm' | 'md' | 'lg' | 'full') {
+    setBlocks((prev) =>
+      prev.map((b) => (b.id === blockId ? { ...b, data: { ...b.data, width } } : b)),
+    );
+  }
+  // Close the popover on Escape or any click outside the figure +
+  // popover (caught at the document level).
+  useEffect(() => {
+    if (!widthPopover) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setWidthPopover(null);
+    }
+    function onClick(e: MouseEvent) {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      // Clicks on a figure or inside the popover keep it open.
+      if (t.closest('[data-width-popover]')) return;
+      if (t.closest('.shopify-preview__figure--clickable')) return;
+      setWidthPopover(null);
+    }
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClick);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClick);
+    };
+  }, [widthPopover]);
   function scrollPreviewToBlock(blockId: string) {
     const root = previewScrollRef.current;
     if (!root) return;
@@ -404,7 +453,7 @@ export function JournalEditor({ draft, blogs }: Props) {
   return (
     <div className="flex h-[calc(100vh-56px)] bg-evari-ink">
       {/* ── LEFT: live Shopify preview ───────────────────────────── */}
-      <div ref={previewScrollRef} className="flex-1 min-w-0 overflow-y-auto">
+      <div ref={previewScrollRef} className="relative flex-1 min-w-0 overflow-y-auto">
         <div className="px-6 pt-4 pb-2 flex items-center justify-between gap-4 border-b border-white/5 sticky top-0 bg-evari-ink z-10">
           <button
             onClick={() => router.push('/journals')}
@@ -429,7 +478,33 @@ export function JournalEditor({ draft, blogs }: Props) {
             blocks={blocks}
             subLabel={laneLabel}
             summary={summary}
+            onImageClick={openWidthPopover}
           />
+          {widthPopover ? (
+            <div
+              data-width-popover
+              style={{
+                position: 'absolute',
+                left: widthPopover.left,
+                top: widthPopover.top,
+                transform: 'translate(-50%, calc(-100% - 12px))',
+                zIndex: 30,
+              }}
+              className="shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+            >
+              <WidthPopover
+                value={
+                  ((blocks.find((b) => b.id === widthPopover.blockId)?.data
+                    .width as string | undefined) ?? 'full') as
+                    | 'sm'
+                    | 'md'
+                    | 'lg'
+                    | 'full'
+                }
+                onChange={(w) => setBlockWidth(widthPopover.blockId, w)}
+              />
+            </div>
+          ) : null}
           {errorMsg ? (
             <div className="mt-4 inline-flex items-center gap-2 text-sm text-evari-warn">
               <AlertCircle className="h-4 w-4" />
@@ -799,6 +874,58 @@ function Accordion({
         <span className="flex-1 text-left">{label}</span>
       </button>
       {open ? <div className="px-3 pb-3 pt-1">{children}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Floating popover anchored above a clicked figure in the live
+ * preview. Four width pills + a small caret arrow pointing at the
+ * image. Mirrors the sidebar WidthPills control so editing from
+ * either side hits the same value.
+ */
+function WidthPopover({
+  value,
+  onChange,
+}: {
+  value: 'sm' | 'md' | 'lg' | 'full';
+  onChange: (next: 'sm' | 'md' | 'lg' | 'full') => void;
+}) {
+  const opts: Array<{ key: 'sm' | 'md' | 'lg' | 'full'; label: string }> = [
+    { key: 'sm', label: 'Small' },
+    { key: 'md', label: 'Half' },
+    { key: 'lg', label: 'Wide' },
+    { key: 'full', label: 'Full' },
+  ];
+  return (
+    <div className="relative bg-evari-carbon ring-1 ring-evari-edge rounded-full px-1 py-1 inline-flex items-center gap-0.5">
+      {opts.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          onClick={() => onChange(o.key)}
+          className={cn(
+            'px-3 py-1.5 rounded-full text-[11px] uppercase tracking-[0.14em] font-semibold transition-colors',
+            value === o.key
+              ? 'bg-evari-gold text-evari-goldInk'
+              : 'text-evari-dim hover:text-evari-text hover:bg-evari-surface/40',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+      {/* Down-pointing caret connecting popover to the image */}
+      <span
+        aria-hidden
+        className="absolute left-1/2 -translate-x-1/2 top-full"
+        style={{
+          width: 0,
+          height: 0,
+          borderLeft: '7px solid transparent',
+          borderRight: '7px solid transparent',
+          borderTop: '7px solid rgb(var(--evari-carbon))',
+        }}
+      />
     </div>
   );
 }
