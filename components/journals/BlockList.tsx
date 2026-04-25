@@ -42,6 +42,52 @@ import { cn } from '@/lib/utils';
 import type { JournalBlock } from './ShopifyPreview';
 
 /**
+ * Alignment pill group for image / doubleImage / video blocks.
+ * Three options: range left, centre, range right. Only meaningful
+ * when width < 100% — at full width the figure fills the column
+ * and alignment is a no-op visually. We still let the user set it
+ * because it persists through width changes.
+ */
+function AlignPills({
+  value,
+  onChange,
+}: {
+  value: string | undefined;
+  onChange: (next: 'left' | 'center' | 'right') => void;
+}) {
+  const current = (value === 'left' || value === 'right' ? value : 'center') as
+    | 'left'
+    | 'center'
+    | 'right';
+  const opts: Array<{ key: 'left' | 'center' | 'right'; Icon: typeof AlignLeft; label: string }> = [
+    { key: 'left', Icon: AlignLeft, label: 'Range left' },
+    { key: 'center', Icon: AlignCenter, label: 'Centre' },
+    { key: 'right', Icon: AlignRight, label: 'Range right' },
+  ];
+  return (
+    <div className="inline-flex items-center gap-0.5 bg-[rgb(var(--evari-trough))] rounded-full p-0.5">
+      {opts.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          onClick={() => onChange(o.key)}
+          aria-label={o.label}
+          title={o.label}
+          className={cn(
+            'h-7 w-9 inline-flex items-center justify-center rounded-full transition-colors',
+            current === o.key
+              ? 'bg-evari-surfaceSoft text-evari-text'
+              : 'text-evari-dim hover:text-evari-text',
+          )}
+        >
+          <o.Icon className="h-3.5 w-3.5" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Width pill group shared by image / doubleImage / video block
  * cards. Renders the four width presets — sm 33% / md 50% / lg
  * 75% / full 100% — and writes the chosen key onto block.data.width.
@@ -553,10 +599,16 @@ function BlockBody({
       const file = (d.file as { url?: string } | undefined) ?? {};
       return (
         <div className="space-y-2">
-          <WidthPills
-            value={d.width as string | undefined}
-            onChange={(w) => onChange({ ...d, width: w })}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <WidthPills
+              value={d.width as string | undefined}
+              onChange={(w) => onChange({ ...d, width: w })}
+            />
+            <AlignPills
+              value={d.align as string | undefined}
+              onChange={(a) => onChange({ ...d, align: a })}
+            />
+          </div>
           {file.url ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -612,10 +664,16 @@ function BlockBody({
       const right = (d.right as { url?: string; caption?: string } | undefined) ?? {};
       return (
         <div className="space-y-2">
-          <WidthPills
-            value={d.width as string | undefined}
-            onChange={(w) => onChange({ ...d, width: w })}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <WidthPills
+              value={d.width as string | undefined}
+              onChange={(w) => onChange({ ...d, width: w })}
+            />
+            <AlignPills
+              value={d.align as string | undefined}
+              onChange={(a) => onChange({ ...d, align: a })}
+            />
+          </div>
         <div className="grid grid-cols-2 gap-2">
           {(['left', 'right'] as const).map((side) => {
             const v = side === 'left' ? left : right;
@@ -667,10 +725,16 @@ function BlockBody({
       const poster = String(d.poster ?? '');
       return (
         <div className="space-y-2">
-          <WidthPills
-            value={d.width as string | undefined}
-            onChange={(w) => onChange({ ...d, width: w })}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <WidthPills
+              value={d.width as string | undefined}
+              onChange={(w) => onChange({ ...d, width: w })}
+            />
+            <AlignPills
+              value={d.align as string | undefined}
+              onChange={(a) => onChange({ ...d, align: a })}
+            />
+          </div>
           {vUrl ? (
             <video
               src={vUrl}

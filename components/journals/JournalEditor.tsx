@@ -11,6 +11,9 @@ import {
   X,
   ChevronDown,
   FolderOpen,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -372,6 +375,11 @@ export function JournalEditor({ draft, blogs }: Props) {
       prev.map((b) => (b.id === blockId ? { ...b, data: { ...b.data, width } } : b)),
     );
   }
+  function setBlockAlign(blockId: string, align: 'left' | 'center' | 'right') {
+    setBlocks((prev) =>
+      prev.map((b) => (b.id === blockId ? { ...b, data: { ...b.data, align } } : b)),
+    );
+  }
   // Close the popover on Escape or any click outside the figure +
   // popover (caught at the document level).
   useEffect(() => {
@@ -501,7 +509,15 @@ export function JournalEditor({ draft, blogs }: Props) {
                     | 'lg'
                     | 'full'
                 }
+                align={
+                  ((blocks.find((b) => b.id === widthPopover.blockId)?.data
+                    .align as string | undefined) ?? 'center') as
+                    | 'left'
+                    | 'center'
+                    | 'right'
+                }
                 onChange={(w) => setBlockWidth(widthPopover.blockId, w)}
+                onAlign={(a) => setBlockAlign(widthPopover.blockId, a)}
               />
             </div>
           ) : null}
@@ -886,34 +902,69 @@ function Accordion({
  */
 function WidthPopover({
   value,
+  align,
   onChange,
+  onAlign,
 }: {
   value: 'sm' | 'md' | 'lg' | 'full';
+  align: 'left' | 'center' | 'right';
   onChange: (next: 'sm' | 'md' | 'lg' | 'full') => void;
+  onAlign: (next: 'left' | 'center' | 'right') => void;
 }) {
-  const opts: Array<{ key: 'sm' | 'md' | 'lg' | 'full'; label: string }> = [
+  const widthOpts: Array<{ key: 'sm' | 'md' | 'lg' | 'full'; label: string }> = [
     { key: 'sm', label: 'Small' },
     { key: 'md', label: 'Half' },
     { key: 'lg', label: 'Wide' },
     { key: 'full', label: 'Full' },
   ];
+  const alignOpts: Array<{ key: 'left' | 'center' | 'right'; Icon: typeof AlignLeft; label: string }> = [
+    { key: 'left', Icon: AlignLeft, label: 'Range left' },
+    { key: 'center', Icon: AlignCenter, label: 'Centre' },
+    { key: 'right', Icon: AlignRight, label: 'Range right' },
+  ];
+  // Alignment is a no-op visually at full width, so we dim the row.
+  const alignActive = value !== 'full';
   return (
-    <div className="relative bg-evari-carbon ring-1 ring-evari-edge rounded-full px-1 py-1 inline-flex items-center gap-0.5">
-      {opts.map((o) => (
-        <button
-          key={o.key}
-          type="button"
-          onClick={() => onChange(o.key)}
-          className={cn(
-            'px-3 py-1.5 rounded-full text-[11px] uppercase tracking-[0.14em] font-semibold transition-colors',
-            value === o.key
-              ? 'bg-evari-gold text-evari-goldInk'
-              : 'text-evari-dim hover:text-evari-text hover:bg-evari-surface/40',
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div className="relative bg-evari-carbon ring-1 ring-evari-edge rounded-lg px-2 py-2 flex flex-col items-center gap-1.5">
+      {/* Width row */}
+      <div className="inline-flex items-center gap-0.5">
+        {widthOpts.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => onChange(o.key)}
+            className={cn(
+              'px-3 py-1.5 rounded-full text-[11px] uppercase tracking-[0.14em] font-semibold transition-colors',
+              value === o.key
+                ? 'bg-evari-gold text-evari-goldInk'
+                : 'text-evari-dim hover:text-evari-text hover:bg-evari-surface/40',
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {/* Alignment row */}
+      <div className={cn('inline-flex items-center gap-0.5', alignActive ? '' : 'opacity-50')}>
+        {alignOpts.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => onAlign(o.key)}
+            disabled={!alignActive}
+            aria-label={o.label}
+            title={alignActive ? o.label : `${o.label} (only applies when width < Full)`}
+            className={cn(
+              'h-7 w-9 inline-flex items-center justify-center rounded-md transition-colors',
+              align === o.key
+                ? 'bg-evari-gold text-evari-goldInk'
+                : 'text-evari-dim hover:text-evari-text hover:bg-evari-surface/40 disabled:hover:bg-transparent',
+            )}
+          >
+            <o.Icon className="h-3.5 w-3.5" />
+          </button>
+        ))}
+      </div>
       {/* Down-pointing caret connecting popover to the image */}
       <span
         aria-hidden
