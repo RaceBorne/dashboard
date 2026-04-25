@@ -956,17 +956,15 @@ function ArticleReader({
           editHref={() => onEdit(d.id)}
           onUseAsTemplate={onUseAsTemplate}
         />
-        <div className="max-w-3xl mx-auto px-10 py-10">
-          <ShopifyPreview
-            title={d.title || 'Untitled draft'}
-            author={d.author}
-            publishedAt={d.publishedAt}
-            coverImageUrl={d.coverImageUrl}
-            blocks={blocks}
-            subLabel={laneLabel}
-            summary={d.summary}
-          />
-        </div>
+        <ShopifyPreview
+          title={d.title || 'Untitled draft'}
+          author={d.author}
+          publishedAt={d.publishedAt}
+          coverImageUrl={d.coverImageUrl}
+          blocks={blocks}
+          subLabel={laneLabel}
+          summary={d.summary}
+        />
       </div>
     );
   }
@@ -984,38 +982,51 @@ function ArticleReader({
         externalHref={a.handle ? `https://evari.cc/blogs/${a.blog.handle}/${a.handle}` : undefined}
         onUseAsTemplate={onUseAsTemplate}
       />
-      <article className="shopify-preview max-w-3xl mx-auto px-10 py-10">
-        {a.image?.url ? (
-          <div className="shopify-preview__cover">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={a.image.url} alt={a.image.altText ?? a.title} />
+      <article className="shopify-preview">
+        {/* Hero — full-bleed image with title overlaid (matches
+            evari.cc article-template__header--overlay). */}
+        <header className="shopify-preview__hero">
+          {a.image?.url ? (
+            <div className="shopify-preview__hero-image">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={a.image.url} alt={a.image.altText ?? a.title} />
+            </div>
+          ) : (
+            <div className="shopify-preview__hero-image shopify-preview__hero-image--empty" />
+          )}
+          <div className="shopify-preview__hero-overlay" aria-hidden="true" />
+          <div className="shopify-preview__hero-info">
             {laneLabel ? (
               <span className="shopify-preview__sublabel">{laneLabel}</span>
             ) : null}
+            <h1 className="shopify-preview__title">{a.title}</h1>
+            <div className="shopify-preview__meta">
+              {(a.author?.name ?? '').trim() ? (
+                <span className="shopify-preview__meta-item">By {a.author?.name}</span>
+              ) : null}
+              {a.publishedAt ? (
+                <span className="shopify-preview__meta-item">
+                  {new Date(a.publishedAt).toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </span>
+              ) : null}
+            </div>
           </div>
-        ) : null}
-        <header className="shopify-preview__head">
-          <h1 className="shopify-preview__title">{a.title}</h1>
         </header>
-        <div
-          className="shopify-preview__body"
-          // Shopify's bodyHtml is curated by the merchant in the admin
-          // and displayed on the storefront as-is; we render it the
-          // same way so the reader view matches the published post.
-          dangerouslySetInnerHTML={{ __html: a.bodyHtml || '' }}
-        />
-        {(a.author?.name ?? '').trim() ? (
-          <p className="shopify-preview__byline">By {a.author?.name}</p>
-        ) : null}
-        {a.publishedAt ? (
-          <p className="shopify-preview__date">
-            {new Date(a.publishedAt).toLocaleDateString('en-GB', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
-          </p>
-        ) : null}
+
+        {/* Body — narrow centered column at ~741px max-width. */}
+        <div className="shopify-preview__container">
+          <div
+            className="shopify-preview__body"
+            // Shopify's bodyHtml is curated by the merchant in the admin
+            // and displayed on the storefront as-is; we render it the
+            // same way so the reader view matches the published post.
+            dangerouslySetInnerHTML={{ __html: a.bodyHtml || '' }}
+          />
+        </div>
       </article>
     </div>
   );
