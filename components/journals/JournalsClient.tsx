@@ -16,6 +16,8 @@ import {
   Trash2,
   AlertTriangle,
   PlaneTakeoff,
+  Calendar,
+  X as XIcon,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -1362,6 +1364,41 @@ function DraftTile({
           </p>
         </div>
       </button>
+      {/* Top-right action: Calendar (schedule) on Studio Design tiles,
+          X (cancel schedule) on Departure Lounge tiles. Trash stays
+          out per the lozenge restyle spec — delete lives in the editor. */}
+      {onSchedule || onUnschedule ? (
+        <div className="absolute top-2 right-2 flex items-center">
+          {onSchedule ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSchedule();
+              }}
+              title="Schedule for Departure Lounge"
+              aria-label="Schedule"
+              className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-black/50 text-white/80 hover:bg-evari-gold hover:text-evari-goldInk backdrop-blur-sm transition-colors"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+          {onUnschedule ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void onUnschedule();
+              }}
+              title="Cancel schedule (back to Studio Design)"
+              aria-label="Cancel schedule"
+              className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-black/50 text-white/80 hover:bg-evari-warn hover:text-white backdrop-blur-sm transition-colors"
+            >
+              <XIcon className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
