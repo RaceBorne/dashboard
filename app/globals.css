@@ -771,9 +771,9 @@ code {
 .shopify-preview__hero {
   position: relative;
   width: 100%;
-  /* Storefront hero is min-height: 100vh on >=990px. In the preview
-     pane (which is itself ~80vh-ish), 75vh feels right. */
-  min-height: 75vh;
+  /* In the editor preview pane the available height is smaller, so
+     65vh keeps the hero tall without dominating the page. */
+  min-height: 65vh;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
@@ -813,25 +813,27 @@ code {
   z-index: 1;
   width: 100%;
   max-width: 100%;
-  padding: 0 5rem 6.4rem;
+  padding: 0 3.5rem 4.5rem;
   color: #fff;
 }
 .shopify-preview__hero-info > * + * {
-  margin-top: 1.6rem;
+  margin-top: 1.2rem;
 }
 .shopify-preview__sublabel {
   display: inline-block;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 4px;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 3px;
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
 .shopify-preview__title {
-  font-size: clamp(2.4rem, 4.5vw, 4.2rem);
-  line-height: 1.1;
+  /* Tuned down — preview pane is narrower than full storefront
+     viewport, so vw-based sizing felt oversized. Now ~18-32px. */
+  font-size: clamp(1.75rem, 2.6vw, 2.6rem);
+  line-height: 1.15;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #fff;
@@ -840,8 +842,8 @@ code {
 }
 .shopify-preview__lede {
   margin: 0;
-  font-size: 1.125rem;
-  line-height: 1.55;
+  font-size: 0.95rem;
+  line-height: 1.5;
   color: rgba(255, 255, 255, 0.85);
   max-width: 60rem;
 }
