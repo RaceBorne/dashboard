@@ -755,16 +755,38 @@ code {
 .shopify-preview {
   font-family: var(--font-shopify-preview), 'Inter', -apple-system,
     BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  color: rgb(var(--evari-text, 245 245 245));
+  /* Match the Shopify storefront — white page with dark text below
+     the full-bleed hero. Hero image sits on top of this background;
+     body content (below the hero) reads as black-on-white the same
+     way evari.cc renders. */
+  background: #ffffff;
+  color: #1a1a1a;
   line-height: 1.5;
   font-size: 16px;
   font-feature-settings: 'ss01', 'cv11';
-  /* Full-bleed by default — preview spans the full preview-pane
-     width, hero included. Body content re-introduces its own
-     padding via .shopify-preview__container. */
   width: 100%;
   margin: 0;
   padding: 0;
+}
+/* Body block typography pinned to dark on white so paragraph,
+   heading, list, link, and figure-caption colours don't inherit
+   the dashboard's light-on-dark scheme. */
+.shopify-preview__body,
+.shopify-preview__body p,
+.shopify-preview__body li,
+.shopify-preview__body h1,
+.shopify-preview__body h2,
+.shopify-preview__body h3,
+.shopify-preview__body h4 {
+  color: #1a1a1a;
+}
+.shopify-preview__body figcaption,
+.shopify-preview__byline,
+.shopify-preview__date {
+  color: rgba(26, 26, 26, 0.65);
+}
+.shopify-preview__share {
+  color: rgba(26, 26, 26, 0.55);
 }
 
 /* ---------- Hero (full-bleed image with overlaid title) ---------- */
