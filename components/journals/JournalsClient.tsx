@@ -353,7 +353,13 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 {studioDrafts.length}
               </span>
             </header>
-            <div className="grid gap-6 items-start w-full grid-cols-5">
+            <div
+              className="grid gap-6 items-start w-full"
+              style={{
+                gridTemplateColumns:
+                  'repeat(auto-fill, minmax(220px, 1fr))',
+              }}
+            >
               {studioDrafts.map((d) => (
                 <DraftTile
                   key={d.id}
@@ -390,7 +396,13 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 Scheduled to publish
               </span>
             </header>
-            <div className="grid gap-6 items-start w-full grid-cols-5">
+            <div
+              className="grid gap-6 items-start w-full"
+              style={{
+                gridTemplateColumns:
+                  'repeat(auto-fill, minmax(220px, 1fr))',
+              }}
+            >
               {departureDrafts.map((d) => (
                 <DraftTile
                   key={d.id}
@@ -429,7 +441,13 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 Stubs started in Shopify admin, not yet live
               </span>
             </header>
-            <div className="grid gap-6 items-start w-full grid-cols-5">
+            <div
+              className="grid gap-6 items-start w-full"
+              style={{
+                gridTemplateColumns:
+                  'repeat(auto-fill, minmax(220px, 1fr))',
+              }}
+            >
               {unpublishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}
@@ -467,7 +485,13 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 : 'No published articles in this lane yet. Click New above to start one.'}
             </div>
           ) : (
-            <div className="grid gap-6 items-start w-full grid-cols-5">
+            <div
+              className="grid gap-6 items-start w-full"
+              style={{
+                gridTemplateColumns:
+                  'repeat(auto-fill, minmax(220px, 1fr))',
+              }}
+            >
               {publishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}
