@@ -1040,23 +1040,31 @@ code {
 }
 
 /* --------------------------------------------------------------------------
-   Journals tile grid — DEFENSIVE FORCE-FILL.
+   Journals tile grid — DEFENSIVE FORCE-FILL (v5).
 
-   Repeated diagnostics showed the journals listing grid rendering at
-   exactly 1140px wide on viewports where its parent <section> measured
-   1392px. No source-level max-width caps the grid; the constraint was
-   coming from somewhere in the cascade or an inherited intrinsic-sizing
-   default that fought every w-full / minWidth: 100% inline-style fix.
+   Repeated diagnostics show the grid rendering at exactly 1140px on
+   viewports whose parent <section> measures ~1392px. The 1140 number
+   matches an old max-w-[1140px] Tailwind class from a previous version
+   of the source — strong signal that the browser is serving a stale
+   JS bundle whose rendered DOM still carries that class.
 
-   This rule uses !important on every dimension that could possibly clip
-   the grid, plus a redundant grid-template-columns to guarantee the
-   auto-fill behaviour even if Tailwind's JIT misses the inline style
-   in a future build. It also forces display: grid so any errant
-   display: block / inline-block / table override loses.
-
-   Scoped to the journals listing only (not the editor/preview grids).
+   Strategy: do not rely on a marker class that may not be in cached
+   DOM. Target every plausible selector for the journals listing grid:
+   the legacy max-w cap, the new marker classes, and a structural
+   selector that catches any direct div child of <section> inside the
+   journals scroll container — regardless of its className.
    -------------------------------------------------------------------------- */
-.journals-grid-v4 {
+
+/* 1) Defeat the legacy Tailwind cap if it survived in cached HTML.   */
+.max-w-\[1140px\] {
+  max-width: none !important;
+  width: 100% !important;
+}
+
+/* 2) New marker classes + structural fallback.                       */
+.journals-grid-v4,
+.journals-grid-v3,
+main > div > div.flex-1.overflow-y-auto > section > div:not(.rounded-lg) {
   display: grid !important;
   width: 100% !important;
   min-width: 100% !important;
