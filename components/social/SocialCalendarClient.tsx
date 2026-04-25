@@ -66,13 +66,21 @@ function captionSnippet(s: string, max = 40) {
   return clean.length > max ? clean.slice(0, max - 1) + '…' : clean;
 }
 
+export interface JournalCalendarEntry {
+  id: string;
+  title: string;
+  scheduledFor: string;
+  blogTarget: string;
+}
+
 interface Props {
   posts: SocialPost[];
+  journalDrafts?: JournalCalendarEntry[];
 }
 
 type CalendarView = 'day' | 'week' | 'month' | 'year';
 
-export function SocialCalendarClient({ posts }: Props) {
+export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   const [view, setView] = useState<CalendarView>('month');
   const [month, setMonth] = useState<Date>(new Date());
   const [weekAnchor, setWeekAnchor] = useState<Date>(new Date());
@@ -103,8 +111,25 @@ export function SocialCalendarClient({ posts }: Props) {
         tone: statusTone(p.status),
       });
     }
+    // Departure Lounge journal drafts — scheduled-for journals that
+    // haven't published to Shopify yet. Rendered as accent-toned
+    // events so they sit next to scheduled social posts on the same
+    // day. Title prefixed with 'Journal' so the source is obvious.
+    for (const j of journalDrafts) {
+      const d = new Date(j.scheduledFor);
+      if (Number.isNaN(d.getTime())) continue;
+      out.push({
+        id: `journal:${j.id}`,
+        date: d,
+        start: d,
+        title: `Journal · ${captionSnippet(j.title, 28)}`,
+        time: format(d, 'HH:mm'),
+        durationMinutes: 30,
+        tone: 'accent',
+      });
+    }
     return out;
-  }, [posts]);
+  }, [posts, journalDrafts]);
 
   const drafts = posts.filter((p) => p.status === 'draft');
 
