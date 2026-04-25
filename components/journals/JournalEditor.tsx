@@ -477,7 +477,7 @@ export function JournalEditor({ draft, blogs }: Props) {
             <SaveBadge state={saveState} />
           </div>
         </div>
-        <div className="max-w-3xl mx-auto px-10 py-10">
+        <div className="w-full">
           <ShopifyPreview
             title={title}
             author={author}
