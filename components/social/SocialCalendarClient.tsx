@@ -71,6 +71,7 @@ export interface JournalCalendarEntry {
   title: string;
   scheduledFor: string;
   blogTarget: string;
+  coverImageUrl: string | null;
 }
 
 interface Props {
@@ -127,6 +128,8 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         time: format(d, 'HH:mm'),
         durationMinutes: 30,
         tone: 'orange',
+        imageUrl: j.coverImageUrl ?? undefined,
+        imageCaption: j.title,
         onClick: () => {
           setWeekAnchor(d);
           setView('week');

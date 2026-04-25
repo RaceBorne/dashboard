@@ -69,6 +69,12 @@ function toneColors(tone: CalendarEventTone = 'default') {
         fill: 'rgb(var(--evari-gold) / 0.15)',
         text: 'rgb(var(--evari-text))',
       };
+    case 'orange':
+      return {
+        bar: 'rgb(249 115 22)',
+        fill: 'rgb(249 115 22)',
+        text: '#ffffff',
+      };
     default:
       return {
         bar: 'rgb(var(--evari-dim))',
@@ -361,39 +367,23 @@ export function WeekCalendar({
                   const endMin = startMin + dur;
                   const endDate = new Date(eventDate.getTime() + dur * 60_000);
                   return (
-                    <button
+                    <TimedEventButton
                       key={e.id}
+                      event={e}
+                      top={top}
+                      height={height}
+                      bg={c.fill}
+                      bar={c.bar}
+                      color={c.text}
+                      eventDate={eventDate}
+                      endDate={endDate}
+                      durationMinutes={dur}
                       onClick={(ev) => {
                         ev.stopPropagation();
                         onEventClick?.(e);
                         e.onClick?.();
                       }}
-                      className="absolute text-left overflow-hidden rounded-md z-10 hover:brightness-110 transition"
-                      style={{
-                        top,
-                        height,
-                        left: 4,
-                        right: 4,
-                        background: c.fill,
-                        borderLeft: `3px solid ${c.bar}`,
-                        color: c.text,
-                        padding: '4px 6px',
-                      }}
-                      title={e.title}
-                    >
-                      <div className="text-[11px] font-medium leading-tight truncate">
-                        {e.title}
-                      </div>
-                      <div className="text-[10px] tabular-nums text-evari-dim leading-tight mt-0.5">
-                        {format(eventDate, 'HH:mm')}
-                        {dur >= 45 && (
-                          <>
-                            {' – '}
-                            {format(endDate, 'HH:mm')}
-                          </>
-                        )}
-                      </div>
-                    </button>
+                    />
                   );
                 })}
               </div>
@@ -401,6 +391,89 @@ export function WeekCalendar({
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+interface TimedEventButtonProps {
+  event: CalendarEvent;
+  top: number;
+  height: number;
+  bg: string;
+  bar: string;
+  color: string;
+  eventDate: Date;
+  endDate: Date;
+  durationMinutes: number;
+  onClick: (ev: React.MouseEvent) => void;
+}
+
+/**
+ * Single timed event in the WeekCalendar grid. Owns its own hover
+ * state so we can render a floating thumbnail preview to the right
+ * of the button when the user lingers — same UX as MonthCalendar.
+ */
+function TimedEventButton({
+  event,
+  top,
+  height,
+  bg,
+  bar,
+  color,
+  eventDate,
+  endDate,
+  durationMinutes,
+  onClick,
+}: TimedEventButtonProps) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      className="absolute z-10"
+      style={{ top, height, left: 4, right: 4 }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <button
+        onClick={onClick}
+        className="text-left overflow-hidden rounded-md hover:brightness-110 transition w-full h-full"
+        style={{
+          background: bg,
+          borderLeft: `3px solid ${bar}`,
+          color,
+          padding: '4px 6px',
+        }}
+        title={event.title}
+      >
+        <div className="text-[11px] font-medium leading-tight truncate">
+          {event.title}
+        </div>
+        <div className="text-[10px] tabular-nums leading-tight mt-0.5 opacity-80">
+          {format(eventDate, 'HH:mm')}
+          {durationMinutes >= 45 && (
+            <>
+              {' – '}
+              {format(endDate, 'HH:mm')}
+            </>
+          )}
+        </div>
+      </button>
+      {hover && event.imageUrl ? (
+        <div
+          className="absolute z-50 left-full top-0 ml-2 w-[200px] pointer-events-none rounded-md ring-1 ring-evari-edge bg-evari-surface shadow-[0_6px_18px_rgba(0,0,0,0.4)] overflow-hidden"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={event.imageUrl}
+            alt={event.imageCaption ?? event.title}
+            className="block w-full"
+            style={{ aspectRatio: '16 / 10', objectFit: 'cover' }}
+          />
+          <div className="px-2 py-1.5 text-[11px] text-evari-text leading-snug truncate">
+            {event.imageCaption ?? event.title}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

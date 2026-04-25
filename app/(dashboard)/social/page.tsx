@@ -22,6 +22,7 @@ export default async function SocialPage() {
       title: (d.title || 'Untitled draft').replace(/<[^>]*>/g, '').trim(),
       scheduledFor: d.scheduledFor as string,
       blogTarget: d.blogTarget,
+      coverImageUrl: d.coverImageUrl,
     }));
   return (
     <>

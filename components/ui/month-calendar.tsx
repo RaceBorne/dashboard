@@ -37,6 +37,12 @@ export interface CalendarEvent {
   durationMinutes?: number;
   tone?: CalendarEventTone;
   allDay?: boolean;    // renders as full-width filled bar like a holiday
+  /** Optional cover/thumbnail image. When supplied, hovering the
+   *  event in any view shows a floating preview of the image. */
+  imageUrl?: string;
+  /** Optional caption shown under the hover preview. Defaults to the
+   *  event's title. */
+  imageCaption?: string;
   onClick?: () => void;
 }
 
@@ -279,6 +285,7 @@ export function MonthCalendar({
 
 function EventRow({ event }: { event: CalendarEvent }) {
   const t = toneClasses(event.tone);
+  const [hover, setHover] = useState(false);
 
   // All-day events render as filled subtle pills (like a holiday)
   if (event.allDay) {
@@ -305,13 +312,15 @@ function EventRow({ event }: { event: CalendarEvent }) {
     return (
       <li
         className={cn(
-          'flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] cursor-pointer truncate',
+          'relative flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] cursor-pointer truncate',
           t.fill,
         )}
         onClick={(e) => {
           e.stopPropagation();
           event.onClick?.();
         }}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
       >
         <span className="truncate flex-1">{event.title}</span>
         {event.time && (
@@ -319,6 +328,7 @@ function EventRow({ event }: { event: CalendarEvent }) {
             {event.time}
           </span>
         )}
+        {hover && event.imageUrl ? <HoverImagePreview event={event} /> : null}
       </li>
     );
   }
@@ -326,11 +336,13 @@ function EventRow({ event }: { event: CalendarEvent }) {
   // Timed events: leading coloured stripe + title + right-aligned time
   return (
     <li
-      className="flex items-stretch gap-1.5 rounded group/evt hover:bg-evari-surface/60 cursor-pointer"
+      className="relative flex items-stretch gap-1.5 rounded group/evt hover:bg-evari-surface/60 cursor-pointer"
       onClick={(e) => {
         e.stopPropagation();
         event.onClick?.();
       }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
       <span className={cn('w-[2px] rounded-full shrink-0', t.bar)} />
       <span className="flex-1 flex items-center gap-1 px-0.5 py-0.5 min-w-0">
@@ -343,6 +355,33 @@ function EventRow({ event }: { event: CalendarEvent }) {
           </span>
         )}
       </span>
+      {hover && event.imageUrl ? <HoverImagePreview event={event} /> : null}
     </li>
+  );
+}
+
+/**
+ * Floating thumbnail preview shown on event hover. Renders to the
+ * right of the event pill at a 16:10 crop (matches the journals
+ * tile thumbnail). Caption sits underneath. Pointer-events: none so
+ * the popover never steals clicks from the underlying day cell.
+ */
+function HoverImagePreview({ event }: { event: CalendarEvent }) {
+  const caption = event.imageCaption ?? event.title;
+  return (
+    <div
+      className="absolute z-50 left-full top-0 ml-2 w-[180px] pointer-events-none rounded-md ring-1 ring-evari-edge bg-evari-surface shadow-[0_6px_18px_rgba(0,0,0,0.4)] overflow-hidden"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={event.imageUrl}
+        alt={caption}
+        className="block w-full"
+        style={{ aspectRatio: '16 / 10', objectFit: 'cover' }}
+      />
+      <div className="px-2 py-1.5 text-[11px] text-evari-text leading-snug truncate">
+        {caption}
+      </div>
+    </div>
   );
 }
