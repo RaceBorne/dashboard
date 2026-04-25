@@ -107,39 +107,63 @@ export function ShopifyPreview({
   };
   return (
     <article className="shopify-preview">
-      {/* Cover */}
-      {coverImageUrl ? (
-        <div className="shopify-preview__cover">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverImageUrl} alt={title} />
+      {/* Hero — full-bleed image with title overlaid. Mirrors the
+          evari.cc Shopify article-template__header--overlay layout:
+          big cover that fills the canvas, dark gradient overlay,
+          title + meta sitting in the lower portion. */}
+      <header className="shopify-preview__hero">
+        {coverImageUrl ? (
+          <div className="shopify-preview__hero-image">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={coverImageUrl} alt={title} />
+          </div>
+        ) : (
+          <div className="shopify-preview__hero-image shopify-preview__hero-image--empty" />
+        )}
+        <div className="shopify-preview__hero-overlay" aria-hidden="true" />
+        <div className="shopify-preview__hero-info">
           {subLabel ? (
             <span className="shopify-preview__sublabel">{subLabel}</span>
           ) : null}
+          <h1 className="shopify-preview__title">
+            {title.trim() || 'Untitled article'}
+          </h1>
+          {summary && summary.trim() ? (
+            <p
+              className="shopify-preview__lede"
+              style={{ whiteSpace: 'pre-line' }}
+            >
+              {summary}
+            </p>
+          ) : null}
+          <div className="shopify-preview__meta">
+            {(author ?? '').trim() ? (
+              <span className="shopify-preview__meta-item">By {author}</span>
+            ) : null}
+            {publishedAt ? (
+              <span className="shopify-preview__meta-item">
+                {new Date(publishedAt).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </span>
+            ) : null}
+          </div>
         </div>
-      ) : null}
+      </header>
 
-      <header className="shopify-preview__head">
+      {/* Body — narrow centered column at ~741px max-width to match
+          evari.cc's article-template__content-rte. Outer container
+          enforces the 1396px page-width with 50px side padding. */}
+      <div className="shopify-preview__container">
         <div className="shopify-preview__share">
           <span>Share:</span>
           <Share2 size={14} />
           <Facebook size={14} />
           <Link2 size={14} />
         </div>
-        <h1 className="shopify-preview__title">
-          {title.trim() || 'Untitled article'}
-        </h1>
-        {summary && summary.trim() ? (
-          // Summary renders as a lede below the title. `whitespace-
-          // pre-line` keeps every \n the author typed in the Summary
-          // textarea so paragraph breaks look identical here as in
-          // the published article.
-          <p className="shopify-preview__lede" style={{ whiteSpace: 'pre-line' }}>
-            {summary}
-          </p>
-        ) : null}
-      </header>
-
-      <div className="shopify-preview__body">
+        <div className="shopify-preview__body">
         {blocks.length === 0 ? (
           <p className="shopify-preview__empty">
             Your article will appear here as you add blocks on the right.
@@ -175,20 +199,8 @@ export function ShopifyPreview({
             </div>
           ))
         )}
+        </div>
       </div>
-
-      {(author ?? '').trim() ? (
-        <p className="shopify-preview__byline">By {author}</p>
-      ) : null}
-      {publishedAt ? (
-        <p className="shopify-preview__date">
-          {new Date(publishedAt).toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
-        </p>
-      ) : null}
     </article>
   );
 }

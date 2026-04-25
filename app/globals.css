@@ -739,47 +739,136 @@ code {
    Do not push these up because the preview "looks small" — that's
    how Shopify renders on the storefront. Inflating the preview
    would break the WYSIWYG promise Craig is paying for. */
+/* --------------------------------------------------------------------------
+   Shopify-faithful preview — geometry tuned to evari.cc storefront.
+
+   evari.cc article pages use Shopify's Dawn-style theme:
+     - Full-bleed hero header (article-template__header--overlay):
+         min-height: 100vh on >=990px viewports
+         hero image absolutely positioned to fill (object-fit: cover)
+         dark overlay (rgba 0,0,0,.2) for legibility
+         title + meta laid over the lower portion
+     - Container max-width: 139.6rem (1396px) with 50px side padding
+     - Body text column: max-width: 74.1rem (741px)
+     - Body font: 16px, line-height 1.5
+   -------------------------------------------------------------------------- */
 .shopify-preview {
   font-family: var(--font-shopify-preview), 'Inter', -apple-system,
     BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   color: rgb(var(--evari-text, 245 245 245));
-  line-height: 1.6;
+  line-height: 1.5;
   font-size: 16px;
   font-feature-settings: 'ss01', 'cv11';
+  /* Full-bleed by default — preview spans the full preview-pane
+     width, hero included. Body content re-introduces its own
+     padding via .shopify-preview__container. */
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
-.shopify-preview__cover {
+
+/* ---------- Hero (full-bleed image with overlaid title) ---------- */
+.shopify-preview__hero {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
-  border-radius: 10px;
+  /* Storefront hero is min-height: 100vh on >=990px. In the preview
+     pane (which is itself ~80vh-ish), 75vh feels right. */
+  min-height: 75vh;
+  display: flex;
+  align-items: flex-end;
   overflow: hidden;
-  background: rgb(var(--evari-surface) / 0.4);
-  margin-bottom: 2rem;
+  background: rgb(var(--evari-carbon, 18 18 18));
+  margin-bottom: 4.8rem;
 }
-.shopify-preview__cover img {
+.shopify-preview__hero-image,
+.shopify-preview__hero-image img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+}
+.shopify-preview__hero-image img {
   object-fit: cover;
   display: block;
 }
-.shopify-preview__sublabel {
+.shopify-preview__hero-image--empty {
+  background: linear-gradient(
+    135deg,
+    rgb(var(--evari-surface) / 0.4) 0%,
+    rgb(var(--evari-carbon) / 0.6) 100%
+  );
+}
+.shopify-preview__hero-overlay {
   position: absolute;
-  left: 16px;
-  bottom: 16px;
-  background: rgba(0, 0, 0, 0.7);
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.05) 0%,
+    rgba(0, 0, 0, 0.35) 65%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+.shopify-preview__hero-info {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 100%;
+  padding: 0 5rem 6.4rem;
+  color: #fff;
+}
+.shopify-preview__hero-info > * + * {
+  margin-top: 1.6rem;
+}
+.shopify-preview__sublabel {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.55);
   color: #fff;
   font-size: 12px;
   padding: 4px 10px;
   border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
 }
-.shopify-preview__head {
-  margin-bottom: 2rem;
+.shopify-preview__title {
+  font-size: clamp(2.4rem, 4.5vw, 4.2rem);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin: 0;
+  max-width: 80rem;
 }
 .shopify-preview__lede {
-  margin: 0.75rem 0 0;
-  font-size: 1.0625rem;
+  margin: 0;
+  font-size: 1.125rem;
   line-height: 1.55;
-  color: rgb(var(--evari-dim, 170 170 170));
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 60rem;
+}
+.shopify-preview__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 2.4rem;
+  margin-top: 2.4rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+.shopify-preview__meta-item {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ---------- Body container (narrow centered column) ---------- */
+.shopify-preview__container {
+  width: 100%;
+  max-width: 139.6rem; /* page-width */
+  padding: 0 5rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .shopify-preview__share {
   display: flex;
@@ -789,25 +878,23 @@ code {
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: rgb(var(--evari-dimmer, 150 150 150));
-  margin-bottom: 1rem;
-}
-.shopify-preview__title {
-  font-size: 2.25rem;
-  line-height: 1.15;
-  font-weight: 700;
-  letter-spacing: -0.018em;
-  color: rgb(var(--evari-text, 245 245 245));
-  margin: 0;
+  width: 100%;
+  max-width: 74.1rem;
+  margin: 0 auto 2.4rem;
 }
 .shopify-preview__body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
   font-size: 16px;
-  /* Hard cap so a wide block (image, double-image, video) can never
-     burst out of the column and push the sidebar off-screen. */
+  line-height: 1.5;
+  /* Storefront's article body column is 74.1rem (741px) wide,
+     centered. Hard cap prevents wide blocks (image, double-image,
+     video) from bursting the column. */
+  width: 100%;
+  max-width: 74.1rem;
+  margin: 0 auto;
   min-width: 0;
-  max-width: 100%;
 }
 /* Each block is wrapped in a [data-journal-block] anchor div for
    the cross-pane scroll feature. Without min-width:0 + max-width:100%
