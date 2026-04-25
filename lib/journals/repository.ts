@@ -100,6 +100,32 @@ export async function listDrafts(
   return (data ?? []).map(rowToDraft);
 }
 
+/**
+ * Drafts queued for publish whose `scheduled_for` is now in the past
+ * and that haven't been pushed to Shopify yet. Powers the
+ * /api/cron/publish-scheduled worker — anything this returns gets
+ * the publish flow run on it.
+ */
+export async function listDueScheduledDrafts(
+  opts: { limit?: number } = {},
+): Promise<JournalDraft[]> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return [];
+  const { data, error } = await sb
+    .from('dashboard_journal_drafts')
+    .select('*')
+    .is('shopify_article_id', null)
+    .not('scheduled_for', 'is', null)
+    .lte('scheduled_for', new Date().toISOString())
+    .order('scheduled_for', { ascending: true })
+    .limit(opts.limit ?? 25);
+  if (error) {
+    console.error('[journals.listDueScheduledDrafts] ', error);
+    return [];
+  }
+  return (data ?? []).map(rowToDraft);
+}
+
 export async function getDraft(id: string): Promise<JournalDraft | null> {
   const sb = createSupabaseAdmin();
   if (!sb) return null;

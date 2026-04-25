@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -521,6 +521,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
       {scheduleTarget ? (
         <ScheduleDialog
           draft={scheduleTarget}
+          laneLabel={lane.label}
           onCancel={() => setScheduleTarget(null)}
           onSave={async (iso) => {
             await fetch(`/api/journals/${scheduleTarget.id}`, {
@@ -614,19 +615,31 @@ function DeleteConfirm({
   );
 }
 
+/** Shape returned by /api/journals/ai-schedule. */
+interface AiScheduleSuggestion {
+  iso: string;
+  label: string;
+  reasoning: string;
+}
+
 /**
- * Schedule a draft for publish — Studio Design → Departure Lounge.
+ * Schedule a draft for publish, Studio Design to Departure Lounge.
  *
- * v1: native datetime-local input + Save / Cancel. The AI-suggested
- * times (task #217) will land here as a row of one-click pills
- * above the manual picker.
+ * On open we fire /api/journals/ai-schedule with the draft's lane,
+ * title and summary. The endpoint returns a one-sentence cadence
+ * hint and three send windows. Each window is rendered as a pill
+ * the user can click to fill the manual picker. Pills + manual
+ * picker share the same `value` state so saving always uses the
+ * latest selection.
  */
 function ScheduleDialog({
   draft,
+  laneLabel,
   onCancel,
   onSave,
 }: {
   draft: JournalDraft;
+  laneLabel: string;
   onCancel: () => void;
   onSave: (iso: string) => Promise<void> | void;
 }) {
@@ -642,6 +655,54 @@ function ScheduleDialog({
       })();
   const [value, setValue] = useState(toLocalInputValue(initial));
   const [busy, setBusy] = useState(false);
+  const [suggestions, setSuggestions] = useState<AiScheduleSuggestion[]>([]);
+  const [frequencyHint, setFrequencyHint] = useState<string>('');
+  const [aiLoading, setAiLoading] = useState(true);
+  const [activeIso, setActiveIso] = useState<string | null>(null);
+
+  // Fetch AI suggestions once on open. We pass the lane + draft
+  // metadata so the model can pick slots that fit the article
+  // (launch pieces lean weekday morning, lifestyle reads weekend).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setAiLoading(true);
+      try {
+        const res = await fetch('/api/journals/ai-schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            laneLabel,
+            articleTitle: stripHtml(draft.title) || '',
+            articleSummary: stripHtml(draft.summary ?? '') || '',
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          suggestions?: AiScheduleSuggestion[];
+          frequencyHint?: string;
+        };
+        if (cancelled) return;
+        if (json.ok && Array.isArray(json.suggestions)) {
+          setSuggestions(json.suggestions);
+        }
+        if (json.frequencyHint) setFrequencyHint(json.frequencyHint);
+      } catch {
+        // Soft-fail: dialog still works as a manual picker.
+      } finally {
+        if (!cancelled) setAiLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [draft.id, draft.title, draft.summary, laneLabel]);
+
+  const pickSuggestion = (s: AiScheduleSuggestion) => {
+    setActiveIso(s.iso);
+    setValue(toLocalInputValue(new Date(s.iso)));
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
@@ -652,7 +713,7 @@ function ScheduleDialog({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative w-full max-w-md rounded-lg bg-evari-carbon shadow-[0_12px_40px_rgba(0,0,0,0.5)] ring-1 ring-evari-edge"
+        className="relative w-full max-w-lg rounded-lg bg-evari-carbon shadow-[0_12px_40px_rgba(0,0,0,0.5)] ring-1 ring-evari-edge"
       >
         <div className="p-5 space-y-4">
           <div className="flex items-start gap-3">
@@ -672,21 +733,85 @@ function ScheduleDialog({
               </p>
             </div>
           </div>
+
+          {/* Frequency hint banner. Sits above the pills so the user
+              gets the strategic context before tactical times. */}
+          {(aiLoading || frequencyHint) ? (
+            <div className="rounded-md bg-evari-gold/10 ring-1 ring-evari-gold/20 px-3 py-2 text-[12px] text-evari-text leading-snug">
+              {aiLoading ? (
+                <span className="inline-flex items-center gap-2 text-evari-dim">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Reading the brand brief, picking your best send windows…
+                </span>
+              ) : (
+                <span>
+                  <span className="font-semibold text-evari-gold">
+                    Cadence:{' '}
+                  </span>
+                  {frequencyHint}
+                </span>
+              )}
+            </div>
+          ) : null}
+
+          {/* AI-picked send slots. Each pill shows the day/time + the
+              one-line reasoning. Selected pill gets a gold ring. */}
+          {suggestions.length > 0 ? (
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold pl-[20px] pt-[10px] pb-[10px]">
+                Suggested windows
+              </div>
+              <div className="grid gap-2">
+                {suggestions.map((s) => {
+                  const selected = activeIso === s.iso;
+                  return (
+                    <button
+                      key={s.iso}
+                      type="button"
+                      onClick={() => pickSuggestion(s)}
+                      className={cn(
+                        'text-left rounded-md px-3 py-2 transition',
+                        'bg-[rgb(var(--evari-input-fill))] hover:bg-[rgb(var(--evari-input-fill-focus))]',
+                        selected
+                          ? 'ring-2 ring-evari-gold'
+                          : 'ring-1 ring-transparent',
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-evari-text">
+                          {s.label}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dim">
+                          {formatRelative(s.iso)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-evari-dim leading-snug">
+                        {s.reasoning}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <label className="block">
             <div className="text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold pl-[20px] pt-[10px] pb-[10px]">
-              Send at
+              Or pick a custom time
             </div>
             <input
               type="datetime-local"
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={(e) => {
+                setValue(e.target.value);
+                setActiveIso(null);
+              }}
               className="w-full rounded-md px-3 py-2 text-sm bg-[rgb(var(--evari-input-fill))] text-evari-text focus:outline-none focus:bg-[rgb(var(--evari-input-fill-focus))]"
             />
           </label>
           <p className="text-[11px] text-evari-dimmer leading-snug px-1">
-            AI-suggested send windows are coming next — for now, pick
-            any time. The article moves to the Departure Lounge until
-            then, then publishes to Shopify automatically.
+            The article moves to the Departure Lounge until the
+            scheduled time, then publishes to Shopify automatically.
           </p>
           <div className="flex items-center justify-end gap-2 pt-2">
             <button
@@ -723,6 +848,23 @@ function ScheduleDialog({
       </div>
     </div>
   );
+}
+
+/**
+ * Short relative tag for a future ISO timestamp, e.g. "Tomorrow",
+ * "In 3 days". Falls back to a date for anything beyond a week.
+ */
+function formatRelative(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '';
+  const days = Math.round((t - Date.now()) / (24 * 60 * 60 * 1000));
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  if (days < 7) return `In ${days} days`;
+  return new Date(t).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
 }
 
 /** Convert a Date into the YYYY-MM-DDTHH:mm string the
