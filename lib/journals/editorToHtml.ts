@@ -129,7 +129,10 @@ function renderImage(b: Block): string {
   const caption = String(b.data.caption ?? '').trim();
   const alt = caption || 'Evari';
   const withBorder = b.data.withBorder ? 'border:1px solid #e5e5e5;' : '';
-  const img = `<img${attr('src', url)}${attr('alt', alt)}${withBorder ? ` style="${withBorder.replace(/;$/, '')}"` : ''} />`;
+  // Round the image's own corners (not the figure) so the caption
+  // sits cleanly outside the rounded image area.
+  const imgStyle = `${withBorder}border-radius:6px;display:block;width:100%;height:auto`;
+  const img = `<img${attr('src', url)}${attr('alt', alt)} style="${imgStyle}" />`;
   const wrapStyle = figureStyleString(b.data.width, b.data.align);
   const figOpen = wrapStyle ? `<figure style="${wrapStyle}">` : '<figure>';
   if (caption) {
@@ -145,7 +148,7 @@ function renderDoubleImage(b: Block): string {
   const cell = (img: { url?: string; caption?: string } | undefined) => {
     if (!img?.url) return '';
     const cap = (img.caption ?? '').trim();
-    return `<div style="flex:1 1 0;min-width:0"><img${attr('src', img.url)}${attr('alt', cap || 'Evari')} style="width:100%;height:auto;display:block" />${
+    return `<div style="flex:1 1 0;min-width:0"><img${attr('src', img.url)}${attr('alt', cap || 'Evari')} style="width:100%;height:auto;display:block;border-radius:6px" />${
       cap ? `<p style="font-size:11px;line-height:1.45;color:#666;margin-top:0.5rem;text-align:left">${escape(cap)}</p>` : ''
     }</div>`;
   };
