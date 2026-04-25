@@ -29,6 +29,10 @@ export interface JournalDraft {
   shopifyArticleId: string | null;
   shopifyBlogId: string | null;
   publishedAt: string | null;
+  /** Departure Lounge — when set, the draft is queued for publish at
+   *  this UTC moment. A worker will flip the draft from Studio
+   *  Design → Departure Lounge → Published. */
+  scheduledFor: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -47,6 +51,7 @@ interface DraftRow {
   shopify_article_id: string | null;
   shopify_blog_id: string | null;
   published_at: string | null;
+  scheduled_for: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -66,6 +71,7 @@ function rowToDraft(row: DraftRow): JournalDraft {
     shopifyArticleId: row.shopify_article_id,
     shopifyBlogId: row.shopify_blog_id,
     publishedAt: row.published_at,
+    scheduledFor: row.scheduled_for,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -148,6 +154,7 @@ export async function updateDraft(
     shopifyArticleId: string | null;
     shopifyBlogId: string | null;
     publishedAt: string | null;
+    scheduledFor: string | null;
   }>,
 ): Promise<JournalDraft | null> {
   const sb = createSupabaseAdmin();
@@ -165,6 +172,7 @@ export async function updateDraft(
   if (patch.shopifyArticleId !== undefined) row.shopify_article_id = patch.shopifyArticleId;
   if (patch.shopifyBlogId !== undefined) row.shopify_blog_id = patch.shopifyBlogId;
   if (patch.publishedAt !== undefined) row.published_at = patch.publishedAt;
+  if (patch.scheduledFor !== undefined) row.scheduled_for = patch.scheduledFor;
   const { data, error } = await sb
     .from('dashboard_journal_drafts')
     .update(row)

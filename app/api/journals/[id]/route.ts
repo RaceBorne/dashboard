@@ -48,6 +48,7 @@ export async function PATCH(
     'author',
     'seoTitle',
     'seoDescription',
+    'scheduledFor',
   ] as const;
   const patch: Record<string, unknown> = {};
   for (const k of allowed) {

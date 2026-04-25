@@ -15,6 +15,9 @@ import {
   Loader2,
   Trash2,
   AlertTriangle,
+  PlaneTakeoff,
+  Calendar,
+  X as XIcon,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -77,10 +80,17 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
 
   const laneDrafts = drafts.filter((d) => d.blogTarget === lane.key);
   const laneArticles = articles.filter((a) => articleBelongsTo(a, lane));
-  // A draft counts as "Pending" if it has no Shopify article yet, and
-  // "Published" if it does — we dedupe the latter against `articles`
-  // (we only show each story once in the published grid).
-  const pendingDrafts = laneDrafts.filter((d) => !d.shopifyArticleId);
+  // Three buckets for the three lanes:
+  //  - Studio Design   → no Shopify article yet, no scheduled date
+  //  - Departure Lounge → no Shopify article yet, scheduled_for set
+  //  - Published       → has shopify_article_id (or is on the
+  //                      Shopify articles list)
+  const studioDrafts = laneDrafts.filter(
+    (d) => !d.shopifyArticleId && !d.scheduledFor,
+  );
+  const departureDrafts = laneDrafts.filter(
+    (d) => !d.shopifyArticleId && d.scheduledFor,
+  );
   const publishedDraftIds = new Set(
     laneDrafts
       .filter((d) => d.shopifyArticleId)
@@ -165,6 +175,11 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Schedule dialog — when set, opens a date picker for that draft.
+  // Saving PATCHes scheduledFor onto the draft, which moves it
+  // Studio Design → Departure Lounge.
+  const [scheduleTarget, setScheduleTarget] = useState<JournalDraft | null>(null);
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -323,20 +338,22 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
         />
       ) : (
       <div className="flex-1 overflow-y-auto px-10 py-8 space-y-10">
-        {/* Pending (unpublished drafts) */}
-        {pendingDrafts.length > 0 ? (
+        {/* Studio Design — drafts in progress (no Shopify article + no
+            scheduled date). Each tile carries a 'Schedule' button to
+            promote the draft into Departure Lounge. */}
+        {studioDrafts.length > 0 ? (
           <section>
             <header className="flex items-baseline gap-2 mb-3">
               <Clock className="h-3.5 w-3.5 text-evari-gold" />
               <h2 className="text-xs uppercase tracking-[0.16em] text-evari-dim">
-                Pending
+                Studio Design
               </h2>
               <span className="text-xs text-evari-dimmer tabular-nums">
-                {pendingDrafts.length}
+                {studioDrafts.length}
               </span>
             </header>
-            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
-              {pendingDrafts.map((d) => (
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))] max-w-[1140px]">
+              {studioDrafts.map((d) => (
                 <DraftTile
                   key={d.id}
                   draft={d}
@@ -348,6 +365,46 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                       title: d.title.trim() || 'Untitled draft',
                     })
                   }
+                  onSchedule={() => setScheduleTarget(d)}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Departure Lounge — drafts queued for publish. Orange bar
+            on each tile shows the scheduled time. Clicking opens
+            the reader; the trash button cancels the schedule. */}
+        {departureDrafts.length > 0 ? (
+          <section>
+            <header className="flex items-baseline gap-2 mb-3">
+              <PlaneTakeoff className="h-3.5 w-3.5 text-evari-gold" />
+              <h2 className="text-xs uppercase tracking-[0.16em] text-evari-dim">
+                Departure Lounge
+              </h2>
+              <span className="text-xs text-evari-dimmer tabular-nums">
+                {departureDrafts.length}
+              </span>
+              <span className="ml-2 text-[10px] text-evari-dimmer italic">
+                Scheduled to publish
+              </span>
+            </header>
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))] max-w-[1140px]">
+              {departureDrafts.map((d) => (
+                <DraftTile
+                  key={d.id}
+                  draft={d}
+                  badge="Scheduled"
+                  onClick={() => openDraft(d)}
+                  onSchedule={() => setScheduleTarget(d)}
+                  onUnschedule={async () => {
+                    await fetch(`/api/journals/${d.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ scheduledFor: null }),
+                    });
+                    startTransition(() => router.refresh());
+                  }}
                 />
               ))}
             </div>
@@ -371,7 +428,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 Stubs started in Shopify admin, not yet live
               </span>
             </header>
-            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))] max-w-[1140px]">
               {unpublishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}
@@ -409,7 +466,7 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
                 : 'No published articles in this lane yet. Click New above to start one.'}
             </div>
           ) : (
-            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
+            <div className="grid gap-6 items-start grid-cols-[repeat(auto-fill,minmax(200px,1fr))] max-w-[1140px]">
               {publishedArticles.map((a) => (
                 <PublishedTile
                   key={a.id}
@@ -459,6 +516,23 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
         onClose={() => setWizardOpen(false)}
         onComplete={handleWizardComplete}
       />
+
+      {/* Schedule dialog — Studio Design → Departure Lounge */}
+      {scheduleTarget ? (
+        <ScheduleDialog
+          draft={scheduleTarget}
+          onCancel={() => setScheduleTarget(null)}
+          onSave={async (iso) => {
+            await fetch(`/api/journals/${scheduleTarget.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ scheduledFor: iso }),
+            });
+            setScheduleTarget(null);
+            startTransition(() => router.refresh());
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -537,6 +611,128 @@ function DeleteConfirm({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Schedule a draft for publish — Studio Design → Departure Lounge.
+ *
+ * v1: native datetime-local input + Save / Cancel. The AI-suggested
+ * times (task #217) will land here as a row of one-click pills
+ * above the manual picker.
+ */
+function ScheduleDialog({
+  draft,
+  onCancel,
+  onSave,
+}: {
+  draft: JournalDraft;
+  onCancel: () => void;
+  onSave: (iso: string) => Promise<void> | void;
+}) {
+  // Default value: the existing schedule, or 'tomorrow at 09:00' if
+  // none. Format as YYYY-MM-DDTHH:mm for <input type='datetime-local'>.
+  const initial = draft.scheduledFor
+    ? new Date(draft.scheduledFor)
+    : (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        d.setHours(9, 0, 0, 0);
+        return d;
+      })();
+  const [value, setValue] = useState(toLocalInputValue(initial));
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={busy ? undefined : onCancel}
+        aria-hidden
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-md rounded-lg bg-evari-carbon shadow-[0_12px_40px_rgba(0,0,0,0.5)] ring-1 ring-evari-edge"
+      >
+        <div className="p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="h-8 w-8 rounded-full bg-evari-gold/15 text-evari-gold flex items-center justify-center shrink-0">
+              <PlaneTakeoff className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-semibold text-evari-text">
+                Schedule for departure
+              </h3>
+              <p className="mt-1 text-sm text-evari-dim leading-snug">
+                Pick when{' '}
+                <span className="text-evari-text font-medium">
+                  “{stripHtml(draft.title) || 'this draft'}”
+                </span>{' '}
+                should publish to Shopify.
+              </p>
+            </div>
+          </div>
+          <label className="block">
+            <div className="text-[11px] uppercase tracking-[0.14em] text-evari-dim font-semibold pl-[20px] pt-[10px] pb-[10px]">
+              Send at
+            </div>
+            <input
+              type="datetime-local"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="w-full rounded-md px-3 py-2 text-sm bg-[rgb(var(--evari-input-fill))] text-evari-text focus:outline-none focus:bg-[rgb(var(--evari-input-fill-focus))]"
+            />
+          </label>
+          <p className="text-[11px] text-evari-dimmer leading-snug px-1">
+            AI-suggested send windows are coming next — for now, pick
+            any time. The article moves to the Departure Lounge until
+            then, then publishes to Shopify automatically.
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              className="text-sm px-4 py-2 rounded-md text-evari-dim hover:text-evari-text hover:bg-evari-surface/60 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!value) return;
+                setBusy(true);
+                try {
+                  await onSave(new Date(value).toISOString());
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy || !value}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-md bg-evari-gold text-evari-goldInk hover:brightness-105 disabled:opacity-60"
+            >
+              {busy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <PlaneTakeoff className="h-3.5 w-3.5" />
+              )}
+              {busy ? 'Saving…' : 'Send to Departure Lounge'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Convert a Date into the YYYY-MM-DDTHH:mm string the
+ *  datetime-local input expects (in the user's local time). */
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+      d.getHours(),
+    )}:${pad(d.getMinutes())}`
   );
 }
 
@@ -900,27 +1096,51 @@ function DraftTile({
   badge,
   onClick,
   onDelete,
+  onSchedule,
+  onUnschedule,
 }: {
   draft: JournalDraft;
   badge?: string;
   onClick?: () => void;
   onDelete?: () => void;
+  /** When supplied, a small calendar button on the tile opens the
+   *  schedule dialog (Studio Design → Departure Lounge). */
+  onSchedule?: () => void;
+  /** When supplied, the trash button cancels the schedule rather
+   *  than deleting the draft (used on Departure Lounge tiles). */
+  onUnschedule?: () => void | Promise<void>;
 }) {
   const title = stripHtml(draft.title) || 'Untitled draft';
   const date = formatShopifyDate(draft.updatedAt);
   const excerpt = stripHtml(draft.summary);
   const author = (draft.author?.trim()) || 'Evari';
+  // Departure Lounge tiles get an orange bar in the upper-left
+  // showing the scheduled date + time (Craig's spec).
+  const scheduled = draft.scheduledFor ? new Date(draft.scheduledFor) : null;
   return (
     <div className="group relative block">
       <button
         onClick={onClick}
         className="text-left block w-full"
       >
-        <Thumbnail
-          src={draft.coverImageUrl}
-          fallback={<FileText className="h-7 w-7 text-evari-dimmer" />}
-          fromPalette="draft"
-        />
+        <div className="relative">
+          <Thumbnail
+            src={draft.coverImageUrl}
+            fallback={<FileText className="h-7 w-7 text-evari-dimmer" />}
+            fromPalette="draft"
+          />
+          {scheduled ? (
+            <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold uppercase tracking-[0.12em] bg-evari-gold text-evari-goldInk shadow-[0_2px_6px_rgba(0,0,0,0.3)]">
+              <PlaneTakeoff className="h-3 w-3" />
+              {scheduled.toLocaleString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
+          ) : null}
+        </div>
         <div className="pt-[10px] pb-[10px] px-[6px]">
           <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.14em] text-evari-dimmer">
             <span>{date}</span>
@@ -952,7 +1172,41 @@ function DraftTile({
           </p>
         </div>
       </button>
-      {onDelete ? <TileDeleteButton onClick={onDelete} /> : null}
+      {/* Top-right action stack — schedule + delete (or unschedule
+          for departure tiles). Stops propagation so the parent
+          tile-click doesn't fire. */}
+      <div className="absolute top-2 right-2 flex items-center gap-1">
+        {onSchedule ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSchedule();
+            }}
+            title="Schedule"
+            aria-label="Schedule"
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-black/50 text-white/80 hover:bg-evari-gold hover:text-evari-goldInk backdrop-blur-sm transition-colors"
+          >
+            <Calendar className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+        {onUnschedule ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              void onUnschedule();
+            }}
+            title="Cancel schedule (back to Studio Design)"
+            aria-label="Cancel schedule"
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-black/50 text-white/80 hover:bg-evari-warn hover:text-white backdrop-blur-sm transition-colors"
+          >
+            <XIcon className="h-3.5 w-3.5" />
+          </button>
+        ) : onDelete ? (
+          <TileDeleteButton onClick={onDelete} />
+        ) : null}
+      </div>
     </div>
   );
 }
