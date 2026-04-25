@@ -16,8 +16,6 @@ import {
   Trash2,
   AlertTriangle,
   PlaneTakeoff,
-  Calendar,
-  X as XIcon,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -1312,10 +1310,10 @@ function DraftTile({
             <span>{date}</span>
             <span
               className={cn(
-                'px-1.5 py-0.5 rounded',
+                'px-2 py-0.5 rounded font-semibold tracking-[0.14em]',
                 badge
-                  ? 'bg-evari-success/15 text-evari-success'
-                  : 'bg-evari-gold/15 text-evari-gold',
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-blue-500 text-white',
               )}
             >
               {badge ?? 'Draft'}
@@ -1338,41 +1336,6 @@ function DraftTile({
           </p>
         </div>
       </button>
-      {/* Top-right action stack — schedule + delete (or unschedule
-          for departure tiles). Stops propagation so the parent
-          tile-click doesn't fire. */}
-      <div className="absolute top-2 right-2 flex items-center gap-1">
-        {onSchedule ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSchedule();
-            }}
-            title="Schedule"
-            aria-label="Schedule"
-            className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-black/50 text-white/80 hover:bg-evari-gold hover:text-evari-goldInk backdrop-blur-sm transition-colors"
-          >
-            <Calendar className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
-        {onUnschedule ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              void onUnschedule();
-            }}
-            title="Cancel schedule (back to Studio Design)"
-            aria-label="Cancel schedule"
-            className="h-7 w-7 inline-flex items-center justify-center rounded-md bg-black/50 text-white/80 hover:bg-evari-warn hover:text-white backdrop-blur-sm transition-colors"
-          >
-            <XIcon className="h-3.5 w-3.5" />
-          </button>
-        ) : onDelete ? (
-          <TileDeleteButton onClick={onDelete} />
-        ) : null}
-      </div>
     </div>
   );
 }
