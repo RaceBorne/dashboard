@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import type { JournalDraft } from '@/lib/journals/repository';
 import type { ShopifyArticle, ShopifyBlog } from '@/lib/shopify';
 import { htmlToBlocks } from '@/lib/journals/htmlToBlocks';
+import { NewJournalWizard } from './NewJournalWizard';
 import { ShopifyPreview, type JournalBlock } from './ShopifyPreview';
 
 type Lane = { key: string; label: string; blogId?: string };
@@ -100,19 +101,41 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
       !publishedArticles.some((a) => a.id === d.shopifyArticleId),
   );
 
-  async function newJournal() {
+  // The new-article flow opens a 3-step wizard. The wizard returns
+  // a fully-laid-out blocks array via onComplete; we then create
+  // the draft seeded with that content and navigate into the
+  // editor.
+  const [wizardOpen, setWizardOpen] = useState(false);
+  function newJournal() {
+    setWizardOpen(true);
+  }
+  async function handleWizardComplete(payload: {
+    title: string;
+    summary: string;
+    blocks: Array<{ type: string; data: Record<string, unknown> }>;
+    coverImageUrl?: string;
+  }) {
     setCreating(true);
     try {
       const res = await fetch('/api/journals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blogTarget: lane.key }),
+        body: JSON.stringify({
+          blogTarget: lane.key,
+          initial: {
+            title: payload.title,
+            summary: payload.summary,
+            coverImageUrl: payload.coverImageUrl,
+            editorData: { blocks: payload.blocks },
+          },
+        }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
         draft?: { id: string };
       };
       if (data.ok && data.draft) {
+        setWizardOpen(false);
         router.push(`/journals/${data.draft.id}`);
       }
     } finally {
@@ -424,6 +447,18 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
           onConfirm={confirmDelete}
         />
       ) : null}
+
+      {/* New-journal wizard — opens when the user clicks + New on
+          the lane bar. Hands the composed payload back via
+          handleWizardComplete which creates the draft and routes
+          into the editor. */}
+      <NewJournalWizard
+        open={wizardOpen}
+        laneKey={lane.key}
+        laneLabel={lane.label}
+        onClose={() => setWizardOpen(false)}
+        onComplete={handleWizardComplete}
+      />
     </div>
   );
 }

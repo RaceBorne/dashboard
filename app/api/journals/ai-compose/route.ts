@@ -25,16 +25,26 @@ interface ComposeContext {
   articleContext?: string;
 }
 
+interface WizardImage {
+  url: string;
+  alt?: string;
+}
 interface ComposeRequest {
-  mode: 'block' | 'outline';
+  mode: 'block' | 'outline' | 'wizard';
   /** For block mode. */
   blockKind?: BlockKind;
   /** Current text in the block (empty = generate from scratch). */
   currentText?: string;
   /** The human instruction ("tighten this", "write a 3-sentence intro"). */
   instruction?: string;
-  /** For outline mode — the user's bullet list of what the article should cover. */
+  /** For outline mode + wizard — the user's bullet list / paragraph
+   *  describing what the article should cover. */
   brief?: string;
+  /** For wizard mode — the title the user typed in step 1. */
+  title?: string;
+  /** For wizard mode — the ordered list of images the user picked
+   *  from the Shopify library in step 2. */
+  images?: WizardImage[];
   context?: ComposeContext;
 }
 
@@ -62,6 +72,9 @@ export async function POST(req: Request) {
   }
   if (body.mode === 'outline') {
     return composeOutline(body);
+  }
+  if (body.mode === 'wizard') {
+    return composeWizard(body);
   }
   return composeBlock(body);
 }
@@ -221,6 +234,171 @@ function sanitizeBlockData(
   }
   if (type === 'list' && !['ordered', 'unordered'].includes(String(out.style))) {
     out.style = 'unordered';
+  }
+  return out;
+}
+
+/**
+ * Wizard mode: title + brief + ordered image sequence → fully laid-
+ * out block array. The model is briefed as a graphic designer, not
+ * just a copywriter. It must:
+ *  - Open with a hero image (the first user-picked image at full
+ *    width) followed by a paragraph hook.
+ *  - Use H2 headings to break the article into 3-5 sections.
+ *  - Place every other user-picked image somewhere sensible inside
+ *    those sections, choosing width (sm/md/lg/full) + alignment
+ *    (left/center/right) per image.
+ *  - Drop a pull quote somewhere if the brief suggests one.
+ *  - Close with a paragraph that wraps up the story.
+ *
+ * Image objects must reference the supplied URLs by index — the
+ * model picks placement, width, alignment, but never invents URLs.
+ */
+async function composeWizard(body: ComposeRequest) {
+  const title = (body.title ?? '').trim();
+  const brief = (body.brief ?? '').trim();
+  const images = body.images ?? [];
+  if (!title) {
+    return NextResponse.json({ ok: false, error: 'Title required' }, { status: 400 });
+  }
+  if (!brief) {
+    return NextResponse.json({ ok: false, error: 'Brief required' }, { status: 400 });
+  }
+  const ctx = body.context ?? {};
+
+  const system = await buildSystemPrompt({
+    voice: 'evari',
+    task:
+      "You are an Evari editorial designer composing a Shopify blog article. Output a strict JSON array of block objects. Each block is { \"type\": string, \"data\": object }. " +
+      'Valid block types and their data shape: ' +
+      '"header" {text, level: 1|2|3|4}, ' +
+      '"paragraph" {text}, ' +
+      '"quote" {text, caption}, ' +
+      '"list" {style: "unordered"|"ordered", items: string[]}, ' +
+      '"image" {file: { url }, caption?, width: "sm"|"md"|"lg"|"full", align: "left"|"center"|"right"}, ' +
+      '"spacer" {size: "sm"|"md"|"lg"}, ' +
+      '"delimiter" {}. ' +
+      'Use ONLY the image URLs you are given — never invent new ones. ' +
+      'No commentary, no markdown fences. JSON array only.',
+  });
+
+  const promptLines: string[] = [];
+  promptLines.push(`Title: ${title}`);
+  if (ctx.blogLane) promptLines.push(`Lane: ${ctx.blogLane}`);
+  promptLines.push('');
+  promptLines.push('Brief from the author:');
+  promptLines.push(brief);
+  if (images.length > 0) {
+    promptLines.push('');
+    promptLines.push('Images the author chose (use these URLs in image blocks; place them in the order that best serves the story, not necessarily this order):');
+    images.forEach((img, i) => {
+      promptLines.push(`  ${i + 1}. ${img.url}${img.alt ? `   alt: ${img.alt}` : ''}`);
+    });
+  }
+  promptLines.push('');
+  promptLines.push('Editorial direction:');
+  promptLines.push('  - Open with the first / strongest image at width:"full".');
+  promptLines.push('  - Then a 2-3 sentence paragraph that hooks the reader.');
+  promptLines.push('  - Use 3 to 5 H2 headings to break the article into clear sections.');
+  promptLines.push('  - Interleave the remaining images between paragraphs. Vary widths: most at "lg" (75%), one or two at "md" (50%) ranged left/right when the surrounding paragraphs benefit from text-wrap room. Avoid two images of the same width back to back.');
+  promptLines.push('  - Add ONE pull quote (block type "quote") somewhere in the middle if the brief carries a quotable line.');
+  promptLines.push('  - Close with a paragraph that lands the takeaway.');
+  promptLines.push('  - Length target: 5-8 minute read.');
+  promptLines.push('');
+  promptLines.push('House rules:');
+  promptLines.push('  - Evari voice: confident, technical where it counts, no jargon-as-decoration.');
+  promptLines.push('  - Never use em-dashes or en-dashes. Use commas, colons, full stops.');
+  promptLines.push('  - Output JSON only. No markdown fences, no commentary.');
+
+  const { text } = await generateTextWithFallback({
+    model: MODEL,
+    system,
+    prompt: promptLines.join('\n'),
+    temperature: 0.7,
+  });
+
+  const stripped = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  interface WizardBlock {
+    type: 'header' | 'paragraph' | 'quote' | 'list' | 'image' | 'spacer' | 'delimiter';
+    data: Record<string, unknown>;
+  }
+  let blocks: WizardBlock[] = [];
+  try {
+    const parsed = JSON.parse(stripped) as unknown;
+    if (Array.isArray(parsed)) {
+      blocks = parsed.filter(isWizardBlock);
+    }
+  } catch (err) {
+    console.error('[ai-compose wizard] JSON parse failed', err, stripped.slice(0, 500));
+    return NextResponse.json(
+      { ok: false, error: 'AI returned malformed JSON', raw: stripped.slice(0, 500) },
+      { status: 500 },
+    );
+  }
+
+  // Sanitise: enforce em-dash rule on every text field, validate
+  // image URLs against the user's supplied set so the model can't
+  // hallucinate one.
+  const allowedUrls = new Set(images.map((i) => i.url));
+  const cleaned = blocks
+    .map((b) => ({
+      type: b.type,
+      data: sanitizeWizardData(b.type, b.data, allowedUrls),
+    }))
+    // Drop image blocks whose URL didn't survive the allow-list.
+    .filter((b) => !(b.type === 'image' && !((b.data.file as { url?: string } | undefined)?.url)));
+
+  return NextResponse.json({ ok: true, blocks: cleaned });
+}
+
+function isWizardBlock(x: unknown): x is { type: 'header' | 'paragraph' | 'quote' | 'list' | 'image' | 'spacer' | 'delimiter'; data: Record<string, unknown> } {
+  if (!x || typeof x !== 'object') return false;
+  const t = (x as { type?: unknown }).type;
+  return typeof t === 'string' && [
+    'header', 'paragraph', 'quote', 'list', 'image', 'spacer', 'delimiter',
+  ].includes(t);
+}
+
+function sanitizeWizardData(
+  type: string,
+  data: Record<string, unknown>,
+  allowedUrls: Set<string>,
+): Record<string, unknown> {
+  const scrub = (s: unknown) =>
+    typeof s === 'string' ? s.replace(/[—–]/g, ',') : s;
+  const out: Record<string, unknown> = { ...data };
+  if (typeof out.text === 'string') out.text = scrub(out.text);
+  if (typeof out.caption === 'string') out.caption = scrub(out.caption);
+  if (Array.isArray(out.items)) {
+    out.items = (out.items as unknown[]).map((it) => scrub(it));
+  }
+  if (type === 'header') {
+    const lvl = Number(out.level ?? 2);
+    out.level = lvl >= 1 && lvl <= 4 ? lvl : 2;
+  }
+  if (type === 'list' && !['ordered', 'unordered'].includes(String(out.style))) {
+    out.style = 'unordered';
+  }
+  if (type === 'image') {
+    // Validate width / align / file.url
+    const w = String(out.width ?? 'full');
+    if (!['sm', 'md', 'lg', 'full'].includes(w)) out.width = 'full';
+    const a = String(out.align ?? 'center');
+    if (!['left', 'center', 'right'].includes(a)) out.align = 'center';
+    const file = out.file as { url?: string } | undefined;
+    if (!file || !file.url || !allowedUrls.has(file.url)) {
+      // Strip — sanitiser will drop it via the filter in composeWizard.
+      out.file = { url: '' };
+    }
+  }
+  if (type === 'spacer') {
+    const s = String(out.size ?? 'md');
+    if (!['sm', 'md', 'lg'].includes(s)) out.size = 'md';
   }
   return out;
 }
