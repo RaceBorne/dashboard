@@ -354,8 +354,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
               </span>
             </header>
             <div
-              className="grid gap-6 items-start w-full"
+              className="journals-grid-v3 grid gap-6 items-start w-full"
               style={{
+                width: '100%',
+                maxWidth: 'none',
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(220px, 1fr))',
               }}
@@ -397,8 +399,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
               </span>
             </header>
             <div
-              className="grid gap-6 items-start w-full"
+              className="journals-grid-v3 grid gap-6 items-start w-full"
               style={{
+                width: '100%',
+                maxWidth: 'none',
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(220px, 1fr))',
               }}
@@ -442,8 +446,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
               </span>
             </header>
             <div
-              className="grid gap-6 items-start w-full"
+              className="journals-grid-v3 grid gap-6 items-start w-full"
               style={{
+                width: '100%',
+                maxWidth: 'none',
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(220px, 1fr))',
               }}
@@ -486,8 +492,10 @@ export function JournalsClient({ blogs, drafts, articles }: Props) {
             </div>
           ) : (
             <div
-              className="grid gap-6 items-start w-full"
+              className="journals-grid-v3 grid gap-6 items-start w-full"
               style={{
+                width: '100%',
+                maxWidth: 'none',
                 gridTemplateColumns:
                   'repeat(auto-fill, minmax(220px, 1fr))',
               }}
