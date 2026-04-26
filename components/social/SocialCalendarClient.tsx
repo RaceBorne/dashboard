@@ -312,8 +312,12 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           panels are detached floating rounded rectangles so content
           height in any one panel can never push or shrink another. */}
       <div
-        className="absolute top-3 left-3 bottom-3 flex flex-col overflow-hidden gap-3"
-        style={{ width: 'calc(100% - 380px - 1.5rem)' }}
+        className="absolute top-3 left-3 bottom-3 flex flex-col overflow-hidden gap-3 transition-[width] duration-200"
+        style={{
+          width: selectedEventId
+            ? 'calc(100% - 380px - 1.5rem)'
+            : 'calc(100% - 1.5rem)',
+        }}
       >
       {/* Calendar — fills the available height of the LEFT column.
           The calendar component handles its own internal scrolling
@@ -331,7 +335,10 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
             month={month}
             onMonthChange={setMonth}
             selectedDay={selectedDate}
-            onDayClick={(d) => setSelectedDate(d)}
+            onDayClick={(d) => {
+              setSelectedDate(d);
+              setSelectedEventId(null);
+            }}
             headerRight={
               <div className="flex items-center gap-2">
                 {viewSwitcher}
@@ -416,6 +423,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           drag handle (clamped 280-720px, default 380). Stacks two
           panels: the action card (top, content-sized) and the post
           preview (bottom, fills remaining height + scrolls). */}
+      {selectedEventId ? (
       <aside
         ref={railRef}
         className="hidden lg:flex flex-col absolute top-3 right-3 bottom-3 z-10 overflow-hidden gap-3"
@@ -448,6 +456,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           onNavigate={navigateDay}
         />
       </aside>
+      ) : null}
     </div>
   );
 }
