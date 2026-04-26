@@ -6,12 +6,14 @@ import Link from 'next/link';
 import { ChevronLeft, Loader2, Plus, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import type { ContactStatus, ContactWithMeta, Group, Tag } from '@/lib/marketing/types';
+import type { ContactStatus, ContactWithMeta, Group, MarketingEvent, Tag } from '@/lib/marketing/types';
+import { EventTimeline } from './EventTimeline';
 
 interface Props {
   initialContact: ContactWithMeta;
   allGroups: Group[];
   allTags: Tag[];
+  initialEvents: MarketingEvent[];
 }
 
 const STATUSES: ContactStatus[] = ['active', 'unsubscribed', 'suppressed'];
@@ -20,7 +22,7 @@ const STATUSES: ContactStatus[] = ['active', 'unsubscribed', 'suppressed'];
  * Contact detail — editable identity panel + group/tag assignment
  * panels (replace-semantics PUTs to the API).
  */
-export function ContactDetailClient({ initialContact, allGroups, allTags }: Props) {
+export function ContactDetailClient({ initialContact, allGroups, allTags, initialEvents }: Props) {
   const router = useRouter();
   const [contact, setContact] = useState(initialContact);
 
@@ -380,6 +382,8 @@ export function ContactDetailClient({ initialContact, allGroups, allTags }: Prop
             </button>
           </div>
         </section>
+
+        <EventTimeline contactId={contact.id} initialEvents={initialEvents} />
       </div>
     </div>
   );

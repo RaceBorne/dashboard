@@ -36,3 +36,11 @@ export interface Tag {
   name: string;
   createdAt: string;
 }
+
+export interface MarketingEvent {
+  id: string;
+  contactId: string;
+  type: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
