@@ -28,7 +28,7 @@ import { PillTabs } from '@/components/ui/pill-tabs';
 import Link from 'next/link';
 import { ShopifyPreview, type JournalBlock } from '@/components/journals/ShopifyPreview';
 import { useRouter } from 'next/navigation';
-import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink, ChevronDown } from 'lucide-react';
+import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink, ChevronDown, Facebook, Instagram, Linkedin, Music2, Mail, Newspaper } from 'lucide-react';
 
 const PLATFORM_ICON: Record<SocialPlatform, typeof Linkedin> = {
   linkedin: Linkedin,
@@ -300,8 +300,11 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   }
 
   return (
-    <div className="flex-1 flex min-h-0 overflow-hidden">
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+    <div
+      className="flex-1 grid min-h-0 overflow-hidden"
+      style={{ gridTemplateColumns: `minmax(0,1fr) ${railWidth}px` }}
+    >
+      <div className="flex flex-col min-h-0 overflow-hidden">
       {/* Calendar — fills the available height of the LEFT column.
           The calendar component handles its own internal scrolling
           (week/day views) so the column itself doesn't scroll —
@@ -398,8 +401,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           preview (bottom, fills remaining height + scrolls). */}
       <aside
         ref={railRef}
-        className="hidden lg:flex flex-col shrink-0 relative border-l border-evari-edge/30 bg-evari-ink overflow-hidden"
-        style={{ width: railWidth }}
+        className="hidden lg:flex flex-col relative border-l border-evari-edge/30 bg-evari-ink overflow-hidden"
       >
         {/* Drag handle — hover changes cursor to ew-resize. The handle
             itself is a 6px-wide invisible strip on the left edge with
@@ -722,39 +724,47 @@ interface PlatformDrawerProps {
   events: CalendarEvent[];
 }
 
+type LucideIcon = typeof Instagram;
 const DRAWER_COLS: Array<{
   key: string;
   label: string;
+  icon: LucideIcon;
   matches: (e: CalendarEvent) => boolean;
 }> = [
   {
     key: 'instagram',
     label: 'Instagram',
-    matches: (e) => e.id.startsWith('post-') || /^IG /i.test(e.title) || e.title.startsWith('IG '),
+    icon: Instagram,
+    matches: (e) => /^IG /i.test(e.title) || e.title.startsWith('IG '),
   },
   {
     key: 'facebook',
     label: 'Facebook',
+    icon: Facebook,
     matches: (e) => /^FB /i.test(e.title),
   },
   {
     key: 'tiktok',
     label: 'TikTok',
+    icon: Music2,
     matches: (e) => /^TT /i.test(e.title),
   },
   {
     key: 'linkedin',
     label: 'LinkedIn',
+    icon: Linkedin,
     matches: (e) => /^LI /i.test(e.title),
   },
   {
     key: 'klaviyo',
     label: 'Klaviyo',
+    icon: Mail,
     matches: (e) => /^Email /i.test(e.title) || e.title.startsWith('Email '),
   },
   {
     key: 'blogs',
     label: 'Blogs',
+    icon: Newspaper,
     matches: (e) => e.id.startsWith('journal:'),
   },
 ];
@@ -825,9 +835,17 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
               const items = byColumn.get(col.key) ?? [];
               return (
                 <div key={col.key} className="flex flex-col min-h-0">
-                  <header className="px-3 py-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-semibold border-b border-evari-edge/30 shrink-0 flex items-center justify-between">
-                    <span className="text-evari-text">{col.label}</span>
-                    <span className="tabular-nums">{items.length}</span>
+                  <header className="px-3 py-2 text-xs text-evari-text font-medium border-b border-evari-edge/30 shrink-0 flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5">
+                      {col.icon ? (
+                        <col.icon
+                          className="h-3.5 w-3.5 text-evari-dim"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      {col.label}
+                    </span>
+                    <span className="tabular-nums text-evari-dimmer text-[10px]">{items.length}</span>
                   </header>
                   <ul className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
                     {items.length === 0 ? (
@@ -838,17 +856,18 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
                       items.map((e) => (
                         <li
                           key={e.id}
-                          className="rounded-md bg-evari-ink/70 hover:bg-evari-ink p-2 cursor-pointer transition-all hover:-translate-y-px"
+                          className="rounded-md bg-white text-zinc-900 hover:-translate-y-px p-2 cursor-pointer transition-transform"
                           style={{
-                            boxShadow:
-                              '0 1px 0 rgba(255,255,255,0.04), 0 4px 6px -1px rgba(0,0,0,0.4), 0 8px 16px -4px rgba(0,0,0,0.35), 0 14px 28px -8px rgba(0,0,0,0.25)',
+                            // Subtle single-layer drop shadow rather
+                            // than the previous ray-traced stack.
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.18), 0 2px 4px rgba(0,0,0,0.12)',
                           }}
                           onClick={() => e.onClick?.()}
                         >
-                          <div className="text-[11px] text-evari-text leading-tight line-clamp-2">
-                            {e.title}
+                          <div className="text-[11px] leading-tight line-clamp-2">
+                            {e.title.replace(/^[A-Z]+ · /, '')}
                           </div>
-                          <div className="mt-1 text-[10px] text-evari-dimmer font-mono tabular-nums">
+                          <div className="mt-1 text-[10px] text-zinc-500 font-mono tabular-nums">
                             {format(e.start ?? e.date, 'EEE d LLL · HH:mm')}
                           </div>
                         </li>
