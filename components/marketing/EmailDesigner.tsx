@@ -345,8 +345,8 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
         onClick={onSelect}
         className="flex items-center gap-2 px-2 py-1.5 cursor-pointer select-none"
       >
-        <button type="button" {...dragHandleProps} onClick={(e) => e.stopPropagation()} className="p-1 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing" aria-label="Drag">
-          <GripVertical className="h-3.5 w-3.5" />
+        <button type="button" {...dragHandleProps} onClick={(e) => e.stopPropagation()} className="p-1.5 -ml-1 mr-0.5 text-evari-dim hover:text-evari-text hover:bg-evari-ink/60 rounded cursor-grab active:cursor-grabbing" title="Drag to reorder" aria-label="Drag to reorder">
+          <GripVertical className="h-4 w-4" />
         </button>
         <Icon className="h-3.5 w-3.5 text-evari-dim shrink-0" />
         <span className="text-sm text-evari-text truncate">{label}</span>
