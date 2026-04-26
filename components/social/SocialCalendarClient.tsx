@@ -31,7 +31,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from 
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useRouter } from 'next/navigation';
-import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink, ChevronDown, Facebook } from 'lucide-react';
+import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink, ChevronDown, Facebook, Settings } from 'lucide-react';
 
 const PLATFORM_ICON: Record<SocialPlatform, typeof Linkedin> = {
   linkedin: Linkedin,
@@ -134,7 +134,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   // bar). Default 'open' height = 25% of viewport. User can drag the
   // top edge to resize between 36 (closed) and ~85vh.
   const drawerClosedH = 36;
-  const drawerDefaultH = typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.25) : 240;
+  const drawerDefaultH = typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.5) : 480;
   const [drawerHeight, setDrawerHeight] = useState(drawerClosedH);
   // True only while the user is mid-drag — used to suppress the
   // CSS height transition so the drawer follows the cursor in real
@@ -963,7 +963,25 @@ function PlatformDrawer({
         aria-expanded={open}
         className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors duration-1000 ease-in-out shrink-0 rounded-md bg-evari-surface cursor-row-resize select-none mb-1"
       >
-        <span className="font-semibold">Queue · all platforms</span>
+        <span className="flex items-center gap-1">
+          <button
+            type="button"
+            data-icon-only
+            aria-label="Choose broadcast applications"
+            aria-expanded={pickerOpen}
+            onClick={(ev) => { ev.stopPropagation(); onTogglePicker(); }}
+            onMouseDown={(ev) => ev.stopPropagation()}
+            className={cn(
+              'h-6 w-6 inline-flex items-center justify-center rounded-md transition-colors duration-500 ease-in-out',
+              pickerOpen
+                ? 'bg-evari-surfaceSoft text-evari-text'
+                : 'text-evari-dim hover:text-evari-text hover:bg-evari-surfaceSoft',
+            )}
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </button>
+          <span className="font-semibold">Queue · all platforms</span>
+        </span>
         <span className="flex items-center gap-1">
           <span className="text-evari-dimmer normal-case tracking-normal">
             {open ? 'Collapse' : `${sorted.length} item${sorted.length === 1 ? '' : 's'}`}
@@ -991,63 +1009,42 @@ function PlatformDrawer({
           open ? '' : 'pointer-events-none',
         )}
       >
-          {/* Platform picker — sits inline at the top of the drawer
-              (not a floating popup). Click 'Choose broadcast
-              applications' to reveal the checkbox list; tick the
-              platforms you want as columns. */}
-          <div className="shrink-0 mb-1">
-            <button
-              type="button"
-              onClick={onTogglePicker}
-              className="w-full inline-flex items-center justify-between px-4 py-2 bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors duration-1000 ease-in-out rounded-md"
-            >
-              <span className="inline-flex items-center gap-1">
-                <ChevronDown
-                  className={cn(
-                    'h-4 w-4 transition-transform duration-1000 ease-in-out',
-                    pickerOpen ? 'rotate-180' : '',
-                  )}
-                />
-                Choose broadcast applications
-              </span>
-              <span className="text-evari-dimmer text-xs tabular-nums">
-                {enabledPlatforms.size} of {DRAWER_COLS.length} active
-              </span>
-            </button>
-            {pickerOpen ? (
-              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
-                {DRAWER_COLS.map((col) => {
-                  const active = enabledPlatforms.has(col.key);
-                  return (
-                    <button
-                      key={col.key}
-                      type="button"
-                      onClick={() => onTogglePlatform(col.key)}
+          {/* Picker drops down from the toggle-bar gear icon. No
+              standalone bar — the gear in the toggle bar is the only
+              affordance, and the grid only renders when pickerOpen. */}
+          {pickerOpen ? (
+            <div className="shrink-0 mb-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1 bg-evari-surface rounded-md p-1">
+              {DRAWER_COLS.map((col) => {
+                const active = enabledPlatforms.has(col.key);
+                return (
+                  <button
+                    key={col.key}
+                    type="button"
+                    onClick={() => onTogglePlatform(col.key)}
+                    className={cn(
+                      'inline-flex items-center justify-between gap-1 px-2.5 py-2 rounded-md text-sm transition-colors duration-500 ease-in-out',
+                      active
+                        ? 'bg-evari-surfaceSoft text-evari-text'
+                        : 'bg-evari-surface/40 text-evari-dim hover:bg-evari-surfaceSoft',
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <col.icon className="h-4 w-4" />
+                      {col.label}
+                    </span>
+                    <span
                       className={cn(
-                        'inline-flex items-center justify-between gap-1 px-2.5 py-2 rounded-md text-sm transition-colors duration-1000 ease-in-out',
+                        'h-3.5 w-3.5 rounded-md border',
                         active
-                          ? 'bg-evari-surface text-evari-text '
-                          : 'bg-evari-surface/40 text-evari-dim hover:bg-evari-surface',
+                          ? 'bg-evari-gold border-evari-gold'
+                          : 'border-evari-edge',
                       )}
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        <col.icon className="h-4 w-4" />
-                        {col.label}
-                      </span>
-                      <span
-                        className={cn(
-                          'h-3.5 w-3.5 rounded-md border',
-                          active
-                            ? 'bg-evari-gold border-evari-gold'
-                            : 'border-evari-edge',
-                        )}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
 
           {/* Visible columns — drag the column HEADER to reorder.
               Order persists via parent's localStorage. */}
