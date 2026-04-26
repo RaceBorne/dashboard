@@ -300,26 +300,21 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   }
 
   return (
-    <div className="flex-1 relative min-h-0 overflow-hidden">
-      {/* Calendar column is hard-pinned to (100% − 380px). It
-          NEVER recalculates with railWidth — the rail is a free
-          floating overlay; the calendar's layout has no idea it
-          exists. */}
+    <div className="flex-1 relative min-h-0 overflow-hidden bg-evari-ink p-3">
+      {/* Calendar column is hard-pinned to (100% − rail − gaps). All
+          panels are detached floating rounded rectangles so content
+          height in any one panel can never push or shrink another. */}
       <div
-        className="absolute top-0 left-0 bottom-0 flex flex-col overflow-hidden"
-        style={{ width: 'calc(100% - 380px)' }}
+        className="absolute top-3 left-3 bottom-3 flex flex-col overflow-hidden gap-3"
+        style={{ width: 'calc(100% - 380px - 1.5rem)' }}
       >
       {/* Calendar — fills the available height of the LEFT column.
           The calendar component handles its own internal scrolling
           (week/day views) so the column itself doesn't scroll —
           everything outside the post-preview pane stays fixed. */}
       <div
-        className="flex-1 min-h-0 flex flex-col"
+        className="flex-1 min-h-0 flex flex-col rounded-2xl bg-evari-surface overflow-hidden"
         style={{
-          // Stable minimum so the calendar grid never compresses when
-          // the right rail content gets taller or the drawer expands.
-          // Month needs ~6 rows × ~110px + header; week/day need a
-          // fixed grid height so internal time scroll works.
           minHeight: view === 'month' ? 720 : 760,
         }}
       >
@@ -405,17 +400,8 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           preview (bottom, fills remaining height + scrolls). */}
       <aside
         ref={railRef}
-        className="hidden lg:flex flex-col absolute top-0 right-0 bottom-0 z-10 bg-evari-ink overflow-hidden"
-        style={{
-          width: railWidth,
-          // Strong visible left border + shadow so the rail's pixel
-          // boundary is obvious even when the empty-state content is
-          // small. Eliminates the perceived 'stretching' when the
-          // rail goes from empty to populated — boundary is always
-          // visibly at the same x-position.
-          borderLeft: '3px solid rgb(var(--evari-gold) / 0.45)',
-          boxShadow: '-6px 0 22px rgba(0,0,0,0.4)',
-        }}
+        className="hidden lg:flex flex-col absolute top-3 right-3 bottom-3 z-10 overflow-hidden gap-3"
+        style={{ width: railWidth - 24 }}
       >
         {/* Drag handle — hover changes cursor to ew-resize. The handle
             itself is a 6px-wide invisible strip on the left edge with
@@ -514,7 +500,7 @@ function ScheduleActionsPanel({
 }: SchedulePanelProps) {
   if (!selectedJournal && !selectedSocial) {
     return (
-      <div className="flex-none p-4 border-b border-evari-edge/30 bg-evari-surface">
+      <div className="flex-none p-4 rounded-2xl bg-evari-surface">
         <div className="text-xs text-evari-text font-medium mb-2">
           Schedule
         </div>
@@ -543,7 +529,7 @@ function ScheduleActionsPanel({
     ? 'Scheduled'
     : selectedSocial!.status;
   return (
-    <section className="p-4 border-b border-evari-edge/30 bg-evari-surface">
+    <section className="p-4 rounded-2xl bg-evari-surface flex-none">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-semibold">
           {kindLabel}
@@ -632,7 +618,7 @@ function PostPreviewWindow({
 }: PreviewWindowProps) {
   if (!selectedJournal && !selectedSocial) {
     return (
-      <section className="flex-1 flex flex-col p-4 gap-3">
+      <section className="flex-1 flex flex-col p-4 gap-3 rounded-2xl bg-evari-surface">
         <div className="h-32 rounded-md bg-evari-ink/30 ring-1 ring-evari-edge/30" />
         <div className="h-4 rounded bg-evari-ink/20 ring-1 ring-evari-edge/20 w-3/4" />
         <div className="h-3 rounded bg-evari-ink/20 ring-1 ring-evari-edge/20 w-full" />
@@ -649,7 +635,7 @@ function PostPreviewWindow({
     : selectedSocial!.scheduledFor || selectedSocial!.publishedAt || '';
   const date = dateIso ? new Date(dateIso) : null;
   return (
-    <section className="flex-1 flex flex-col min-h-0">
+    <section className="flex-1 flex flex-col min-h-0 rounded-2xl bg-evari-surface overflow-hidden">
       <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
         <button
           type="button"
@@ -826,9 +812,7 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
   }, [sorted]);
   return (
     <div
-      className={cn(
-        'border-t border-evari-edge/30 bg-evari-surface flex flex-col shrink-0 transition-[height] duration-300 ease-out overflow-hidden',
-      )}
+      className="flex flex-col shrink-0 transition-[height] duration-300 ease-out overflow-hidden"
       style={{ height: open ? 360 : 36 }}
     >
       {/* Pull handle — drag-affordance bar + label + chevron */}
@@ -836,7 +820,7 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="h-9 px-4 flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-evari-dim hover:text-evari-text transition-colors shrink-0"
+        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors shrink-0 rounded-2xl bg-evari-surface"
       >
         <span className="font-semibold">Queue · all platforms</span>
         <span className="flex items-center gap-2">
@@ -852,12 +836,12 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
         </span>
       </button>
       {open ? (
-        <div className="flex-1 overflow-x-auto overflow-y-hidden">
-          <div className="grid grid-cols-6 min-w-[900px] h-full divide-x divide-evari-edge/30">
+        <div className="flex-1 overflow-x-auto overflow-y-hidden mt-3">
+          <div className="flex h-full gap-3 min-w-[900px]">
             {DRAWER_COLS.map((col) => {
               const items = byColumn.get(col.key) ?? [];
               return (
-                <div key={col.key} className="flex flex-col min-h-0">
+                <div key={col.key} className="flex-1 min-w-[140px] flex flex-col min-h-0 rounded-2xl bg-evari-surface overflow-hidden">
                   <header className="px-3 py-2 text-xs text-evari-text font-medium border-b border-evari-edge/30 shrink-0 flex items-center justify-between">
                     <span className="inline-flex items-center gap-1.5">
                       {col.icon ? (
@@ -879,12 +863,7 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
                       items.map((e) => (
                         <li
                           key={e.id}
-                          className="rounded-md bg-white text-zinc-900 hover:-translate-y-px p-2 cursor-pointer transition-transform"
-                          style={{
-                            // Subtle single-layer drop shadow rather
-                            // than the previous ray-traced stack.
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.18), 0 2px 4px rgba(0,0,0,0.12)',
-                          }}
+                          className="rounded-md bg-white text-zinc-900 p-2 cursor-pointer transition-colors hover:bg-zinc-50 ring-1 ring-evari-edge/30"
                           onClick={() => e.onClick?.()}
                         >
                           <div className="text-[11px] leading-tight line-clamp-2">
