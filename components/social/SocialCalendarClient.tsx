@@ -1110,7 +1110,6 @@ function PlatformDrawer({
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
