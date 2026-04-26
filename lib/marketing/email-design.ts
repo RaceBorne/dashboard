@@ -277,14 +277,51 @@ export function normaliseEmailDesign(d: unknown): EmailDesign | null {
  * Render the design to a complete email-safe HTML document. Mailbox
  * providers want a real `<html><body>` wrapper for proper styling.
  */
+
+/**
+ * Build the <style> block for an email document — @font-face for the
+ * brand's uploaded custom fonts, plus a Google Fonts @import for
+ * heading/body families that aren't custom (and aren't system fonts).
+ * Same logic used at send time in lib/marketing/sender.ts; centralised
+ * here so the preview iframe, template thumbnails, and the sent
+ * payload all use identical typography setup.
+ */
+export function brandStyleBlock(brand: MarketingBrand): string {
+  const fontFaceBlocks = (brand.customFonts ?? [])
+    .map(
+      (f) =>
+        `@font-face{font-family:'${f.name}';font-style:${f.style};` +
+        `font-weight:${f.weight};font-display:swap;` +
+        `src:url('${f.url}') format('${f.format}');}`,
+    )
+    .join('\n');
+  const customNames = new Set((brand.customFonts ?? []).map((f) => f.name));
+  const headingFamily = brand.fonts?.heading || 'Arial';
+  const bodyFamily    = brand.fonts?.body    || 'Arial';
+  const systemFonts = ['Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Trebuchet MS'];
+  const gFonts = [headingFamily, bodyFamily]
+    .filter((n) => !customNames.has(n))
+    .filter((n) => !systemFonts.includes(n));
+  const gImport = gFonts.length > 0
+    ? `@import url('https://fonts.googleapis.com/css2?${gFonts.map((n) => `family=${encodeURIComponent(n).replace(/%20/g, '+')}`).join('&')}&display=swap');`
+    : '';
+  if (!fontFaceBlocks && !gImport) return '';
+  return `<style type="text/css">${gImport}${fontFaceBlocks}` +
+    `body,td,p,div,a,span{font-family:'${bodyFamily}',Arial,sans-serif;}` +
+    `h1,h2,h3,h4,h5,h6{font-family:'${headingFamily}',Arial,sans-serif;}` +
+    `</style>`;
+}
+
 export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand): string {
   const inner = design.blocks.map((b) => renderBlock(b, brand)).filter(Boolean).join('\n');
+  const styles = brandStyleBlock(brand);
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title></title>
+  ${styles}
 </head>
 <body style="margin:0;padding:0;background:${design.background};">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${design.background};">

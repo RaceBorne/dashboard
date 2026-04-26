@@ -242,6 +242,29 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     return () => window.removeEventListener('keydown', onKey);
   }, [undo]);
 
+  // Register every brand custom font with document.fonts so the canvas
+  // (which renders blocks via dangerouslySetInnerHTML, not a styled
+  // iframe) can actually resolve `font-family: 'BrandFont'`. Without
+  // this the canvas silently falls back to Arial. Same pattern as
+  // FontDropzone — dedupe by URL and keep loaded fonts across renders.
+  const loadedFontUrlsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof FontFace === 'undefined') return;
+    const fonts = initialBrand.customFonts ?? [];
+    fonts.forEach((f) => {
+      if (loadedFontUrlsRef.current.has(f.url)) return;
+      loadedFontUrlsRef.current.add(f.url);
+      const ff = new FontFace(f.name, `url(${f.url}) format('${f.format}')`, {
+        weight: String(f.weight),
+        style: f.style,
+        display: 'swap',
+      });
+      ff.load().then((loaded) => {
+        (document as Document & { fonts: FontFaceSet }).fonts.add(loaded);
+      }).catch(() => { /* preview falls back to system stack */ });
+    });
+  }, [initialBrand.customFonts]);
+
   function updateDesign(patch: Partial<EmailDesign>) {
     commit({ ...design, ...patch });
   }
