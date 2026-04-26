@@ -12,6 +12,13 @@
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import type { Lead, Play, ProspectStatus } from '@/lib/types';
 
+export interface EmailContactActivity {
+  id: string;
+  at: string;
+  type: string;
+  summary: string;
+}
+
 export interface EmailContact {
   id: string;                       // lead id
   fullName: string;
@@ -36,14 +43,17 @@ export interface EmailContact {
   playTitle?: string;
   firstSeenAt: string;
   lastTouchAt: string;
-  /** Quick activity preview — count + most recent. */
+  /** Full activity feed (capped at 50, newest first). */
+  activity: EmailContactActivity[];
+  /** Convenience aggregate. */
   activityCount: number;
   lastActivityAt?: string;
 }
 
 export interface ContactFolder {
-  id: string;             // 'all' | 'manual' | 'unsorted' | playId
-  kind: 'all' | 'manual' | 'unsorted' | 'play';
+  /** Stable id: 'all' | 'manual' | 'unsorted' | playId | 'tag:<name>' */
+  id: string;
+  kind: 'all' | 'manual' | 'unsorted' | 'play' | 'tag';
   label: string;
   count: number;
   /** When kind === 'play', the underlying Play stage for badge colour. */
@@ -56,6 +66,10 @@ export interface ContactsBundle {
 }
 
 function leadToContact(lead: Lead, playTitle?: string): EmailContact {
+  const sorted = [...(lead.activity ?? [])].sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
+  const activity: EmailContactActivity[] = sorted.slice(0, 50).map((a) => ({
+    id: a.id, at: a.at, type: a.type, summary: a.summary,
+  }));
   return {
     id: lead.id,
     fullName: lead.fullName,
@@ -81,8 +95,9 @@ function leadToContact(lead: Lead, playTitle?: string): EmailContact {
     playTitle,
     firstSeenAt: lead.firstSeenAt,
     lastTouchAt: lead.lastTouchAt,
-    activityCount: (lead.activity ?? []).length,
-    lastActivityAt: lead.activity?.[0]?.at,
+    activity,
+    activityCount: sorted.length,
+    lastActivityAt: sorted[0]?.at,
   };
 }
 
@@ -135,11 +150,25 @@ export async function loadContactsBundle(): Promise<ContactsBundle> {
       return b.count - a.count;
     });
 
+  // Tag-based marketing groups. Distinct tags across every contact, with counts.
+  const tagCount = new Map<string, number>();
+  for (const c of contacts) {
+    for (const t of c.tags) {
+      const k = t.trim();
+      if (!k) continue;
+      tagCount.set(k, (tagCount.get(k) ?? 0) + 1);
+    }
+  }
+  const tagFolders: ContactFolder[] = [...tagCount.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([t, n]) => ({ id: `tag:${t}`, kind: 'tag' as const, label: t, count: n }));
+
   const folders: ContactFolder[] = [
     { id: 'all', kind: 'all', label: 'All contacts', count: countAll },
     { id: 'manual', kind: 'manual', label: 'Manual', count: countManual },
     { id: 'unsorted', kind: 'unsorted', label: 'Unsorted', count: countUnsorted },
     ...playFolders,
+    ...tagFolders,
   ];
 
   return { folders, contacts };
@@ -188,6 +217,7 @@ export async function createManualContact(input: {
     console.error('[mkt.contacts.create]', error);
     return null;
   }
+  await syncLeadToMktContact(lead);
   return leadToContact(lead);
 }
 
@@ -231,5 +261,108 @@ export async function updateContactFields(
     console.error('[mkt.contacts.update write]', uErr);
     return null;
   }
+  await syncLeadToMktContact(next);
   return leadToContact(next);
+}
+
+/**
+ * Mirror a Lead into dashboard_mkt_contacts (the legacy table the
+ * Phase 5 campaign sender + Phase 4 segment evaluator both target).
+ *
+ * Upsert by lower(email) so re-runs are idempotent. Splits fullName
+ * naively into first/last to populate the legacy columns. Anything
+ * lacking an email is skipped — campaigns can't reach them anyway.
+ */
+export async function syncLeadToMktContact(lead: Lead): Promise<void> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return;
+  const email = (lead.email ?? '').trim().toLowerCase();
+  if (!email) return;
+  const fullName = lead.fullName ?? '';
+  const firstSpace = fullName.indexOf(' ');
+  const firstName = firstSpace > 0 ? fullName.slice(0, firstSpace).trim() : fullName.trim();
+  const lastName  = firstSpace > 0 ? fullName.slice(firstSpace + 1).trim() : null;
+
+  // Existing row → update; otherwise insert.
+  const { data: existing } = await sb
+    .from('dashboard_mkt_contacts')
+    .select('id')
+    .ilike('email', email)
+    .maybeSingle();
+
+  const payload = {
+    first_name: firstName || null,
+    last_name: lastName || null,
+    email,
+    phone: lead.phone ?? null,
+    company: lead.companyName ?? null,
+    source: lead.source ?? 'manual',
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing) {
+    const { error } = await sb
+      .from('dashboard_mkt_contacts')
+      .update(payload)
+      .eq('id', (existing as { id: string }).id);
+    if (error) console.error('[mkt.contacts.sync update]', error);
+  } else {
+    const { error } = await sb
+      .from('dashboard_mkt_contacts')
+      .insert({ ...payload, status: 'active' });
+    if (error) console.error('[mkt.contacts.sync insert]', error);
+  }
+}
+
+/**
+ * Bulk add a tag to every lead in `ids`. The tag is appended to
+ * payload.tags (de-duplicated case-sensitive). Used by the multi-
+ * select 'Add to group' bulk action in the explorer.
+ */
+export async function bulkAddTag(ids: string[], tag: string): Promise<number> {
+  const sb = createSupabaseAdmin();
+  if (!sb || ids.length === 0 || !tag.trim()) return 0;
+  const { data, error } = await sb
+    .from('dashboard_leads')
+    .select('id, payload')
+    .in('id', ids);
+  if (error || !data) {
+    console.error('[mkt.contacts.bulkAddTag read]', error);
+    return 0;
+  }
+  let n = 0;
+  for (const row of data as { id: string; payload: Lead }[]) {
+    const cur = row.payload.tags ?? [];
+    if (cur.includes(tag)) continue;
+    const next = { ...row.payload, tags: [...cur, tag], lastTouchAt: new Date().toISOString() };
+    const { error: uErr } = await sb.from('dashboard_leads').update({ payload: next }).eq('id', row.id);
+    if (!uErr) n++;
+  }
+  return n;
+}
+
+/**
+ * Bulk remove a tag from every lead in `ids`. Inverse of bulkAddTag —
+ * used by the 'Remove from group' affordance.
+ */
+export async function bulkRemoveTag(ids: string[], tag: string): Promise<number> {
+  const sb = createSupabaseAdmin();
+  if (!sb || ids.length === 0 || !tag.trim()) return 0;
+  const { data, error } = await sb
+    .from('dashboard_leads')
+    .select('id, payload')
+    .in('id', ids);
+  if (error || !data) {
+    console.error('[mkt.contacts.bulkRemoveTag read]', error);
+    return 0;
+  }
+  let n = 0;
+  for (const row of data as { id: string; payload: Lead }[]) {
+    const cur = row.payload.tags ?? [];
+    if (!cur.includes(tag)) continue;
+    const next = { ...row.payload, tags: cur.filter((t) => t !== tag), lastTouchAt: new Date().toISOString() };
+    const { error: uErr } = await sb.from('dashboard_leads').update({ payload: next }).eq('id', row.id);
+    if (!uErr) n++;
+  }
+  return n;
 }

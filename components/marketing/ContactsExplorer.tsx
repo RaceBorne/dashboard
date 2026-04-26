@@ -3,7 +3,9 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  Activity,
   Building2,
+  CheckSquare,
   ExternalLink,
   Folder,
   FolderOpen,
@@ -15,6 +17,9 @@ import {
   Phone,
   Plus,
   Search,
+  Send,
+  Square,
+  Tag as TagIcon,
   User,
   X,
 } from 'lucide-react';
@@ -24,6 +29,7 @@ import type {
   ContactFolder,
   ContactsBundle,
   EmailContact,
+  EmailContactActivity,
 } from '@/lib/marketing/leads-as-contacts';
 
 interface Props {
@@ -56,6 +62,9 @@ export function ContactsExplorer({ initialBundle }: Props) {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [bulkOp, setBulkOp] = useState<null | 'addTag' | 'removeTag'>(null);
+  const [showNewGroup, setShowNewGroup] = useState(false);
 
   const folders = bundle.folders;
   const contacts = bundle.contacts;
@@ -70,6 +79,9 @@ export function ContactsExplorer({ initialBundle }: Props) {
         if (c.playId || c.source !== 'manual') return false;
       } else if (folderId === 'unsorted') {
         if (c.playId || c.source === 'manual') return false;
+      } else if (folderId.startsWith('tag:')) {
+        const tag = folderId.slice(4);
+        if (!c.tags.includes(tag)) return false;
       } else {
         if (c.playId !== folderId) return false;
       }
@@ -118,10 +130,18 @@ export function ContactsExplorer({ initialBundle }: Props) {
               key={f.id}
               folder={f}
               active={f.id === folderId}
-              onClick={() => { setFolderId(f.id); setSelectedId(null); }}
+              onClick={() => { setFolderId(f.id); setSelectedId(null); setChecked(new Set()); }}
             />
           ))}
         </ul>
+        <button
+          type="button"
+          onClick={() => setShowNewGroup(true)}
+          className="flex items-center gap-1.5 px-3 py-2 border-t border-evari-edge/20 text-[11px] text-evari-dim hover:text-evari-text hover:bg-evari-ink/40 transition-colors"
+          title="Create a tag-based marketing group"
+        >
+          <TagIcon className="h-3 w-3" /> New group
+        </button>
       </aside>
 
       {/* ─── MID — contact list ────────────────────────────────────────── */}
@@ -150,11 +170,56 @@ export function ContactsExplorer({ initialBundle }: Props) {
                 key={c.id}
                 contact={c}
                 active={c.id === selectedId}
+                checked={checked.has(c.id)}
+                onToggle={() => setChecked((s) => {
+                  const next = new Set(s);
+                  if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
+                  return next;
+                })}
                 onClick={() => setSelectedId(c.id)}
               />
             ))}
           </ul>
         )}
+        {checked.size > 0 ? (
+          <div className="border-t border-evari-edge/30 bg-evari-ink px-3 py-2 flex items-center gap-2">
+            <span className="text-[11px] text-evari-text">
+              <strong>{checked.size}</strong> selected
+            </span>
+            <button
+              type="button"
+              onClick={() => { setChecked(new Set(visible.map((c) => c.id))); }}
+              className="text-[10px] text-evari-dim hover:text-evari-text underline underline-offset-2"
+            >Select all visible</button>
+            <button
+              type="button"
+              onClick={() => setChecked(new Set())}
+              className="text-[10px] text-evari-dim hover:text-evari-text underline underline-offset-2"
+            >Clear</button>
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setBulkOp('addTag')}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-evari-ink/60 text-evari-text hover:bg-black/40 transition-colors"
+              >
+                <TagIcon className="h-3 w-3" /> Add to group
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkOp('removeTag')}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-evari-ink/60 text-evari-text hover:bg-black/40 transition-colors"
+              >
+                <X className="h-3 w-3" /> Remove from group
+              </button>
+              <a
+                href={`/email/campaigns/new?ids=${Array.from(checked).join(',')}`}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
+              >
+                <Send className="h-3 w-3" /> Send campaign
+              </a>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {/* ─── RIGHT — detail ────────────────────────────────────────────── */}
@@ -178,6 +243,26 @@ export function ContactsExplorer({ initialBundle }: Props) {
         <CreateContactModal
           onClose={() => setShowCreate(false)}
           onCreated={async () => { await refresh(); setShowCreate(false); }}
+        />
+      ) : null}
+
+      {bulkOp ? (
+        <BulkTagModal
+          op={bulkOp}
+          ids={Array.from(checked)}
+          onClose={() => setBulkOp(null)}
+          onDone={async () => { setBulkOp(null); setChecked(new Set()); await refresh(); }}
+        />
+      ) : null}
+
+      {showNewGroup ? (
+        <NewGroupModal
+          onClose={() => setShowNewGroup(false)}
+          onCreated={(name) => {
+            setShowNewGroup(false);
+            setFolderId(`tag:${name}`);
+            setSelectedId(null);
+          }}
         />
       ) : null}
     </div>
@@ -211,16 +296,21 @@ function FolderRow({ folder, active, onClick }: { folder: ContactFolder; active:
 
 // ─── Contact list row ──────────────────────────────────────────
 
-function ContactListRow({ contact, active, onClick }: { contact: EmailContact; active: boolean; onClick: () => void }) {
+function ContactListRow({ contact, active, checked, onToggle, onClick }: { contact: EmailContact; active: boolean; checked: boolean; onToggle: () => void; onClick: () => void }) {
   return (
-    <li>
+    <li className={cn('flex items-stretch transition-colors duration-150', active ? 'bg-evari-ink/70' : 'hover:bg-evari-ink/30')}>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        className="px-2 flex items-center text-evari-dim hover:text-evari-text transition-colors"
+        aria-label={checked ? 'Deselect' : 'Select'}
+      >
+        {checked ? <CheckSquare className="h-3.5 w-3.5 text-evari-gold" /> : <Square className="h-3.5 w-3.5" />}
+      </button>
       <button
         type="button"
         onClick={onClick}
-        className={cn(
-          'w-full px-3 py-2 text-left transition-colors duration-150',
-          active ? 'bg-evari-ink/70' : 'hover:bg-evari-ink/30',
-        )}
+        className="flex-1 px-1 py-2 text-left min-w-0"
       >
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0">
@@ -230,10 +320,17 @@ function ContactListRow({ contact, active, onClick }: { contact: EmailContact; a
             </div>
           </div>
           {contact.emailInferred ? (
-            <span className="text-[9px] uppercase tracking-[0.1em] text-evari-gold/80 px-1.5 py-0.5 rounded bg-evari-gold/10" title="Email was AI-inferred — verify before sending">inferred</span>
+            <span className="text-[9px] uppercase tracking-[0.1em] text-evari-gold/80 px-1.5 py-0.5 rounded bg-evari-gold/10 shrink-0" title="Email was AI-inferred — verify before sending">inferred</span>
           ) : null}
         </div>
         <div className="mt-0.5 text-[11px] text-evari-dimmer truncate font-mono">{contact.email}</div>
+        {contact.tags.length > 0 ? (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {contact.tags.slice(0, 4).map((t) => (
+              <span key={t} className="text-[9px] uppercase tracking-[0.08em] text-evari-dim bg-evari-ink/60 px-1.5 py-0.5 rounded">{t}</span>
+            ))}
+          </div>
+        ) : null}
       </button>
     </li>
   );
@@ -361,10 +458,32 @@ function ContactDetail({ contact, onSaved }: { contact: EmailContact; onSaved: (
           <ReadOnlyRow label="Source" value={contact.sourceDetail || contact.source} />
           <ReadOnlyRow label="First seen" value={new Date(contact.firstSeenAt).toLocaleDateString()} />
           <ReadOnlyRow label="Last touch" value={new Date(contact.lastTouchAt).toLocaleDateString()} />
-          <ReadOnlyRow label="Activity" value={`${contact.activityCount} event${contact.activityCount === 1 ? '' : 's'}`} />
+        </FieldGroup>
+
+        <FieldGroup title={`Activity · ${contact.activityCount}`}>
+          <ActivityTimeline events={contact.activity} />
         </FieldGroup>
       </div>
     </>
+  );
+}
+
+function ActivityTimeline({ events }: { events: EmailContactActivity[] }) {
+  if (!events.length) {
+    return <p className="text-[11px] text-evari-dimmer italic">No activity yet — events from sends, opens, clicks + outreach show here.</p>;
+  }
+  return (
+    <ol className="space-y-1.5">
+      {events.map((e) => (
+        <li key={e.id} className="flex items-start gap-2 text-[11px]">
+          <Activity className="h-3 w-3 text-evari-dimmer mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-evari-text leading-snug">{e.summary}</div>
+            <div className="text-evari-dimmer font-mono tabular-nums">{new Date(e.at).toLocaleString()} · {e.type}</div>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -516,6 +635,109 @@ function CreateContactModal({ onClose, onCreated }: { onClose: () => void; onCre
           >
             {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
             {saving ? 'Adding' : 'Add contact'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// ─── Bulk-tag modal ────────────────────────────────────────────
+
+function BulkTagModal({ op, ids, onClose, onDone }: { op: 'addTag' | 'removeTag'; ids: string[]; onClose: () => void; onDone: () => Promise<void> }) {
+  const [tag, setTag] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isAdd = op === 'addTag';
+  async function submit() {
+    if (!tag.trim()) { setError('Group name required'); return; }
+    setSaving(true); setError(null);
+    try {
+      const res = await fetch('/api/marketing/contacts/leads/bulk', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, op, value: tag.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) throw new Error(data.error ?? 'Bulk update failed');
+      await onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bulk update failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-evari-text">
+            {isAdd ? `Add ${ids.length} contact${ids.length === 1 ? '' : 's'} to group` : `Remove ${ids.length} contact${ids.length === 1 ? '' : 's'} from group`}
+          </h3>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
+        </header>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.1em] text-evari-dimmer mb-0.5">Group name</span>
+          <input
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            placeholder="VIP / Newsletter / Beta…"
+            className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+            autoFocus
+            onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+          />
+        </label>
+        {error ? <p className="text-[11px] text-evari-danger">{error}</p> : null}
+        <footer className="flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="text-[11px] text-evari-dim hover:text-evari-text px-3 py-1 rounded">Cancel</button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={submit}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            {saving ? 'Saving' : isAdd ? 'Add' : 'Remove'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// ─── New group modal ──────────────────────────────────────────
+
+function NewGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated: (name: string) => void }) {
+  const [name, setName] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-evari-text">New group</h3>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
+        </header>
+        <p className="text-[11px] text-evari-dimmer">
+          Groups in Evari are tag-based. The folder will appear as soon as you add at least one contact to it via the bulk &ldquo;Add to group&rdquo; action.
+        </p>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.1em] text-evari-dimmer mb-0.5">Group name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="VIP / Newsletter / Beta…"
+            autoFocus
+            className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+            onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onCreated(name.trim()); }}
+          />
+        </label>
+        <footer className="flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="text-[11px] text-evari-dim hover:text-evari-text px-3 py-1 rounded">Cancel</button>
+          <button
+            type="button"
+            disabled={!name.trim()}
+            onClick={() => onCreated(name.trim())}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded disabled:opacity-50"
+          >
+            Create
           </button>
         </footer>
       </div>
