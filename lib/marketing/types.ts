@@ -567,6 +567,98 @@ export type EmailBlock =
   | (EmailBlockBase & {
       type: 'html';
       html: string;
+    })
+  // ─── Phase 14C: extended block library ───────────────────────
+  | (EmailBlockBase & {
+      type: 'split';
+      // Image + text side-by-side at 50/50.
+      imageSrc: string;
+      imageAlt: string;
+      imagePosition: 'left' | 'right';
+      html: string;
+      fontSizePx: number;
+      lineHeight: number;
+      color: string;
+      buttonLabel?: string;
+      buttonUrl?: string;
+    })
+  | (EmailBlockBase & {
+      type: 'headerBar';
+      logoUrl: string;       // empty → brand light logo
+      tagline: string;
+      linkUrl: string;
+      backgroundColor: string;
+      textColor: string;
+    })
+  | (EmailBlockBase & {
+      type: 'card';          // 'Drop shadow' tile in the toolbar — wraps content in a shadowed card.
+      html: string;
+      backgroundColor: string;
+      borderRadiusPx: number;
+      shadow: 'sm' | 'md' | 'lg';
+      paddingPx: number;
+    })
+  | (EmailBlockBase & {
+      type: 'social';
+      // Klaviyo-style row of icon links. Empty URLs are skipped at render time.
+      items: { platform: 'instagram' | 'twitter' | 'linkedin' | 'facebook' | 'tiktok' | 'youtube' | 'website'; url: string }[];
+      alignment: EmailAlignment;
+      iconColor: string;
+    })
+  | (EmailBlockBase & {
+      type: 'coupon';
+      code: string;
+      title: string;
+      subtitle: string;
+      expiry: string;        // ISO date or free text
+      backgroundColor: string;
+      textColor: string;
+      borderColor: string;
+    })
+  | (EmailBlockBase & {
+      type: 'table';
+      // Simple key/value table (label + value rows) — most common shape in marketing emails.
+      rows: { label: string; value: string }[];
+      headerLabel: string;
+      headerValue: string;
+      borderColor: string;
+      stripeColor: string;   // for zebra rows
+    })
+  | (EmailBlockBase & {
+      type: 'review';
+      quote: string;
+      author: string;
+      role: string;          // 'CEO at Acme' etc
+      rating: number;        // 0..5
+      backgroundColor: string;
+    })
+  | (EmailBlockBase & {
+      type: 'video';
+      thumbnailSrc: string;
+      videoUrl: string;
+      alt: string;
+      maxWidthPx: number;
+      alignment: EmailAlignment;
+    })
+  | (EmailBlockBase & {
+      type: 'product';
+      imageSrc: string;
+      imageAlt: string;
+      title: string;
+      price: string;          // free text — '£500' / 'From £450'
+      description: string;
+      buttonLabel: string;
+      buttonUrl: string;
+      backgroundColor: string;
+    })
+  | (EmailBlockBase & {
+      type: 'section';
+      // Background + padding wrapper holding HTML — when we add real nested
+      // blocks in a future phase we'll replace .html with .blocks[].
+      html: string;
+      backgroundColor: string;
+      paddingPx: number;
+      borderRadiusPx: number;
     });
 
 export interface EmailDesign {

@@ -3,19 +3,34 @@
 import { useMemo, useState } from 'react';
 import {
   AtSign,
+  Box,
+  Calendar,
   ChevronDown,
   ChevronUp,
+  Code2,
+  Columns3,
   FolderOpen,
   GripVertical,
   Heading1,
   Image as ImageIcon,
+  Layers,
+  Layout,
   Link2,
   Loader2,
+  Megaphone,
   Minus,
   MousePointerClick,
   Move,
   PenLine,
+  PlaySquare,
+  Quote,
+  Share2,
   Sparkles,
+  Square,
+  SquareSplitHorizontal,
+  Star,
+  Table as TableIcon,
+  Tag,
   Trash2,
   Type,
   X,
@@ -55,14 +70,87 @@ interface Props {
 
 function nid(): string { return Math.random().toString(36).slice(2, 10); }
 
-const ADD_BUTTONS: Array<{ type: EmailBlock['type']; label: string; Icon: typeof Type; make: () => EmailBlock }> = [
-  { type: 'heading', label: 'Heading', Icon: Heading1,           make: () => ({ id: nid(), type: 'heading', level: 1, html: 'New heading', alignment: 'left', color: '#111111', fontFamily: '', paddingBottomPx: 12 }) },
-  { type: 'text',    label: 'Text',    Icon: Type,               make: () => ({ id: nid(), type: 'text', html: 'Write your message here.', alignment: 'left', fontSizePx: 16, lineHeight: 1.55, color: '#333333', fontFamily: '', paddingBottomPx: 16 }) },
-  { type: 'image',   label: 'Image',   Icon: ImageIcon,          make: () => ({ id: nid(), type: 'image', src: '', alt: '', maxWidthPx: 600, alignment: 'center', paddingBottomPx: 16 }) },
-  { type: 'button',  label: 'Button',  Icon: MousePointerClick,  make: () => ({ id: nid(), type: 'button', label: 'Click me', url: 'https://evari.cc', alignment: 'center', backgroundColor: '#1a1a1a', textColor: '#ffffff', borderRadiusPx: 4, paddingXPx: 24, paddingYPx: 12, paddingBottomPx: 24 }) },
-  { type: 'divider', label: 'Divider', Icon: Minus,              make: () => ({ id: nid(), type: 'divider', color: '#e5e5e5', thicknessPx: 1, marginYPx: 16 }) },
-  { type: 'spacer',  label: 'Spacer',  Icon: Move,               make: () => ({ id: nid(), type: 'spacer', heightPx: 24 }) },
+interface BlockTile {
+  type: EmailBlock['type'] | 'columns'; // columns is a placeholder
+  label: string;
+  Icon: typeof Type;
+  group: 'blocks' | 'layout';
+  badge?: 'New' | 'Soon';
+  comingSoon?: boolean;
+  make?: () => EmailBlock;
+}
+
+const ADD_BUTTONS: BlockTile[] = [
+  // Row 1
+  { group: 'blocks', type: 'text',    label: 'Text',    Icon: Type,        make: () => ({ id: nid(), type: 'text', html: 'Write your message here.', alignment: 'left', fontSizePx: 16, lineHeight: 1.55, color: '#333333', fontFamily: '', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'image',   label: 'Image',   Icon: ImageIcon,   make: () => ({ id: nid(), type: 'image', src: '', alt: '', maxWidthPx: 600, alignment: 'center', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'split',   label: 'Split',   Icon: SquareSplitHorizontal, make: () => ({ id: nid(), type: 'split', imageSrc: '', imageAlt: '', imagePosition: 'left', html: 'Side-by-side text.', fontSizePx: 16, lineHeight: 1.55, color: '#333333', paddingBottomPx: 16 }) },
+  // Row 2
+  { group: 'blocks', type: 'button',  label: 'Button',  Icon: MousePointerClick,  make: () => ({ id: nid(), type: 'button', label: 'Click me', url: 'https://evari.cc', alignment: 'center', backgroundColor: '#1a1a1a', textColor: '#ffffff', borderRadiusPx: 4, paddingXPx: 24, paddingYPx: 12, paddingBottomPx: 24 }) },
+  { group: 'blocks', type: 'headerBar', label: 'Header bar', Icon: Heading1, make: () => ({ id: nid(), type: 'headerBar', logoUrl: '', tagline: '', linkUrl: '', backgroundColor: '#ffffff', textColor: '#666666', paddingBottomPx: 8 }) },
+  { group: 'blocks', type: 'card',    label: 'Drop shadow', Icon: Layers, make: () => ({ id: nid(), type: 'card', html: 'Featured content with a soft shadow.', backgroundColor: '#ffffff', borderRadiusPx: 8, shadow: 'md', paddingPx: 20, paddingBottomPx: 16 }) },
+  // Row 3
+  { group: 'blocks', type: 'divider', label: 'Divider', Icon: Minus,       make: () => ({ id: nid(), type: 'divider', color: '#e5e5e5', thicknessPx: 1, marginYPx: 16 }) },
+  { group: 'blocks', type: 'social',  label: 'Social links', Icon: Share2, make: () => ({ id: nid(), type: 'social', items: [{ platform: 'instagram', url: '' }, { platform: 'linkedin', url: '' }, { platform: 'twitter', url: '' }], alignment: 'center', iconColor: '#1a1a1a', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'spacer',  label: 'Spacer',  Icon: Move,        make: () => ({ id: nid(), type: 'spacer', heightPx: 24 }) },
+  // Row 4
+  { group: 'blocks', type: 'product', label: 'Product', Icon: Box,         make: () => ({ id: nid(), type: 'product', imageSrc: '', imageAlt: '', title: 'Product name', price: '£0.00', description: 'Short product description.', buttonLabel: 'Shop now', buttonUrl: 'https://evari.cc', backgroundColor: '#f8f8f8', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'coupon',  label: 'Coupon',  Icon: Tag, badge: 'New', make: () => ({ id: nid(), type: 'coupon', code: 'SAVE10', title: 'Use code', subtitle: '10% off your next order', expiry: '', backgroundColor: '#fffbea', textColor: '#1a1a1a', borderColor: '#d4a017', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'table',   label: 'Table',   Icon: TableIcon,   make: () => ({ id: nid(), type: 'table', headerLabel: 'Item', headerValue: 'Detail', rows: [{ label: 'Frame', value: 'Carbon T1100' }, { label: 'Drivetrain', value: 'Rohloff E-14' }], borderColor: '#e5e5e5', stripeColor: '#fafafa', paddingBottomPx: 16 }) },
+  // Row 5
+  { group: 'blocks', type: 'review',  label: 'Review quote', Icon: Quote,  make: () => ({ id: nid(), type: 'review', quote: 'A genuinely brilliant ride — exactly what I needed.', author: 'Jane Doe', role: 'Customer', rating: 5, backgroundColor: '#f8f8f8', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'video',   label: 'Video',   Icon: PlaySquare,  make: () => ({ id: nid(), type: 'video', thumbnailSrc: '', videoUrl: '', alt: '', maxWidthPx: 600, alignment: 'center', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'html',    label: 'HTML',    Icon: Code2,       make: () => ({ id: nid(), type: 'html', html: '<p>Custom HTML here.</p>', paddingBottomPx: 16 }) },
+  // Layout group
+  { group: 'layout', type: 'columns', label: 'Columns', Icon: Columns3, comingSoon: true },
+  { group: 'layout', type: 'section', label: 'Section', Icon: Square, badge: 'New', make: () => ({ id: nid(), type: 'section', html: 'Group related content here.', backgroundColor: '#f4f4f5', paddingPx: 24, borderRadiusPx: 6, paddingBottomPx: 16 }) },
 ];
+
+// Heading still gets a tile but we render it inside the Blocks group ahead of Text in the toolbar.
+// We declare it separately to keep the ADD_BUTTONS list grouped by section for clarity.
+const HEADING_TILE: BlockTile = { group: 'blocks', type: 'heading', label: 'Heading', Icon: Heading1, make: () => ({ id: nid(), type: 'heading', level: 1, html: 'New heading', alignment: 'left', color: '#111111', fontFamily: '', paddingBottomPx: 12 }) };
+
+/**
+ * Klaviyo-style block tile grid. Each tile is a 3-up button with the
+ * block type icon centred + label below. Uses a 'New' / 'Soon' badge
+ * on the top-right corner when applicable. Coming-soon tiles open a
+ * tooltip on click instead of inserting a block.
+ */
+function BlockTileGroup({ title, tiles, onAdd }: { title: string; tiles: BlockTile[]; onAdd: (make: () => EmailBlock) => void }) {
+  return (
+    <section>
+      <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">{title}</h3>
+      <ul className="grid grid-cols-3 gap-1.5">
+        {tiles.map((t) => {
+          const Icon = t.Icon;
+          const disabled = !!t.comingSoon;
+          return (
+            <li key={`${t.group}-${t.type}-${t.label}`}>
+              <button
+                type="button"
+                disabled={disabled}
+                title={disabled ? 'Coming soon' : `Add ${t.label}`}
+                onClick={() => { if (t.make) onAdd(t.make); }}
+                className={cn(
+                  'relative w-full aspect-square rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200',
+                  disabled
+                    ? 'border-evari-edge/20 text-evari-dimmer cursor-not-allowed opacity-60'
+                    : 'border-evari-edge/30 text-evari-dim hover:text-evari-text hover:border-evari-gold/60 hover:bg-evari-ink/70',
+                )}
+              >
+                {t.badge ? (
+                  <span className={cn('absolute top-1 right-1 text-[8px] uppercase tracking-[0.08em] font-bold px-1 py-0.5 rounded', t.badge === 'New' ? 'bg-blue-500/20 text-blue-300' : 'bg-evari-edge/30 text-evari-dimmer')}>{t.badge}</span>
+                ) : null}
+                <Icon className="h-5 w-5" />
+                <span className="text-[11px] leading-tight text-center">{t.label}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 /**
  * Block-based visual email builder. Same architecture as the Footer
@@ -143,22 +231,17 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft }: Prop
 
         {/* Tools RIGHT */}
         <div className="space-y-2 min-w-0">
-          <div className="flex flex-wrap items-center gap-1">
-            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mr-1">Add</span>
-            {ADD_BUTTONS.map((b) => {
-              const Icon = b.Icon;
-              return (
-                <button
-                  key={b.type}
-                  type="button"
-                  onClick={() => addBlock(b.make)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs bg-evari-ink text-evari-dim hover:text-evari-text hover:bg-black/40 transition-colors duration-300"
-                >
-                  <Icon className="h-3 w-3" />
-                  {b.label}
-                </button>
-              );
-            })}
+          <div className="space-y-3">
+            <BlockTileGroup
+              title="Blocks"
+              tiles={[HEADING_TILE, ...ADD_BUTTONS.filter((t) => t.group === 'blocks')]}
+              onAdd={(make) => addBlock(make)}
+            />
+            <BlockTileGroup
+              title="Layout"
+              tiles={ADD_BUTTONS.filter((t) => t.group === 'layout')}
+              onAdd={(make) => addBlock(make)}
+            />
           </div>
 
           <div className="rounded-md bg-evari-ink/40 border border-evari-edge/20 p-3">
@@ -276,12 +359,23 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
       </header>
       {selected ? (
         <div className="border-t border-evari-edge/20 px-3 py-2 space-y-2">
-          {block.type === 'heading' ? <HeadingFields block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
-          {block.type === 'text'    ? <TextFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
-          {block.type === 'image'   ? <ImageFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'image' }>>) => void} /> : null}
-          {block.type === 'button'  ? <ButtonFields  block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void} /> : null}
-          {block.type === 'divider' ? <DividerFields block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'divider' }>>) => void} /> : null}
-          {block.type === 'spacer'  ? <SpacerFields  block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void} /> : null}
+          {block.type === 'heading'   ? <HeadingFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
+          {block.type === 'text'      ? <TextFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
+          {block.type === 'image'     ? <ImageFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'image' }>>) => void} /> : null}
+          {block.type === 'button'    ? <ButtonFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void} /> : null}
+          {block.type === 'divider'   ? <DividerFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'divider' }>>) => void} /> : null}
+          {block.type === 'spacer'    ? <SpacerFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void} /> : null}
+          {block.type === 'html'      ? <HtmlFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void} /> : null}
+          {block.type === 'split'     ? <SplitFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
+          {block.type === 'headerBar' ? <HeaderBarFields block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
+          {block.type === 'card'      ? <CardFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void} /> : null}
+          {block.type === 'social'    ? <SocialFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'social' }>>) => void} /> : null}
+          {block.type === 'coupon'    ? <CouponFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'coupon' }>>) => void} /> : null}
+          {block.type === 'table'     ? <TableFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'table' }>>) => void} /> : null}
+          {block.type === 'review'    ? <ReviewFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'review' }>>) => void} /> : null}
+          {block.type === 'video'     ? <VideoFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'video' }>>) => void} /> : null}
+          {block.type === 'product'   ? <ProductFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'product' }>>) => void} /> : null}
+          {block.type === 'section'   ? <SectionFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void} /> : null}
           <PaddingFields block={block} onChange={onChange as (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void} />
         </div>
       ) : null}
@@ -601,6 +695,311 @@ function AssetPickerModal({ onClose, onPick }: { onClose: () => void; onPick: (u
             </ul>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Field editors for the extended block library ───────────────
+
+function HtmlFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'html' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void }) {
+  return (
+    <label className="block">
+      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Custom HTML (escape hatch)</span>
+      <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[140px] font-mono text-[12px]')} />
+    </label>
+  );
+}
+
+function SplitFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'split' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Image URL</span>
+          <input type="url" value={block.imageSrc} onChange={(e) => onChange({ imageSrc: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Image position</span>
+          <select value={block.imagePosition} onChange={(e) => onChange({ imagePosition: e.target.value as 'left' | 'right' })} className={inputCls}>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </label>
+      </div>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text (HTML)</span>
+        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[80px] font-mono text-[12px]')} />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Button label</span>
+          <input type="text" value={block.buttonLabel ?? ''} onChange={(e) => onChange({ buttonLabel: e.target.value })} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Button URL</span>
+          <input type="url" value={block.buttonUrl ?? ''} onChange={(e) => onChange({ buttonUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function HeaderBarFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'headerBar' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Logo URL (blank = brand light logo)</span>
+        <input type="url" value={block.logoUrl} onChange={(e) => onChange({ logoUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+      </label>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Tagline (right side)</span>
+        <input type="text" value={block.tagline} onChange={(e) => onChange({ tagline: e.target.value })} className={inputCls} />
+      </label>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
+        <input type="url" value={block.linkUrl} onChange={(e) => onChange({ linkUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
+        <ColourField label="Text" value={block.textColor} onChange={(v) => onChange({ textColor: v })} />
+      </div>
+    </div>
+  );
+}
+
+function CardFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'card' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Card content (HTML)</span>
+        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[100px] font-mono text-[12px]')} />
+      </label>
+      <div className="grid grid-cols-3 gap-2">
+        <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
+        <NumField label="Radius (px)" value={block.borderRadiusPx} min={0} max={40} onChange={(v) => onChange({ borderRadiusPx: v })} />
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Shadow</span>
+          <select value={block.shadow} onChange={(e) => onChange({ shadow: e.target.value as 'sm' | 'md' | 'lg' })} className={inputCls}>
+            <option value="sm">Small</option>
+            <option value="md">Medium</option>
+            <option value="lg">Large</option>
+          </select>
+        </label>
+      </div>
+      <NumField label="Inner padding (px)" value={block.paddingPx} min={4} max={64} onChange={(v) => onChange({ paddingPx: v })} />
+    </div>
+  );
+}
+
+const SOCIAL_PLATFORMS: Extract<EmailBlock, { type: 'social' }>['items'][number]['platform'][] = ['instagram', 'twitter', 'linkedin', 'facebook', 'tiktok', 'youtube', 'website'];
+
+function SocialFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'social' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'social' }>>) => void }) {
+  function setItem(i: number, patch: Partial<typeof block.items[number]>) {
+    const next = block.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it));
+    onChange({ items: next });
+  }
+  function addItem() {
+    onChange({ items: [...block.items, { platform: 'instagram', url: '' }] });
+  }
+  function removeItem(i: number) {
+    onChange({ items: block.items.filter((_, idx) => idx !== i) });
+  }
+  return (
+    <div className="space-y-2">
+      {block.items.map((it, i) => (
+        <div key={i} className="grid grid-cols-[120px_1fr_auto] gap-1.5 items-start">
+          <select value={it.platform} onChange={(e) => setItem(i, { platform: e.target.value as typeof SOCIAL_PLATFORMS[number] })} className={inputCls}>
+            {SOCIAL_PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <input type="url" value={it.url} onChange={(e) => setItem(i, { url: e.target.value })} placeholder="https://…" className={cn(inputCls, 'font-mono text-[12px]')} />
+          <button type="button" onClick={() => removeItem(i)} className="text-evari-dim hover:text-evari-danger px-1 py-1">
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={addItem} className="text-[11px] text-evari-gold hover:underline">+ Add platform</button>
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
+        <ColourField label="Icon colour" value={block.iconColor} onChange={(v) => onChange({ iconColor: v })} />
+      </div>
+    </div>
+  );
+}
+
+function CouponFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'coupon' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'coupon' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Code</span>
+          <input type="text" value={block.code} onChange={(e) => onChange({ code: e.target.value })} className={cn(inputCls, 'font-mono uppercase tracking-wider')} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Title (above code)</span>
+          <input type="text" value={block.title} onChange={(e) => onChange({ title: e.target.value })} className={inputCls} />
+        </label>
+      </div>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Subtitle (below code)</span>
+        <input type="text" value={block.subtitle} onChange={(e) => onChange({ subtitle: e.target.value })} className={inputCls} />
+      </label>
+      <label className="block">
+        <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <Calendar className="h-3 w-3" /> Expiry (free text)
+        </span>
+        <input type="text" value={block.expiry} onChange={(e) => onChange({ expiry: e.target.value })} placeholder="31 Dec 2026" className={inputCls} />
+      </label>
+      <div className="grid grid-cols-3 gap-2">
+        <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
+        <ColourField label="Text" value={block.textColor} onChange={(v) => onChange({ textColor: v })} />
+        <ColourField label="Border" value={block.borderColor} onChange={(v) => onChange({ borderColor: v })} />
+      </div>
+    </div>
+  );
+}
+
+function TableFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'table' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'table' }>>) => void }) {
+  function setRow(i: number, patch: Partial<typeof block.rows[number]>) {
+    const next = block.rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r));
+    onChange({ rows: next });
+  }
+  function addRow() {
+    onChange({ rows: [...block.rows, { label: 'New row', value: '' }] });
+  }
+  function removeRow(i: number) {
+    onChange({ rows: block.rows.filter((_, idx) => idx !== i) });
+  }
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Header — label column</span>
+          <input type="text" value={block.headerLabel} onChange={(e) => onChange({ headerLabel: e.target.value })} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Header — value column</span>
+          <input type="text" value={block.headerValue} onChange={(e) => onChange({ headerValue: e.target.value })} className={inputCls} />
+        </label>
+      </div>
+      {block.rows.map((r, i) => (
+        <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-1.5 items-start">
+          <input type="text" value={r.label} onChange={(e) => setRow(i, { label: e.target.value })} className={inputCls} />
+          <input type="text" value={r.value} onChange={(e) => setRow(i, { value: e.target.value })} className={inputCls} />
+          <button type="button" onClick={() => removeRow(i)} className="text-evari-dim hover:text-evari-danger px-1 py-1">
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={addRow} className="text-[11px] text-evari-gold hover:underline">+ Add row</button>
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <ColourField label="Border" value={block.borderColor} onChange={(v) => onChange({ borderColor: v })} />
+        <ColourField label="Stripe" value={block.stripeColor} onChange={(v) => onChange({ stripeColor: v })} />
+      </div>
+    </div>
+  );
+}
+
+function ReviewFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'review' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'review' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Quote</span>
+        <textarea value={block.quote} onChange={(e) => onChange({ quote: e.target.value })} className={cn(inputCls, 'min-h-[80px] italic')} />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Author</span>
+          <input type="text" value={block.author} onChange={(e) => onChange({ author: e.target.value })} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Role / company</span>
+          <input type="text" value={block.role} onChange={(e) => onChange({ role: e.target.value })} className={inputCls} />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+            <Star className="h-3 w-3" /> Rating (0–5)
+          </span>
+          <input type="number" min={0} max={5} step={0.5} value={block.rating} onChange={(e) => onChange({ rating: Number(e.target.value) })} className={cn(inputCls, 'font-mono')} />
+        </label>
+        <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
+      </div>
+    </div>
+  );
+}
+
+function VideoFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'video' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'video' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Thumbnail URL</span>
+        <input type="url" value={block.thumbnailSrc} onChange={(e) => onChange({ thumbnailSrc: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+      </label>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Video URL (where the play button goes)</span>
+        <input type="url" value={block.videoUrl} onChange={(e) => onChange({ videoUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
+          <input type="text" value={block.alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
+        </label>
+        <NumField label="Max width (px)" value={block.maxWidthPx} min={120} max={1200} onChange={(v) => onChange({ maxWidthPx: v })} />
+      </div>
+      <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
+    </div>
+  );
+}
+
+function ProductFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'product' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'product' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Image URL</span>
+        <input type="url" value={block.imageSrc} onChange={(e) => onChange({ imageSrc: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Title</span>
+          <input type="text" value={block.title} onChange={(e) => onChange({ title: e.target.value })} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Price</span>
+          <input type="text" value={block.price} onChange={(e) => onChange({ price: e.target.value })} className={inputCls} />
+        </label>
+      </div>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Description (HTML)</span>
+        <textarea value={block.description} onChange={(e) => onChange({ description: e.target.value })} className={cn(inputCls, 'min-h-[60px] font-mono text-[12px]')} />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Button label</span>
+          <input type="text" value={block.buttonLabel} onChange={(e) => onChange({ buttonLabel: e.target.value })} className={inputCls} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Button URL</span>
+          <input type="url" value={block.buttonUrl} onChange={(e) => onChange({ buttonUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+        </label>
+      </div>
+      <ColourField label="Card background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
+    </div>
+  );
+}
+
+function SectionFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'section' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Section content (HTML)</span>
+        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[100px] font-mono text-[12px]')} />
+      </label>
+      <div className="grid grid-cols-3 gap-2">
+        <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
+        <NumField label="Padding (px)" value={block.paddingPx} min={0} max={96} onChange={(v) => onChange({ paddingPx: v })} />
+        <NumField label="Radius (px)" value={block.borderRadiusPx} min={0} max={40} onChange={(v) => onChange({ borderRadiusPx: v })} />
       </div>
     </div>
   );
