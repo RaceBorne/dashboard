@@ -127,8 +127,13 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }
-  // Bottom drawer state — collapsed by default, height while open.
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // Bottom drawer is height-based. 36 = collapsed (just the toggle
+  // bar). Default 'open' height = 25% of viewport. User can drag the
+  // top edge to resize between 36 (closed) and ~85vh.
+  const drawerClosedH = 36;
+  const drawerDefaultH = typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.25) : 240;
+  const [drawerHeight, setDrawerHeight] = useState(drawerClosedH);
+  const drawerOpen = drawerHeight > drawerClosedH;
   // Which broadcast platforms are currently visible as columns inside
   // the drawer. Default: all six. User can tick / un-tick via the
   // 'Choose broadcast applications' picker at the top of the drawer.
@@ -136,6 +141,30 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
     () => new Set(['instagram', 'facebook', 'tiktok', 'linkedin', 'klaviyo', 'blogs']),
   );
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Drag-to-resize handler for the drawer's top edge.
+  const drawerDragRef = useRef<{ startY: number; startH: number } | null>(null);
+  function onDrawerResizeStart(ev: React.MouseEvent) {
+    ev.preventDefault();
+    drawerDragRef.current = { startY: ev.clientY, startH: drawerHeight };
+    function onMove(e: MouseEvent) {
+      if (!drawerDragRef.current) return;
+      const dy = drawerDragRef.current.startY - e.clientY;
+      const next = Math.min(
+        Math.round(window.innerHeight * 0.85),
+        Math.max(drawerClosedH, drawerDragRef.current.startH + dy),
+      );
+      setDrawerHeight(next);
+    }
+    function onUp() {
+      drawerDragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+    }
+    document.body.style.cursor = 'row-resize';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
 
   // composer state
   const [platform, setPlatform] = useState<SocialPlatform>('instagram');
@@ -403,8 +432,12 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
       </div>
 
             <PlatformDrawer
+        height={drawerHeight}
         open={drawerOpen}
-        onToggle={() => setDrawerOpen((v) => !v)}
+        onToggle={() =>
+          setDrawerHeight((h) => (h > drawerClosedH ? drawerClosedH : drawerDefaultH))
+        }
+        onResizeStart={onDrawerResizeStart}
         events={events}
         enabledPlatforms={enabledPlatforms}
         onTogglePlatform={(key) => {
@@ -756,7 +789,9 @@ function SocialPreviewCard({ post }: { post: SocialPost }) {
 
 interface PlatformDrawerProps {
   open: boolean;
+  height: number;
   onToggle: () => void;
+  onResizeStart: (ev: React.MouseEvent) => void;
   events: CalendarEvent[];
   enabledPlatforms: Set<string>;
   onTogglePlatform: (key: string) => void;
@@ -821,7 +856,9 @@ const DRAWER_COLS: Array<{
  */
 function PlatformDrawer({
   open,
+  height,
   onToggle,
+  onResizeStart,
   events,
   enabledPlatforms,
   onTogglePlatform,
@@ -851,12 +888,18 @@ function PlatformDrawer({
   }, [sorted]);
   return (
     <div
-      className={cn(
-        'flex flex-col overflow-hidden transition-all duration-300 ease-out',
-        open ? 'flex-1 absolute inset-0 z-20' : 'shrink-0',
-      )}
-      style={{ height: open ? undefined : 36 }}
+      className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden"
+      style={{ height }}
     >
+      {/* Drag handle for vertical resize — only visible when open. */}
+      {open ? (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          onMouseDown={onResizeStart}
+          className="h-1.5 -mb-1.5 cursor-row-resize z-30 hover:bg-evari-gold/40 transition-colors shrink-0"
+        />
+      ) : null}
       {/* Pull handle — drag-affordance bar + label + chevron */}
       <button
         type="button"
