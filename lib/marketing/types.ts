@@ -331,18 +331,15 @@ export interface MktAsset {
   updatedAt: string;
 }
 
-// ─── Footer designer ─────────────────────────────────────────────
+// ─── Footer designer (block-based) ───────────────────────────────
+//
+// The footer is a vertical list of blocks. Each block is one of the
+// types below; each carries its own props. The renderer walks the
+// list in order. Reordering / adding / removing happens in the UI
+// via @dnd-kit and the live preview + sender both call the same
+// renderFooter() against this shape.
 
-export type FooterLayout = 'stacked' | 'split' | 'centered';
 export type FooterAlignment = 'left' | 'center' | 'right';
-
-export interface FooterBlocks {
-  logo: boolean;
-  signature: boolean;
-  address: boolean;
-  social: boolean;
-  unsubscribe: boolean;
-}
 
 export interface FooterSocial {
   instagram?: string;
@@ -354,34 +351,89 @@ export interface FooterSocial {
   website?: string;
 }
 
+export type FooterBlock =
+  | {
+      id: string;
+      type: 'logo';
+      alignment: FooterAlignment;
+      maxWidthPx: number;     // controls the rendered width (height auto-scales)
+      /** Override URL — defaults to brand.logoLightUrl when blank. */
+      srcOverride?: string | null;
+    }
+  | {
+      id: string;
+      type: 'text';
+      alignment: FooterAlignment;
+      html: string;           // HTML allowed (e.g. confidentiality notice with <strong>)
+      fontFamily: string;     // family name; falls back to brand.fonts.body in the cascade
+      fontSizePx: number;
+      color: string;          // hex
+      lineHeight: number;     // unitless multiplier
+    }
+  | {
+      id: string;
+      type: 'spacer';
+      heightPx: number;
+    }
+  | {
+      id: string;
+      type: 'divider';
+      color: string;
+      thicknessPx: number;
+      marginYPx: number;
+    }
+  | {
+      id: string;
+      type: 'signature';
+      alignment: FooterAlignment;  // brand.signatureHtml rendered here
+    }
+  | {
+      id: string;
+      type: 'address';
+      alignment: FooterAlignment;  // brand.companyName + brand.companyAddress
+      color: string;
+    }
+  | {
+      id: string;
+      type: 'social';
+      alignment: FooterAlignment;
+      color: string;
+      social: FooterSocial;
+    }
+  | {
+      id: string;
+      type: 'unsubscribe';
+      alignment: FooterAlignment;
+      label: string;            // 'Unsubscribe from these emails' by default
+      color: string;
+    };
+
 export interface FooterDesign {
-  layout: FooterLayout;
-  alignment: FooterAlignment;
-  blocks: FooterBlocks;
-  background: string;        // hex, applied to footer wrapper
-  textColor: string;         // hex, base text colour for footer copy
-  mutedColor: string;        // hex, secondary text (legal, fine print)
+  background: string;
+  paddingPx: number;
   borderTop: boolean;
   borderColor: string;
-  paddingPx: number;         // vertical + horizontal padding
-  social: FooterSocial;
+  blocks: FooterBlock[];
 }
 
+function nid(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+/** Sensible starting footer — branded logo, signature, address, divider, unsubscribe. */
 export const DEFAULT_FOOTER_DESIGN: FooterDesign = {
-  layout: 'stacked',
-  alignment: 'center',
-  blocks: {
-    logo: true,
-    signature: true,
-    address: true,
-    social: false,
-    unsubscribe: true,
-  },
   background: '#ffffff',
-  textColor: '#1a1a1a',
-  mutedColor: '#666666',
+  paddingPx: 32,
   borderTop: true,
   borderColor: '#e5e5e5',
-  paddingPx: 32,
-  social: {},
+  blocks: [
+    { id: nid(), type: 'logo',      alignment: 'center', maxWidthPx: 140 },
+    { id: nid(), type: 'spacer',    heightPx: 16 },
+    { id: nid(), type: 'signature', alignment: 'center' },
+    { id: nid(), type: 'spacer',    heightPx: 12 },
+    { id: nid(), type: 'address',   alignment: 'center', color: '#666666' },
+    { id: nid(), type: 'divider',   color: '#e5e5e5', thicknessPx: 1, marginYPx: 16 },
+    { id: nid(), type: 'unsubscribe', alignment: 'center', label: 'Unsubscribe from these emails', color: '#666666' },
+  ],
 };
+
