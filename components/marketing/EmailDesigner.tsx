@@ -62,7 +62,7 @@ import {
   type EmailDesign,
   type MarketingBrand,
 } from '@/lib/marketing/types';
-import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign } from '@/lib/marketing/email-design';
+import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign, bgFillCss } from '@/lib/marketing/email-design';
 
 interface Props {
   initialBrand: MarketingBrand;
@@ -1055,12 +1055,13 @@ function SectionCanvasWrapper({ block, brand, selectedId, onSelectChild, onRemov
   onSelectChild: (id: string) => void;
   onRemoveChild: (id: string) => void;
 }) {
+  const fill = bgFillCss(block.backgroundSize);
   const wrapperStyle: React.CSSProperties = {
     backgroundColor: block.backgroundColor,
     backgroundImage: block.backgroundImage ? `url(${block.backgroundImage})` : undefined,
-    backgroundSize: block.backgroundSize ?? 'cover',
+    backgroundSize: fill.size,
+    backgroundRepeat: fill.repeat,
     backgroundPosition: block.backgroundPosition ?? 'center',
-    backgroundRepeat: 'no-repeat',
     borderRadius: `${block.borderRadiusPx}px`,
     padding: `${block.paddingPx}px`,
     minHeight: block.minHeightPx ? `${block.minHeightPx}px` : undefined,
@@ -1421,18 +1422,93 @@ function ProductFields({ block, onChange }: { block: Extract<EmailBlock, { type:
   );
 }
 
+
+/**
+ * Klaviyo-style 3x3 background-position picker. The 9 dots map to the
+ * 9 named CSS background-position values; the active one is filled.
+ */
+function PositionGrid({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  const cells: { v: string; label: string }[] = [
+    { v: 'top left',     label: 'Top left' },
+    { v: 'top',          label: 'Top centre' },
+    { v: 'top right',    label: 'Top right' },
+    { v: 'left',         label: 'Centre left' },
+    { v: 'center',       label: 'Centre' },
+    { v: 'right',        label: 'Centre right' },
+    { v: 'bottom left',  label: 'Bottom left' },
+    { v: 'bottom',       label: 'Bottom centre' },
+    { v: 'bottom right', label: 'Bottom right' },
+  ];
+  return (
+    <div
+      className={cn(
+        'inline-grid grid-cols-3 gap-0.5 p-1.5 rounded-md border border-evari-edge/30 bg-evari-ink',
+        disabled && 'opacity-40 pointer-events-none',
+      )}
+      role="radiogroup"
+      aria-label="Background position"
+    >
+      {cells.map((c) => {
+        const active = value === c.v;
+        return (
+          <button
+            key={c.v}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={c.label}
+            title={c.label}
+            onClick={() => onChange(c.v)}
+            className={cn(
+              'h-6 w-6 rounded-sm flex items-center justify-center transition-colors',
+              active ? 'bg-evari-gold/20' : 'hover:bg-evari-edge/30',
+            )}
+          >
+            <span
+              className={cn(
+                'block rounded-full transition-all',
+                active ? 'h-2.5 w-2.5 bg-evari-gold' : 'h-1.5 w-1.5 bg-evari-dim',
+              )}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SectionFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'section' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const childCount = (block.blocks ?? []).length;
+  // Normalise legacy CSS values into the Klaviyo-style fill modes for the dropdown.
+  const fillModeRaw = block.backgroundSize ?? 'fill';
+  const fillMode: 'original' | 'fit' | 'fill' | 'tile' =
+    fillModeRaw === 'auto'    ? 'original' :
+    fillModeRaw === 'contain' ? 'fit' :
+    fillModeRaw === 'cover'   ? 'fill' :
+    (fillModeRaw as 'original' | 'fit' | 'fill' | 'tile');
+  const position = block.backgroundPosition ?? 'center';
+  const tileDisabled = fillMode === 'tile';
+  const fill = bgFillCss(block.backgroundSize);
   return (
     <div className="space-y-3">
-      {/* Background image — header bar style with drop / pick / clear */}
+      {/* Background image — Klaviyo-style preview tile + tools */}
       <section>
         <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Background image</h4>
         {block.backgroundImage ? (
           <div className="rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={block.backgroundImage} alt="" className="w-full aspect-video object-cover bg-zinc-900" />
+            {/* Live 5:3 preview reflecting current fill + position */}
+            <div
+              className="w-full aspect-[5/3] bg-zinc-900"
+              style={{
+                backgroundImage: `url(${block.backgroundImage})`,
+                backgroundSize: fill.size,
+                backgroundRepeat: fill.repeat,
+                backgroundPosition: position,
+                backgroundColor: block.backgroundColor,
+              }}
+              aria-label="Background image preview"
+            />
             <div className="flex items-center gap-1 p-1.5">
               <button type="button" onClick={() => setPickerOpen(true)} className="text-[10px] text-evari-gold hover:underline px-1">Replace</button>
               <button type="button" onClick={() => onChange({ backgroundImage: '' })} className="text-[10px] text-evari-dim hover:text-evari-danger px-1 ml-auto">Remove</button>
@@ -1442,39 +1518,41 @@ function SectionFields({ block, onChange }: { block: Extract<EmailBlock, { type:
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="w-full rounded-md border-2 border-dashed border-evari-edge/30 px-3 py-6 text-center text-[11px] text-evari-dim hover:text-evari-text hover:border-evari-gold/60 transition-colors"
+            className="w-full aspect-[5/3] rounded-md border-2 border-dashed border-evari-edge/30 flex flex-col items-center justify-center gap-1 text-[11px] text-evari-dim hover:text-evari-text hover:border-evari-gold/60 transition-colors"
           >
-            <FolderOpen className="h-4 w-4 mx-auto mb-1" />
-            Browse asset library
+            <FolderOpen className="h-5 w-5" />
+            <span>Browse asset library</span>
           </button>
         )}
         <label className="block mt-1.5">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Or paste a URL</span>
           <input type="url" value={block.backgroundImage ?? ''} onChange={(e) => onChange({ backgroundImage: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
         </label>
-        <div className="grid grid-cols-2 gap-2 mt-1.5">
+        <div className="mt-2">
           <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Image size</span>
-            <select value={block.backgroundSize ?? 'cover'} onChange={(e) => onChange({ backgroundSize: e.target.value as 'cover' | 'contain' | 'auto' })} className={inputCls}>
-              <option value="cover">Cover (fill)</option>
-              <option value="contain">Contain (fit)</option>
-              <option value="auto">Auto (native)</option>
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Fill</span>
+            <select
+              value={fillMode}
+              onChange={(e) => onChange({ backgroundSize: e.target.value as 'original' | 'fit' | 'fill' | 'tile' })}
+              className={inputCls}
+            >
+              <option value="original">Original size</option>
+              <option value="fit">Fit</option>
+              <option value="fill">Fill</option>
+              <option value="tile">Tile</option>
             </select>
           </label>
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Position</span>
-            <select value={block.backgroundPosition ?? 'center'} onChange={(e) => onChange({ backgroundPosition: e.target.value })} className={inputCls}>
-              <option value="center">Center</option>
-              <option value="top">Top</option>
-              <option value="bottom">Bottom</option>
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-              <option value="top left">Top left</option>
-              <option value="top right">Top right</option>
-              <option value="bottom left">Bottom left</option>
-              <option value="bottom right">Bottom right</option>
-            </select>
-          </label>
+        </div>
+        <div className="mt-2">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Position</span>
+          <PositionGrid
+            value={position}
+            disabled={tileDisabled}
+            onChange={(v) => onChange({ backgroundPosition: v })}
+          />
+          {tileDisabled ? (
+            <p className="text-[10px] text-evari-dimmer mt-1">Position is ignored when the image tiles.</p>
+          ) : null}
         </div>
       </section>
 

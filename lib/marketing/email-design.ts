@@ -180,6 +180,24 @@ function renderProduct(b: Extract<EmailBlock, { type: 'product' }>, brand: Marke
   </div>`;
 }
 
+/**
+ * Normalise a section's background fill mode (which now includes Klaviyo-style
+ * 'original' | 'fit' | 'fill' | 'tile' alongside the legacy CSS values) into
+ * the actual CSS `background-size` + `background-repeat` pair.
+ */
+export function bgFillCss(mode: string | undefined): { size: string; repeat: string } {
+  switch (mode) {
+    case 'tile':                         return { size: 'auto',    repeat: 'repeat' };
+    case 'original':
+    case 'auto':                         return { size: 'auto',    repeat: 'no-repeat' };
+    case 'fit':
+    case 'contain':                      return { size: 'contain', repeat: 'no-repeat' };
+    case 'fill':
+    case 'cover':
+    default:                             return { size: 'cover',   repeat: 'no-repeat' };
+  }
+}
+
 function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: MarketingBrand): string {
   const children = (b.blocks ?? []).map((c) => renderBlock(c, brand)).filter(Boolean).join('');
   // Legacy fallback: pre-container sections stored their content as html.
@@ -187,9 +205,8 @@ function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: Marke
   const styles = [
     `background-color:${b.backgroundColor}`,
     b.backgroundImage ? `background-image:url(${escape(b.backgroundImage)})` : '',
-    `background-size:${b.backgroundSize ?? 'cover'}`,
+    (() => { const css = bgFillCss(b.backgroundSize); return `background-size:${css.size};background-repeat:${css.repeat}`; })(),
     `background-position:${b.backgroundPosition ?? 'center'}`,
-    'background-repeat:no-repeat',
     `border-radius:${b.borderRadiusPx}px`,
     `padding:${b.paddingPx}px`,
     b.minHeightPx ? `min-height:${b.minHeightPx}px` : '',

@@ -661,7 +661,7 @@ export type EmailBlock =
       html?: string;
       backgroundColor: string;
       backgroundImage?: string;       // URL or asset library id
-      backgroundSize?: 'cover' | 'contain' | 'auto';
+      backgroundSize?: 'cover' | 'contain' | 'auto' | 'original' | 'fit' | 'fill' | 'tile';
       backgroundPosition?: string;    // 'center', 'top', 'bottom left', etc
       paddingPx: number;
       borderRadiusPx: number;
