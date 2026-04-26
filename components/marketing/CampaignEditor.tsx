@@ -6,8 +6,10 @@ import Link from 'next/link';
 import { ChevronLeft, Loader2, Send, Trash2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import type { Campaign, Group, Segment } from '@/lib/marketing/types';
+import type { Campaign, EmailDesign, Group, MarketingBrand, Segment } from '@/lib/marketing/types';
+import { DEFAULT_EMAIL_DESIGN } from '@/lib/marketing/types';
 import type { CampaignStats } from '@/lib/marketing/campaigns';
+import { EmailDesigner } from './EmailDesigner';
 
 interface Props {
   mode: 'new' | 'edit';
@@ -17,11 +19,13 @@ interface Props {
   initialStats?: CampaignStats;
   /** Pre-loaded recipient emails — typically from /campaigns/new?ids=… */
   initialRecipientEmails?: string[];
+  /** Brand kit — used by the visual designer's preview renderer. */
+  brand?: MarketingBrand;
 }
 
 type AudienceKind = 'segment' | 'group' | 'custom';
 
-export function CampaignEditor({ mode, campaign, groups, segments, initialStats, initialRecipientEmails }: Props) {
+export function CampaignEditor({ mode, campaign, groups, segments, initialStats, initialRecipientEmails, brand }: Props) {
   const router = useRouter();
   const editing = mode === 'edit' && !!campaign;
   const [name, setName] = useState(campaign?.name ?? '');
@@ -30,6 +34,9 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
     campaign?.content ??
       '<h1>Hello {{firstName}}</h1>\n<p>Write your email here. Plain HTML — Phase 6 wires real merging + delivery.</p>',
   );
+  // Phase 14: visual design supersedes content when set.
+  const [emailDesign, setEmailDesign] = useState<EmailDesign | null>(campaign?.emailDesign ?? null);
+  const [editorMode, setEditorMode] = useState<'visual' | 'html'>(campaign?.emailDesign ? 'visual' : 'html');
   // Audience defaults: prefer existing campaign value > deep-link custom emails
   // > first available picker. 'custom' wins automatically when ids= was used.
   const seedCustom = (campaign?.recipientEmails ?? initialRecipientEmails ?? []) as string[];
@@ -66,6 +73,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
         segmentId: audienceKind === 'segment' ? segmentId || null : null,
         groupId: audienceKind === 'group' ? groupId || null : null,
         recipientEmails: audienceKind === 'custom' ? recipientEmails : null,
+        emailDesign,
       };
       const url = editing ? `/api/marketing/campaigns/${campaign!.id}` : '/api/marketing/campaigns';
       const method = editing ? 'PATCH' : 'POST';
@@ -245,18 +253,54 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
           ) : null}
         </section>
 
-        {/* Right: HTML editor */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 flex flex-col min-h-[400px]">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-evari-text">HTML body</h2>
-            <span className="text-[10px] text-evari-dimmer">Phase 5 — plain HTML; rich editor in a later phase</span>
-          </div>
-          <textarea
-            className="flex-1 px-3 py-2 rounded-md bg-evari-ink text-evari-text font-mono text-[12px] leading-relaxed border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none resize-none min-h-[400px]"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            disabled={sentLocked}
-          />
+        {/* Right: body editor — toggle between visual block builder and raw HTML */}
+        <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col min-h-[400px] overflow-hidden">
+          <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
+            <h2 className="text-sm font-semibold text-evari-text">Body</h2>
+            <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!emailDesign) {
+                    setEmailDesign({ ...DEFAULT_EMAIL_DESIGN, blocks: [...DEFAULT_EMAIL_DESIGN.blocks] });
+                  }
+                  setEditorMode('visual');
+                }}
+                disabled={sentLocked}
+                className={cn('px-2.5 py-1 rounded text-[11px] font-medium transition-colors duration-300', editorMode === 'visual' ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}
+              >Visual</button>
+              <button
+                type="button"
+                onClick={() => setEditorMode('html')}
+                disabled={sentLocked}
+                className={cn('px-2.5 py-1 rounded text-[11px] font-medium transition-colors duration-300', editorMode === 'html' ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}
+              >HTML</button>
+            </div>
+          </header>
+          {editorMode === 'visual' && brand ? (
+            <div className="flex-1 min-h-0 overflow-hidden p-2">
+              <EmailDesigner
+                initialBrand={brand}
+                value={emailDesign}
+                onChange={setEmailDesign}
+              />
+              <p className="text-[10px] text-evari-dimmer px-2 pt-1.5">
+                Visual mode supersedes the raw HTML body at send time. Switch to HTML to override.
+              </p>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col p-4">
+              <textarea
+                className="flex-1 px-3 py-2 rounded-md bg-evari-ink text-evari-text font-mono text-[12px] leading-relaxed border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none resize-none min-h-[400px]"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                disabled={sentLocked}
+              />
+              <p className="text-[10px] text-evari-dimmer mt-1">
+                Raw HTML — used when no visual design is set. Brand signature available via <code className="text-evari-text">{'{{signatureHtml}}'}</code> placeholder support coming next.
+              </p>
+            </div>
+          )}
         </section>
       </div>
 

@@ -23,7 +23,7 @@ export async function PATCH(
   const { id } = await params;
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
-  const allowed = ['name', 'subject', 'content', 'segmentId', 'groupId', 'status', 'scheduledFor'] as const;
+  const allowed = ['name', 'subject', 'content', 'segmentId', 'groupId', 'recipientEmails', 'emailDesign', 'status', 'scheduledFor'] as const;
   const patch: Record<string, unknown> = {};
   for (const k of allowed) {
     if (k in body) patch[k] = body[k];

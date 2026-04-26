@@ -5,6 +5,7 @@ import { getCampaign, getCampaignStats } from '@/lib/marketing/campaigns';
 import { listGroups } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
 import { getCampaignAnalytics } from '@/lib/marketing/campaign-analytics';
+import { getBrand } from '@/lib/marketing/brand';
 import { CampaignEditor } from '@/components/marketing/CampaignEditor';
 import { CampaignAnalyticsTabs } from '@/components/marketing/CampaignAnalyticsTabs';
 
@@ -17,11 +18,12 @@ export default async function CampaignEditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [campaign, groups, segments, stats] = await Promise.all([
+  const [campaign, groups, segments, stats, brand] = await Promise.all([
     getCampaign(id),
     listGroups(),
     listSegments(),
     getCampaignStats(id),
+    getBrand(),
   ]);
   if (!campaign) notFound();
   // Only fetch analytics for sent / sending campaigns — drafts have nothing to show.
@@ -38,6 +40,7 @@ export default async function CampaignEditPage({
         groups={groups}
         segments={segments}
         initialStats={stats}
+        brand={brand}
       />
       {analytics ? (
         <div className="px-4 pb-4">

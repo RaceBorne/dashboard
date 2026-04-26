@@ -113,6 +113,8 @@ export interface Campaign {
   groupId: string | null;
   /** Ad-hoc recipient list (emails) when audience is a custom selection. */
   recipientEmails: string[] | null;
+  /** Phase 14 visual design — when set, supersedes the legacy `content` HTML at send time. */
+  emailDesign: EmailDesign | null;
   scheduledFor: string | null;
   sentAt: string | null;
   createdAt: string;
@@ -502,5 +504,93 @@ export const DEFAULT_SIGNATURE_DESIGN: SignatureDesign = {
     { id: _sid(), type: 'text', alignment: 'left',
       html: 'If you have received this message in error, kindly notify the sender at the email address provided above.',
       fontFamily: '', fontSizePx: 10, color: '#666666', lineHeight: 1.55 },
+  ],
+};
+
+// ─── Phase 14: Email design (block-based newsletter builder) ──────
+
+export type EmailAlignment = 'left' | 'center' | 'right';
+
+type EmailBlockBase = {
+  id: string;
+  paddingTopPx?: number;
+  paddingBottomPx?: number;
+};
+
+export type EmailBlock =
+  | (EmailBlockBase & {
+      type: 'heading';
+      level: 1 | 2 | 3;
+      html: string;
+      alignment: EmailAlignment;
+      color: string;
+      fontFamily: string;
+    })
+  | (EmailBlockBase & {
+      type: 'text';
+      html: string;
+      alignment: EmailAlignment;
+      fontSizePx: number;
+      lineHeight: number;
+      color: string;
+      fontFamily: string;
+    })
+  | (EmailBlockBase & {
+      type: 'image';
+      src: string;
+      alt: string;
+      maxWidthPx: number;
+      alignment: EmailAlignment;
+      linkUrl?: string;
+    })
+  | (EmailBlockBase & {
+      type: 'button';
+      label: string;
+      url: string;
+      alignment: EmailAlignment;
+      backgroundColor: string;
+      textColor: string;
+      borderRadiusPx: number;
+      paddingXPx: number;
+      paddingYPx: number;
+    })
+  | (EmailBlockBase & {
+      type: 'divider';
+      color: string;
+      thicknessPx: number;
+      marginYPx: number;
+    })
+  | (EmailBlockBase & {
+      type: 'spacer';
+      heightPx: number;
+    })
+  | (EmailBlockBase & {
+      type: 'html';
+      html: string;
+    });
+
+export interface EmailDesign {
+  /** Outer canvas background — what the wrapper table renders behind the content. */
+  background: string;
+  /** Width of the content column in px (typical: 600). */
+  widthPx: number;
+  /** Outer padding around the content column. */
+  paddingPx: number;
+  blocks: EmailBlock[];
+}
+
+function _eid(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+export const DEFAULT_EMAIL_DESIGN: EmailDesign = {
+  background: '#f4f4f5',
+  widthPx: 600,
+  paddingPx: 24,
+  blocks: [
+    { id: _eid(), type: 'heading', level: 1, html: 'Hello {{firstName}}', alignment: 'left', color: '#111111', fontFamily: '', paddingBottomPx: 12 },
+    { id: _eid(), type: 'text',    html: 'Write your message here. The visual designer renders email-safe HTML at send time — same renderer at preview + send.', alignment: 'left', fontSizePx: 16, lineHeight: 1.55, color: '#333333', fontFamily: '', paddingBottomPx: 16 },
+    { id: _eid(), type: 'button',  label: 'Read more', url: 'https://evari.cc', alignment: 'left', backgroundColor: '#1a1a1a', textColor: '#ffffff', borderRadiusPx: 4, paddingXPx: 24, paddingYPx: 12, paddingBottomPx: 24 },
+    { id: _eid(), type: 'divider', color: '#e5e5e5', thicknessPx: 1, marginYPx: 16 },
   ],
 };

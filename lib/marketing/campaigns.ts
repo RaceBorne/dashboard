@@ -24,6 +24,8 @@ import { sendOne } from './sender';
 import { isSuppressed, unsubscribeUrlFor } from './suppressions';
 import { trackEvent } from './events';
 import { appendLeadActivity } from './leads-as-contacts';
+import { renderEmailDesign } from './email-design';
+import { getBrand } from './brand';
 import type {
   Campaign,
   CampaignStatus,
@@ -40,6 +42,7 @@ interface CampaignRow {
   segment_id: string | null;
   group_id: string | null;
   recipient_emails: string[] | null;
+  email_design: import('./types').EmailDesign | null;
   scheduled_for: string | null;
   sent_at: string | null;
   created_at: string;
@@ -56,6 +59,7 @@ function rowToCampaign(row: CampaignRow): Campaign {
     segmentId: row.segment_id,
     groupId: row.group_id,
     recipientEmails: row.recipient_emails,
+    emailDesign: row.email_design,
     scheduledFor: row.scheduled_for,
     sentAt: row.sent_at,
     createdAt: row.created_at,
@@ -101,6 +105,7 @@ export async function createCampaign(input: {
   segmentId?: string | null;
   groupId?: string | null;
   recipientEmails?: string[] | null;
+  emailDesign?: import('./types').EmailDesign | null;
 }): Promise<Campaign | null> {
   const sb = createSupabaseAdmin();
   if (!sb) return null;
@@ -113,6 +118,7 @@ export async function createCampaign(input: {
       segment_id: input.segmentId ?? null,
       group_id: input.groupId ?? null,
       recipient_emails: input.recipientEmails && input.recipientEmails.length > 0 ? input.recipientEmails : null,
+      email_design: input.emailDesign ?? null,
     })
     .select('*')
     .single();
@@ -299,6 +305,13 @@ export async function sendCampaign(id: string): Promise<SendResult> {
 
   await updateCampaign(id, { status: 'sending' });
 
+  // Resolve the body once. Phase 14: when the campaign has an
+  // emailDesign, render it through the visual builder and use the
+  // result; legacy `content` is the fallback.
+  const renderedHtml = campaign.emailDesign
+    ? renderEmailDesign(campaign.emailDesign, await getBrand())
+    : campaign.content;
+
   const recipientIds = await resolveRecipientIds(campaign);
   const contacts = await loadContactsByIds(recipientIds);
 
@@ -360,7 +373,7 @@ export async function sendCampaign(id: string): Promise<SendResult> {
     const res = await sendOne({
       to: contact.email,
       subject: campaign.subject,
-      html: campaign.content,
+      html: renderedHtml,
       context: campaign.name,
       unsubscribeUrl: unsubscribeUrlFor(contact.email),
     });
