@@ -53,9 +53,13 @@ function renderImage(b: Extract<EmailBlock, { type: 'image' }>): string {
   return `<div style="${alignStyle(b.alignment)}">${wrapped}</div>`;
 }
 
-function renderButton(b: Extract<EmailBlock, { type: 'button' }>): string {
+function renderButton(b: Extract<EmailBlock, { type: 'button' }>, brand: MarketingBrand): string {
+  const weight = b.fontWeight ?? 700;
+  const size = b.fontSizePx ?? 14;
+  const tracking = typeof b.letterSpacingEm === 'number' ? `letter-spacing:${b.letterSpacingEm}em;` : '';
+  const tt = b.textTransform && b.textTransform !== 'none' ? `text-transform:${b.textTransform};` : '';
   return `<div style="${alignStyle(b.alignment)}">
-    <a href="${escape(b.url)}" target="_blank" rel="noopener" style="display:inline-block;background:${b.backgroundColor};color:${b.textColor};padding:${b.paddingYPx}px ${b.paddingXPx}px;border-radius:${b.borderRadiusPx}px;font:bold 14px/1.2 Arial,sans-serif;text-decoration:none;">${escape(b.label)}</a>
+    <a href="${escape(b.url)}" target="_blank" rel="noopener" style="display:inline-block;background:${b.backgroundColor};color:${b.textColor};padding:${b.paddingYPx}px ${b.paddingXPx}px;border-radius:${b.borderRadiusPx}px;font:${weight} ${size}px/1.2 ${fontFor(brand, b.fontFamily ?? '')}Arial,sans-serif;text-decoration:none;${tracking}${tt}">${escape(b.label)}</a>
   </div>`;
 }
 
@@ -250,7 +254,7 @@ function renderInner(b: EmailBlock, brand: MarketingBrand): string {
     case 'heading':   return renderHeading(b, brand);
     case 'text':      return renderText(b, brand);
     case 'image':     return renderImage(b);
-    case 'button':    return renderButton(b);
+    case 'button':    return renderButton(b, brand);
     case 'divider':   return renderDivider(b);
     case 'spacer':    return renderSpacer(b);
     case 'html':      return renderRawHtml(b);
@@ -278,7 +282,9 @@ function renderBlock(b: EmailBlock, brand: MarketingBrand): string {
   if (!inner) return '';
   const top = b.paddingTopPx ?? 0;
   const bot = b.paddingBottomPx ?? 0;
-  const padStyle = top || bot ? `padding:${top}px 0 ${bot}px 0;` : '';
+  const left = b.paddingLeftPx ?? 0;
+  const right = b.paddingRightPx ?? 0;
+  const padStyle = top || bot || left || right ? `padding:${top}px ${right}px ${bot}px ${left}px;` : '';
   return `<div data-block-id="${b.id}" style="display:block;${padStyle}">${inner}</div>`;
 }
 

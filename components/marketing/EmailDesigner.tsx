@@ -66,6 +66,7 @@ import {
   type EmailDesign,
   type MarketingBrand,
   type TypographyPreset,
+  type ButtonPreset,
 } from '@/lib/marketing/types';
 import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign, bgFillCss } from '@/lib/marketing/email-design';
 
@@ -96,6 +97,7 @@ interface BlockTile {
 const ADD_BUTTONS: BlockTile[] = [
   // Row 1
   { group: 'blocks', type: 'text',    label: 'Text',    Icon: Type,        make: () => ({ id: nid(), type: 'text', html: 'Write your message here.', alignment: 'left', fontSizePx: 16, lineHeight: 1.55, color: '#333333', fontFamily: '', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'text',    label: 'Body copy', Icon: PenLine,    make: () => ({ id: nid(), type: 'text', html: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.', alignment: 'left', fontSizePx: 14, lineHeight: 1.6, color: '#333333', fontFamily: '', paddingBottomPx: 16 }) },
   { group: 'blocks', type: 'image',   label: 'Image',   Icon: ImageIcon,   make: () => ({ id: nid(), type: 'image', src: '', alt: '', maxWidthPx: 600, alignment: 'center', paddingBottomPx: 16 }) },
   { group: 'blocks', type: 'split',   label: 'Split',   Icon: SquareSplitHorizontal, make: () => ({ id: nid(), type: 'split', imageSrc: '', imageAlt: '', imagePosition: 'left', html: 'Side-by-side text.', fontSizePx: 16, lineHeight: 1.55, color: '#333333', paddingBottomPx: 16 }) },
   // Row 2
@@ -244,6 +246,174 @@ function BrandKitPreview({ brand }: { brand: MarketingBrand }) {
  * in the right rail). Sections always expanded so background-image
  * sections show their layered children inline.
  */
+
+/**
+ * Presets tab — every saved typography + button preset across the brand
+ * kit, grouped by type. Click a tile to insert a matching block at the
+ * end of the canvas with that preset applied. Lets the user reach for
+ * 'Hero headline' or 'Primary CTA' without rebuilding from sliders.
+ */
+function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock: (b: EmailBlock) => void }) {
+  const typo = brand.fonts.presets ?? [];
+  const buttons = brand.fonts.buttonPresets ?? [];
+
+  function addFromTypoPreset(p: TypographyPreset, target: 'heading' | 'text') {
+    if (target === 'heading') {
+      const size = p.fontSizePx ?? 28;
+      const level: 1 | 2 | 3 = size >= 24 ? 1 : size >= 18 ? 2 : 3;
+      const block: EmailBlock = {
+        id: nid(),
+        type: 'heading',
+        level,
+        html: p.name,
+        alignment: 'left',
+        color: p.color,
+        fontFamily: p.fontFamily ?? '',
+        fontSizePx: p.fontSizePx,
+        fontWeight: p.fontWeight,
+        letterSpacingEm: p.letterSpacingEm,
+        textTransform: p.textTransform ?? 'none',
+        paddingBottomPx: 12,
+      };
+      onAddBlock(block);
+    } else {
+      const block: EmailBlock = {
+        id: nid(),
+        type: 'text',
+        html: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+        alignment: 'left',
+        fontSizePx: p.fontSizePx ?? 16,
+        lineHeight: p.lineHeight ?? 1.55,
+        color: p.color,
+        fontFamily: p.fontFamily ?? '',
+        fontWeight: p.fontWeight,
+        letterSpacingEm: p.letterSpacingEm,
+        textTransform: p.textTransform ?? 'none',
+        paddingBottomPx: 16,
+      };
+      onAddBlock(block);
+    }
+  }
+
+  function addFromButtonPreset(p: ButtonPreset) {
+    const block: EmailBlock = {
+      id: nid(),
+      type: 'button',
+      label: p.label || 'Click me',
+      url: 'https://evari.cc',
+      alignment: 'center',
+      backgroundColor: p.backgroundColor,
+      textColor: p.textColor,
+      borderRadiusPx: p.borderRadiusPx,
+      paddingXPx: p.paddingXPx,
+      paddingYPx: p.paddingYPx,
+      fontFamily: p.fontFamily ?? '',
+      fontSizePx: p.fontSizePx,
+      fontWeight: p.fontWeight,
+      letterSpacingEm: p.letterSpacingEm,
+      textTransform: p.textTransform,
+      paddingBottomPx: 24,
+    };
+    onAddBlock(block);
+  }
+
+  if (typo.length === 0 && buttons.length === 0) {
+    return (
+      <div className="text-[11px] text-evari-dim px-2 py-6 text-center leading-relaxed">
+        No presets saved yet. Style a heading, body or button block, then click <span className="text-evari-gold">Save as style</span> in its properties to reuse it here.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {typo.length > 0 ? (
+        <section>
+          <h3 className="text-[10px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Typography</h3>
+          <ul className="space-y-1">
+            {typo.map((p) => (
+              <li key={p.id} className="rounded-md border border-evari-edge/30 bg-evari-ink/40 hover:border-evari-gold/50 transition-colors">
+                <div className="px-2 pt-1.5 pb-0.5">
+                  <span
+                    className="block text-evari-text leading-tight truncate"
+                    style={{
+                      fontFamily: p.fontFamily ? `'${p.fontFamily}', sans-serif` : undefined,
+                      fontSize: `${Math.min(p.fontSizePx, 22)}px`,
+                      fontWeight: p.fontWeight,
+                      letterSpacing: `${p.letterSpacingEm}em`,
+                      color: p.color,
+                      textTransform: p.textTransform && p.textTransform !== 'none' ? p.textTransform : undefined,
+                    }}
+                  >
+                    {p.name}
+                  </span>
+                  <span className="block text-[9px] text-evari-dimmer font-mono tabular-nums">
+                    {p.fontSizePx}px · {p.fontWeight} · {p.letterSpacingEm}em
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1 px-1.5 pb-1.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => addFromTypoPreset(p, 'heading')}
+                    className="text-[10px] py-1 rounded bg-evari-edge/30 text-evari-text hover:bg-evari-gold/20 hover:text-evari-gold transition-colors"
+                    title="Add as a heading block"
+                  >
+                    + Heading
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addFromTypoPreset(p, 'text')}
+                    className="text-[10px] py-1 rounded bg-evari-edge/30 text-evari-text hover:bg-evari-gold/20 hover:text-evari-gold transition-colors"
+                    title="Add as a text block"
+                  >
+                    + Text
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {buttons.length > 0 ? (
+        <section>
+          <h3 className="text-[10px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Buttons</h3>
+          <ul className="space-y-1">
+            {buttons.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  onClick={() => addFromButtonPreset(p)}
+                  className="w-full flex items-center gap-2 rounded-md border border-evari-edge/30 bg-evari-ink/40 hover:border-evari-gold/50 hover:bg-evari-ink/70 transition-colors px-2 py-1.5"
+                  title={`Insert a button using "${p.name}"`}
+                >
+                  <span
+                    className="inline-block px-2 py-1 rounded text-[10px] font-medium shrink-0"
+                    style={{
+                      background: p.backgroundColor,
+                      color: p.textColor,
+                      borderRadius: `${p.borderRadiusPx}px`,
+                      fontFamily: p.fontFamily ? `'${p.fontFamily}', sans-serif` : undefined,
+                      fontWeight: p.fontWeight ?? 700,
+                      letterSpacing: p.letterSpacingEm != null ? `${p.letterSpacingEm}em` : undefined,
+                      textTransform: p.textTransform && p.textTransform !== 'none' ? p.textTransform : undefined,
+                    }}
+                  >
+                    {p.label || 'Button'}
+                  </span>
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="block text-[11px] text-evari-text leading-tight truncate">{p.name}</span>
+                    <span className="block text-[9px] text-evari-dimmer font-mono tabular-nums">{p.paddingYPx}×{p.paddingXPx} · r{p.borderRadiusPx}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
 function LayersTree({ blocks, selectedId, onSelect, onRemove }: {
   blocks: EmailBlock[];
   selectedId: string | null;
@@ -434,7 +604,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
   const design = normaliseEmailDesign(value) ?? DEFAULT_EMAIL_DESIGN;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragOverlay, setDragOverlay] = useState<string | null>(null);
-  const [paletteTab, setPaletteTab] = useState<'blocks' | 'rows'>('blocks');
+  const [paletteTab, setPaletteTab] = useState<'blocks' | 'rows' | 'presets'>('blocks');
 
   // ─── Undo history ─────────────────────────────────────────────
   // Every designer-initiated mutation goes through commit(), which pushes
@@ -779,10 +949,10 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
         {/* LEFT — tab strip + palette / layers */}
         <div className="flex flex-col min-w-0 min-h-0 overflow-hidden">
           {/* Tab strip */}
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-md bg-evari-ink/40 border border-evari-edge/30 mb-2 shrink-0" role="tablist" aria-label="Palette / layers">
-            {(['blocks', 'rows'] as const).map((t) => {
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-md bg-evari-ink/40 border border-evari-edge/30 mb-2 shrink-0" role="tablist" aria-label="Palette / layers / presets">
+            {(['blocks', 'rows', 'presets'] as const).map((t) => {
               const active = paletteTab === t;
-              const label = t === 'blocks' ? 'Blocks' : 'Rows';
+              const label = t === 'blocks' ? 'Blocks' : t === 'rows' ? 'Rows' : 'Presets';
               return (
                 <button
                   key={t}
@@ -802,7 +972,14 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           </div>
 
           {/* Tab content — independently scrollable */}
-          {paletteTab === 'blocks' ? (
+          {paletteTab === 'presets' ? (
+            <div className="space-y-1 min-w-0 overflow-y-auto pr-1 flex-1 min-h-0" role="tabpanel">
+              <PresetsPanel
+                brand={initialBrand}
+                onAddBlock={(b) => commit({ ...design, blocks: enforcePins([...design.blocks, b]) })}
+              />
+            </div>
+          ) : paletteTab === 'blocks' ? (
             <div className="space-y-3 min-w-0 overflow-y-auto pr-1 flex-1 min-h-0" role="tabpanel">
               <BlockTileGroup
                 title="Blocks"
@@ -1051,7 +1228,7 @@ function BlockPropertiesPanel({ block, brand, designWidthPx, onChange, onClose }
         {block.type === 'video'     ? <VideoFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'video' }>>) => void} /> : null}
         {block.type === 'product'   ? <ProductFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'product' }>>) => void} /> : null}
         {block.type === 'section'   ? <SectionFields   block={block} brand={brand} designWidthPx={designWidthPx} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void} /> : null}
-        <PaddingFields block={block} onChange={onChange as (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void} />
+        <PaddingFields block={block} onChange={onChange as (p: PaddingPatch) => void} />
       </div>
     </aside>
   );
@@ -1514,9 +1691,139 @@ function ImageFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
   );
 }
 
+
+/**
+ * Per-block BUTTON preset UI: dropdown to APPLY a saved button style and a
+ * "Save current as button preset" button. Persists to brand.fonts.buttonPresets
+ * via PATCH /api/marketing/brand. Mirrors the typography preset UX.
+ */
+function ButtonStyles({
+  brand,
+  current,
+  onApply,
+}: {
+  brand: MarketingBrand;
+  current: { backgroundColor: string; textColor: string; borderRadiusPx: number; paddingXPx: number; paddingYPx: number; fontFamily?: string; fontSizePx?: number; fontWeight?: number; letterSpacingEm?: number; textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize' };
+  onApply: (preset: ButtonPreset) => void;
+}) {
+  const [presets, setPresets] = useState<ButtonPreset[]>(brand.fonts.buttonPresets ?? []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { setPresets(brand.fonts.buttonPresets ?? []); }, [brand.fonts.buttonPresets]);
+
+  async function persist(next: ButtonPreset[]) {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/marketing/brand', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fonts: { ...brand.fonts, buttonPresets: next } }),
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      setPresets(next);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save button preset');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleSaveNew() {
+    const name = window.prompt('Name this button style', `Button ${presets.length + 1}`);
+    if (!name) return;
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `button-${Date.now()}`;
+    const preset: ButtonPreset = {
+      id,
+      name: name.trim(),
+      backgroundColor: current.backgroundColor,
+      textColor: current.textColor,
+      borderRadiusPx: current.borderRadiusPx,
+      paddingXPx: current.paddingXPx,
+      paddingYPx: current.paddingYPx,
+      fontFamily: current.fontFamily ?? '',
+      fontSizePx: current.fontSizePx,
+      fontWeight: current.fontWeight,
+      letterSpacingEm: current.letterSpacingEm,
+      textTransform: current.textTransform,
+      createdAt: new Date().toISOString(),
+    };
+    persist([...presets.filter((p) => p.id !== id), preset]);
+  }
+
+  function handleDelete(id: string) {
+    if (!confirm('Delete this button preset?')) return;
+    persist(presets.filter((p) => p.id !== id));
+  }
+
+  return (
+    <div className="rounded-md border border-evari-edge/30 bg-evari-ink/40 p-2 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Button preset</span>
+        <button
+          type="button"
+          onClick={handleSaveNew}
+          disabled={saving}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-evari-gold hover:bg-evari-gold/10 disabled:opacity-50"
+          title="Save the current button colour, padding, radius + font as a reusable preset"
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Bookmark className="h-3 w-3" />}
+          Save as preset
+        </button>
+      </div>
+      {presets.length === 0 ? (
+        <p className="text-[10px] text-evari-dimmer leading-snug">
+          No saved button presets yet. Tweak this button, then click <span className="text-evari-gold">Save as preset</span> to reuse it.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {presets.map((p) => (
+            <li key={p.id} className="flex items-center gap-1 group">
+              <button
+                type="button"
+                onClick={() => onApply(p)}
+                className="flex-1 text-left px-2 py-1 rounded hover:bg-evari-edge/30 transition-colors flex items-center gap-2"
+              >
+                <span
+                  className="inline-block px-2 py-1 rounded text-[10px] font-medium shrink-0"
+                  style={{
+                    background: p.backgroundColor,
+                    color: p.textColor,
+                    borderRadius: `${p.borderRadiusPx}px`,
+                    fontFamily: p.fontFamily ? `'${p.fontFamily}', sans-serif` : undefined,
+                    fontWeight: p.fontWeight ?? 700,
+                    letterSpacing: p.letterSpacingEm != null ? `${p.letterSpacingEm}em` : undefined,
+                    textTransform: p.textTransform && p.textTransform !== 'none' ? p.textTransform : undefined,
+                  }}
+                >
+                  {p.label || 'Button'}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] text-evari-text leading-tight truncate">{p.name}</span>
+                  <span className="block text-[9px] text-evari-dimmer font-mono tabular-nums">{p.paddingYPx}×{p.paddingXPx} · r{p.borderRadiusPx}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(p.id)}
+                className="opacity-0 group-hover:opacity-100 p-1 text-evari-dim hover:text-evari-danger transition-opacity"
+                title="Delete preset"
+                aria-label={`Delete preset ${p.name}`}
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error ? <p className="text-[10px] text-evari-danger">{error}</p> : null}
+    </div>
+  );
+}
+
 function ButtonFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'button' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void }) {
-  // brand reserved for future button-font support
-  void brand;
+  const weight = block.fontWeight ?? 700;
+  const tracking = block.letterSpacingEm ?? 0;
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
@@ -1532,14 +1839,46 @@ function ButtonFields({ block, brand, onChange }: { block: Extract<EmailBlock, {
           <input type="url" value={block.url} onChange={(e) => onChange({ url: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
         </label>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
-        <ColourField label="Text" value={block.textColor} onChange={(v) => onChange({ textColor: v })} />
-        <NumField label="Radius (px)" value={block.borderRadiusPx} min={0} max={40} onChange={(v) => onChange({ borderRadiusPx: v })} />
-      </div>
+      <ButtonStyles
+        brand={brand}
+        current={{
+          backgroundColor: block.backgroundColor,
+          textColor: block.textColor,
+          borderRadiusPx: block.borderRadiusPx,
+          paddingXPx: block.paddingXPx,
+          paddingYPx: block.paddingYPx,
+          fontFamily: block.fontFamily,
+          fontSizePx: block.fontSizePx,
+          fontWeight: block.fontWeight,
+          letterSpacingEm: block.letterSpacingEm,
+          textTransform: block.textTransform,
+        }}
+        onApply={(p) => onChange({
+          backgroundColor: p.backgroundColor,
+          textColor: p.textColor,
+          borderRadiusPx: p.borderRadiusPx,
+          paddingXPx: p.paddingXPx,
+          paddingYPx: p.paddingYPx,
+          fontFamily: p.fontFamily ?? '',
+          fontSizePx: p.fontSizePx,
+          fontWeight: p.fontWeight,
+          letterSpacingEm: p.letterSpacingEm,
+          textTransform: p.textTransform,
+        })}
+      />
       <div className="grid grid-cols-2 gap-2">
-        <NumField label="Padding X (px)" value={block.paddingXPx} min={4} max={64} onChange={(v) => onChange({ paddingXPx: v })} />
-        <NumField label="Padding Y (px)" value={block.paddingYPx} min={4} max={48} onChange={(v) => onChange({ paddingYPx: v })} />
+        <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} brand={brand} />
+        <ColourField label="Text" value={block.textColor} onChange={(v) => onChange({ textColor: v })} brand={brand} />
+      </div>
+      <FontDropdown value={block.fontFamily ?? ''} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
+      <SliderField label="Size" value={block.fontSizePx ?? 14} min={10} max={32} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
+      <SliderField label="Tracking" value={tracking} min={-0.05} max={0.4} step={0.005} suffix="em" onChange={(v) => onChange({ letterSpacingEm: Number(v.toFixed(3)) })} />
+      <WeightField value={weight} onChange={(v) => onChange({ fontWeight: v })} />
+      <CaseField value={block.textTransform} onChange={(v) => onChange({ textTransform: v })} />
+      <SliderField label="Corner radius" value={block.borderRadiusPx} min={0} max={40} suffix="px" onChange={(v) => onChange({ borderRadiusPx: v })} />
+      <div className="grid grid-cols-2 gap-2">
+        <SliderField label="Padding X" value={block.paddingXPx} min={4} max={64} suffix="px" onChange={(v) => onChange({ paddingXPx: v })} />
+        <SliderField label="Padding Y" value={block.paddingYPx} min={4} max={48} suffix="px" onChange={(v) => onChange({ paddingYPx: v })} />
       </div>
       <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
     </div>
@@ -1566,21 +1905,46 @@ function SpacerFields({ block, onChange }: { block: Extract<EmailBlock, { type: 
   );
 }
 
-function PaddingFields({ block, onChange }: { block: { paddingTopPx?: number; paddingBottomPx?: number }; onChange: (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void }) {
-  const top = block.paddingTopPx ?? 0;
-  const bot = block.paddingBottomPx ?? 0;
+type PaddingPatch = { paddingTopPx?: number; paddingBottomPx?: number; paddingLeftPx?: number; paddingRightPx?: number };
+function PaddingFields({ block, onChange }: { block: PaddingPatch; onChange: (p: PaddingPatch) => void }) {
+  const top   = block.paddingTopPx    ?? 0;
+  const bot   = block.paddingBottomPx ?? 0;
+  const left  = block.paddingLeftPx   ?? 0;
+  const right = block.paddingRightPx  ?? 0;
   return (
-    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-evari-edge/10">
-      <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Padding above</span>
-        <input type="range" min={0} max={120} value={top} onChange={(e) => onChange({ paddingTopPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
-        <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{top}px</span>
-      </label>
-      <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Padding below</span>
-        <input type="range" min={0} max={120} value={bot} onChange={(e) => onChange({ paddingBottomPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
-        <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{bot}px</span>
-      </label>
+    <div className="space-y-1.5 pt-1 border-t border-evari-edge/10">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+            <span>Padding top</span>
+            <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{top}px</span>
+          </span>
+          <input type="range" min={0} max={120} value={top} onChange={(e) => onChange({ paddingTopPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        </label>
+        <label className="block">
+          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+            <span>Padding bottom</span>
+            <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{bot}px</span>
+          </span>
+          <input type="range" min={0} max={120} value={bot} onChange={(e) => onChange({ paddingBottomPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+            <span>Padding left</span>
+            <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{left}px</span>
+          </span>
+          <input type="range" min={0} max={120} value={left} onChange={(e) => onChange({ paddingLeftPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        </label>
+        <label className="block">
+          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+            <span>Padding right</span>
+            <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{right}px</span>
+          </span>
+          <input type="range" min={0} max={120} value={right} onChange={(e) => onChange({ paddingRightPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        </label>
+      </div>
     </div>
   );
 }

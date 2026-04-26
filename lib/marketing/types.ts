@@ -282,6 +282,32 @@ export interface BrandFonts {
   /** Saved typography presets — named bundles of family/size/weight/tracking/lineHeight
    *  the user can recall from the heading + text block fields. */
   presets?: TypographyPreset[];
+  /** Saved button presets — bundles of bg/text colours, padding, radius, label/font. */
+  buttonPresets?: ButtonPreset[];
+}
+
+/**
+ * Reusable button style. Apply one to a button block to stamp every
+ * visual prop in one click. Saved through the brand kit so the same
+ * 'Primary CTA' / 'Ghost' / etc. styles are available across emails.
+ */
+export interface ButtonPreset {
+  id: string;
+  name: string;
+  backgroundColor: string;
+  textColor: string;
+  borderRadiusPx: number;
+  paddingXPx: number;
+  paddingYPx: number;
+  /** Optional default label — if blank we don't overwrite the user's label. */
+  label?: string;
+  /** Optional family override; '' means inherit. */
+  fontFamily?: string;
+  fontSizePx?: number;
+  fontWeight?: number;
+  letterSpacingEm?: number;
+  textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize';
+  createdAt: string;
 }
 
 /**
@@ -546,6 +572,8 @@ type EmailBlockBase = {
   id: string;
   paddingTopPx?: number;
   paddingBottomPx?: number;
+  paddingLeftPx?: number;
+  paddingRightPx?: number;
 };
 
 export type EmailBlock =
@@ -596,6 +624,11 @@ export type EmailBlock =
       borderRadiusPx: number;
       paddingXPx: number;
       paddingYPx: number;
+      fontFamily?: string;
+      fontSizePx?: number;
+      fontWeight?: number;
+      letterSpacingEm?: number;
+      textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize';
     })
   | (EmailBlockBase & {
       type: 'divider';
