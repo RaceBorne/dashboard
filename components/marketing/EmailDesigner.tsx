@@ -143,6 +143,8 @@ const ADD_BUTTONS: BlockTile[] = [
       paddingPx: 8,
       borderRadiusPx: 0,
       contentColor: '#ffffff',
+      minHeightPx: 36,
+      contentAlignY: 'middle',
       paddingBottomPx: 0,
     }) },
   { group: 'layout', type: 'columns', label: 'Columns', Icon: Columns3, comingSoon: true },
@@ -1639,6 +1641,7 @@ function SectionCanvasWrapper({ block, brand, selectedId, editing, onSelectChild
   onRemoveChild: (id: string) => void;
 }) {
   const fill = bgFillCss(block.backgroundSize);
+  const ay = block.contentAlignY;
   const wrapperStyle: React.CSSProperties = {
     backgroundColor: block.backgroundColor,
     backgroundImage: block.backgroundImage ? `url(${block.backgroundImage})` : undefined,
@@ -1649,6 +1652,9 @@ function SectionCanvasWrapper({ block, brand, selectedId, editing, onSelectChild
     padding: `${block.paddingPx}px`,
     minHeight: block.minHeightPx ? `${block.minHeightPx}px` : undefined,
     color: block.contentColor ?? undefined,
+    display: ay && ay !== 'top' ? 'flex' : undefined,
+    flexDirection: ay && ay !== 'top' ? 'column' : undefined,
+    justifyContent: ay === 'middle' ? 'center' : ay === 'bottom' ? 'flex-end' : undefined,
   };
   const childIds = (block.blocks ?? []).map((c) => c.id);
   return (
@@ -2242,13 +2248,34 @@ function SectionFields({ block, brand, designWidthPx, onChange }: { block: Extra
         </div>
       </section>
 
-      {/* Spacing */}
+      {/* Size + alignment */}
       <section>
-        <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Spacing</h4>
-        <div className="grid grid-cols-3 gap-2">
-          <NumField label="Inner padding" value={block.paddingPx} min={0} max={120} onChange={(v) => onChange({ paddingPx: v })} />
-          <NumField label="Min height" value={block.minHeightPx ?? 0} min={0} max={800} onChange={(v) => onChange({ minHeightPx: v })} />
-          <NumField label="Radius (px)" value={block.borderRadiusPx} min={0} max={40} onChange={(v) => onChange({ borderRadiusPx: v })} />
+        <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Size + alignment</h4>
+        <SliderField label="Height (min)" value={block.minHeightPx ?? 0} min={0} max={800} suffix="px" onChange={(v) => onChange({ minHeightPx: v })} />
+        <SliderField label="Inner padding" value={block.paddingPx} min={0} max={120} suffix="px" onChange={(v) => onChange({ paddingPx: v })} />
+        <SliderField label="Corner radius" value={block.borderRadiusPx} min={0} max={40} suffix="px" onChange={(v) => onChange({ borderRadiusPx: v })} />
+        <div className="mt-2">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Content vertical position</span>
+          <div className="grid grid-cols-3 gap-1 rounded-md bg-evari-ink p-1 border border-evari-edge/30" role="radiogroup" aria-label="Vertical alignment">
+            {(['top', 'middle', 'bottom'] as const).map((opt) => {
+              const active = (block.contentAlignY ?? 'top') === opt;
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => onChange({ contentAlignY: opt })}
+                  className={cn(
+                    'text-[11px] py-1 rounded transition-colors capitalize',
+                    active ? 'bg-evari-gold/20 text-evari-gold' : 'text-evari-dim hover:text-evari-text',
+                  )}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 

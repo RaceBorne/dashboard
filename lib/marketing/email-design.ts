@@ -209,6 +209,12 @@ function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: Marke
   const children = (b.blocks ?? []).map((c) => renderBlock(c, brand)).filter(Boolean).join('');
   // Legacy fallback: pre-container sections stored their content as html.
   const inner = children || (b.html ? safeHtml(b.html) : '');
+  // Vertical alignment — uses flex when set so 'middle' / 'bottom' actually
+  // push content down even when min-height is larger than content height.
+  const ay = b.contentAlignY;
+  const flex = ay && ay !== 'top'
+    ? `display:flex;flex-direction:column;justify-content:${ay === 'middle' ? 'center' : 'flex-end'};`
+    : '';
   const styles = [
     `background-color:${b.backgroundColor}`,
     b.backgroundImage ? `background-image:url(${escape(b.backgroundImage)})` : '',
@@ -219,6 +225,7 @@ function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: Marke
     b.minHeightPx ? `min-height:${b.minHeightPx}px` : '',
     b.contentColor ? `color:${b.contentColor}` : '',
     `font:14px/1.55 ${fontFor(brand, '')}Arial,sans-serif`,
+    flex,
   ].filter(Boolean).join(';');
   return `<div style="${styles}">${inner}</div>`;
 }

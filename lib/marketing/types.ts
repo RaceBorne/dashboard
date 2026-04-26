@@ -721,6 +721,12 @@ export type EmailBlock =
       /** Display label so tiles like "Announcement bar" can keep their
        *  identity in the editor even though they're stored as sections. */
       kind?: 'section' | 'announcementBar';
+      /** Vertical alignment of the section's content within its box.
+       *  'top' (default) = stack from the top, 'middle' = vertically
+       *  centred, 'bottom' = pushed to the bottom. Useful when the
+       *  section has a min-height larger than its content (e.g. an
+       *  announcement bar with centred text on a thin coloured strip). */
+      contentAlignY?: 'top' | 'middle' | 'bottom';
     });
 
 export interface EmailDesign {
