@@ -207,3 +207,42 @@ export interface FlowRun {
   updatedAt: string;
   completedAt: string | null;
 }
+
+// ─── Domain auth ─────────────────────────────────────────────────
+
+export interface MktDomain {
+  id: string;
+  domainName: string;
+  verified: boolean;
+  spfRecord: string | null;
+  dkimSelector: string | null;
+  dkimRecord: string | null;
+  dmarcRecord: string | null;
+  postmarkId: string | null;
+  lastCheckedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DomainCheckStatus = 'verified' | 'mismatch' | 'missing' | 'error' | 'pending';
+
+export interface DomainRecordCheck {
+  /** 'spf' | 'dkim' | 'dmarc' */
+  kind: 'spf' | 'dkim' | 'dmarc';
+  /** DNS host that should hold the record. */
+  host: string;
+  /** Expected TXT value. */
+  expected: string;
+  /** TXT records actually present at host. */
+  found: string[];
+  status: DomainCheckStatus;
+  /** Optional human-readable note (mismatch reason, lookup error). */
+  note?: string;
+}
+
+export interface DomainStatus {
+  domain: MktDomain;
+  checks: DomainRecordCheck[];
+  /** True only when every check is 'verified'. */
+  fullyVerified: boolean;
+}
