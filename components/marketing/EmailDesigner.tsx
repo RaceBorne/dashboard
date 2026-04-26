@@ -680,12 +680,12 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           <div
             className="flex-1 min-h-0 overflow-y-auto p-6 transition-colors"
             style={{ background: design.background }}
-            onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
+            onClick={() => setSelectedId(null)}
           >
             <div
               className={cn('mx-auto transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
               style={{ maxWidth: `${design.widthPx}px`, padding: `${design.paddingPx}px`, background: design.background }}
-              onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
+              onClick={() => setSelectedId(null)}
             >
               <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
                 {design.blocks.length === 0 ? (
@@ -1557,7 +1557,7 @@ function CanvasBlock({ block, brand, selected, selectedId, editing, onSelect, on
         onClick={(e) => { e.stopPropagation(); onSelect(); }}
         className={cn(
           'relative cursor-pointer transition-shadow',
-          selected ? 'ring-2 ring-evari-gold' : 'hover:ring-1 hover:ring-evari-gold/40',
+          selected ? 'ring-2 ring-evari-gold' : editing ? 'hover:ring-1 hover:ring-evari-gold/40' : '',
         )}
       >
         {isSection ? (
@@ -1574,7 +1574,7 @@ function CanvasBlock({ block, brand, selected, selectedId, editing, onSelect, on
         )}
         <div className={cn(
           'absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink/95 border border-evari-edge/40 shadow-lg backdrop-blur-sm transition-opacity',
-          selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+          selected ? 'opacity-100' : editing ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 pointer-events-none',
         )}>
           {block.type === 'section' && (block as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top' ? (
             <span className="p-1.5 text-evari-gold" title="Pinned to top — can't be reordered" aria-label="Pinned to top">
