@@ -58,7 +58,10 @@ function renderBlockInner(b: SignatureBlock, brand: MarketingBrand): string {
 function renderBlock(b: SignatureBlock, brand: MarketingBrand): string {
   const inner = renderBlockInner(b, brand);
   if (!inner) return '';
-  return `<div data-block-id="${b.id}" style="display:block;">${inner}</div>`;
+  const top = b.paddingTopPx ?? 0;
+  const bot = b.paddingBottomPx ?? 0;
+  const padStyle = top || bot ? `padding:${top}px 0 ${bot}px 0;` : '';
+  return `<div data-block-id="${b.id}" style="display:block;${padStyle}">${inner}</div>`;
 }
 
 export function normaliseSignatureDesign(d: unknown): SignatureDesign | null {

@@ -72,11 +72,6 @@ function renderDivider(b: Extract<FooterBlock, { type: 'divider' }>): string {
   return `<div style="margin:${b.marginYPx}px 0;height:${b.thicknessPx}px;line-height:0;font-size:0;background:${b.color};">&nbsp;</div>`;
 }
 
-function renderSignature(b: Extract<FooterBlock, { type: 'signature' }>, brand: MarketingBrand): string {
-  if (!brand.signatureHtml) return '';
-  return `<div style="${alignStyle(b.alignment)}">${brand.signatureHtml}</div>`;
-}
-
 function renderAddress(b: Extract<FooterBlock, { type: 'address' }>, brand: MarketingBrand): string {
   if (!brand.companyName && !brand.companyAddress) return '';
   return `<div style="${alignStyle(b.alignment)}font:11px/1.5 ${escape(brand.fonts.body || 'Arial')},sans-serif;color:${b.color};">
@@ -114,7 +109,6 @@ function renderBlockInner(block: FooterBlock, brand: MarketingBrand, unsubscribe
     case 'text':        return renderText(block);
     case 'spacer':      return renderSpacer(block);
     case 'divider':     return renderDivider(block);
-    case 'signature':   return renderSignature(block, brand);
     case 'address':     return renderAddress(block, brand);
     case 'social':      return renderSocial(block, brand);
     case 'unsubscribe': return renderUnsubscribe(block, brand, unsubscribeUrl);
@@ -129,7 +123,10 @@ function renderBlockInner(block: FooterBlock, brand: MarketingBrand, unsubscribe
 function renderBlock(block: FooterBlock, brand: MarketingBrand, unsubscribeUrl: string | undefined): string {
   const inner = renderBlockInner(block, brand, unsubscribeUrl);
   if (!inner) return '';
-  return `<div data-block-id="${block.id}" style="display:block;">${inner}</div>`;
+  const top = block.paddingTopPx ?? 0;
+  const bot = block.paddingBottomPx ?? 0;
+  const padStyle = top || bot ? `padding:${top}px 0 ${bot}px 0;` : '';
+  return `<div data-block-id="${block.id}" style="display:block;${padStyle}">${inner}</div>`;
 }
 
 // ─── Legacy shape detection + migration ───────────────────────────
@@ -166,7 +163,7 @@ function migrateLegacy(d: LegacyFooterDesign): FooterDesign {
   const blocks: FooterBlock[] = [];
   const enabled = d.blocks ?? { logo: true, signature: true, address: true, social: false, unsubscribe: true };
   if (enabled.logo)        blocks.push({ id: nid(), type: 'logo', alignment: align, maxWidthPx: 140 });
-  if (enabled.signature)   blocks.push({ id: nid(), type: 'signature', alignment: align });
+  // Legacy 'signature' block removed in Phase 13.6 — composed inline now.
   if (enabled.address)     blocks.push({ id: nid(), type: 'address', alignment: align, color: muted });
   if (enabled.social && d.social && Object.values(d.social).some(Boolean)) {
     blocks.push({ id: nid(), type: 'social', alignment: align, color: text, social: d.social });
@@ -223,9 +220,6 @@ export function renderFooterText(input: RenderInput): string {
     switch (b.type) {
       case 'text':
         lines.push(b.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
-        break;
-      case 'signature':
-        if (brand.signatureHtml) lines.push(brand.signatureHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
         break;
       case 'address':
         if (brand.companyName) lines.push(brand.companyName);

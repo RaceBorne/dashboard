@@ -290,11 +290,12 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
         </button>
       </header>
       {selected ? (
-        <div className="border-t border-evari-edge/20 px-3 py-2">
+        <div className="border-t border-evari-edge/20 px-3 py-2 space-y-2">
           {block.type === 'text'    ? <TextFields    block={block} onChange={onChange} /> : null}
           {block.type === 'logo'    ? <LogoFields    block={block} onChange={onChange} /> : null}
           {block.type === 'spacer'  ? <SpacerFields  block={block} onChange={onChange} /> : null}
           {block.type === 'divider' ? <DividerFields block={block} onChange={onChange} /> : null}
+          <PaddingFields block={block} onChange={onChange as (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void} />
         </div>
       ) : null}
     </div>
@@ -425,6 +426,30 @@ function DividerFields({ block, onChange }: { block: Extract<SignatureBlock, { t
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Margin Y (px)</span>
         <input type="number" min={0} max={64} value={block.marginYPx} onChange={(e) => onChange({ marginYPx: Math.max(0, Math.min(64, Number(e.target.value) || 0)) })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text font-mono text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
+      </label>
+    </div>
+  );
+}
+
+/**
+ * Per-block padding-above + padding-below sliders, identical contract
+ * to the FooterDesigner version. Wraps every block at render time so
+ * the user can space items without dropping in spacer blocks.
+ */
+function PaddingFields({ block, onChange }: { block: { paddingTopPx?: number; paddingBottomPx?: number }; onChange: (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void }) {
+  const top = block.paddingTopPx ?? 0;
+  const bot = block.paddingBottomPx ?? 0;
+  return (
+    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-evari-edge/10">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Padding above</span>
+        <input type="range" min={0} max={120} value={top} onChange={(e) => onChange({ paddingTopPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{top}px</span>
+      </label>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Padding below</span>
+        <input type="range" min={0} max={120} value={bot} onChange={(e) => onChange({ paddingBottomPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{bot}px</span>
       </label>
     </div>
   );

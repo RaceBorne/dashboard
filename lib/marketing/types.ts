@@ -352,17 +352,28 @@ export interface FooterSocial {
   website?: string;
 }
 
+/**
+ * Common per-block knobs. paddingTopPx / paddingBottomPx replace the
+ * need for explicit spacer blocks between every item — each block can
+ * push itself away from its neighbours via the two sliders in the
+ * editor. Optional + default 0 for back-compat with rows saved before
+ * Phase 13.6.
+ */
+type FooterBlockBase = {
+  id: string;
+  paddingTopPx?: number;
+  paddingBottomPx?: number;
+};
+
 export type FooterBlock =
-  | {
-      id: string;
+  | (FooterBlockBase & {
       type: 'logo';
       alignment: FooterAlignment;
       maxWidthPx: number;     // controls the rendered width (height auto-scales)
       /** Override URL — defaults to brand.logoLightUrl when blank. */
       srcOverride?: string | null;
-    }
-  | {
-      id: string;
+    })
+  | (FooterBlockBase & {
       type: 'text';
       alignment: FooterAlignment;
       html: string;           // HTML allowed (e.g. confidentiality notice with <strong>)
@@ -370,44 +381,34 @@ export type FooterBlock =
       fontSizePx: number;
       color: string;          // hex
       lineHeight: number;     // unitless multiplier
-    }
-  | {
-      id: string;
+    })
+  | (FooterBlockBase & {
       type: 'spacer';
       heightPx: number;
-    }
-  | {
-      id: string;
+    })
+  | (FooterBlockBase & {
       type: 'divider';
       color: string;
       thicknessPx: number;
       marginYPx: number;
-    }
-  | {
-      id: string;
-      type: 'signature';
-      alignment: FooterAlignment;  // brand.signatureHtml rendered here
-    }
-  | {
-      id: string;
+    })
+  | (FooterBlockBase & {
       type: 'address';
       alignment: FooterAlignment;  // brand.companyName + brand.companyAddress
       color: string;
-    }
-  | {
-      id: string;
+    })
+  | (FooterBlockBase & {
       type: 'social';
       alignment: FooterAlignment;
       color: string;
       social: FooterSocial;
-    }
-  | {
-      id: string;
+    })
+  | (FooterBlockBase & {
       type: 'unsubscribe';
       alignment: FooterAlignment;
       label: string;            // 'Unsubscribe from these emails' by default
       color: string;
-    };
+    });
 
 export interface FooterDesign {
   background: string;
@@ -428,11 +429,8 @@ export const DEFAULT_FOOTER_DESIGN: FooterDesign = {
   borderTop: true,
   borderColor: '#e5e5e5',
   blocks: [
-    { id: nid(), type: 'logo',      alignment: 'center', maxWidthPx: 140 },
-    { id: nid(), type: 'spacer',    heightPx: 16 },
-    { id: nid(), type: 'signature', alignment: 'center' },
-    { id: nid(), type: 'spacer',    heightPx: 12 },
-    { id: nid(), type: 'address',   alignment: 'center', color: '#666666' },
+    { id: nid(), type: 'logo',      alignment: 'center', maxWidthPx: 140, paddingBottomPx: 16 },
+    { id: nid(), type: 'address',   alignment: 'center', color: '#666666', paddingBottomPx: 16 },
     { id: nid(), type: 'divider',   color: '#e5e5e5', thicknessPx: 1, marginYPx: 16 },
     { id: nid(), type: 'unsubscribe', alignment: 'center', label: 'Unsubscribe from these emails', color: '#666666' },
   ],

@@ -13,7 +13,6 @@ import {
   PenLine,
   Trash2,
   Type,
-  PencilLine,
   Move,
 } from 'lucide-react';
 import {
@@ -67,7 +66,6 @@ const ADD_BUTTONS: Array<{ type: FooterBlock['type']; label: string; Icon: typeo
   { type: 'logo',        label: 'Branded logo', Icon: ImageIcon,   make: () => ({ id: nid(), type: 'logo',        alignment: 'center', maxWidthPx: 140 }) },
   { type: 'spacer',      label: 'Spacer',       Icon: Move,        make: () => ({ id: nid(), type: 'spacer',      heightPx: 24 }) },
   { type: 'divider',     label: 'Line',         Icon: Minus,       make: () => ({ id: nid(), type: 'divider',     color: '#e5e5e5', thicknessPx: 1, marginYPx: 16 }) },
-  { type: 'signature',   label: 'Signature',    Icon: PencilLine,  make: () => ({ id: nid(), type: 'signature',   alignment: 'left' }) },
   { type: 'address',     label: 'Address',      Icon: MapPin,      make: () => ({ id: nid(), type: 'address',     alignment: 'center', color: '#666666' }) },
   { type: 'social',      label: 'Social',       Icon: Link2,       make: () => ({ id: nid(), type: 'social',      alignment: 'center', color: '#1a1a1a', social: {} }) },
   { type: 'unsubscribe', label: 'Unsubscribe',  Icon: Mail,        make: () => ({ id: nid(), type: 'unsubscribe', alignment: 'center', label: 'Unsubscribe from these emails', color: '#666666' }) },
@@ -309,15 +307,15 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
         </button>
       </header>
       {selected ? (
-        <div className="border-t border-evari-edge/20 px-3 py-2">
+        <div className="border-t border-evari-edge/20 px-3 py-2 space-y-2">
           {block.type === 'text'        ? <TextFields        block={block} onChange={onChange} /> : null}
           {block.type === 'logo'        ? <LogoFields        block={block} onChange={onChange} /> : null}
           {block.type === 'spacer'      ? <SpacerFields      block={block} onChange={onChange} /> : null}
           {block.type === 'divider'     ? <DividerFields     block={block} onChange={onChange} /> : null}
-          {block.type === 'signature'   ? <AlignmentFieldOnly block={block} onChange={onChange} /> : null}
           {block.type === 'address'     ? <AddressFields     block={block} onChange={onChange} /> : null}
           {block.type === 'social'      ? <SocialFields      block={block} onChange={onChange} /> : null}
           {block.type === 'unsubscribe' ? <UnsubscribeFields block={block} onChange={onChange} /> : null}
+          <PaddingFields block={block} onChange={onChange as (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void} />
         </div>
       ) : null}
     </div>
@@ -330,7 +328,6 @@ function blockSummary(b: FooterBlock): string {
     case 'logo':        return `${b.maxWidthPx}px · ${b.alignment}`;
     case 'spacer':      return `${b.heightPx}px`;
     case 'divider':     return `${b.thicknessPx}px line`;
-    case 'signature':
     case 'address':
     case 'unsubscribe': return b.alignment;
     case 'social':      return `${Object.values(b.social).filter(Boolean).length} link(s) · ${b.alignment}`;
@@ -371,10 +368,6 @@ function AlignmentField<T extends FooterBlock & { alignment: FooterAlignment }>(
       </div>
     </label>
   );
-}
-
-function AlignmentFieldOnly({ block, onChange }: { block: Extract<FooterBlock, { type: 'signature' }>; onChange: (p: Partial<Extract<FooterBlock, { type: 'signature' }>>) => void }) {
-  return <AlignmentField block={block} onChange={onChange as never} />;
 }
 
 function TextFields({ block, onChange }: { block: Extract<FooterBlock, { type: 'text' }>; onChange: (p: Partial<Extract<FooterBlock, { type: 'text' }>>) => void }) {
@@ -499,3 +492,27 @@ function UnsubscribeFields({ block, onChange }: { block: Extract<FooterBlock, { 
   );
 }
 
+/**
+ * Per-block padding-above + padding-below sliders. Available on every
+ * block type so the user can space items in the footer / signature
+ * without dropping in dedicated spacer blocks. The renderer wraps each
+ * block in a div whose padding picks these up at send time.
+ */
+function PaddingFields({ block, onChange }: { block: { paddingTopPx?: number; paddingBottomPx?: number }; onChange: (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void }) {
+  const top = block.paddingTopPx ?? 0;
+  const bot = block.paddingBottomPx ?? 0;
+  return (
+    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-evari-edge/10">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Padding above</span>
+        <input type="range" min={0} max={120} value={top} onChange={(e) => onChange({ paddingTopPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{top}px</span>
+      </label>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Padding below</span>
+        <input type="range" min={0} max={120} value={bot} onChange={(e) => onChange({ paddingBottomPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{bot}px</span>
+      </label>
+    </div>
+  );
+}
