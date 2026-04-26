@@ -27,6 +27,9 @@ import { WeekCalendar } from '@/components/ui/week-calendar';
 import { PillTabs } from '@/components/ui/pill-tabs';
 import Link from 'next/link';
 import { ShopifyPreview, type JournalBlock } from '@/components/journals/ShopifyPreview';
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useRouter } from 'next/navigation';
 import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink, ChevronDown, Facebook } from 'lucide-react';
 
@@ -141,6 +144,26 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
     () => new Set(['instagram', 'facebook', 'tiktok', 'linkedin', 'klaviyo', 'blogs']),
   );
   const [pickerOpen, setPickerOpen] = useState(false);
+  const PLATFORM_DEFAULT_ORDER = ['instagram', 'facebook', 'tiktok', 'linkedin', 'klaviyo', 'blogs'];
+  const [platformOrder, setPlatformOrder] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [...PLATFORM_DEFAULT_ORDER];
+    try {
+      const raw = window.localStorage.getItem('social-platform-order-v1');
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const known = parsed.filter((k): k is string => typeof k === 'string' && PLATFORM_DEFAULT_ORDER.includes(k));
+          const missing = PLATFORM_DEFAULT_ORDER.filter((k) => !known.includes(k));
+          return [...known, ...missing];
+        }
+      }
+    } catch {}
+    return [...PLATFORM_DEFAULT_ORDER];
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try { window.localStorage.setItem('social-platform-order-v1', JSON.stringify(platformOrder)); } catch {}
+  }, [platformOrder]);
   // Drag-to-resize handler for the drawer's top edge.
   const drawerDragRef = useRef<{ startY: number; startH: number } | null>(null);
   function onDrawerResizeStart(ev: React.MouseEvent) {
@@ -338,7 +361,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   return (
     <div className="flex-1 relative min-h-0 overflow-hidden bg-evari-ink p-3">
       {/* Calendar column is hard-pinned to (100% − rail − gaps). All
-          panels are detached floating rounded rectangles so content
+          panels are detached floating rounded-lg rectangles so content
           height in any one panel can never push or shrink another. */}
       <div
         className="absolute top-3 left-3 bottom-3 flex flex-col overflow-hidden gap-3 transition-[width] duration-200"
@@ -353,7 +376,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           (week/day views) so the column itself doesn't scroll —
           everything outside the post-preview pane stays fixed. */}
       <div
-        className="flex-1 min-h-0 flex flex-col rounded-2xl bg-evari-surface overflow-hidden"
+        className="flex-1 min-h-0 flex flex-col rounded-lg bg-evari-surface overflow-hidden"
         style={{
           minHeight: view === 'month' ? 720 : 760,
         }}
@@ -450,6 +473,8 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         }}
         pickerOpen={pickerOpen}
         onTogglePicker={() => setPickerOpen((v) => !v)}
+        platformOrder={platformOrder}
+        onReorderPlatforms={setPlatformOrder}
       />
       </div>
       {/* RIGHT RAIL — preview + actions. Resizable via the left-edge
@@ -498,7 +523,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
 function PostCard({ post }: { post: SocialPost }) {
   const Icon = PLATFORM_ICON[post.platform];
   return (
-    <div className="rounded-md bg-evari-surface p-3">
+    <div className="rounded-lg bg-evari-surface p-3">
       <div className="flex items-center justify-between mb-2">
         <div className="inline-flex items-center gap-1.5 text-[10px] rounded-full px-2 py-0.5 capitalize bg-evari-surfaceSoft text-evari-dim">
           <Icon className="h-3 w-3" />
@@ -560,7 +585,7 @@ function ScheduleActionsPanel({
 }: SchedulePanelProps) {
   if (!selectedJournal && !selectedSocial) {
     return (
-      <div className="flex-none p-4 rounded-2xl bg-evari-surface">
+      <div className="flex-none p-4 rounded-lg bg-evari-surface">
         <div className="text-xs text-evari-text font-medium mb-2">
           Schedule
         </div>
@@ -571,8 +596,8 @@ function ScheduleActionsPanel({
         {/* Placeholder area so the empty state has the same visual
             footprint as the populated state — keeps the rail width
             visually consistent regardless of selection. */}
-        <div className="mt-3 h-9 rounded-md bg-evari-ink/30 ring-1 ring-evari-edge/30" />
-        <div className="mt-1.5 h-7 rounded-md bg-evari-ink/20 ring-1 ring-evari-edge/20" />
+        <div className="mt-3 h-9 rounded-lg bg-evari-ink/30 ring-1 ring-evari-edge/30" />
+        <div className="mt-1.5 h-7 rounded-lg bg-evari-ink/20 ring-1 ring-evari-edge/20" />
       </div>
     );
   }
@@ -589,7 +614,7 @@ function ScheduleActionsPanel({
     ? 'Scheduled'
     : selectedSocial!.status;
   return (
-    <section className="p-4 rounded-2xl bg-evari-surface flex-none">
+    <section className="p-4 rounded-lg bg-evari-surface flex-none">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-semibold">
           {kindLabel}
@@ -628,7 +653,7 @@ function ScheduleActionsPanel({
         type="button"
         onClick={onSendNow}
         disabled={sending}
-        className="mt-4 w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-md bg-evari-gold text-evari-goldInk text-sm font-semibold disabled:opacity-60 hover:brightness-105 transition"
+        className="mt-4 w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-lg bg-evari-gold text-evari-goldInk text-sm font-semibold disabled:opacity-60 hover:brightness-105 transition"
       >
         {sending ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -646,7 +671,7 @@ function ScheduleActionsPanel({
         <button
           type="button"
           onClick={onEdit}
-          className="mt-2 w-full inline-flex items-center justify-center gap-1.5 py-1.5 rounded-md bg-evari-surface text-evari-dim hover:text-evari-text text-xs font-medium ring-1 ring-evari-edge transition"
+          className="mt-2 w-full inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-evari-surface text-evari-dim hover:text-evari-text text-xs font-medium ring-1 ring-evari-edge transition"
         >
           <ExternalLink className="h-3 w-3" />
           Open in editor
@@ -678,11 +703,11 @@ function PostPreviewWindow({
 }: PreviewWindowProps) {
   if (!selectedJournal && !selectedSocial) {
     return (
-      <section className="flex-1 flex flex-col p-4 gap-3 rounded-2xl bg-evari-surface">
-        <div className="h-32 rounded-md bg-evari-ink/30 ring-1 ring-evari-edge/30" />
-        <div className="h-4 rounded bg-evari-ink/20 ring-1 ring-evari-edge/20 w-3/4" />
-        <div className="h-3 rounded bg-evari-ink/20 ring-1 ring-evari-edge/20 w-full" />
-        <div className="h-3 rounded bg-evari-ink/20 ring-1 ring-evari-edge/20 w-5/6" />
+      <section className="flex-1 flex flex-col p-4 gap-3 rounded-lg bg-evari-surface">
+        <div className="h-32 rounded-lg bg-evari-ink/30 ring-1 ring-evari-edge/30" />
+        <div className="h-4 rounded-lg bg-evari-ink/20 ring-1 ring-evari-edge/20 w-3/4" />
+        <div className="h-3 rounded-lg bg-evari-ink/20 ring-1 ring-evari-edge/20 w-full" />
+        <div className="h-3 rounded-lg bg-evari-ink/20 ring-1 ring-evari-edge/20 w-5/6" />
         <p className="mt-auto text-[11px] text-evari-dimmer leading-relaxed text-center">
           Pick an event from the calendar to preview the post in its
           finished state.
@@ -695,13 +720,13 @@ function PostPreviewWindow({
     : selectedSocial!.scheduledFor || selectedSocial!.publishedAt || '';
   const date = dateIso ? new Date(dateIso) : null;
   return (
-    <section className="flex-1 flex flex-col min-h-0 rounded-2xl bg-evari-surface overflow-hidden">
+    <section className="flex-1 flex flex-col min-h-0 rounded-lg bg-evari-surface overflow-hidden">
       <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
         <button
           type="button"
           onClick={() => onNavigate('prev')}
           disabled={dayCount <= 1}
-          className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition"
+          className="h-6 w-6 inline-flex items-center justify-center rounded-lg hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </button>
@@ -713,7 +738,7 @@ function PostPreviewWindow({
           type="button"
           onClick={() => onNavigate('next')}
           disabled={dayCount <= 1}
-          className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition"
+          className="h-6 w-6 inline-flex items-center justify-center rounded-lg hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition"
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </button>
@@ -769,7 +794,7 @@ function SocialPreviewCard({ post }: { post: SocialPost }) {
         <img
           src={post.mediaUrls[0]}
           alt=""
-          className="w-full rounded-md mb-3"
+          className="w-full rounded-lg mb-3"
           style={{ aspectRatio: '1 / 1', objectFit: 'cover' }}
         />
       ) : null}
@@ -797,6 +822,8 @@ interface PlatformDrawerProps {
   onTogglePlatform: (key: string) => void;
   pickerOpen: boolean;
   onTogglePicker: () => void;
+  platformOrder: string[];
+  onReorderPlatforms: (next: string[]) => void;
 }
 
 type LucideIcon = typeof Instagram;
@@ -864,6 +891,8 @@ function PlatformDrawer({
   onTogglePlatform,
   pickerOpen,
   onTogglePicker,
+  platformOrder,
+  onReorderPlatforms,
 }: PlatformDrawerProps) {
   const sorted = useMemo(
     () =>
@@ -886,9 +915,18 @@ function PlatformDrawer({
     }
     return m;
   }, [sorted]);
+  const orderedCols = useMemo(() => {
+    const byKey = new Map(DRAWER_COLS.map((c) => [c.key, c]));
+    return platformOrder
+      .map((k) => byKey.get(k))
+      .filter((c): c is (typeof DRAWER_COLS)[number] => Boolean(c))
+      .filter((c) => enabledPlatforms.has(c.key));
+  }, [platformOrder, enabledPlatforms]);
+  const orderedColsKeys = orderedCols.map((c) => c.key);
+  const drawerSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   return (
     <div
-      className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden"
+      className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink p-3"
       style={{ height }}
     >
       {/* Drag handle for vertical resize — only visible when open. */}
@@ -905,7 +943,7 @@ function PlatformDrawer({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors shrink-0 rounded-2xl bg-evari-surface"
+        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors shrink-0 rounded-lg bg-evari-surface"
       >
         <span className="font-semibold">Queue · all platforms</span>
         <span className="flex items-center gap-2">
@@ -930,7 +968,7 @@ function PlatformDrawer({
             <button
               type="button"
               onClick={onTogglePicker}
-              className="w-full inline-flex items-center justify-between px-4 py-2 rounded-2xl bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors"
+              className="w-full inline-flex items-center justify-between px-4 py-2 rounded-lg bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors"
             >
               <span className="inline-flex items-center gap-2">
                 <ChevronDown
@@ -955,7 +993,7 @@ function PlatformDrawer({
                       type="button"
                       onClick={() => onTogglePlatform(col.key)}
                       className={cn(
-                        'inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm transition-colors',
+                        'inline-flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
                         active
                           ? 'bg-evari-surface text-evari-text ring-1 ring-evari-gold/40'
                           : 'bg-evari-surface/40 text-evari-dim hover:bg-evari-surface',
@@ -967,7 +1005,7 @@ function PlatformDrawer({
                       </span>
                       <span
                         className={cn(
-                          'h-3.5 w-3.5 rounded-sm border',
+                          'h-3.5 w-3.5 rounded-lg border',
                           active
                             ? 'bg-evari-gold border-evari-gold'
                             : 'border-evari-edge',
@@ -986,7 +1024,7 @@ function PlatformDrawer({
             {DRAWER_COLS.filter((c) => enabledPlatforms.has(c.key)).map((col) => {
               const items = byColumn.get(col.key) ?? [];
               return (
-                <div key={col.key} className="flex-1 min-w-[180px] flex flex-col min-h-0 rounded-2xl bg-evari-surface overflow-hidden">
+                <div key={col.key} className="flex-1 min-w-[180px] flex flex-col min-h-0 rounded-lg bg-evari-surface overflow-hidden">
                   <header className="px-3 py-2 text-xs text-evari-text font-medium border-b border-evari-edge/30 shrink-0 flex items-center justify-between">
                     <span className="inline-flex items-center gap-1.5">
                       {col.icon ? (
@@ -1008,7 +1046,7 @@ function PlatformDrawer({
                       items.map((e) => (
                         <li
                           key={e.id}
-                          className="rounded-md bg-white text-zinc-900 p-2 cursor-pointer transition-colors hover:bg-zinc-50 ring-1 ring-evari-edge/30"
+                          className="rounded-lg bg-white text-zinc-900 p-2 cursor-pointer transition-colors hover:bg-zinc-50 ring-1 ring-evari-edge/30"
                           onClick={() => e.onClick?.()}
                         >
                           <div className="text-[11px] leading-tight line-clamp-2">
@@ -1144,7 +1182,7 @@ function SortableDrawerColumn({
         transition,
         opacity: isDragging ? 0.7 : 1,
       }}
-      className="flex-1 min-w-[180px] flex flex-col min-h-0 rounded-2xl bg-evari-surface overflow-hidden"
+      className="flex-1 min-w-[180px] flex flex-col min-h-0 rounded-lg bg-evari-surface overflow-hidden"
     >
       <header
         {...attributes}
