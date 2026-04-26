@@ -236,6 +236,118 @@ function BrandKitPreview({ brand }: { brand: MarketingBrand }) {
   );
 }
 
+
+/**
+ * Layers panel — recursive tree view of every section + child block in
+ * the design. Each row shows the block's icon, type label, and a content
+ * snippet. Click a row to select that block (opens the property panel
+ * in the right rail). Sections always expanded so background-image
+ * sections show their layered children inline.
+ */
+function LayersTree({ blocks, selectedId, onSelect, onRemove }: {
+  blocks: EmailBlock[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  if (blocks.length === 0) {
+    return (
+      <div className="text-[11px] text-evari-dim px-2 py-6 text-center leading-relaxed">
+        No blocks yet. Switch to the Blocks tab and drag a tile into the canvas.
+      </div>
+    );
+  }
+  return (
+    <ul className="space-y-0.5">
+      {blocks.map((b) => (
+        <LayerRow key={b.id} block={b} depth={0} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
+      ))}
+    </ul>
+  );
+}
+
+function snippetForBlock(b: EmailBlock): string {
+  const stripHtml = (html: string) => html.replace(/<[^>]+>/g, '').trim();
+  switch (b.type) {
+    case 'heading':         return stripHtml(b.html) || `H${b.level}`;
+    case 'text':            return stripHtml(b.html) || 'Text';
+    case 'image':           return b.alt || (b.src ? new URL(b.src, 'https://evari.cc').pathname.split('/').pop() ?? 'Image' : 'Image');
+    case 'brandLogo':       return `${b.variant} logo · ${b.widthPx}px`;
+    case 'button':          return b.label || 'Button';
+    case 'divider':         return 'Divider';
+    case 'spacer':          return `Spacer · ${b.heightPx}px`;
+    case 'html':            return 'Custom HTML';
+    case 'split':           return stripHtml(b.html) || 'Split layout';
+    case 'headerBar':       return b.tagline || 'Header bar';
+    case 'card':            return stripHtml(b.html) || 'Drop-shadow card';
+    case 'social':          return `${b.items.length} social link${b.items.length === 1 ? '' : 's'}`;
+    case 'coupon':          return b.code || 'Coupon';
+    case 'table':           return `${b.rows.length} row${b.rows.length === 1 ? '' : 's'}`;
+    case 'review':          return b.author || 'Review';
+    case 'video':           return b.alt || 'Video';
+    case 'product':         return b.title || 'Product';
+    case 'section': {
+      const isAnnounce = b.kind === 'announcementBar';
+      const bg = b.backgroundImage ? 'with bg image' : '';
+      const label = isAnnounce ? 'Announcement bar' : 'Section';
+      return [label, bg].filter(Boolean).join(' · ');
+    }
+  }
+}
+
+function LayerRow({ block, depth, selectedId, onSelect, onRemove }: {
+  block: EmailBlock;
+  depth: number;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const tile = ADD_BUTTONS.find((t) => t.type === block.type) ?? (block.type === 'heading' ? HEADING_TILE : null);
+  const Icon = tile?.Icon ?? Square;
+  const selected = selectedId === block.id;
+  const label = tile?.label ?? block.type;
+  const snippet = snippetForBlock(block);
+  const isSection = block.type === 'section';
+  const isPinned = isSection && (block as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+  return (
+    <li>
+      <div
+        className={cn(
+          'group flex items-center gap-1.5 px-1.5 py-1 rounded cursor-pointer transition-colors',
+          selected ? 'bg-evari-gold/20 text-evari-gold' : 'text-evari-text hover:bg-evari-edge/30',
+        )}
+        style={{ paddingLeft: `${6 + depth * 12}px` }}
+        onClick={(e) => { e.stopPropagation(); onSelect(block.id); }}
+      >
+        <Icon className={cn('h-3.5 w-3.5 shrink-0', selected ? 'text-evari-gold' : 'text-evari-dim')} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-medium leading-tight truncate flex items-center gap-1">
+            {label}
+            {isPinned ? <Pin className="h-2.5 w-2.5 text-evari-gold/70" aria-label="Pinned to top" /> : null}
+          </div>
+          <div className="text-[10px] text-evari-dim leading-tight truncate">{snippet}</div>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRemove(block.id); }}
+          className="opacity-0 group-hover:opacity-100 p-0.5 text-evari-dim hover:text-evari-danger transition-opacity"
+          title="Delete block"
+          aria-label={`Delete ${label}`}
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+      {isSection && (block as Extract<EmailBlock, { type: 'section' }>).blocks?.length ? (
+        <ul className="space-y-0.5 mt-0.5">
+          {(block as Extract<EmailBlock, { type: 'section' }>).blocks.map((c) => (
+            <LayerRow key={c.id} block={c} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
 function BlockTileGroup({ title, tiles, brand, onAdd }: { title: string; tiles: BlockTile[]; brand: MarketingBrand; onAdd: (make: () => EmailBlock) => void }) {
   return (
     <section>
@@ -322,6 +434,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
   const design = normaliseEmailDesign(value) ?? DEFAULT_EMAIL_DESIGN;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragOverlay, setDragOverlay] = useState<string | null>(null);
+  const [paletteTab, setPaletteTab] = useState<'blocks' | 'rows'>('blocks');
 
   // ─── Undo history ─────────────────────────────────────────────
   // Every designer-initiated mutation goes through commit(), which pushes
@@ -663,29 +776,66 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           CENTRE, properties RIGHT (when something is selected). */}
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(280px,340px)] gap-3 p-3 flex-1 min-h-0 overflow-hidden">
 
-        {/* LEFT — palette tiles 3-across */}
-        <div className="space-y-3 min-w-0 overflow-y-auto pr-1">
-          <BlockTileGroup
-            title="Blocks"
-            tiles={[HEADING_TILE, ...ADD_BUTTONS.filter((t) => t.group === 'blocks')]}
-            brand={initialBrand}
-            onAdd={(make) => addBlock(make)}
-          />
-          <BlockTileGroup
-            title="Layout"
-            tiles={ADD_BUTTONS.filter((t) => t.group === 'layout')}
-            brand={initialBrand}
-            onAdd={(make) => addBlock(make)}
-          />
-          <div className="rounded-md bg-evari-ink/40 border border-evari-edge/20 p-3">
-            <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-2">Canvas settings</h3>
-            <div className="space-y-2">
-              <ColourField label="Background" value={design.background} onChange={(v) => updateDesign({ background: v })} brand={initialBrand} />
-              <NumField label="Content width (px)" value={design.widthPx} min={320} max={900} onChange={(v) => updateDesign({ widthPx: v })} />
-              <NumField label="Outer padding (px)" value={design.paddingPx} min={0} max={96} onChange={(v) => updateDesign({ paddingPx: v })} />
-            </div>
+        {/* LEFT — tab strip + palette / layers */}
+        <div className="flex flex-col min-w-0 min-h-0 overflow-hidden">
+          {/* Tab strip */}
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-md bg-evari-ink/40 border border-evari-edge/30 mb-2 shrink-0" role="tablist" aria-label="Palette / layers">
+            {(['blocks', 'rows'] as const).map((t) => {
+              const active = paletteTab === t;
+              const label = t === 'blocks' ? 'Blocks' : 'Rows';
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setPaletteTab(t)}
+                  className={cn(
+                    'text-[11px] font-medium py-1 rounded transition-colors',
+                    active ? 'bg-evari-gold/20 text-evari-gold' : 'text-evari-dim hover:text-evari-text',
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
-          <BrandKitPreview brand={initialBrand} />
+
+          {/* Tab content — independently scrollable */}
+          {paletteTab === 'blocks' ? (
+            <div className="space-y-3 min-w-0 overflow-y-auto pr-1 flex-1 min-h-0" role="tabpanel">
+              <BlockTileGroup
+                title="Blocks"
+                tiles={[HEADING_TILE, ...ADD_BUTTONS.filter((t) => t.group === 'blocks')]}
+                brand={initialBrand}
+                onAdd={(make) => addBlock(make)}
+              />
+              <BlockTileGroup
+                title="Layout"
+                tiles={ADD_BUTTONS.filter((t) => t.group === 'layout')}
+                brand={initialBrand}
+                onAdd={(make) => addBlock(make)}
+              />
+              <div className="rounded-md bg-evari-ink/40 border border-evari-edge/20 p-3">
+                <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-2">Canvas settings</h3>
+                <div className="space-y-2">
+                  <ColourField label="Background" value={design.background} onChange={(v) => updateDesign({ background: v })} brand={initialBrand} />
+                  <NumField label="Content width (px)" value={design.widthPx} min={320} max={900} onChange={(v) => updateDesign({ widthPx: v })} />
+                  <NumField label="Outer padding (px)" value={design.paddingPx} min={0} max={96} onChange={(v) => updateDesign({ paddingPx: v })} />
+                </div>
+              </div>
+              <BrandKitPreview brand={initialBrand} />
+            </div>
+          ) : (
+            <div className="space-y-1 min-w-0 overflow-y-auto pr-1 flex-1 min-h-0" role="tabpanel">
+              <LayersTree
+                blocks={design.blocks}
+                selectedId={selectedId}
+                onSelect={(id) => setSelectedId(id)}
+                onRemove={(id) => { if (selectedId === id) setSelectedId(null); removeBlock(id); }}
+              />
+            </div>
+          )}
         </div>
 
         {/* CENTRE — interactive canvas. The OUTER frame always fills
