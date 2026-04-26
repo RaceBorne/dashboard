@@ -47,10 +47,10 @@ const NAV = [
   { href: '/backlinks', label: 'Backlinks', icon: Link2, group: 'web' },
   { href: '/synopsis', label: 'Synopsis', icon: Stethoscope, group: 'web' },
   { href: '/social', label: 'Calendar', icon: CalendarDays, group: 'broadcast' },
-  { href: '/social/instagram', label: 'Instagram', icon: Instagram, group: 'broadcast' },
-  { href: '/social/tiktok', label: 'TikTok', icon: Music, group: 'broadcast' },
-  { href: '/social/linkedin', label: 'LinkedIn', icon: Linkedin, group: 'broadcast' },
-  { href: '/journals', label: 'Journals', icon: FileText, group: 'broadcast' },
+  { href: '/social/instagram', label: 'Instagram', icon: Instagram, group: 'broadcast', child: true },
+  { href: '/social/tiktok', label: 'TikTok', icon: Music, group: 'broadcast', child: true },
+  { href: '/social/linkedin', label: 'LinkedIn', icon: Linkedin, group: 'broadcast', child: true },
+  { href: '/journals', label: 'Journals', icon: FileText, group: 'broadcast', child: true },
   { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'marketing' },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'marketing' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
@@ -263,14 +263,25 @@ export function AppSidebar() {
                   item.href === '/tasks' && openTaskCount && openTaskCount > 0
                     ? openTaskCount
                     : undefined;
+                const isChild = 'child' in item && item.child === true;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     title={collapsed ? item.label : undefined}
                     className={cn(
-                      'flex items-center rounded-md text-sm transition-colors',
+                      'flex items-center rounded-md transition-colors',
                       collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-3 px-3 py-1.5',
+                      // Children sit indented under their parent
+                      // (Calendar). The ml-3 + border-l draws a faint
+                      // tree-line from the parent's icon-column down
+                      // through the children, making the nesting
+                      // unambiguous. Children also use a smaller font
+                      // size + slightly dimmer label to read as
+                      // secondary nav.
+                      !collapsed && isChild
+                        ? 'ml-3 pl-3 border-l border-evari-edge/30 text-xs'
+                        : 'text-sm',
                       active
                         ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                         : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
