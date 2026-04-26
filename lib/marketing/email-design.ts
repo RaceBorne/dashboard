@@ -181,7 +181,22 @@ function renderProduct(b: Extract<EmailBlock, { type: 'product' }>, brand: Marke
 }
 
 function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: MarketingBrand): string {
-  return `<div style="background:${b.backgroundColor};border-radius:${b.borderRadiusPx}px;padding:${b.paddingPx}px;font:14px/1.55 ${fontFor(brand, '')}Arial,sans-serif;color:#333;">${safeHtml(b.html)}</div>`;
+  const children = (b.blocks ?? []).map((c) => renderBlock(c, brand)).filter(Boolean).join('');
+  // Legacy fallback: pre-container sections stored their content as html.
+  const inner = children || (b.html ? safeHtml(b.html) : '');
+  const styles = [
+    `background-color:${b.backgroundColor}`,
+    b.backgroundImage ? `background-image:url(${escape(b.backgroundImage)})` : '',
+    `background-size:${b.backgroundSize ?? 'cover'}`,
+    `background-position:${b.backgroundPosition ?? 'center'}`,
+    'background-repeat:no-repeat',
+    `border-radius:${b.borderRadiusPx}px`,
+    `padding:${b.paddingPx}px`,
+    b.minHeightPx ? `min-height:${b.minHeightPx}px` : '',
+    b.contentColor ? `color:${b.contentColor}` : '',
+    `font:14px/1.55 ${fontFor(brand, '')}Arial,sans-serif`,
+  ].filter(Boolean).join(';');
+  return `<div style="${styles}">${inner}</div>`;
 }
 
 function renderInner(b: EmailBlock, brand: MarketingBrand): string {

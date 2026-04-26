@@ -111,7 +111,7 @@ const ADD_BUTTONS: BlockTile[] = [
   { group: 'blocks', type: 'html',    label: 'HTML',    Icon: Code2,       make: () => ({ id: nid(), type: 'html', html: '<p>Custom HTML here.</p>', paddingBottomPx: 16 }) },
   // Layout group
   { group: 'layout', type: 'columns', label: 'Columns', Icon: Columns3, comingSoon: true },
-  { group: 'layout', type: 'section', label: 'Section', Icon: Square, badge: 'New', make: () => ({ id: nid(), type: 'section', html: 'Group related content here.', backgroundColor: '#f4f4f5', paddingPx: 24, borderRadiusPx: 6, paddingBottomPx: 16 }) },
+  { group: 'layout', type: 'section', label: 'Section', Icon: Square, badge: 'New', make: () => ({ id: nid(), type: 'section', blocks: [], backgroundColor: '#1a1a1a', backgroundImage: '', backgroundSize: 'cover', backgroundPosition: 'center', paddingPx: 60, borderRadiusPx: 0, contentColor: '#ffffff', minHeightPx: 320, paddingBottomPx: 16 }) },
 ];
 
 // Heading still gets a tile but we render it inside the Blocks group ahead of Text in the toolbar.
@@ -198,23 +198,79 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
   function updateDesign(patch: Partial<EmailDesign>) {
     onChange({ ...design, ...patch });
   }
+  // ─── Recursive tree helpers ───────────────────────────────────
+  // The design tree is now nested (sections hold child blocks). All
+  // mutations walk the tree so they work whether the target is at the
+  // root or inside a section.
+  function mapTree(blocks: EmailBlock[], fn: (b: EmailBlock) => EmailBlock | null): EmailBlock[] {
+    const out: EmailBlock[] = [];
+    for (const b of blocks) {
+      const next = fn(b);
+      if (!next) continue;
+      if (next.type === 'section') {
+        out.push({ ...next, blocks: mapTree(next.blocks ?? [], fn) });
+      } else {
+        out.push(next);
+      }
+    }
+    return out;
+  }
+  function findContainerOf(blocks: EmailBlock[], id: string, parentId: string | null = null): { parentId: string | null; index: number } | null {
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
+      if (b.id === id) return { parentId, index: i };
+      if (b.type === 'section') {
+        const inner = findContainerOf(b.blocks ?? [], id, b.id);
+        if (inner) return inner;
+      }
+    }
+    return null;
+  }
+  function updateChildren(blocks: EmailBlock[], parentId: string | null, fn: (kids: EmailBlock[]) => EmailBlock[]): EmailBlock[] {
+    if (parentId === null) return fn(blocks);
+    return blocks.map((b) => {
+      if (b.type === 'section' && b.id === parentId) {
+        return { ...b, blocks: fn(b.blocks ?? []) };
+      }
+      if (b.type === 'section') {
+        return { ...b, blocks: updateChildren(b.blocks ?? [], parentId, fn) };
+      }
+      return b;
+    });
+  }
   function updateBlock(id: string, patch: Partial<EmailBlock>) {
     onChange({
       ...design,
-      blocks: design.blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as EmailBlock) : b)),
+      blocks: mapTree(design.blocks, (b) => (b.id === id ? ({ ...b, ...patch } as EmailBlock) : b)),
     });
   }
   function removeBlock(id: string) {
-    onChange({ ...design, blocks: design.blocks.filter((b) => b.id !== id) });
+    onChange({ ...design, blocks: mapTree(design.blocks, (b) => (b.id === id ? null : b)) });
   }
   function addBlock(maker: () => EmailBlock) {
     onChange({ ...design, blocks: [...design.blocks, maker()] });
   }
+  function insertBlock(parentId: string | null, beforeIndex: number, newBlock: EmailBlock) {
+    onChange({
+      ...design,
+      blocks: updateChildren(design.blocks, parentId, (kids) => {
+        const next = [...kids];
+        const idx = Math.max(0, Math.min(beforeIndex, next.length));
+        next.splice(idx, 0, newBlock);
+        return next;
+      }),
+    });
+  }
   function moveBlocks(activeId: string, overId: string) {
-    const from = design.blocks.findIndex((b) => b.id === activeId);
-    const to   = design.blocks.findIndex((b) => b.id === overId);
-    if (from < 0 || to < 0 || from === to) return;
-    onChange({ ...design, blocks: arrayMove(design.blocks, from, to) });
+    const a = findContainerOf(design.blocks, activeId);
+    const o = findContainerOf(design.blocks, overId);
+    if (!a || !o) return;
+    if (a.parentId !== o.parentId) return; // cross-container moves not yet supported
+    if (a.index === o.index) return;
+    onChange({
+      ...design,
+      blocks: updateChildren(design.blocks, a.parentId, (kids) => arrayMove(kids, a.index, o.index)),
+    });
   }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -251,8 +307,10 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     const overId = ev.over ? String(ev.over.id) : null;
     if (!overId) return;
 
-    // Palette tile → insert at the over position (or append when over the
-    // end-of-list placeholder).
+    // Palette tile → insert. Destination decoded from overId:
+    //   'end-of-list'           → append to root
+    //   'section-end:<id>'      → append into that section's children
+    //   '<blockId>'             → splice before that block in its container
     if (activeId.startsWith('palette:')) {
       const tile = ev.active.data.current?.paletteTile as BlockTile | undefined;
       if (!tile?.make) return;
@@ -261,19 +319,26 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
         onChange({ ...design, blocks: [...design.blocks, newBlock] });
         return;
       }
-      const idx = design.blocks.findIndex((b) => b.id === overId);
-      if (idx < 0) {
+      if (overId.startsWith('section-end:')) {
+        const sectionId = overId.slice('section-end:'.length);
+        onChange({
+          ...design,
+          blocks: updateChildren(design.blocks, sectionId, (kids) => [...kids, newBlock]),
+        });
+        return;
+      }
+      const loc = findContainerOf(design.blocks, overId);
+      if (!loc) {
         onChange({ ...design, blocks: [...design.blocks, newBlock] });
         return;
       }
-      const next = [...design.blocks];
-      next.splice(idx, 0, newBlock);
-      onChange({ ...design, blocks: next });
+      insertBlock(loc.parentId, loc.index, newBlock);
       return;
     }
 
-    // Sortable in-list reorder.
-    if (activeId !== overId && overId !== 'end-of-list') {
+    // Sortable in-list reorder. Same-container only — cross-container moves
+    // aren't supported yet (delete + re-add covers that case).
+    if (activeId !== overId && overId !== 'end-of-list' && !overId.startsWith('section-end:')) {
       moveBlocks(activeId, overId);
     }
   }
@@ -350,8 +415,11 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                         block={b}
                         brand={initialBrand}
                         selected={selectedId === b.id}
+                        selectedId={selectedId}
                         onSelect={() => setSelectedId(b.id)}
                         onRemove={() => { setSelectedId(null); removeBlock(b.id); }}
+                        onSelectChild={(id) => setSelectedId(id)}
+                        onRemoveChild={(id) => { if (selectedId === id) setSelectedId(null); removeBlock(id); }}
                       />
                     ))}
                     <CanvasEndDrop />
@@ -371,6 +439,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
               return (
                 <BlockPropertiesPanel
                   block={sel}
+                  brand={initialBrand}
                   onChange={(patch) => updateBlock(sel.id, patch as Partial<EmailBlock>)}
                   onClose={() => setSelectedId(null)}
                 />
@@ -494,7 +563,7 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
  * row when a block is selected. Renders to the right of the palette +
  * block list column so the thumbnails stay visible at the top.
  */
-function BlockPropertiesPanel({ block, onChange, onClose }: { block: EmailBlock; onChange: (patch: Partial<EmailBlock>) => void; onClose: () => void }) {
+function BlockPropertiesPanel({ block, brand, onChange, onClose }: { block: EmailBlock; brand: MarketingBrand; onChange: (patch: Partial<EmailBlock>) => void; onClose: () => void }) {
   const meta = ADD_BUTTONS.find((b) => b.type === block.type) ?? (block.type === 'heading' ? HEADING_TILE : null);
   const Icon = meta?.Icon ?? PenLine;
   const label = meta?.label ?? block.type;
@@ -508,14 +577,14 @@ function BlockPropertiesPanel({ block, onChange, onClose }: { block: EmailBlock;
         </button>
       </header>
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2">
-        {block.type === 'heading'   ? <HeadingFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
-        {block.type === 'text'      ? <TextFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
+        {block.type === 'heading'   ? <HeadingFields   block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
+        {block.type === 'text'      ? <TextFields      block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
         {block.type === 'image'     ? <ImageFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'image' }>>) => void} /> : null}
-        {block.type === 'button'    ? <ButtonFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void} /> : null}
+        {block.type === 'button'    ? <ButtonFields    block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void} /> : null}
         {block.type === 'divider'   ? <DividerFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'divider' }>>) => void} /> : null}
         {block.type === 'spacer'    ? <SpacerFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void} /> : null}
         {block.type === 'html'      ? <HtmlFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void} /> : null}
-        {block.type === 'split'     ? <SplitFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
+        {block.type === 'split'     ? <SplitFields     block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
         {block.type === 'headerBar' ? <HeaderBarFields block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
         {block.type === 'card'      ? <CardFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void} /> : null}
         {block.type === 'social'    ? <SocialFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'social' }>>) => void} /> : null}
@@ -534,6 +603,45 @@ function BlockPropertiesPanel({ block, onChange, onClose }: { block: EmailBlock;
 // ─── Field helpers ──────────────────────────────────────────────
 
 const inputCls = 'w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none';
+
+/**
+ * Font dropdown that pulls in the brand kit's uploaded custom fonts +
+ * brand defaults + the standard system / Google fonts. Used by every
+ * block type with typography (Heading / Text / Button / Split).
+ */
+const SYSTEM_FONTS = ['Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Trebuchet MS'];
+const GOOGLE_FONTS = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Playfair Display', 'Merriweather', 'Raleway'];
+
+function FontDropdown({ value, onChange, brand, label = 'Font (override)' }: { value: string; onChange: (v: string) => void; brand?: MarketingBrand; label?: string }) {
+  const customFamilies = brand?.customFonts
+    ? [...new Set(brand.customFonts.map((f) => f.name))].sort()
+    : [];
+  return (
+    <label className="block">
+      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+        <option value="">— inherit brand body —</option>
+        {customFamilies.length > 0 ? (
+          <optgroup label="Brand fonts (uploaded)">
+            {customFamilies.map((n) => <option key={`c-${n}`} value={n}>{n}</option>)}
+          </optgroup>
+        ) : null}
+        {brand?.fonts ? (
+          <optgroup label="Brand defaults">
+            {brand.fonts.heading ? <option value={brand.fonts.heading}>{brand.fonts.heading} (heading)</option> : null}
+            {brand.fonts.body && brand.fonts.body !== brand.fonts.heading ? <option value={brand.fonts.body}>{brand.fonts.body} (body)</option> : null}
+          </optgroup>
+        ) : null}
+        <optgroup label="System">
+          {SYSTEM_FONTS.map((f) => <option key={f} value={f}>{f}</option>)}
+        </optgroup>
+        <optgroup label="Google Fonts">
+          {GOOGLE_FONTS.map((f) => <option key={f} value={f}>{f}</option>)}
+        </optgroup>
+      </select>
+    </label>
+  );
+}
 
 function ColourField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
@@ -574,7 +682,7 @@ function AlignmentField({ value, onChange }: { value: EmailAlignment; onChange: 
   );
 }
 
-function HeadingFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'heading' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void }) {
+function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'heading' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void }) {
   return (
     <div className="space-y-2">
       <label className="block">
@@ -594,17 +702,14 @@ function HeadingFields({ block, onChange }: { block: Extract<EmailBlock, { type:
           </select>
         </label>
         <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font (override)</span>
-          <input type="text" value={block.fontFamily} onChange={(e) => onChange({ fontFamily: e.target.value })} placeholder="(brand body)" className={inputCls} />
-        </label>
+        <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
       </div>
       <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
     </div>
   );
 }
 
-function TextFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'text' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void }) {
+function TextFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'text' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void }) {
   return (
     <div className="space-y-2">
       <label className="block">
@@ -618,10 +723,7 @@ function TextFields({ block, onChange }: { block: Extract<EmailBlock, { type: 't
         <NumField label="Size (px)" value={block.fontSizePx} min={10} max={48} onChange={(v) => onChange({ fontSizePx: v })} />
         <NumField label="Line height" value={block.lineHeight} step={0.05} min={1} max={3} onChange={(v) => onChange({ lineHeight: v })} />
         <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font (override)</span>
-          <input type="text" value={block.fontFamily} onChange={(e) => onChange({ fontFamily: e.target.value })} placeholder="(brand body)" className={inputCls} />
-        </label>
+        <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
       </div>
       <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
     </div>
@@ -666,7 +768,9 @@ function ImageFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
   );
 }
 
-function ButtonFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'button' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void }) {
+function ButtonFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'button' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void }) {
+  // brand reserved for future button-font support
+  void brand;
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
@@ -880,23 +984,35 @@ function CanvasEndDrop() {
 
 /**
  * One block rendered into the interactive canvas. Clicking selects;
- * hovering reveals a small toolbar with the drag handle + delete; the
- * rendered email-safe HTML is dropped inside via dangerouslySetInnerHTML
- * so what the operator sees is exactly what subscribers will get. The
- * insertion drop zone above the block lets users splice a new block
- * in just before this one.
+ * hovering reveals a small toolbar with the drag handle + delete.
+ *
+ * Sections are special — they render as a styled wrapper with a
+ * background image / colour, and recursively render their children
+ * as nested CanvasBlocks inside their own SortableContext. Every
+ * block is its own React node so click + drag work natively.
  */
-function CanvasBlock({ block, brand, selected, onSelect, onRemove }: { block: EmailBlock; brand: MarketingBrand; selected: boolean; onSelect: () => void; onRemove: () => void }) {
+function CanvasBlock({ block, brand, selected, selectedId, onSelect, onRemove, onSelectChild, onRemoveChild }: {
+  block: EmailBlock;
+  brand: MarketingBrand;
+  selected: boolean;
+  selectedId: string | null;
+  onSelect: () => void;
+  onRemove: () => void;
+  onSelectChild: (id: string) => void;
+  onRemoveChild: (id: string) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
-  const html = useMemo(() => renderEmailBlockHtml(block, brand), [block, brand]);
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  // Sections render as a real DOM wrapper so children can layer on top.
+  // Everything else uses the renderer's email-safe HTML directly.
+  const isSection = block.type === 'section';
   return (
     <div ref={setNodeRef} style={style} className="relative group">
-      {/* Insertion drop zone above this block */}
       <CanvasInsertionZone overId={block.id} />
       <div
         onClick={(e) => { e.stopPropagation(); onSelect(); }}
@@ -905,36 +1021,99 @@ function CanvasBlock({ block, brand, selected, onSelect, onRemove }: { block: Em
           selected ? 'ring-2 ring-evari-gold ring-offset-1 ring-offset-white' : 'hover:ring-2 hover:ring-evari-gold/30 hover:ring-offset-1 hover:ring-offset-white',
         )}
       >
-        <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: html }} />
-        {/* Hover toolbar — drag handle + delete. Always visible when
-            the block is selected; otherwise reveals on hover. */}
+        {isSection ? (
+          <SectionCanvasWrapper
+            block={block as Extract<EmailBlock, { type: 'section' }>}
+            brand={brand}
+            selectedId={selectedId}
+            onSelectChild={onSelectChild}
+            onRemoveChild={onRemoveChild}
+          />
+        ) : (
+          <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: renderEmailBlockHtml(block, brand) }} />
+        )}
         <div className={cn(
           'absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink border border-evari-edge/40 shadow-lg transition-opacity',
           selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
         )}>
-          <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-            className="p-1.5 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing"
-            title="Drag to reorder"
-            aria-label="Drag to reorder"
-          >
+          <button type="button" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="p-1.5 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing" title="Drag to reorder" aria-label="Drag to reorder">
             <GripVertical className="h-3.5 w-3.5" />
           </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            className="p-1.5 text-evari-dim hover:text-evari-danger"
-            title="Delete block"
-            aria-label="Delete block"
-          >
+          <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }} className="p-1.5 text-evari-dim hover:text-evari-danger" title="Delete block" aria-label="Delete block">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+function SectionCanvasWrapper({ block, brand, selectedId, onSelectChild, onRemoveChild }: {
+  block: Extract<EmailBlock, { type: 'section' }>;
+  brand: MarketingBrand;
+  selectedId: string | null;
+  onSelectChild: (id: string) => void;
+  onRemoveChild: (id: string) => void;
+}) {
+  const wrapperStyle: React.CSSProperties = {
+    backgroundColor: block.backgroundColor,
+    backgroundImage: block.backgroundImage ? `url(${block.backgroundImage})` : undefined,
+    backgroundSize: block.backgroundSize ?? 'cover',
+    backgroundPosition: block.backgroundPosition ?? 'center',
+    backgroundRepeat: 'no-repeat',
+    borderRadius: `${block.borderRadiusPx}px`,
+    padding: `${block.paddingPx}px`,
+    minHeight: block.minHeightPx ? `${block.minHeightPx}px` : undefined,
+    color: block.contentColor ?? undefined,
+  };
+  const childIds = (block.blocks ?? []).map((c) => c.id);
+  return (
+    <div style={wrapperStyle} className="relative">
+      <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
+        {(block.blocks ?? []).length === 0 ? (
+          <SectionEmptyDrop sectionId={block.id} />
+        ) : (
+          <div className="space-y-0">
+            {(block.blocks ?? []).map((c) => (
+              <CanvasBlock
+                key={c.id}
+                block={c}
+                brand={brand}
+                selected={selectedId === c.id}
+                selectedId={selectedId}
+                onSelect={() => onSelectChild(c.id)}
+                onRemove={() => onRemoveChild(c.id)}
+                onSelectChild={onSelectChild}
+                onRemoveChild={onRemoveChild}
+              />
+            ))}
+            <SectionEndDrop sectionId={block.id} />
+          </div>
+        )}
+      </SortableContext>
+    </div>
+  );
+}
+
+function SectionEmptyDrop({ sectionId }: { sectionId: string }) {
+  const { isOver, setNodeRef } = useDroppable({ id: `section-end:${sectionId}` });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded border-2 border-dashed text-center text-sm py-12 px-3 transition-colors',
+        isOver ? 'border-evari-gold/70 bg-evari-gold/10 text-evari-gold' : 'border-white/30 text-white/60',
+      )}
+    >
+      Drop blocks here to layer on top of this section.
+    </div>
+  );
+}
+
+function SectionEndDrop({ sectionId }: { sectionId: string }) {
+  const { isOver, setNodeRef } = useDroppable({ id: `section-end:${sectionId}` });
+  return (
+    <div ref={setNodeRef} className={cn('h-3 rounded transition-colors', isOver && 'h-8 bg-evari-gold/15 border-2 border-dashed border-evari-gold/60')} />
   );
 }
 
@@ -962,7 +1141,9 @@ function HtmlFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'h
   );
 }
 
-function SplitFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'split' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void }) {
+function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'split' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void }) {
+  // brand reserved for future split-font support
+  void brand;
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
@@ -1241,17 +1422,93 @@ function ProductFields({ block, onChange }: { block: Extract<EmailBlock, { type:
 }
 
 function SectionFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'section' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const childCount = (block.blocks ?? []).length;
   return (
-    <div className="space-y-2">
-      <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Section content (HTML)</span>
-        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[100px] font-mono text-[12px]')} />
-      </label>
-      <div className="grid grid-cols-3 gap-2">
-        <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
-        <NumField label="Padding (px)" value={block.paddingPx} min={0} max={96} onChange={(v) => onChange({ paddingPx: v })} />
-        <NumField label="Radius (px)" value={block.borderRadiusPx} min={0} max={40} onChange={(v) => onChange({ borderRadiusPx: v })} />
-      </div>
+    <div className="space-y-3">
+      {/* Background image — header bar style with drop / pick / clear */}
+      <section>
+        <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Background image</h4>
+        {block.backgroundImage ? (
+          <div className="rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={block.backgroundImage} alt="" className="w-full aspect-video object-cover bg-zinc-900" />
+            <div className="flex items-center gap-1 p-1.5">
+              <button type="button" onClick={() => setPickerOpen(true)} className="text-[10px] text-evari-gold hover:underline px-1">Replace</button>
+              <button type="button" onClick={() => onChange({ backgroundImage: '' })} className="text-[10px] text-evari-dim hover:text-evari-danger px-1 ml-auto">Remove</button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="w-full rounded-md border-2 border-dashed border-evari-edge/30 px-3 py-6 text-center text-[11px] text-evari-dim hover:text-evari-text hover:border-evari-gold/60 transition-colors"
+          >
+            <FolderOpen className="h-4 w-4 mx-auto mb-1" />
+            Browse asset library
+          </button>
+        )}
+        <label className="block mt-1.5">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Or paste a URL</span>
+          <input type="url" value={block.backgroundImage ?? ''} onChange={(e) => onChange({ backgroundImage: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+        </label>
+        <div className="grid grid-cols-2 gap-2 mt-1.5">
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Image size</span>
+            <select value={block.backgroundSize ?? 'cover'} onChange={(e) => onChange({ backgroundSize: e.target.value as 'cover' | 'contain' | 'auto' })} className={inputCls}>
+              <option value="cover">Cover (fill)</option>
+              <option value="contain">Contain (fit)</option>
+              <option value="auto">Auto (native)</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Position</span>
+            <select value={block.backgroundPosition ?? 'center'} onChange={(e) => onChange({ backgroundPosition: e.target.value })} className={inputCls}>
+              <option value="center">Center</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="top left">Top left</option>
+              <option value="top right">Top right</option>
+              <option value="bottom left">Bottom left</option>
+              <option value="bottom right">Bottom right</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      {/* Colours */}
+      <section>
+        <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Colours</h4>
+        <div className="grid grid-cols-2 gap-2">
+          <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
+          <ColourField label="Text on top" value={block.contentColor ?? '#ffffff'} onChange={(v) => onChange({ contentColor: v })} />
+        </div>
+      </section>
+
+      {/* Spacing */}
+      <section>
+        <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Spacing</h4>
+        <div className="grid grid-cols-3 gap-2">
+          <NumField label="Inner padding" value={block.paddingPx} min={0} max={120} onChange={(v) => onChange({ paddingPx: v })} />
+          <NumField label="Min height" value={block.minHeightPx ?? 0} min={0} max={800} onChange={(v) => onChange({ minHeightPx: v })} />
+          <NumField label="Radius (px)" value={block.borderRadiusPx} min={0} max={40} onChange={(v) => onChange({ borderRadiusPx: v })} />
+        </div>
+      </section>
+
+      <p className="text-[10px] text-evari-dimmer">
+        {childCount === 0
+          ? 'Empty section — drag tiles from the left palette into the section\'s body in the canvas to layer blocks on top of the background.'
+          : `${childCount} block${childCount === 1 ? '' : 's'} layered on top.`}
+      </p>
+
+      {pickerOpen ? (
+        <AssetPickerModal
+          onClose={() => setPickerOpen(false)}
+          onPick={(url) => { onChange({ backgroundImage: url }); setPickerOpen(false); }}
+        />
+      ) : null}
     </div>
   );
 }

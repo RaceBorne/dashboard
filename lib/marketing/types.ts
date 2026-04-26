@@ -653,12 +653,23 @@ export type EmailBlock =
     })
   | (EmailBlockBase & {
       type: 'section';
-      // Background + padding wrapper holding HTML — when we add real nested
-      // blocks in a future phase we'll replace .html with .blocks[].
-      html: string;
+      // Children rendered ON TOP of the section background. Empty array =
+      // empty section showing just the bg + a 'Drop blocks here' state.
+      blocks: EmailBlock[];
+      // Optional fallback HTML for legacy section rows that haven't been
+      // migrated to the children array yet.
+      html?: string;
       backgroundColor: string;
+      backgroundImage?: string;       // URL or asset library id
+      backgroundSize?: 'cover' | 'contain' | 'auto';
+      backgroundPosition?: string;    // 'center', 'top', 'bottom left', etc
       paddingPx: number;
       borderRadiusPx: number;
+      /** Default text colour applied to descendants (so light text on a
+       *  dark photo background just works without per-child overrides). */
+      contentColor?: string;
+      /** Forces a tall hero feel when set. */
+      minHeightPx?: number;
     });
 
 export interface EmailDesign {
