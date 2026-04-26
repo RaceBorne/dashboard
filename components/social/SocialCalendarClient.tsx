@@ -1200,7 +1200,7 @@ function SortableDrawerColumn({
       ref={setNodeRef}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition duration-1000 ease-in-out,
+        transition,
         opacity: isDragging ? 0.7 : 1,
       }}
       className="flex-1 min-w-[180px] flex flex-col min-h-0 bg-evari-surface overflow-hidden border-t border-evari-edge/20"
