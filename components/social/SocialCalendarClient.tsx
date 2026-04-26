@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import {
   Sparkles,
@@ -638,13 +638,13 @@ function PostPreviewWindow({
           <ChevronRight className="h-3.5 w-3.5" />
         </button>
       </header>
-      <div className="flex-1 overflow-y-auto bg-white text-zinc-900">
+      <ScaledPreview>
         {selectedJournal ? (
           <JournalPreviewCard journal={selectedJournal} />
         ) : selectedSocial ? (
           <SocialPreviewCard post={selectedSocial} />
         ) : null}
-      </div>
+      </ScaledPreview>
     </section>
   );
 }
@@ -829,7 +829,11 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
                       items.map((e) => (
                         <li
                           key={e.id}
-                          className="rounded bg-evari-ink/40 hover:bg-evari-ink p-2 cursor-pointer transition-colors"
+                          className="rounded-md bg-evari-ink/70 hover:bg-evari-ink p-2 cursor-pointer transition-all hover:-translate-y-px"
+                          style={{
+                            boxShadow:
+                              '0 1px 0 rgba(255,255,255,0.04), 0 4px 6px -1px rgba(0,0,0,0.4), 0 8px 16px -4px rgba(0,0,0,0.35), 0 14px 28px -8px rgba(0,0,0,0.25)',
+                          }}
                           onClick={() => e.onClick?.()}
                         >
                           <div className="text-[11px] text-evari-text leading-tight line-clamp-2">
@@ -848,6 +852,85 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// ─── Scaled preview — pixel-locked layout that scales to fit ──────
+
+/**
+ * Renders its children at a fixed natural width (TARGET_WIDTH below)
+ * and applies a CSS transform so the visual size fills the available
+ * container width WITHOUT reflowing the layout. This is the 'PDF
+ * locked' behaviour the user asked for: the post NEVER changes its
+ * format (column widths, image crops, font sizes, line breaks) when
+ * the right rail is resized — only the zoom factor changes.
+ *
+ * Implementation:
+ *   - Inner div is sized to TARGET_WIDTH (e.g., 1100px) so the
+ *     ShopifyPreview component inside renders exactly as it would on
+ *     a desktop article page.
+ *   - transform: scale(s) where s = containerWidth / TARGET_WIDTH
+ *     visually shrinks/grows the inner without affecting its layout.
+ *   - A ResizeObserver tracks the inner's natural height; the
+ *     wrapper is sized to (naturalHeight * scale) so the parent's
+ *     overflow-y scroll lines up correctly (otherwise the scrollable
+ *     area would be the un-scaled height, which is way too tall).
+ */
+function ScaledPreview({ children }: { children: React.ReactNode }) {
+  const TARGET_WIDTH = 1100;
+  const outerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(TARGET_WIDTH);
+  const [naturalHeight, setNaturalHeight] = useState<number>(0);
+
+  useEffect(() => {
+    if (!outerRef.current) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      if (w > 0) setContainerWidth(w);
+    });
+    ro.observe(outerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!innerRef.current) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const h = entry.contentRect.height;
+      if (h > 0) setNaturalHeight(h);
+    });
+    ro.observe(innerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const scale = containerWidth > 0 ? containerWidth / TARGET_WIDTH : 1;
+
+  return (
+    <div
+      ref={outerRef}
+      className="flex-1 overflow-y-auto overflow-x-hidden bg-white text-zinc-900 min-h-0"
+    >
+      <div
+        style={{
+          // The visible footprint = natural height × scale, so the
+          // outer scroll container reserves the right amount of room.
+          width: TARGET_WIDTH * scale,
+          height: naturalHeight * scale,
+          position: 'relative',
+        }}
+      >
+        <div
+          ref={innerRef}
+          style={{
+            width: TARGET_WIDTH,
+            transformOrigin: 'top left',
+            transform: `scale(${scale})`,
+          }}
+        >
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
