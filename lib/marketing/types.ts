@@ -277,6 +277,17 @@ export interface BrandFonts {
   body: string;
 }
 
+
+export interface CustomFont {
+  name: string;
+  weight: number;
+  style: 'normal' | 'italic';
+  url: string;
+  filename: string;
+  format: 'woff2' | 'woff' | 'truetype' | 'opentype';
+  uploadedAt: string;
+}
+
 export interface MarketingBrand {
   id: 'singleton';
   companyName: string | null;
@@ -290,6 +301,7 @@ export interface MarketingBrand {
    *  signatureOverride is null this is the rendered DEFAULT_SIGNATURE_HTML
    *  using the first outreach sender's metadata; otherwise it equals
    *  signatureOverride. */
+  customFonts: CustomFont[];
   signatureHtml: string | null;
   /** Raw value of dashboard_mkt_brand.signature_html. Null = use the
    *  rendered default. UI binds the editor to this. */

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import type { BrandColors, BrandFonts, MarketingBrand } from '@/lib/marketing/types';
+import type { BrandColors, BrandFonts, CustomFont, MarketingBrand } from '@/lib/marketing/types';
+import { FontDropzone } from './FontDropzone';
 
 interface Props {
   initialBrand: MarketingBrand;
@@ -60,6 +61,7 @@ export function BrandClient({ initialBrand }: Props) {
   const [colors, setColors] = useState<BrandColors>(brand.colors);
   const [fonts, setFonts] = useState<BrandFonts>(brand.fonts);
   const [signatureOverride, setSignatureOverride] = useState(brand.signatureOverride ?? '');
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>(brand.customFonts);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -213,7 +215,14 @@ export function BrandClient({ initialBrand }: Props) {
               <label key={slot} className="block">
                 <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5 capitalize">{slot}</span>
                 <select className={inputCls} value={fonts[slot]} onChange={(e) => setFont(slot, e.target.value)}>
-                  {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {customFonts.length > 0 ? (
+                    <optgroup label="Brand fonts (uploaded)">
+                      {[...new Set(customFonts.map((f) => f.name))].map((n) => <option key={`c-${n}`} value={n}>{n}</option>)}
+                    </optgroup>
+                  ) : null}
+                  <optgroup label="System + Google Fonts">
+                    {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
+                  </optgroup>
                 </select>
                 <p
                   className="mt-2 text-base text-evari-text"
@@ -227,6 +236,12 @@ export function BrandClient({ initialBrand }: Props) {
           <p className="text-[10px] text-evari-dimmer mt-3">
             Web-safe fonts render natively in every email client. Google Fonts (Inter, Roboto, etc.) are loaded via @import in the email head — most modern clients honour them, Outlook falls back to a sans-serif.
           </p>
+
+          {/* Custom font upload — drag/drop into Supabase storage */}
+          <FontDropzone
+            initialFonts={customFonts}
+            onChange={(next) => setCustomFonts(next)}
+          />
         </section>
 
         {/* Signature — seeded from the outreach default + sender metadata */}

@@ -107,6 +107,38 @@ export async function sendOne(input: SendOneInput): Promise<SendOneResult> {
     try {
       const { getBrand } = await import('./brand');
       const brand = await getBrand();
+
+      // Custom-font @font-face block — prepended to the HTML body so
+      // mailbox providers that honour <style> blocks (Apple Mail,
+      // most webmail) load brand fonts. Outlook/older clients fall
+      // back to the family stack below it. Google Fonts (heading +
+      // body) are added via @import for clients that allow it.
+      const fontFaceBlocks = brand.customFonts
+        .map(
+          (f) =>
+            `@font-face{font-family:'${f.name}';font-style:${f.style};` +
+            `font-weight:${f.weight};font-display:swap;` +
+            `src:url('${f.url}') format('${f.format}');}`,
+        )
+        .join('\n');
+      const customNames = new Set(brand.customFonts.map((f) => f.name));
+      const headingFamily = brand.fonts.heading || 'Arial';
+      const bodyFamily    = brand.fonts.body || 'Arial';
+      // Pull Google Fonts via @import only for non-custom names.
+      const gFonts = [headingFamily, bodyFamily]
+        .filter((n) => !customNames.has(n))
+        .filter((n) => !['Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Trebuchet MS'].includes(n));
+      const gImport = gFonts.length > 0
+        ? `@import url('https://fonts.googleapis.com/css2?${gFonts.map((n) => `family=${encodeURIComponent(n).replace(/%20/g, '+')}`).join('&')}&display=swap');`
+        : '';
+      const styleBlock = (fontFaceBlocks || gImport)
+        ? `<style type="text/css">${gImport}${fontFaceBlocks}` +
+          `body,td,p,div,a,span{font-family:'${bodyFamily}',Arial,sans-serif;}` +
+          `h1,h2,h3,h4,h5,h6{font-family:'${headingFamily}',Arial,sans-serif;}` +
+          `</style>`
+        : '';
+      if (styleBlock) html = styleBlock + html;
+
       const sigPieces: string[] = [];
       if (brand.signatureHtml) {
         sigPieces.push(`<div style="margin:32px 0 8px 0;font:14px/1.5 ${brand.fonts.body || 'sans-serif'};color:${brand.colors.text || '#1a1a1a'};">${brand.signatureHtml}</div>`);

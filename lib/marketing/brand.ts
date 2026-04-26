@@ -10,7 +10,7 @@
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { renderSignature } from '@/lib/dashboard/signature';
 import { DEFAULT_SIGNATURE_HTML } from '@/lib/mock/senders';
-import type { BrandColors, BrandFonts, MarketingBrand } from './types';
+import type { BrandColors, BrandFonts, CustomFont, MarketingBrand } from './types';
 
 interface BrandRow {
   id: 'singleton';
@@ -22,6 +22,7 @@ interface BrandRow {
   colors: BrandColors;
   fonts: BrandFonts;
   signature_html: string | null;
+  custom_fonts: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +47,7 @@ const DEFAULTS: MarketingBrand = {
   fonts: { heading: 'Inter', body: 'Inter' },
   signatureHtml: null,
   signatureOverride: null,
+  customFonts: [],
   createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
 };
@@ -62,6 +64,7 @@ function rowToBrand(r: BrandRow): MarketingBrand {
     fonts: r.fonts,
     signatureHtml: r.signature_html,
     signatureOverride: r.signature_html,
+    customFonts: Array.isArray(r.custom_fonts) ? (r.custom_fonts as CustomFont[]) : [],
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -177,4 +180,42 @@ export async function updateBrand(
     return null;
   }
   return rowToBrand(data as BrandRow);
+}
+
+
+export async function appendCustomFont(font: CustomFont): Promise<MarketingBrand | null> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return null;
+  const current = await getBrand();
+  const others = current.customFonts.filter((f) => f.name !== font.name);
+  const next = [...others, font];
+  const { data, error } = await sb
+    .from('dashboard_mkt_brand')
+    .update({ custom_fonts: next })
+    .eq('id', 'singleton')
+    .select('*')
+    .single();
+  if (error) {
+    console.error('[mkt.brand.appendCustomFont]', error);
+    return null;
+  }
+  return rowToBrand(data as never);
+}
+
+export async function removeCustomFont(name: string): Promise<MarketingBrand | null> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return null;
+  const current = await getBrand();
+  const next = current.customFonts.filter((f) => f.name !== name);
+  const { data, error } = await sb
+    .from('dashboard_mkt_brand')
+    .update({ custom_fonts: next })
+    .eq('id', 'singleton')
+    .select('*')
+    .single();
+  if (error) {
+    console.error('[mkt.brand.removeCustomFont]', error);
+    return null;
+  }
+  return rowToBrand(data as never);
 }
