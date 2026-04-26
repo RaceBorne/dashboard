@@ -5,6 +5,7 @@ import {
   AtSign,
   Box,
   Calendar,
+  Bookmark,
   ChevronDown,
   ChevronUp,
   Code2,
@@ -63,6 +64,7 @@ import {
   type EmailBlock,
   type EmailDesign,
   type MarketingBrand,
+  type TypographyPreset,
 } from '@/lib/marketing/types';
 import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign, bgFillCss } from '@/lib/marketing/email-design';
 
@@ -960,6 +962,138 @@ function SliderField({ label, value, min, max, step, suffix, onChange }: {
   );
 }
 
+
+/**
+ * Per-block typography preset UI: dropdown to APPLY a saved style and
+ * a small "Save current as style…" button. Persists straight to
+ * brand.fonts.presets via PATCH /api/marketing/brand. Used on heading
+ * + text blocks so they can be styled in one click instead of touching
+ * five sliders every time.
+ */
+function TypographyStyles({
+  brand,
+  current,
+  onApply,
+}: {
+  brand: MarketingBrand;
+  current: { fontFamily: string; fontSizePx: number; fontWeight: number; letterSpacingEm: number; lineHeight: number; color: string };
+  onApply: (preset: TypographyPreset) => void;
+}) {
+  const [presets, setPresets] = useState<TypographyPreset[]>(brand.fonts.presets ?? []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reflect external brand updates (e.g. on first load).
+  useEffect(() => {
+    setPresets(brand.fonts.presets ?? []);
+  }, [brand.fonts.presets]);
+
+  async function persist(next: TypographyPreset[]) {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/marketing/brand', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fonts: { ...brand.fonts, presets: next } }),
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      setPresets(next);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to save style';
+      setError(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleSaveNew() {
+    const name = window.prompt('Name this style', `Style ${presets.length + 1}`);
+    if (!name) return;
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `style-${Date.now()}`;
+    const preset: TypographyPreset = {
+      id,
+      name: name.trim(),
+      fontFamily: current.fontFamily ?? '',
+      fontSizePx: current.fontSizePx,
+      fontWeight: current.fontWeight,
+      letterSpacingEm: current.letterSpacingEm,
+      lineHeight: current.lineHeight,
+      color: current.color,
+      createdAt: new Date().toISOString(),
+    };
+    // De-dupe by id (overwrite if name collides).
+    const next = [...presets.filter((p) => p.id !== id), preset];
+    persist(next);
+  }
+
+  function handleDelete(id: string) {
+    if (!confirm('Delete this saved style?')) return;
+    persist(presets.filter((p) => p.id !== id));
+  }
+
+  return (
+    <div className="rounded-md border border-evari-edge/30 bg-evari-ink/40 p-2 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Typography style</span>
+        <button
+          type="button"
+          onClick={handleSaveNew}
+          disabled={saving}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-evari-gold hover:bg-evari-gold/10 disabled:opacity-50"
+          title="Save the current font + size + tracking + weight + line height + colour as a reusable style"
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Bookmark className="h-3 w-3" />}
+          Save as style
+        </button>
+      </div>
+      {presets.length === 0 ? (
+        <p className="text-[10px] text-evari-dimmer leading-snug">
+          No saved styles yet. Tweak the sliders above, then click <span className="text-evari-gold">Save as style</span> to make it reusable across every email and template.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {presets.map((p) => (
+            <li key={p.id} className="flex items-center gap-1 group">
+              <button
+                type="button"
+                onClick={() => onApply(p)}
+                className="flex-1 text-left px-2 py-1 rounded hover:bg-evari-edge/30 transition-colors"
+                title={`${p.fontFamily || 'inherit'} · ${p.fontSizePx}px · ${p.fontWeight} · ${p.letterSpacingEm}em · ${p.lineHeight}`}
+              >
+                <span
+                  className="block text-[12px] text-evari-text leading-tight truncate"
+                  style={{
+                    fontFamily: p.fontFamily ? `'${p.fontFamily}', sans-serif` : undefined,
+                    fontWeight: p.fontWeight,
+                    letterSpacing: `${p.letterSpacingEm}em`,
+                    color: p.color,
+                  }}
+                >
+                  {p.name}
+                </span>
+                <span className="block text-[9px] text-evari-dimmer font-mono tabular-nums">
+                  {p.fontSizePx}px · {p.fontWeight} · {p.letterSpacingEm}em
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(p.id)}
+                className="opacity-0 group-hover:opacity-100 p-1 text-evari-dim hover:text-evari-danger transition-opacity"
+                title="Delete style"
+                aria-label={`Delete style ${p.name}`}
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error ? <p className="text-[10px] text-evari-danger">{error}</p> : null}
+    </div>
+  );
+}
+
 function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'heading' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void }) {
   const defaultSize = block.level === 1 ? 28 : block.level === 2 ? 22 : 18;
   const size = block.fontSizePx ?? defaultSize;
@@ -974,6 +1108,11 @@ function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, 
         </span>
         <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[60px] font-mono text-[12px]')} />
       </label>
+      <TypographyStyles
+        brand={brand}
+        current={{ fontFamily: block.fontFamily, fontSizePx: size, fontWeight: weight, letterSpacingEm: tracking, lineHeight: 1.25, color: block.color }}
+        onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, color: p.color })}
+      />
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Level</span>
@@ -1008,6 +1147,11 @@ function TextFields({ block, brand, onChange }: { block: Extract<EmailBlock, { t
         </span>
         <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[100px] font-mono text-[12px]')} />
       </label>
+      <TypographyStyles
+        brand={brand}
+        current={{ fontFamily: block.fontFamily, fontSizePx: block.fontSizePx, fontWeight: weight, letterSpacingEm: tracking, lineHeight: block.lineHeight, color: block.color }}
+        onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, lineHeight: p.lineHeight, color: p.color })}
+      />
       <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
       <SliderField label="Size" value={block.fontSizePx} min={10} max={48} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
       <SliderField label="Line height" value={block.lineHeight} min={1} max={3} step={0.05} onChange={(v) => onChange({ lineHeight: Number(v.toFixed(2)) })} />

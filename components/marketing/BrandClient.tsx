@@ -260,7 +260,7 @@ export function BrandClient({ initialBrand }: Props) {
 
             {/* LEFT — Heading + body pickers with live samples */}
             <div className="space-y-3">
-              {(['heading', 'body'] as Array<keyof BrandFonts>).map((slot) => (
+              {(['heading', 'body'] as Array<'heading' | 'body'>).map((slot) => (
                 <label key={slot} className="block">
                   <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5 capitalize">{slot}</span>
                   <select className={inputCls} value={fonts[slot]} onChange={(e) => setFont(slot, e.target.value)}>

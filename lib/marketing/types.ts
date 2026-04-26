@@ -279,6 +279,35 @@ export interface BrandColors {
 export interface BrandFonts {
   heading: string;
   body: string;
+  /** Saved typography presets — named bundles of family/size/weight/tracking/lineHeight
+   *  the user can recall from the heading + text block fields. */
+  presets?: TypographyPreset[];
+}
+
+/**
+ * A reusable typography style. Apply one to a heading/text block to
+ * stamp every typographic prop in one click. Created from the editor
+ * via "Save as style" on the heading/text properties panel.
+ */
+export interface TypographyPreset {
+  /** Stable id (slug-like). Used as the key for delete + apply. */
+  id: string;
+  /** Display name (e.g. "Hero headline"). */
+  name: string;
+  /** Optional family override; '' means inherit brand body. */
+  fontFamily: string;
+  /** Pixel size. */
+  fontSizePx: number;
+  /** Numeric weight (100..900). */
+  fontWeight: number;
+  /** Letter spacing in em (negative = tight). */
+  letterSpacingEm: number;
+  /** Unitless line height multiplier. */
+  lineHeight: number;
+  /** Hex colour. */
+  color: string;
+  /** When the preset was saved — useful for sort + display. */
+  createdAt: string;
 }
 
 
