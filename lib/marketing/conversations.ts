@@ -242,6 +242,16 @@ export async function ingestInbound(payload: {
     console.error('[mkt.conversations.ingest]', error);
     return null;
   }
+  // Mirror the reply onto the lead activity timeline so the contacts
+  // explorer right pane shows it inline with sends / opens / clicks.
+  if (contactId) {
+    const { appendLeadActivity } = await import('./leads-as-contacts');
+    await appendLeadActivity(contactId, {
+      type: 'campaign_replied',
+      summary: `Replied: ${(payload.Subject ?? '(no subject)').slice(0, 80)}`,
+      meta: { messageId, fromEmail, campaignId },
+    });
+  }
   return rowToConversation(data as Row);
 }
 

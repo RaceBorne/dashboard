@@ -36,6 +36,7 @@ import { NextResponse } from 'next/server';
 
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { trackEvent } from '@/lib/marketing/events';
+import { appendLeadActivity } from '@/lib/marketing/leads-as-contacts';
 import type { RecipientStatus } from '@/lib/marketing/types';
 
 export const runtime = 'nodejs';
@@ -271,6 +272,33 @@ export async function POST(req: Request) {
         raw: body, // full payload for debugging
       },
     });
+
+    // Mirror the event to the lead activity timeline so the contacts
+    // explorer right pane shows campaign engagement inline.
+    const activityType =
+      body.RecordType === 'Click'              ? 'campaign_clicked'
+      : body.RecordType === 'Open'             ? 'campaign_opened'
+      : body.RecordType === 'Delivery'         ? 'campaign_delivered'
+      : body.RecordType === 'Bounce'           ? 'campaign_bounced'
+      : body.RecordType === 'SubscriptionChange' ? 'campaign_unsubscribed'
+      : null;
+    if (activityType) {
+      const summary =
+        activityType === 'campaign_clicked' && body.OriginalLink
+          ? `Clicked ${body.OriginalLink}`
+          : activityType === 'campaign_bounced'
+            ? `Bounced (${body.Type ?? 'unknown'}): ${body.Description ?? ''}`.trim()
+            : activityType === 'campaign_unsubscribed'
+              ? `Unsubscribed (${body.SuppressionReason ?? 'manual'})`
+              : activityType === 'campaign_opened'
+                ? 'Opened email'
+                : 'Email delivered';
+      await appendLeadActivity(contact.id, {
+        type: activityType,
+        summary,
+        meta: { messageId: messageId ?? null, recordType: body.RecordType },
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });

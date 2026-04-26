@@ -10,6 +10,13 @@ import {
  ShoppingCart,
  CreditCard,
  Package,
+ Send,
+ MailOpen,
+ MousePointerClick,
+ MailX,
+ UserMinus,
+ MailCheck,
+ MessageSquare,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { LeadActivity } from '@/lib/types';
@@ -26,6 +33,14 @@ const ICON: Record<LeadActivity['type'], typeof CircleDot> = {
  shopify_add_to_cart: ShoppingCart,
  shopify_checkout_started: CreditCard,
  shopify_order_placed: Package,
+ // Marketing module (Phase 5)
+ campaign_sent: Send,
+ campaign_delivered: MailCheck,
+ campaign_opened: MailOpen,
+ campaign_clicked: MousePointerClick,
+ campaign_bounced: MailX,
+ campaign_unsubscribed: UserMinus,
+ campaign_replied: MessageSquare,
 };
 
 export function ActivityTimeline({ activity }: { activity: LeadActivity[] }) {

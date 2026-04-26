@@ -310,7 +310,17 @@ export interface LeadActivity {
     | 'shopify_view'
     | 'shopify_add_to_cart'
     | 'shopify_checkout_started'
-    | 'shopify_order_placed';
+    | 'shopify_order_placed'
+    // Marketing module — written to the lead activity stream by the
+    // Postmark events webhook + conversation ingest so the contacts
+    // explorer right-pane timeline shows campaign engagement inline.
+    | 'campaign_sent'
+    | 'campaign_delivered'
+    | 'campaign_opened'
+    | 'campaign_clicked'
+    | 'campaign_bounced'
+    | 'campaign_unsubscribed'
+    | 'campaign_replied';
   at: string;               // ISO
   summary: string;
   meta?: Record<string, unknown>;

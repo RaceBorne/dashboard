@@ -297,6 +297,7 @@ export async function syncLeadToMktContact(lead: Lead): Promise<void> {
     phone: lead.phone ?? null,
     company: lead.companyName ?? null,
     source: lead.source ?? 'manual',
+    lead_id: lead.id, // permanent bridge column added Phase 5
     updated_at: new Date().toISOString(),
   };
 
@@ -365,4 +366,55 @@ export async function bulkRemoveTag(ids: string[], tag: string): Promise<number>
     if (!uErr) n++;
   }
   return n;
+}
+
+/**
+ * Append one activity event to a lead's payload.activity[] array,
+ * keyed by the bridge column on dashboard_mkt_contacts. Used by the
+ * Postmark events webhook + the conversations ingest so every
+ * marketing interaction shows up on the contact's timeline in the
+ * explorer right pane — without losing the prospecting tool's view
+ * of the same row.
+ *
+ * Lookup chain: contactId → mkt_contacts.lead_id → leads.payload.
+ * No-ops silently when the bridge is missing (rare — see backfill).
+ */
+export async function appendLeadActivity(
+  contactId: string,
+  event: { type: string; summary: string; meta?: Record<string, unknown> },
+): Promise<void> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return;
+  // Resolve to lead via the bridge column.
+  const { data: bridge } = await sb
+    .from('dashboard_mkt_contacts')
+    .select('lead_id')
+    .eq('id', contactId)
+    .maybeSingle();
+  const leadId = (bridge as { lead_id: string | null } | null)?.lead_id;
+  if (!leadId) return;
+  // Pull the lead payload, append the activity, write back.
+  const { data: row, error: rErr } = await sb
+    .from('dashboard_leads')
+    .select('payload')
+    .eq('id', leadId)
+    .maybeSingle();
+  if (rErr || !row) return;
+  const lead = (row as { payload: Lead }).payload;
+  const activity = Array.isArray(lead.activity) ? lead.activity : [];
+  const next: Lead = {
+    ...lead,
+    lastTouchAt: new Date().toISOString(),
+    activity: [
+      ...activity,
+      {
+        id: `act_${Math.random().toString(36).slice(2, 10)}`,
+        at: new Date().toISOString(),
+        type: event.type as Lead['activity'][number]['type'],
+        summary: event.summary,
+        meta: event.meta,
+      },
+    ],
+  };
+  await sb.from('dashboard_leads').update({ payload: next }).eq('id', leadId);
 }

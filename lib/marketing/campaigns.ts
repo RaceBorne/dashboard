@@ -23,6 +23,7 @@ import { evaluateSegment } from './segments';
 import { sendOne } from './sender';
 import { isSuppressed, unsubscribeUrlFor } from './suppressions';
 import { trackEvent } from './events';
+import { appendLeadActivity } from './leads-as-contacts';
 import type {
   Campaign,
   CampaignStatus,
@@ -385,6 +386,13 @@ export async function sendCampaign(id: string): Promise<SendResult> {
           campaignName: campaign.name,
           messageId: res.messageId,
         },
+      });
+      // Mirror to the lead activity timeline so the contacts explorer
+      // right pane shows campaign sends inline with prospecting events.
+      await appendLeadActivity(contact.id, {
+        type: 'campaign_sent',
+        summary: `Sent campaign · ${campaign.name || 'Untitled'}`,
+        meta: { campaignId: id, messageId: res.messageId },
       });
     } else {
       failed += 1;
