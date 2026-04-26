@@ -20,6 +20,7 @@
 
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { sendOne } from './sender';
+import { unsubscribeUrlFor } from './suppressions';
 import { trackEvent } from './events';
 import type {
   Flow,
@@ -435,6 +436,7 @@ export async function advanceRun(run: FlowRun): Promise<boolean> {
         subject: step.config.subject,
         html: step.config.html,
         context: `flow:${flow?.name ?? run.flowId}`,
+        unsubscribeUrl: unsubscribeUrlFor(contact.email),
       });
       if (!res.ok) {
         await sb

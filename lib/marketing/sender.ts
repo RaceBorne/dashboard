@@ -24,6 +24,10 @@ export interface SendOneInput {
   text?: string;
   /** Optional Postmark message stream override. */
   stream?: string;
+  /** When set, a List-Unsubscribe header + RFC 8058 one-click POST
+   *  header are added, and any {{unsubscribeUrl}} placeholder in the
+   *  HTML / TEXT / SUBJECT is replaced with this URL. */
+  unsubscribeUrl?: string;
 }
 
 export interface SendOneResult {
@@ -79,12 +83,42 @@ export async function sendOne(input: SendOneInput): Promise<SendOneResult> {
     console.log(
       `[mkt.sender STUB] would send ${input.context ? `(${input.context}) ` : ''}` +
         `to=${input.to} subject=${JSON.stringify(input.subject)} bodyLen=${input.html?.length ?? 0} ` +
+        (input.unsubscribeUrl ? `unsub=${input.unsubscribeUrl} ` : '') +
         `→ ${synthetic}`,
     );
     return { ok: true, messageId: synthetic };
   }
 
   // LIVE MODE — Postmark single-message send.
+  // Substitute {{unsubscribeUrl}} placeholders + auto-append a footer
+  // when the caller passed an unsubscribeUrl but didn't reference it.
+  let html = input.html;
+  let text = input.text ?? htmlToText(input.html);
+  let subject = input.subject;
+  let postmarkHeaders: Array<{ Name: string; Value: string }> | undefined;
+  if (input.unsubscribeUrl) {
+    const placeholder = '{{unsubscribeUrl}}';
+    const had = html.includes(placeholder);
+    html = html.split(placeholder).join(input.unsubscribeUrl);
+    text = text.split(placeholder).join(input.unsubscribeUrl);
+    subject = subject.split(placeholder).join(input.unsubscribeUrl);
+    if (!had) {
+      // Auto-append a small footer so the recipient always has a link
+      // — mailbox providers increasingly bulk-classify mail without one.
+      html +=
+        `\n<hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0;"/>` +
+        `<p style="font:12px/1.4 sans-serif;color:#666;">` +
+        `Don't want these emails? <a href="${input.unsubscribeUrl}">Unsubscribe</a>.` +
+        `</p>`;
+      text += `\n\n---\nUnsubscribe: ${input.unsubscribeUrl}`;
+    }
+    // List-Unsubscribe (RFC 2369) + List-Unsubscribe-Post (RFC 8058)
+    postmarkHeaders = [
+      { Name: 'List-Unsubscribe', Value: `<${input.unsubscribeUrl}>` },
+      { Name: 'List-Unsubscribe-Post', Value: 'List-Unsubscribe=One-Click' },
+    ];
+  }
+
   try {
     const res = await fetch(POSTMARK_API, {
       method: 'POST',
@@ -96,10 +130,11 @@ export async function sendOne(input: SendOneInput): Promise<SendOneResult> {
       body: JSON.stringify({
         From: cfg.from,
         To: input.to,
-        Subject: input.subject,
-        HtmlBody: input.html,
-        TextBody: input.text ?? htmlToText(input.html),
+        Subject: subject,
+        HtmlBody: html,
+        TextBody: text,
         MessageStream: input.stream ?? cfg.stream,
+        ...(postmarkHeaders ? { Headers: postmarkHeaders } : {}),
       }),
     });
     const data = (await res.json().catch(() => ({}))) as {

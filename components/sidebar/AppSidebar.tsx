@@ -28,6 +28,7 @@ import {
   Send,
   GitBranch,
   Globe,
+  Ban,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme/ThemeProvider';
@@ -60,6 +61,7 @@ const NAV = [
   { href: '/email/campaigns', label: 'Campaigns', icon: Send, group: 'marketing', child: true },
   { href: '/email/flows', label: 'Flows', icon: GitBranch, group: 'marketing', child: true },
   { href: '/email/domains', label: 'Domains', icon: Globe, group: 'marketing', child: true },
+  { href: '/email/suppressions', label: 'Suppressions', icon: Ban, group: 'marketing', child: true },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'marketing' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
   { href: '/users', label: 'Users', icon: Users, group: 'system' },

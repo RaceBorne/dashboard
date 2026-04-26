@@ -21,6 +21,7 @@
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { evaluateSegment } from './segments';
 import { sendOne } from './sender';
+import { isSuppressed, unsubscribeUrlFor } from './suppressions';
 import { trackEvent } from './events';
 import type {
   Campaign,
@@ -248,26 +249,8 @@ async function loadContactsByIds(ids: string[]): Promise<ContactForSend[]> {
   return (data ?? []) as ContactForSend[];
 }
 
-async function isSuppressed(email: string): Promise<boolean> {
-  const sb = createSupabaseAdmin();
-  if (!sb) return false;
-  // dashboard_suppressions has a generated lower(email) column —
-  // shared with the outreach module. Re-using it keeps the
-  // unsubscribe truth in one place.
-  const { data, error } = await sb
-    .from('dashboard_suppressions')
-    .select('id')
-    .eq('email', email.toLowerCase())
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    // table may not be readable for our role — fail open (don't
-    // accidentally block sends because of an RLS edge).
-    console.error('[marketing.isSuppressed]', error);
-    return false;
-  }
-  return Boolean(data);
-}
+// Suppression check delegates to lib/marketing/suppressions.ts so
+// every send path (campaigns + flows + ad-hoc) uses identical logic.
 
 /**
  * Run the send pipeline for a campaign. Idempotent: if some
@@ -351,6 +334,7 @@ export async function sendCampaign(id: string): Promise<SendResult> {
       subject: campaign.subject,
       html: campaign.content,
       context: campaign.name,
+      unsubscribeUrl: unsubscribeUrlFor(contact.email),
     });
 
     const nowIso = new Date().toISOString();

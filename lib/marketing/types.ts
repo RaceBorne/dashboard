@@ -246,3 +246,15 @@ export interface DomainStatus {
   /** True only when every check is 'verified'. */
   fullyVerified: boolean;
 }
+
+// ─── Suppression ─────────────────────────────────────────────────
+
+export interface Suppression {
+  id: string;
+  email: string;
+  reason: string | null;
+  source: string | null;
+  campaignId: string | null;
+  contactId: string | null;
+  addedAt: string;
+}
