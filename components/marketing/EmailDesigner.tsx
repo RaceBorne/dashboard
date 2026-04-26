@@ -163,7 +163,7 @@ function PaletteTile({ tile, draggableId, onAdd }: { tile: BlockTile; draggableI
       title={disabled ? 'Coming soon' : `Drag or click to add ${tile.label}`}
       onClick={() => { if (tile.make) onAdd(tile.make); }}
       className={cn(
-        'relative w-full aspect-square rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200 cursor-grab active:cursor-grabbing',
+        'relative w-full aspect-[5/3] rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200 cursor-grab active:cursor-grabbing',
         disabled
           ? 'border-evari-edge/20 text-evari-dimmer cursor-not-allowed opacity-60'
           : 'border-evari-edge/30 text-evari-dim hover:text-evari-text hover:border-evari-gold/60 hover:bg-evari-ink/70',
@@ -350,7 +350,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
+    <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col flex-1 min-h-0 w-full">
       <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
         <h2 className="text-sm font-semibold text-evari-text">Visual editor</h2>
         <div className="flex items-center gap-2">
@@ -365,10 +365,10 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
 
       {/* Three-column layout: tile palette LEFT, interactive canvas
           CENTRE, properties RIGHT (when something is selected). */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(280px,340px)] gap-3 p-3">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(280px,340px)] gap-3 p-3 flex-1 min-h-0 overflow-hidden">
 
         {/* LEFT — palette tiles 3-across */}
-        <div className="space-y-3 min-w-0 overflow-y-auto">
+        <div className="space-y-3 min-w-0 overflow-y-auto pr-1">
           <BlockTileGroup
             title="Blocks"
             tiles={[HEADING_TILE, ...ADD_BUTTONS.filter((t) => t.group === 'blocks')]}
@@ -391,14 +391,14 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
 
         {/* CENTRE — interactive canvas. Each block is a real React node
             so click + drag work natively (no iframe boundary). */}
-        <div className="flex flex-col min-w-0">
+        <div className="flex flex-col min-w-0 min-h-0 overflow-y-auto">
           <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1 flex items-center justify-between">
             <span>Canvas</span>
             <span className="text-evari-dim">{previewDevice === 'mobile' ? '360px (mobile)' : `${design.widthPx}px (desktop)`}</span>
           </div>
           <div
-            className="rounded-md border border-evari-edge/30 overflow-y-auto"
-            style={{ background: design.background, maxHeight: '720px' }}
+            className="rounded-md border border-evari-edge/30"
+            style={{ background: design.background }}
           >
             <div
               className={cn('mx-auto bg-white transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
@@ -431,7 +431,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
         </div>
 
         {/* RIGHT — properties panel (or placeholder when nothing selected) */}
-        <div className="min-w-0">
+        <div className="min-w-0 min-h-0 overflow-y-auto">
           {selectedId ? (
             (() => {
               const sel = design.blocks.find((b) => b.id === selectedId);
@@ -1033,7 +1033,7 @@ function CanvasBlock({ block, brand, selected, selectedId, onSelect, onRemove, o
           <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: renderEmailBlockHtml(block, brand) }} />
         )}
         <div className={cn(
-          'absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink border border-evari-edge/40 shadow-lg transition-opacity',
+          'absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink/95 border border-evari-edge/40 shadow-lg backdrop-blur-sm transition-opacity',
           selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
         )}>
           <button type="button" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="p-1.5 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing" title="Drag to reorder" aria-label="Drag to reorder">

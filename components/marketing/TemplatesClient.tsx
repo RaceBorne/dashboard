@@ -225,7 +225,7 @@ function TemplateCard({ template, busy, onDuplicate, onDelete }: { template: Ema
     <li className="group relative rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden hover:border-evari-gold/40 transition-colors">
       <Link href={`/email/templates/${template.id}/edit`} className="block">
         {/* Thumbnail — iframe scaled down */}
-        <div className="aspect-[3/4] bg-zinc-100 overflow-hidden relative pointer-events-none">
+        <div className="aspect-[5/3] bg-zinc-100 overflow-hidden relative pointer-events-none">
           <iframe
             title={`Preview of ${template.name}`}
             srcDoc={previewHtml}

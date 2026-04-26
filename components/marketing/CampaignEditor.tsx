@@ -423,7 +423,7 @@ function TemplatePickerModal({ templates, onClose, onPick }: { templates: EmailT
                     onClick={() => onPick(t)}
                     className="block w-full text-left rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden hover:border-evari-gold/60 transition-colors"
                   >
-                    <div className="aspect-[3/4] bg-zinc-100 overflow-hidden relative pointer-events-none">
+                    <div className="aspect-[5/3] bg-zinc-100 overflow-hidden relative pointer-events-none">
                       <iframe
                         title={`Preview of ${t.name}`}
                         srcDoc={renderEmailDesignWithStub(t.design)}
