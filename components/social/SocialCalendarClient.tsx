@@ -28,7 +28,7 @@ import { PillTabs } from '@/components/ui/pill-tabs';
 import Link from 'next/link';
 import { ShopifyPreview, type JournalBlock } from '@/components/journals/ShopifyPreview';
 import { useRouter } from 'next/navigation';
-import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink, ChevronDown, Facebook, Instagram, Linkedin, Music2, Mail, Newspaper } from 'lucide-react';
+import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink, ChevronDown, Facebook } from 'lucide-react';
 
 const PLATFORM_ICON: Record<SocialPlatform, typeof Linkedin> = {
   linkedin: Linkedin,
