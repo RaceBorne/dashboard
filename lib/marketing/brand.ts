@@ -10,7 +10,7 @@
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { renderSignature } from '@/lib/dashboard/signature';
 import { DEFAULT_SIGNATURE_HTML } from '@/lib/mock/senders';
-import type { BrandColors, BrandFonts, CustomFont, FooterDesign, MarketingBrand } from './types';
+import type { BrandColors, BrandFonts, CustomFont, FooterDesign, MarketingBrand, SignatureDesign } from './types';
 
 interface BrandRow {
   id: 'singleton';
@@ -24,6 +24,7 @@ interface BrandRow {
   signature_html: string | null;
   custom_fonts: unknown;
   footer_design: FooterDesign | null;
+  signature_design: SignatureDesign | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +51,7 @@ const DEFAULTS: MarketingBrand = {
   signatureOverride: null,
   customFonts: [],
   footerDesign: null,
+  signatureDesign: null,
   createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
 };
@@ -68,6 +70,7 @@ function rowToBrand(r: BrandRow): MarketingBrand {
     signatureOverride: r.signature_html,
     customFonts: Array.isArray(r.custom_fonts) ? (r.custom_fonts as CustomFont[]) : [],
     footerDesign: (r.footer_design as FooterDesign | null) ?? null,
+    signatureDesign: (r.signature_design as SignatureDesign | null) ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -122,9 +125,16 @@ export async function getBrand(): Promise<MarketingBrand> {
   const logoLightUrl = branding?.logo_light_data_url ?? base.logoLightUrl ?? null;
   const logoDarkUrl  = branding?.logo_dark_data_url  ?? base.logoDarkUrl  ?? null;
 
-  // If brand kit doesn't have an explicit signature, render the default
-  // template using whatever metadata the first outreach sender carries.
+  // Resolution priority for signatureHtml:
+  //   1. explicit text override (raw HTML on signature_html)
+  //   2. block-based signature_design — render via renderSignatureDesign
+  //   3. legacy DEFAULT_SIGNATURE_HTML rendered with sender metadata
   let signatureHtml = base.signatureHtml;
+  const partialBrand: MarketingBrand = { ...base, logoLightUrl, logoDarkUrl };
+  if (!signatureHtml && base.signatureDesign) {
+    const { renderSignatureDesign } = await import('./signature');
+    signatureHtml = renderSignatureDesign(base.signatureDesign, partialBrand);
+  }
   if (!signatureHtml) {
     const senderRow = senderRes.data as { payload: Record<string, unknown> } | null;
     const p = senderRow?.payload ?? {};
@@ -143,7 +153,7 @@ export async function getBrand(): Promise<MarketingBrand> {
     ...base,
     logoLightUrl,
     logoDarkUrl,
-    signatureHtml,                  // resolved (rendered if no override)
+    signatureHtml,                  // resolved (override > design > default template)
     signatureOverride: base.signatureOverride, // raw column value
   };
 }
@@ -159,6 +169,7 @@ export async function updateBrand(
     fonts: BrandFonts;
     signatureHtml: string | null;
     footerDesign: FooterDesign | null;
+    signatureDesign: SignatureDesign | null;
   }>,
 ): Promise<MarketingBrand | null> {
   const sb = createSupabaseAdmin();
@@ -173,6 +184,7 @@ export async function updateBrand(
   if ('fonts' in patch)           dbPatch.fonts = patch.fonts;
   if ('signatureHtml' in patch)   dbPatch.signature_html = patch.signatureHtml;
   if ('footerDesign' in patch)    dbPatch.footer_design = patch.footerDesign;
+  if ('signatureDesign' in patch) dbPatch.signature_design = patch.signatureDesign;
   if (Object.keys(dbPatch).length === 0) return getBrand();
   const { data, error } = await sb
     .from('dashboard_mkt_brand')
@@ -236,6 +248,37 @@ export async function removeCustomFont(
     .single();
   if (error) {
     console.error('[mkt.brand.removeCustomFont]', error);
+    return null;
+  }
+  return rowToBrand(data as never);
+}
+
+/**
+ * Rename every variant of a font family. Used by the inline "rename"
+ * affordance in the FontDropzone family rows — lets the user merge
+ * two siblings (e.g. 'Katerina' + 'KaterinaRegular') by renaming one
+ * onto the other, or fix an auto-detected family that misfired.
+ */
+export async function renameFontFamily(
+  oldName: string,
+  newName: string,
+): Promise<MarketingBrand | null> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return null;
+  const trimmed = newName.trim();
+  if (!trimmed) return null;
+  const current = await getBrand();
+  const next = current.customFonts.map((f) =>
+    f.name === oldName ? { ...f, name: trimmed } : f,
+  );
+  const { data, error } = await sb
+    .from('dashboard_mkt_brand')
+    .update({ custom_fonts: next })
+    .eq('id', 'singleton')
+    .select('*')
+    .single();
+  if (error) {
+    console.error('[mkt.brand.renameFontFamily]', error);
     return null;
   }
   return rowToBrand(data as never);

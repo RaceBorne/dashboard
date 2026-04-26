@@ -32,11 +32,15 @@ export const dynamic = 'force-dynamic';
  *   Katerina-BoldItalic.woff2       → family Katerina, 700 italic
  *   KaterinaAlt-300.ttf             → family KaterinaAlt, 300 normal
  *   Inter Variable Bold Italic.otf  → family Inter Variable, 700 italic
+ *   KaterinaBold.otf                → family Katerina, 700 normal       (CamelCase)
+ *   KaterinaAltBoldItalic.woff      → family Katerina Alt, 700 italic
+ *   OpinionProCondensed.woff2       → family Opinion Pro Condensed, 400
  *
- * Strategy: walk the basename right-to-left peeling off any tokens
- * that match a known weight or style word (or numeric weight). Whatever
- * remains is the family name. Tokens are split by - _ space so all
- * three common naming conventions work.
+ * Strategy: split the basename into tokens on - _ space AND on CamelCase
+ * boundaries, then walk right-to-left peeling off any tokens that match
+ * a known weight or style word (or numeric weight). Whatever remains is
+ * the family name. CamelCase splitting handles filenames with no
+ * separators at all (very common for paid foundries).
  */
 const WEIGHT_WORDS: Record<string, number> = {
   hairline: 100, thin: 100,
@@ -51,33 +55,45 @@ const WEIGHT_WORDS: Record<string, number> = {
 };
 const STYLE_WORDS = new Set(['italic', 'oblique', 'slanted']);
 
+/** CamelCase splitter — XMLParser → ["XML","Parser"], FooBar → ["Foo","Bar"]. */
+function splitCamelCase(token: string): string[] {
+  if (token === token.toLowerCase() || token === token.toUpperCase()) return [token];
+  return token
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
 function parseFontName(filename: string): {
   family: string;
   weight: number;
   style: 'normal' | 'italic';
 } {
   const base = filename.replace(/\.[^.]+$/, '');
-  // Split on - _ and spaces, drop empty tokens.
-  const tokens = base.split(/[-_\s]+/).filter(Boolean);
+  // Split on explicit separators first, then expand each fragment by CamelCase
+  // so we catch both 'Katerina-Bold' and 'KaterinaBold' uniformly.
+  const tokens = base
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .flatMap(splitCamelCase);
   let weight: number | null = null;
   let style: 'normal' | 'italic' = 'normal';
-  // Walk right-to-left, peeling off recognised tokens.
+  // Walk right-to-left, peeling off recognised tokens. Stop the moment we
+  // hit an unrecognised token — anything to the left is the family name.
   while (tokens.length > 1) {
     const last = tokens[tokens.length - 1];
     const lower = last.toLowerCase();
-    // Numeric weight (100..900)
     if (/^[1-9]00$/.test(lower)) {
       weight = weight ?? Number(lower);
       tokens.pop();
       continue;
     }
-    // Style tokens
     if (STYLE_WORDS.has(lower)) {
       style = 'italic';
       tokens.pop();
       continue;
     }
-    // Weight words (and combined 'bolditalic' / 'mediumitalic' etc.)
     let matched = false;
     for (const word of Object.keys(WEIGHT_WORDS)) {
       if (lower === word) {
@@ -85,7 +101,8 @@ function parseFontName(filename: string): {
         matched = true;
         break;
       }
-      // Compound: 'bolditalic', 'mediumitalic', etc.
+      // Compound: 'bolditalic', 'mediumitalic', etc. Survives even after
+      // CamelCase splitting if a foundry mashes them as 'BoldItalic'.
       if (lower === word + 'italic' || lower === word + 'oblique') {
         weight = weight ?? WEIGHT_WORDS[word];
         style = 'italic';

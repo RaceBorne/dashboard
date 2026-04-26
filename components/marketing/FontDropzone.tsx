@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Trash2, Upload } from 'lucide-react';
+import { Check, Loader2, Pencil, Trash2, Upload, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import type { CustomFont } from '@/lib/marketing/types';
@@ -116,8 +116,27 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
     }
   }
 
+  async function handleRenameFamily(oldName: string, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === oldName) return;
+    const res = await fetch(`/api/marketing/brand/fonts/${encodeURIComponent(oldName)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.ok) {
+      setFonts((curr) =>
+        curr.map((f) => (f.name === oldName ? { ...f, name: trimmed } : f)),
+      );
+      router.refresh();
+    } else {
+      setError(data.error ?? 'Rename failed');
+    }
+  }
+
   return (
-    <div className="mt-4 space-y-3">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-evari-text uppercase tracking-[0.12em]">Custom fonts</h3>
         <span className="text-[10px] text-evari-dimmer tabular-nums">{fonts.length} uploaded</span>
@@ -207,6 +226,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
         fonts={fonts}
         onRemoveVariant={handleRemoveVariant}
         onRemoveFamily={handleRemoveFamily}
+        onRenameFamily={handleRenameFamily}
       />
     </div>
   );
@@ -216,6 +236,7 @@ interface FamilyListProps {
   fonts: CustomFont[];
   onRemoveVariant: (font: CustomFont) => void;
   onRemoveFamily: (name: string) => void;
+  onRenameFamily: (oldName: string, newName: string) => void;
 }
 
 /**
@@ -225,7 +246,7 @@ interface FamilyListProps {
  * remove via the trash icon next to the select; whole-family remove
  * via the small 'Remove all' link at the right of the row.
  */
-function FontFamilyList({ fonts, onRemoveVariant, onRemoveFamily }: FamilyListProps) {
+function FontFamilyList({ fonts, onRemoveVariant, onRemoveFamily, onRenameFamily }: FamilyListProps) {
   const families = useMemo(() => {
     const m = new Map<string, CustomFont[]>();
     for (const f of fonts) {
@@ -252,6 +273,7 @@ function FontFamilyList({ fonts, onRemoveVariant, onRemoveFamily }: FamilyListPr
           variants={variants}
           onRemoveVariant={onRemoveVariant}
           onRemoveFamily={onRemoveFamily}
+          onRenameFamily={onRenameFamily}
         />
       ))}
     </ul>
@@ -263,9 +285,12 @@ interface FamilyRowProps {
   variants: CustomFont[];
   onRemoveVariant: (font: CustomFont) => void;
   onRemoveFamily: (name: string) => void;
+  onRenameFamily: (oldName: string, newName: string) => void;
 }
 
-function FamilyRow({ name, variants, onRemoveVariant, onRemoveFamily }: FamilyRowProps) {
+function FamilyRow({ name, variants, onRemoveVariant, onRemoveFamily, onRenameFamily }: FamilyRowProps) {
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState(name);
   // Default selected variant: pick weight closest to 400 + normal style.
   const defaultIdx = (() => {
     let bestIdx = 0;
@@ -282,15 +307,61 @@ function FamilyRow({ name, variants, onRemoveVariant, onRemoveFamily }: FamilyRo
   ) ?? variants[0];
 
   return (
-    <li className="px-3 py-2">
+    <li className="group/family px-3 py-2">
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <div
-            className="text-base text-evari-text truncate leading-tight"
-            style={{ fontFamily: `'${name}', sans-serif`, fontWeight: active.weight, fontStyle: active.style }}
-          >
-            {name} — The quick brown fox jumps over the lazy dog
-          </div>
+          {renaming ? (
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    onRenameFamily(name, draftName);
+                    setRenaming(false);
+                  } else if (e.key === 'Escape') {
+                    setDraftName(name);
+                    setRenaming(false);
+                  }
+                }}
+                className="flex-1 px-2 py-1 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-gold/60 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => { onRenameFamily(name, draftName); setRenaming(false); }}
+                className="p-1 text-evari-success hover:bg-black/30 rounded"
+                title="Save"
+              >
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDraftName(name); setRenaming(false); }}
+                className="p-1 text-evari-dim hover:text-evari-text rounded"
+                title="Cancel"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div
+                className="text-base text-evari-text truncate leading-tight"
+                style={{ fontFamily: `'${name}', sans-serif`, fontWeight: active.weight, fontStyle: active.style }}
+              >
+                {name} — The quick brown fox jumps over the lazy dog
+              </div>
+              <button
+                type="button"
+                onClick={() => { setDraftName(name); setRenaming(true); }}
+                className="opacity-0 group-hover/family:opacity-100 p-0.5 text-evari-dim hover:text-evari-text transition-opacity"
+                title={`Rename "${name}" — merge variants by typing another family's name`}
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            </div>
+          )}
           <div className="text-[10px] text-evari-dimmer font-mono tabular-nums truncate mt-0.5">
             {variants.length} variant{variants.length === 1 ? '' : 's'} · {active.format} · {active.filename}
           </div>

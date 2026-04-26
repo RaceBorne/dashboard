@@ -303,6 +303,7 @@ export interface MarketingBrand {
    *  signatureOverride. */
   customFonts: CustomFont[];
   footerDesign: FooterDesign | null;
+  signatureDesign: SignatureDesign | null;
   signatureHtml: string | null;
   /** Raw value of dashboard_mkt_brand.signature_html. Null = use the
    *  rendered default. UI binds the editor to this. */
@@ -437,3 +438,69 @@ export const DEFAULT_FOOTER_DESIGN: FooterDesign = {
   ],
 };
 
+
+
+// ─── Signature designer (block-based subset) ─────────────────────
+//
+// Signatures are a smaller block list — text / logo / spacer / line.
+// Address / social / unsubscribe make sense in the FOOTER, not in
+// a signature, so the signature builder restricts itself.
+
+export type SignatureBlock = Extract<FooterBlock,
+  { type: 'text' | 'logo' | 'spacer' | 'divider' }
+>;
+
+export interface SignatureDesign {
+  background: string;
+  paddingPx: number;
+  blocks: SignatureBlock[];
+}
+
+function _sid(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+/**
+ * Default signature block list — reproduces the existing
+ * DEFAULT_SIGNATURE_HTML rendering byte-for-byte (Evari wordmark, name
+ * + role, contact, divider, confidentiality notice). New brand kits
+ * land on this so the live preview already looks like the current
+ * email signature; the user then edits per-block.
+ */
+export const DEFAULT_SIGNATURE_DESIGN: SignatureDesign = {
+  background: 'transparent',
+  paddingPx: 0,
+  blocks: [
+    { id: _sid(), type: 'spacer', heightPx: 32 },
+    { id: _sid(), type: 'text', alignment: 'left',
+      html: 'Craig McDonald',
+      fontFamily: '', fontSizePx: 13, color: '#111111', lineHeight: 1.4 },
+    { id: _sid(), type: 'text', alignment: 'left',
+      html: 'CEO &amp; Head of Design',
+      fontFamily: '', fontSizePx: 10, color: '#6b6b6b', lineHeight: 1.4 },
+    { id: _sid(), type: 'spacer', heightPx: 24 },
+    { id: _sid(), type: 'logo', alignment: 'left',
+      maxWidthPx: 120 },
+    { id: _sid(), type: 'spacer', heightPx: 24 },
+    { id: _sid(), type: 'text', alignment: 'left',
+      html: 'UK (M) +44 (0)7720 288398',
+      fontFamily: '', fontSizePx: 13, color: '#111111', lineHeight: 1.4 },
+    { id: _sid(), type: 'text', alignment: 'left',
+      html: '<a href="https://evari.cc" style="color:#111111;text-decoration:none;">evari.cc</a>',
+      fontFamily: '', fontSizePx: 13, color: '#111111', lineHeight: 1.4 },
+    { id: _sid(), type: 'spacer', heightPx: 16 },
+    { id: _sid(), type: 'divider', color: '#cccccc', thicknessPx: 1, marginYPx: 0 },
+    { id: _sid(), type: 'spacer', heightPx: 16 },
+    { id: _sid(), type: 'text', alignment: 'left',
+      html: '<strong>Confidentiality Notice:</strong>',
+      fontFamily: '', fontSizePx: 10, color: '#555555', lineHeight: 1.55 },
+    { id: _sid(), type: 'spacer', heightPx: 6 },
+    { id: _sid(), type: 'text', alignment: 'left',
+      html: 'This message is confidential and intended solely for the individual or organisation to whom it is addressed. It may contain privileged or sensitive information. If you are not the intended recipient, please do not copy, distribute, or act upon its contents.',
+      fontFamily: '', fontSizePx: 10, color: '#666666', lineHeight: 1.55 },
+    { id: _sid(), type: 'spacer', heightPx: 8 },
+    { id: _sid(), type: 'text', alignment: 'left',
+      html: 'If you have received this message in error, kindly notify the sender at the email address provided above.',
+      fontFamily: '', fontSizePx: 10, color: '#666666', lineHeight: 1.55 },
+  ],
+};

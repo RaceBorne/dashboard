@@ -5,10 +5,18 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import type { BrandColors, BrandFonts, CustomFont, FooterDesign, MarketingBrand } from '@/lib/marketing/types';
-import { DEFAULT_FOOTER_DESIGN } from '@/lib/marketing/types';
+import type {
+  BrandColors,
+  BrandFonts,
+  CustomFont,
+  FooterDesign,
+  MarketingBrand,
+  SignatureDesign,
+} from '@/lib/marketing/types';
+import { DEFAULT_FOOTER_DESIGN, DEFAULT_SIGNATURE_DESIGN } from '@/lib/marketing/types';
 import { FontDropzone } from './FontDropzone';
 import { FooterDesigner } from './FooterDesigner';
+import { SignatureDesigner } from './SignatureDesigner';
 
 interface Props {
   initialBrand: MarketingBrand;
@@ -62,9 +70,9 @@ export function BrandClient({ initialBrand }: Props) {
   const [logoDark, setLogoDark] = useState(brand.logoDarkUrl ?? '');
   const [colors, setColors] = useState<BrandColors>(brand.colors);
   const [fonts, setFonts] = useState<BrandFonts>(brand.fonts);
-  const [signatureOverride, setSignatureOverride] = useState(brand.signatureOverride ?? '');
   const [customFonts, setCustomFonts] = useState<CustomFont[]>(brand.customFonts);
   const [footerDesign, setFooterDesign] = useState<FooterDesign>(brand.footerDesign ?? DEFAULT_FOOTER_DESIGN);
+  const [signatureDesign, setSignatureDesign] = useState<SignatureDesign>(brand.signatureDesign ?? DEFAULT_SIGNATURE_DESIGN);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,10 +91,10 @@ export function BrandClient({ initialBrand }: Props) {
     replyTo        !== (brand.replyToEmail ?? '') ||
     logoLight      !== (brand.logoLightUrl ?? '') ||
     logoDark       !== (brand.logoDarkUrl ?? '') ||
-    signatureOverride !== (brand.signatureOverride ?? '') ||
     JSON.stringify(colors) !== JSON.stringify(brand.colors) ||
     JSON.stringify(fonts)  !== JSON.stringify(brand.fonts) ||
-    JSON.stringify(footerDesign) !== JSON.stringify(brand.footerDesign ?? DEFAULT_FOOTER_DESIGN);
+    JSON.stringify(footerDesign) !== JSON.stringify(brand.footerDesign ?? DEFAULT_FOOTER_DESIGN) ||
+    JSON.stringify(signatureDesign) !== JSON.stringify(brand.signatureDesign ?? DEFAULT_SIGNATURE_DESIGN);
 
   async function handleSave() {
     if (!dirty || saving) return;
@@ -105,7 +113,10 @@ export function BrandClient({ initialBrand }: Props) {
           logoDarkUrl:    logoDark.trim() || null,
           colors,
           fonts,
-          signatureHtml:  signatureOverride.trim() || null,
+          // Clear the legacy plaintext override when the designer is in play —
+          // resolution priority is override > design > default template.
+          signatureHtml:    null,
+          signatureDesign,
           footerDesign,
         }),
       });
@@ -212,41 +223,51 @@ export function BrandClient({ initialBrand }: Props) {
           </div>
         </section>
 
-        {/* Fonts */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
-          <h2 className="text-sm font-semibold text-evari-text mb-3">Typography</h2>
-          <div className="grid grid-cols-2 gap-2">
-            {(['heading','body'] as Array<keyof BrandFonts>).map((slot) => (
-              <label key={slot} className="block">
-                <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5 capitalize">{slot}</span>
-                <select className={inputCls} value={fonts[slot]} onChange={(e) => setFont(slot, e.target.value)}>
-                  {customFonts.length > 0 ? (
-                    <optgroup label="Brand fonts (uploaded)">
-                      {[...new Set(customFonts.map((f) => f.name))].map((n) => <option key={`c-${n}`} value={n}>{n}</option>)}
-                    </optgroup>
-                  ) : null}
-                  <optgroup label="System + Google Fonts">
-                    {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
-                  </optgroup>
-                </select>
-                <p
-                  className="mt-2 text-base text-evari-text"
-                  style={{ fontFamily: `'${fonts[slot]}', sans-serif` }}
-                >
-                  {slot === 'heading' ? 'Sample heading' : 'The quick brown fox jumps over the lazy dog.'}
-                </p>
-              </label>
-            ))}
+        {/* Typography — full-width: selectors LEFT, custom font upload + list RIGHT */}
+        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-evari-text">Typography</h2>
+            <span className="text-[10px] text-evari-dimmer">Brand fonts available everywhere — pickers, designers, sender</span>
           </div>
-          <p className="text-[10px] text-evari-dimmer mt-3">
-            Web-safe fonts render natively in every email client. Google Fonts (Inter, Roboto, etc.) are loaded via @import in the email head — most modern clients honour them, Outlook falls back to a sans-serif.
-          </p>
 
-          {/* Custom font upload — drag/drop into Supabase storage */}
-          <FontDropzone
-            initialFonts={customFonts}
-            onChange={(next) => setCustomFonts(next)}
-          />
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,40%)_minmax(0,1fr)] gap-3">
+
+            {/* LEFT — Heading + body pickers with live samples */}
+            <div className="space-y-3">
+              {(['heading', 'body'] as Array<keyof BrandFonts>).map((slot) => (
+                <label key={slot} className="block">
+                  <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5 capitalize">{slot}</span>
+                  <select className={inputCls} value={fonts[slot]} onChange={(e) => setFont(slot, e.target.value)}>
+                    {customFonts.length > 0 ? (
+                      <optgroup label="Brand fonts (uploaded)">
+                        {[...new Set(customFonts.map((f) => f.name))].map((n) => <option key={`c-${n}`} value={n}>{n}</option>)}
+                      </optgroup>
+                    ) : null}
+                    <optgroup label="System + Google Fonts">
+                      {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
+                    </optgroup>
+                  </select>
+                  <p
+                    className="mt-2 text-base text-evari-text"
+                    style={{ fontFamily: `'${fonts[slot]}', sans-serif` }}
+                  >
+                    {slot === 'heading' ? 'Sample heading' : 'The quick brown fox jumps over the lazy dog.'}
+                  </p>
+                </label>
+              ))}
+              <p className="text-[10px] text-evari-dimmer">
+                Web-safe fonts render natively in every email client. Google Fonts (Inter, Roboto, etc.) load via @import in the email head — most modern clients honour them, Outlook falls back to a sans-serif. Uploaded brand fonts are embedded by URL.
+              </p>
+            </div>
+
+            {/* RIGHT — drag/drop upload + uploaded fonts list */}
+            <div>
+              <FontDropzone
+                initialFonts={customFonts}
+                onChange={(next) => setCustomFonts(next)}
+              />
+            </div>
+          </div>
         </section>
 
         <FooterDesigner
@@ -255,39 +276,12 @@ export function BrandClient({ initialBrand }: Props) {
           onChange={setFooterDesign}
         />
 
-        {/* Signature — seeded from the outreach default + sender metadata */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-semibold text-evari-text">Email signature</h2>
-            {signatureOverride ? (
-              <button
-                type="button"
-                onClick={() => setSignatureOverride('')}
-                className="text-[11px] text-evari-dim hover:text-evari-text underline underline-offset-2"
-                title="Clear the override and fall back to the default outreach signature template"
-              >
-                Reset to default →
-              </button>
-            ) : null}
-          </div>
-          <p className="text-[10px] text-evari-dimmer mb-2">
-            Auto-appended above the legal footer + unsubscribe link on every send. Default is the existing
-            outreach signature template (Settings → Email senders), rendered with the first sender's name / role / phone.
-            Leave the textarea empty to keep using it; type to override.
-          </p>
-          <textarea
-            className={cn(inputCls, 'font-mono text-[12px] min-h-[160px]')}
-            value={signatureOverride}
-            onChange={(e) => setSignatureOverride(e.target.value)}
-            placeholder={'(empty = use the default template from Settings → Email senders)'}
-          />
-          <div className="mt-2 p-3 rounded bg-white text-zinc-900 max-h-[420px] overflow-auto">
-            <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500 mb-1">
-              Preview {signatureOverride ? '(your override)' : '(default — what every email currently uses)'}
-            </div>
-            <div dangerouslySetInnerHTML={{ __html: signatureOverride || (initialBrand.signatureHtml ?? '') }} />
-          </div>
-        </section>
+        {/* Email signature — block builder, full width, viewer LEFT / tools RIGHT */}
+        <SignatureDesigner
+          initialBrand={brand}
+          value={signatureDesign}
+          onChange={setSignatureDesign}
+        />
       </div>
 
       {/* Footer save */}
