@@ -187,7 +187,11 @@ export async function appendCustomFont(font: CustomFont): Promise<MarketingBrand
   const sb = createSupabaseAdmin();
   if (!sb) return null;
   const current = await getBrand();
-  const others = current.customFonts.filter((f) => f.name !== font.name);
+  // Dedupe by the full (name, weight, style) tuple so multiple
+  // weights/styles of the same family can coexist.
+  const others = current.customFonts.filter(
+    (f) => !(f.name === font.name && f.weight === font.weight && f.style === font.style),
+  );
   const next = [...others, font];
   const { data, error } = await sb
     .from('dashboard_mkt_brand')
@@ -202,11 +206,23 @@ export async function appendCustomFont(font: CustomFont): Promise<MarketingBrand
   return rowToBrand(data as never);
 }
 
-export async function removeCustomFont(name: string): Promise<MarketingBrand | null> {
+export async function removeCustomFont(
+  name: string,
+  variant?: { weight?: number; style?: 'normal' | 'italic' },
+): Promise<MarketingBrand | null> {
   const sb = createSupabaseAdmin();
   if (!sb) return null;
   const current = await getBrand();
-  const next = current.customFonts.filter((f) => f.name !== name);
+  // If a variant is provided, remove ONLY that (name, weight, style) row.
+  // Without it, drop every variant of the family — used by the
+  // 'remove whole family' affordance.
+  const next = current.customFonts.filter((f) => {
+    if (f.name !== name) return true;
+    if (!variant) return false;
+    if (variant.weight !== undefined && f.weight !== variant.weight) return true;
+    if (variant.style  !== undefined && f.style  !== variant.style)  return true;
+    return false;
+  });
   const { data, error } = await sb
     .from('dashboard_mkt_brand')
     .update({ custom_fonts: next })

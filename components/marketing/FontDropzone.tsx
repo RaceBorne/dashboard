@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Trash2, Upload } from 'lucide-react';
 
@@ -91,8 +91,21 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
     }
   }
 
-  async function handleRemove(name: string) {
-    if (!confirm(`Remove "${name}"? Existing campaigns referencing it will fall back to the system font.`)) return;
+  async function handleRemoveVariant(font: CustomFont) {
+    if (!confirm(`Remove "${font.name}" ${font.weight} ${font.style}? Existing emails referencing this exact variant will fall back to the next weight/style or the system font.`)) return;
+    const url = `/api/marketing/brand/fonts/${encodeURIComponent(font.name)}?weight=${font.weight}&style=${font.style}`;
+    const res = await fetch(url, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (data.ok) {
+      setFonts((curr) =>
+        curr.filter((f) => !(f.name === font.name && f.weight === font.weight && f.style === font.style)),
+      );
+      router.refresh();
+    }
+  }
+
+  async function handleRemoveFamily(name: string) {
+    if (!confirm(`Remove every variant of "${name}"? All weights and styles will be deleted.`)) return;
     const res = await fetch(`/api/marketing/brand/fonts/${encodeURIComponent(name)}`, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (data.ok) {
@@ -185,31 +198,131 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
 
       {error ? <p className="text-xs text-evari-danger">{error}</p> : null}
 
-      {/* Uploaded list */}
-      {fonts.length > 0 ? (
-        <ul className="rounded-md border border-evari-edge/30 divide-y divide-evari-edge/20 overflow-hidden">
-          {fonts.map((f) => (
-            <li key={`${f.name}-${f.weight}-${f.style}`} className="px-3 py-2 flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-evari-text truncate" style={{ fontFamily: `'${f.name}', sans-serif` }}>
-                  {f.name} — The quick brown fox
-                </div>
-                <div className="text-[10px] text-evari-dimmer font-mono tabular-nums truncate">
-                  {f.weight} {f.style} · {f.format} · {f.filename}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleRemove(f.name)}
-                className="px-2 py-1 rounded-md text-xs text-evari-dim hover:text-evari-danger transition-colors inline-flex items-center gap-1"
-              >
-                <Trash2 className="h-3 w-3" />
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {/* Uploaded — grouped by family */}
+      <FontFamilyList
+        fonts={fonts}
+        onRemoveVariant={handleRemoveVariant}
+        onRemoveFamily={handleRemoveFamily}
+      />
     </div>
+  );
+}
+
+interface FamilyListProps {
+  fonts: CustomFont[];
+  onRemoveVariant: (font: CustomFont) => void;
+  onRemoveFamily: (name: string) => void;
+}
+
+/**
+ * Renders one row per font family. Inside each, a select lets the user
+ * pick which variant to preview (weight + style); the preview line
+ * renders 'The quick brown fox' in that exact variant. Per-variant
+ * remove via the trash icon next to the select; whole-family remove
+ * via the small 'Remove all' link at the right of the row.
+ */
+function FontFamilyList({ fonts, onRemoveVariant, onRemoveFamily }: FamilyListProps) {
+  const families = useMemo(() => {
+    const m = new Map<string, CustomFont[]>();
+    for (const f of fonts) {
+      if (!m.has(f.name)) m.set(f.name, []);
+      m.get(f.name)!.push(f);
+    }
+    // Sort variants by weight ascending then style.
+    for (const list of m.values()) {
+      list.sort(
+        (a, b) => a.weight - b.weight || a.style.localeCompare(b.style),
+      );
+    }
+    return [...m.entries()];
+  }, [fonts]);
+
+  if (families.length === 0) return null;
+
+  return (
+    <ul className="rounded-md border border-evari-edge/30 divide-y divide-evari-edge/20 overflow-hidden">
+      {families.map(([name, variants]) => (
+        <FamilyRow
+          key={name}
+          name={name}
+          variants={variants}
+          onRemoveVariant={onRemoveVariant}
+          onRemoveFamily={onRemoveFamily}
+        />
+      ))}
+    </ul>
+  );
+}
+
+interface FamilyRowProps {
+  name: string;
+  variants: CustomFont[];
+  onRemoveVariant: (font: CustomFont) => void;
+  onRemoveFamily: (name: string) => void;
+}
+
+function FamilyRow({ name, variants, onRemoveVariant, onRemoveFamily }: FamilyRowProps) {
+  // Default selected variant: pick weight closest to 400 + normal style.
+  const defaultIdx = (() => {
+    let bestIdx = 0;
+    let bestScore = Infinity;
+    variants.forEach((v, i) => {
+      const score = Math.abs(v.weight - 400) + (v.style === 'normal' ? 0 : 50);
+      if (score < bestScore) { bestScore = score; bestIdx = i; }
+    });
+    return bestIdx;
+  })();
+  const [activeKey, setActiveKey] = useState<string>(`${variants[defaultIdx].weight}-${variants[defaultIdx].style}`);
+  const active = variants.find(
+    (v) => `${v.weight}-${v.style}` === activeKey,
+  ) ?? variants[0];
+
+  return (
+    <li className="px-3 py-2">
+      <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div
+            className="text-base text-evari-text truncate leading-tight"
+            style={{ fontFamily: `'${name}', sans-serif`, fontWeight: active.weight, fontStyle: active.style }}
+          >
+            {name} — The quick brown fox jumps over the lazy dog
+          </div>
+          <div className="text-[10px] text-evari-dimmer font-mono tabular-nums truncate mt-0.5">
+            {variants.length} variant{variants.length === 1 ? '' : 's'} · {active.format} · {active.filename}
+          </div>
+        </div>
+        <select
+          value={activeKey}
+          onChange={(e) => setActiveKey(e.target.value)}
+          className="px-2 py-1 rounded-md bg-evari-ink text-evari-text text-xs border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+          aria-label={`${name} variants`}
+        >
+          {variants.map((v) => (
+            <option key={`${v.weight}-${v.style}`} value={`${v.weight}-${v.style}`}>
+              {v.weight} {v.style}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => onRemoveVariant(active)}
+          className="px-2 py-1 rounded-md text-xs text-evari-dim hover:text-evari-danger transition-colors inline-flex items-center gap-1"
+          title={`Remove ${name} ${active.weight} ${active.style}`}
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+      {variants.length > 1 ? (
+        <div className="mt-1.5 flex items-center justify-end">
+          <button
+            type="button"
+            onClick={() => onRemoveFamily(name)}
+            className="text-[10px] text-evari-dimmer hover:text-evari-danger underline underline-offset-2 transition-colors"
+          >
+            Remove all variants
+          </button>
+        </div>
+      ) : null}
+    </li>
   );
 }
