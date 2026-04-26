@@ -300,7 +300,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   const newPostButton = (
     <Link
       href="/social/new"
-      className="inline-flex items-center gap-1 rounded-full h-7 px-1 text-xs font-medium bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90 transition duration-1000 ease-in-out"
+      className="inline-flex items-center gap-1 rounded-full h-7 px-2.5 text-xs font-medium bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90 transition duration-1000 ease-in-out"
     >
       <Plus className="h-3.5 w-3.5" />
       New post
@@ -951,7 +951,7 @@ function PlatformDrawer({
   const orderedColsKeys = orderedCols.map((c) => c.key);
   const drawerSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   return (
-    <div className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink rounded-t-lg" style={{ height, transition: isDragging ? 'none' : 'height 1000ms ease-in-out', boxShadow: '0 -1px 1px rgba(0,0,0,0.10), 0 -2px 4px rgba(0,0,0,0.12), 0 -8px 16px rgba(0,0,0,0.18), 0 -16px 32px rgba(0,0,0,0.14)' }}
+    <div className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink rounded-t-lg" style={{ height, transition: isDragging ? 'none' : 'height 500ms ease-in-out', boxShadow: '0 -1px 1px rgba(0,0,0,0.08), 0 -1px 2px rgba(0,0,0,0.10), 0 -2px 6px rgba(0,0,0,0.12), 0 -4px 10px rgba(0,0,0,0.10)' }}
     >
       {/* Toggle bar IS the drag handle — clicking opens/closes,
           dragging up/down resizes. Whole bar is row-resize so the
@@ -970,14 +970,27 @@ function PlatformDrawer({
           </span>
           <ChevronDown
             className={cn(
-              'h-4 w-4 transition-transform duration-1000 ease-in-out',
+              'h-4 w-4 transition-transform duration-500 ease-in-out',
               open ? '' : 'rotate-180',
             )}
           />
         </span>
       </div>
-      {open ? (
-        <div className="flex-1 flex flex-col min-h-0">
+      {/* Content stays mounted whether drawer is open or closed —
+          overflow-hidden on the outer wrapper clips it as the height
+          animates down to the toggle-bar height. Without this the
+          {open ? ... : null} pattern would unmount everything on the
+          first frame of the close animation, so users would see the
+          content vanish before the box finished shrinking. When fully
+          collapsed pointer-events-none + aria-hidden keep the clipped
+          content non-interactive. */}
+      <div
+        aria-hidden={!open}
+        className={cn(
+          'flex-1 flex flex-col min-h-0',
+          open ? '' : 'pointer-events-none',
+        )}
+      >
           {/* Platform picker — sits inline at the top of the drawer
               (not a floating popup). Click 'Choose broadcast
               applications' to reveal the checkbox list; tick the
@@ -1011,7 +1024,7 @@ function PlatformDrawer({
                       type="button"
                       onClick={() => onTogglePlatform(col.key)}
                       className={cn(
-                        'inline-flex items-center justify-between gap-1 px-1 py-2 rounded-md text-sm transition-colors duration-1000 ease-in-out',
+                        'inline-flex items-center justify-between gap-1 px-2.5 py-2 rounded-md text-sm transition-colors duration-1000 ease-in-out',
                         active
                           ? 'bg-evari-surface text-evari-text '
                           : 'bg-evari-surface/40 text-evari-dim hover:bg-evari-surface',
@@ -1076,7 +1089,7 @@ function PlatformDrawer({
                         <li
                           key={e.id}
                           className="rounded-md bg-white text-zinc-900 p-2 cursor-pointer transition-colors duration-1000 ease-in-out hover:bg-zinc-50"
-                          onClick={() => e.onClick?.()}
+                          onClick={(ev) => { ev.stopPropagation(); e.onClick?.(); }}
                         >
                           <div className="text-[11px] leading-tight line-clamp-2">
                             {e.title.replace(/^[A-Z]+ · /, '')}
@@ -1096,7 +1109,7 @@ function PlatformDrawer({
             </DndContext>
           </div>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }

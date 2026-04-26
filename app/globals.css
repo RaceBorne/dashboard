@@ -405,6 +405,14 @@ code {
   background: rgb(var(--evari-mute));
 }
 
+
+/* ------------------------------------------------------------------
+   Convention (not enforced via CSS to avoid breaking icon-only
+   buttons that rely on explicit square sizing): every text-bearing
+   button should have at least 10px (Tailwind px-2.5) of horizontal
+   padding around its label. Icon-only buttons (chevron nav etc.)
+   stay tight via h-N w-N square sizing.
+------------------------------------------------------------------ */
 /* Hide scrollbar but keep scroll behaviour (for preview pane etc.) */
 .scrollbar-hide {
   scrollbar-width: none;       /* Firefox */
