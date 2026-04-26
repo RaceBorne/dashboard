@@ -20,6 +20,8 @@ export default async function SocialPage() {
     .map((d) => ({
       id: d.id,
       title: (d.title || 'Untitled draft').replace(/<[^>]*>/g, '').trim(),
+      summary: (d.summary ?? '').replace(/<[^>]*>/g, '').trim(),
+      author: d.author ?? 'Evari',
       scheduledFor: d.scheduledFor as string,
       blogTarget: d.blogTarget,
       coverImageUrl: d.coverImageUrl,

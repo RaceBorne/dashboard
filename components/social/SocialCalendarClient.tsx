@@ -26,6 +26,8 @@ import {
 import { WeekCalendar } from '@/components/ui/week-calendar';
 import { PillTabs } from '@/components/ui/pill-tabs';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink } from 'lucide-react';
 
 const PLATFORM_ICON: Record<SocialPlatform, typeof Linkedin> = {
   linkedin: Linkedin,
@@ -69,6 +71,8 @@ function captionSnippet(s: string, max = 40) {
 export interface JournalCalendarEntry {
   id: string;
   title: string;
+  summary: string;
+  author: string;
   scheduledFor: string;
   blogTarget: string;
   coverImageUrl: string | null;
@@ -87,6 +91,15 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   const [weekAnchor, setWeekAnchor] = useState<Date>(new Date());
   const [dayAnchor, setDayAnchor] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Currently-selected event in the right rail. The full event object
+  // is stored so the rail can display platform-specific metadata
+  // without re-deriving from id.
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  // Send-now busy flag — disables the action button while an in-flight
+  // publish request is pending.
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const router = useRouter();
 
   // composer state
   const [platform, setPlatform] = useState<SocialPlatform>('instagram');
@@ -110,6 +123,10 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         time: format(d, 'HH:mm'),
         durationMinutes: 30,
         tone: statusTone(p.status),
+        onClick: () => {
+          setSelectedDate(d);
+          setSelectedEventId(p.id);
+        },
       });
     }
     // Departure Lounge journal drafts — scheduled-for journals that
@@ -131,8 +148,8 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         imageUrl: j.coverImageUrl ?? undefined,
         imageCaption: j.title,
         onClick: () => {
-          setWeekAnchor(d);
-          setView('week');
+          setSelectedDate(d);
+          setSelectedEventId(`journal:${j.id}`);
         },
       });
     }
@@ -189,10 +206,76 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
     </Link>
   );
 
+  // Resolve the currently-selected event back to its source data
+  // (SocialPost or JournalCalendarEntry). We key by event.id; journal
+  // events use the 'journal:<id>' prefix.
+  const selectedJournal: JournalCalendarEntry | null = useMemo(() => {
+    if (!selectedEventId?.startsWith('journal:')) return null;
+    const id = selectedEventId.slice('journal:'.length);
+    return journalDrafts.find((j) => j.id === id) ?? null;
+  }, [selectedEventId, journalDrafts]);
+  const selectedSocial: SocialPost | null = useMemo(() => {
+    if (!selectedEventId || selectedEventId.startsWith('journal:')) return null;
+    return posts.find((p) => p.id === selectedEventId) ?? null;
+  }, [selectedEventId, posts]);
+
+  // Day pagination — events sharing the same calendar date as the
+  // currently-selected event. Powers the '1 of N' navigation in the
+  // preview window header.
+  const selectedEventDate: Date | null = selectedJournal
+    ? new Date(selectedJournal.scheduledFor)
+    : selectedSocial
+      ? (selectedSocial.scheduledFor || selectedSocial.publishedAt
+          ? new Date(selectedSocial.scheduledFor || selectedSocial.publishedAt!)
+          : null)
+      : null;
+  const dayKey = selectedEventDate ? format(selectedEventDate, 'yyyy-MM-dd') : null;
+  const dayEvents = useMemo(() => {
+    if (!dayKey) return [] as CalendarEvent[];
+    return events.filter((e) => format(e.start ?? e.date, 'yyyy-MM-dd') === dayKey);
+  }, [events, dayKey]);
+  const dayIndex = dayEvents.findIndex((e) => e.id === selectedEventId);
+
+  function navigateDay(dir: 'prev' | 'next') {
+    if (dayEvents.length === 0) return;
+    const next =
+      dir === 'next'
+        ? (dayIndex + 1) % dayEvents.length
+        : (dayIndex - 1 + dayEvents.length) % dayEvents.length;
+    setSelectedEventId(dayEvents[next].id);
+  }
+
+  async function sendNow() {
+    if (sending) return;
+    setSendError(null);
+    setSending(true);
+    try {
+      if (selectedJournal) {
+        const res = await fetch(`/api/journals/${selectedJournal.id}/publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!data.ok) throw new Error(data.error ?? 'Publish failed');
+        router.refresh();
+      } else if (selectedSocial) {
+        // Social send-now endpoint left as a placeholder for now —
+        // wire to the real publish route when it's available.
+        throw new Error('Send-now for social posts not implemented yet');
+      }
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Publish failed');
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-      {/* Calendar — full width. Week/Day views need a fixed height so their
-          internal scroll works; Month is content-sized. */}
+    <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+      {/* Calendar — full width of the LEFT column. Week/Day views need
+          a fixed height so their internal scroll works; Month is
+          content-sized. */}
       <div
         className="flex-none flex flex-col"
         style={{
@@ -270,149 +353,38 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         )}
       </div>
 
-      {/* Panels below the calendar: Selected day · Compose · Drafts */}
-      <div className="px-6 py-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Selected day */}
-        <section className="rounded-xl bg-evari-surface p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-                {selectedDate ? 'Selected day' : 'Day detail'}
-              </div>
-              <div className="text-sm font-medium text-evari-text mt-0.5">
-                {selectedDate
-                  ? format(selectedDate, 'EEEE d LLLL')
-                  : 'Click a day on the calendar'}
-              </div>
             </div>
-            {selectedDate && (
-              <Button variant="ghost" size="sm" onClick={() => setSelectedDate(null)}>
-                Clear
-              </Button>
-            )}
-          </div>
-          {selectedPosts.length > 0 ? (
-            <div className="space-y-3">
-              {selectedPosts.map((p) => (
-                <PostCard key={p.id} post={p} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-xs text-evari-dimmer">
-              {selectedDate
-                ? 'No posts scheduled or published on this day.'
-                : 'Pick a date to see what\u2019s going out.'}
-            </div>
-          )}
-        </section>
-
-        {/* Compose */}
-        <section className="rounded-xl bg-evari-surface p-5 space-y-4">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-            AI compose · in your voice
-          </div>
-
-          <div className="grid grid-cols-3 gap-1.5">
-            {(['instagram', 'linkedin', 'tiktok'] as SocialPlatform[]).map((p) => {
-              const Icon = PLATFORM_ICON[p];
-              const active = p === platform;
-              return (
-                <button
-                  key={p}
-                  onClick={() => setPlatform(p)}
-                  className={cn(
-                    'rounded-full px-3 py-1.5 text-xs flex items-center gap-1.5 justify-center transition-colors capitalize',
-                    active
-                      ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                      : 'bg-evari-surfaceSoft text-evari-dim hover:bg-evari-mute',
-                  )}
-                >
-                  <Icon className="h-3 w-3" />
-                  {p}
-                </button>
-              );
-            })}
-          </div>
-
-          <Input
-            placeholder="Topic — e.g. Tour at Devil's Punchbowl"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-          />
-          <Input
-            placeholder="Link (optional) — evari.cc/…"
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-          />
-
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void generateDraft()}
-            disabled={aiLoading || !topic.trim()}
-            className="w-full"
-          >
-            {aiLoading ? (
-              <RefreshCw className="h-3 w-3 animate-spin" />
-            ) : (
-              <Sparkles className="h-3 w-3" />
-            )}
-            Generate draft
-          </Button>
-
-          {(draft || aiLoading) && (
-            <div className="rounded-md bg-evari-ink p-3">
-              {aiMock && draft && (
-                <Badge variant="warning" className="text-[10px] mb-2">
-                  fallback (no AI)
-                </Badge>
-              )}
-              {aiLoading ? (
-                <div className="text-xs text-evari-dim">Drafting…</div>
-              ) : (
-                <Textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  className="min-h-[160px] text-xs font-sans bg-evari-ink focus-visible:ring-0"
-                />
-              )}
-              <div className="flex justify-between items-center pt-2 mt-2">
-                <div className="text-[10px] text-evari-dimmer">
-                  {draft.length} chars
-                </div>
-                <Button size="sm" disabled={!draft.trim()}>
-                  <Plus className="h-3 w-3" />
-                  Add to calendar
-                </Button>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Drafts */}
-        <section className="rounded-xl bg-evari-surface p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-              Drafts
-            </div>
-            <div className="text-[11px] text-evari-dim tabular-nums">{drafts.length}</div>
-          </div>
-          {drafts.length > 0 ? (
-            <div className="space-y-3">
-              {drafts.map((p) => (
-                <PostCard key={p.id} post={p} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-xs text-evari-dimmer">
-              No drafts right now. Generate one in the composer.
-            </div>
-          )}
-        </section>
-      </div>
+      {/* RIGHT RAIL — context-dependent preview + actions. Scaleable
+          via clamp() so it grows on large displays but never bigger
+          than ~28% of viewport. Stacks two panels: the action card
+          (top, ~220px) and the post preview (bottom, fills remaining
+          height). */}
+      <aside
+        className="hidden lg:flex flex-col shrink-0 border-l border-evari-edge/30 bg-evari-ink overflow-hidden"
+        style={{ width: 'clamp(280px, 28vw, 440px)' }}
+      >
+        <ScheduleActionsPanel
+          selectedJournal={selectedJournal}
+          selectedSocial={selectedSocial}
+          onSendNow={sendNow}
+          sending={sending}
+          sendError={sendError}
+          onEdit={() => {
+            if (selectedJournal) router.push(`/journals/${selectedJournal.id}`);
+          }}
+        />
+        <PostPreviewWindow
+          selectedJournal={selectedJournal}
+          selectedSocial={selectedSocial}
+          dayCount={dayEvents.length}
+          dayIndex={dayIndex >= 0 ? dayIndex : 0}
+          onNavigate={navigateDay}
+        />
+      </aside>
     </div>
   );
 }
+
 
 function PostCard({ post }: { post: SocialPost }) {
   const Icon = PLATFORM_ICON[post.platform];
@@ -448,6 +420,272 @@ function PostCard({ post }: { post: SocialPost }) {
           {post.metrics.clicks != null && <span>{post.metrics.clicks} clk</span>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Right rail panels ──────────────────────────────────────────────
+
+interface SchedulePanelProps {
+  selectedJournal: JournalCalendarEntry | null;
+  selectedSocial: SocialPost | null;
+  onSendNow: () => void;
+  onEdit: () => void;
+  sending: boolean;
+  sendError: string | null;
+}
+
+/**
+ * Top-right panel — surfaces metadata + actions for the selected
+ * event. Empty state nudges the user to click an event on the
+ * calendar. Send Now is wired for journals (POST publish endpoint);
+ * social send-now is a placeholder for now.
+ */
+function ScheduleActionsPanel({
+  selectedJournal,
+  selectedSocial,
+  onSendNow,
+  onEdit,
+  sending,
+  sendError,
+}: SchedulePanelProps) {
+  if (!selectedJournal && !selectedSocial) {
+    return (
+      <div className="px-5 py-6 border-b border-evari-edge/30 bg-evari-surface text-center">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer mb-2">
+          Schedule
+        </div>
+        <p className="text-xs text-evari-dim">
+          Click an event on the calendar to see scheduled time, status,
+          and quick actions.
+        </p>
+      </div>
+    );
+  }
+  const kindLabel = selectedJournal ? 'Journal' : selectedSocial!.platform;
+  const title = selectedJournal
+    ? selectedJournal.title
+    : captionSnippet(selectedSocial!.caption, 64);
+  const author = selectedJournal ? selectedJournal.author : 'Evari';
+  const dateIso = selectedJournal
+    ? selectedJournal.scheduledFor
+    : selectedSocial!.scheduledFor || selectedSocial!.publishedAt || '';
+  const date = dateIso ? new Date(dateIso) : null;
+  const status = selectedJournal
+    ? 'Scheduled'
+    : selectedSocial!.status;
+  return (
+    <section className="p-4 border-b border-evari-edge/30 bg-evari-surface">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-semibold">
+          {kindLabel}
+        </span>
+        <span
+          className={cn(
+            'text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-medium',
+            status === 'published'
+              ? 'bg-evari-success/20 text-evari-success'
+              : status === 'failed'
+                ? 'bg-evari-danger/20 text-evari-danger'
+                : 'bg-orange-500/20 text-orange-400',
+          )}
+        >
+          {status}
+        </span>
+      </div>
+      <h3 className="text-sm font-semibold text-evari-text leading-snug line-clamp-2">
+        {title}
+      </h3>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11px]">
+        <dt className="text-evari-dimmer">Scheduled by</dt>
+        <dd className="text-evari-text">{author}</dd>
+        {date ? (
+          <>
+            <dt className="text-evari-dimmer">Date</dt>
+            <dd className="text-evari-text">{format(date, 'EEE d LLL')}</dd>
+            <dt className="text-evari-dimmer">Time</dt>
+            <dd className="text-evari-text font-mono tabular-nums">
+              {format(date, 'HH:mm')}
+            </dd>
+          </>
+        ) : null}
+      </dl>
+      <button
+        type="button"
+        onClick={onSendNow}
+        disabled={sending}
+        className="mt-4 w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-md bg-evari-gold text-evari-goldInk text-sm font-semibold disabled:opacity-60 hover:brightness-105 transition"
+      >
+        {sending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Send className="h-3.5 w-3.5" />
+        )}
+        {sending ? 'Publishing…' : 'Send now'}
+      </button>
+      {sendError ? (
+        <p className="mt-2 text-[11px] text-evari-danger leading-snug">
+          {sendError}
+        </p>
+      ) : null}
+      {selectedJournal ? (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="mt-2 w-full inline-flex items-center justify-center gap-1.5 py-1.5 rounded-md bg-evari-surface text-evari-dim hover:text-evari-text text-xs font-medium ring-1 ring-evari-edge transition"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Open in editor
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+interface PreviewWindowProps {
+  selectedJournal: JournalCalendarEntry | null;
+  selectedSocial: SocialPost | null;
+  dayCount: number;
+  dayIndex: number;
+  onNavigate: (dir: 'prev' | 'next') => void;
+}
+
+/**
+ * Bottom-right panel — context-dependent preview of the selected
+ * event in its finished state. Header shows day pagination
+ * ('1 of N · 15 APR'). Body switches renderer by event kind.
+ */
+function PostPreviewWindow({
+  selectedJournal,
+  selectedSocial,
+  dayCount,
+  dayIndex,
+  onNavigate,
+}: PreviewWindowProps) {
+  if (!selectedJournal && !selectedSocial) {
+    return (
+      <section className="flex-1 flex items-center justify-center p-6 text-center">
+        <p className="text-xs text-evari-dimmer leading-relaxed">
+          Pick an event from the calendar to preview the post in its
+          finished state.
+        </p>
+      </section>
+    );
+  }
+  const dateIso = selectedJournal
+    ? selectedJournal.scheduledFor
+    : selectedSocial!.scheduledFor || selectedSocial!.publishedAt || '';
+  const date = dateIso ? new Date(dateIso) : null;
+  return (
+    <section className="flex-1 flex flex-col min-h-0">
+      <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+        <button
+          type="button"
+          onClick={() => onNavigate('prev')}
+          disabled={dayCount <= 1}
+          className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </button>
+        <span className="font-semibold tabular-nums">
+          {dayCount > 0 ? `${dayIndex + 1} of ${dayCount}` : '—'}
+          {date ? ` · ${format(date, 'd LLL').toUpperCase()}` : ''}
+        </span>
+        <button
+          type="button"
+          onClick={() => onNavigate('next')}
+          disabled={dayCount <= 1}
+          className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </header>
+      <div className="flex-1 overflow-y-auto bg-white text-zinc-900">
+        {selectedJournal ? (
+          <JournalPreviewCard journal={selectedJournal} />
+        ) : selectedSocial ? (
+          <SocialPreviewCard post={selectedSocial} />
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function JournalPreviewCard({ journal }: { journal: JournalCalendarEntry }) {
+  return (
+    <article className="text-zinc-900">
+      {/* Mini full-bleed hero — title + summary overlay matches the
+          ShopifyPreview hero style at a smaller scale. */}
+      <header className="relative w-full" style={{ aspectRatio: '4 / 3' }}>
+        {journal.coverImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={journal.coverImageUrl}
+            alt={journal.title}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-zinc-200" />
+        )}
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.65) 100%)',
+          }}
+        />
+        <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+          <h2 className="text-lg font-bold leading-tight">{journal.title}</h2>
+          {journal.summary ? (
+            <p
+              className="mt-1.5 text-[12px] leading-snug line-clamp-3 opacity-90"
+              style={{ whiteSpace: 'pre-line' }}
+            >
+              {journal.summary}
+            </p>
+          ) : null}
+        </div>
+      </header>
+      <div className="p-4 space-y-2">
+        <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+          By {journal.author}
+        </p>
+        <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500 font-mono tabular-nums">
+          {format(new Date(journal.scheduledFor), 'EEE d LLL · HH:mm')}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function SocialPreviewCard({ post }: { post: SocialPost }) {
+  const Icon = PLATFORM_ICON[post.platform];
+  return (
+    <div className="p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon className="h-4 w-4 text-zinc-700" />
+        <span className="text-xs font-semibold capitalize text-zinc-700">
+          {post.platform}
+        </span>
+      </div>
+      {post.mediaUrls[0] ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={post.mediaUrls[0]}
+          alt=""
+          className="w-full rounded-md mb-3"
+          style={{ aspectRatio: '1 / 1', objectFit: 'cover' }}
+        />
+      ) : null}
+      <p className="text-xs leading-relaxed whitespace-pre-line text-zinc-900">
+        {post.caption}
+      </p>
+      {post.hashtags.length > 0 ? (
+        <p className="mt-2 text-[11px] text-blue-700 leading-relaxed">
+          {post.hashtags.map((h) => `#${h}`).join(' ')}
+        </p>
+      ) : null}
     </div>
   );
 }
