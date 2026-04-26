@@ -633,6 +633,19 @@ export type EmailBlock =
       backgroundColor: string;
       textColor: string;
     })
+  | (EmailBlockBase & {
+      type: 'brandLogo';
+      // Standalone brand-kit logo block. The renderer resolves the
+      // logo URL from the brand kit at render time so the email + the
+      // canvas always reflect the latest uploaded asset, not a stale
+      // reference. Use srcOverride to override per-block.
+      variant: 'light' | 'dark';
+      srcOverride?: string | null;
+      widthPx: number;        // rendered width; height auto-scales
+      opacity: number;        // 0..1
+      alignment: EmailAlignment;
+      linkUrl?: string;
+    })
 
   | (EmailBlockBase & {
       type: 'card';          // 'Drop shadow' tile in the toolbar — wraps content in a shadowed card.

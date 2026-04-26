@@ -101,6 +101,7 @@ const ADD_BUTTONS: BlockTile[] = [
   // Row 2
   { group: 'blocks', type: 'button',  label: 'Button',  Icon: MousePointerClick,  make: () => ({ id: nid(), type: 'button', label: 'Click me', url: 'https://evari.cc', alignment: 'center', backgroundColor: '#1a1a1a', textColor: '#ffffff', borderRadiusPx: 4, paddingXPx: 24, paddingYPx: 12, paddingBottomPx: 24 }) },
   { group: 'blocks', type: 'headerBar', label: 'Header bar', Icon: Heading1, make: () => ({ id: nid(), type: 'headerBar', logoUrl: '', tagline: '', linkUrl: '', backgroundColor: '#ffffff', textColor: '#666666', paddingBottomPx: 8 }) },
+  { group: 'blocks', type: 'brandLogo', label: 'Brand logo', Icon: ImageIcon, badge: 'New', make: () => ({ id: nid(), type: 'brandLogo', variant: 'light', srcOverride: null, widthPx: 160, opacity: 1, alignment: 'center', linkUrl: '', paddingBottomPx: 16 }) },
   { group: 'blocks', type: 'card',    label: 'Drop shadow', Icon: Layers, make: () => ({ id: nid(), type: 'card', html: 'Featured content with a soft shadow.', backgroundColor: '#ffffff', borderRadiusPx: 8, shadow: 'md', paddingPx: 20, paddingBottomPx: 16 }) },
   // Row 3
   { group: 'blocks', type: 'divider', label: 'Divider', Icon: Minus,       make: () => ({ id: nid(), type: 'divider', color: '#e5e5e5', thicknessPx: 1, marginYPx: 16 }) },
@@ -235,14 +236,14 @@ function BrandKitPreview({ brand }: { brand: MarketingBrand }) {
   );
 }
 
-function BlockTileGroup({ title, tiles, onAdd }: { title: string; tiles: BlockTile[]; onAdd: (make: () => EmailBlock) => void }) {
+function BlockTileGroup({ title, tiles, brand, onAdd }: { title: string; tiles: BlockTile[]; brand: MarketingBrand; onAdd: (make: () => EmailBlock) => void }) {
   return (
     <section>
       <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">{title}</h3>
       <ul className="grid grid-cols-2 gap-1.5">
         {tiles.map((t, i) => (
           <li key={`${t.group}-${t.type}-${t.label}`}>
-            <PaletteTile tile={t} draggableId={`palette:${t.group}:${i}`} onAdd={onAdd} />
+            <PaletteTile tile={t} brand={brand} draggableId={`palette:${t.group}:${i}`} onAdd={onAdd} />
           </li>
         ))}
       </ul>
@@ -256,7 +257,7 @@ function BlockTileGroup({ title, tiles, onAdd }: { title: string; tiles: BlockTi
  * DnD context — the parent designer routes the drop into an insertion
  * at the matching block position.
  */
-function PaletteTile({ tile, draggableId, onAdd }: { tile: BlockTile; draggableId: string; onAdd: (make: () => EmailBlock) => void }) {
+function PaletteTile({ tile, brand, draggableId, onAdd }: { tile: BlockTile; brand: MarketingBrand; draggableId: string; onAdd: (make: () => EmailBlock) => void }) {
   const disabled = !!tile.comingSoon;
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: draggableId,
@@ -264,6 +265,10 @@ function PaletteTile({ tile, draggableId, onAdd }: { tile: BlockTile; draggableI
     data: { paletteTile: tile },
   });
   const Icon = tile.Icon;
+  // Brand-logo tile shows the actual logo in the tile so users recognise
+  // it instantly in the palette. Fallback to the icon if no logo is set.
+  const isBrandLogo = tile.type === 'brandLogo';
+  const brandLogoSrc = isBrandLogo ? (brand.logoLightUrl || brand.logoDarkUrl || '') : '';
   return (
     <button
       ref={setNodeRef}
@@ -274,7 +279,7 @@ function PaletteTile({ tile, draggableId, onAdd }: { tile: BlockTile; draggableI
       title={disabled ? 'Coming soon' : `Drag or click to add ${tile.label}`}
       onClick={() => { if (tile.make) onAdd(tile.make); }}
       className={cn(
-        'relative w-full aspect-[5/3] rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200 cursor-grab active:cursor-grabbing',
+        'relative w-full aspect-[5/3] rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200 cursor-grab active:cursor-grabbing overflow-hidden',
         disabled
           ? 'border-evari-edge/20 text-evari-dimmer cursor-not-allowed opacity-60'
           : 'border-evari-edge/30 text-evari-dim hover:text-evari-text hover:border-evari-gold/60 hover:bg-evari-ink/70',
@@ -282,10 +287,22 @@ function PaletteTile({ tile, draggableId, onAdd }: { tile: BlockTile; draggableI
       )}
     >
       {tile.badge ? (
-        <span className={cn('absolute top-0.5 right-0.5 text-[7px] uppercase tracking-[0.05em] font-bold px-1 py-px rounded', tile.badge === 'New' ? 'bg-blue-500/30 text-blue-200' : 'bg-evari-edge/30 text-evari-dimmer')}>{tile.badge}</span>
+        <span className={cn('absolute top-0.5 right-0.5 z-10 text-[7px] uppercase tracking-[0.05em] font-bold px-1 py-px rounded', tile.badge === 'New' ? 'bg-blue-500/30 text-blue-200' : 'bg-evari-edge/30 text-evari-dimmer')}>{tile.badge}</span>
       ) : null}
-      <Icon className="h-5 w-5" />
-      <span className="text-[11px] leading-tight text-center px-1">{tile.label}</span>
+      {isBrandLogo && brandLogoSrc ? (
+        <>
+          <span className="absolute inset-0 flex items-center justify-center px-2 py-3" aria-hidden>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={brandLogoSrc} alt="" className="max-h-[60%] max-w-[80%] object-contain" />
+          </span>
+          <span className="relative mt-auto text-[10px] leading-tight text-center bg-evari-ink/80 px-1.5 py-0.5 rounded">{tile.label}</span>
+        </>
+      ) : (
+        <>
+          <Icon className="h-5 w-5" />
+          <span className="text-[11px] leading-tight text-center px-1">{tile.label}</span>
+        </>
+      )}
     </button>
   );
 }
@@ -651,11 +668,13 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           <BlockTileGroup
             title="Blocks"
             tiles={[HEADING_TILE, ...ADD_BUTTONS.filter((t) => t.group === 'blocks')]}
+            brand={initialBrand}
             onAdd={(make) => addBlock(make)}
           />
           <BlockTileGroup
             title="Layout"
             tiles={ADD_BUTTONS.filter((t) => t.group === 'layout')}
+            brand={initialBrand}
             onAdd={(make) => addBlock(make)}
           />
           <div className="rounded-md bg-evari-ink/40 border border-evari-edge/20 p-3">
@@ -873,6 +892,7 @@ function BlockPropertiesPanel({ block, brand, designWidthPx, onChange, onClose }
         {block.type === 'html'      ? <HtmlFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void} /> : null}
         {block.type === 'split'     ? <SplitFields     block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
         {block.type === 'headerBar' ? <HeaderBarFields block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
+        {block.type === 'brandLogo' ? <BrandLogoFields block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'brandLogo' }>>) => void} /> : null}
         {block.type === 'card'      ? <CardFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void} /> : null}
         {block.type === 'social'    ? <SocialFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'social' }>>) => void} /> : null}
         {block.type === 'coupon'    ? <CouponFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'coupon' }>>) => void} /> : null}
@@ -1776,6 +1796,103 @@ function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { 
           <input type="url" value={block.buttonUrl ?? ''} onChange={(e) => onChange({ buttonUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
         </label>
       </div>
+    </div>
+  );
+}
+
+
+function BrandLogoFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'brandLogo' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'brandLogo' }>>) => void }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const lightSrc = brand.logoLightUrl;
+  const darkSrc  = brand.logoDarkUrl;
+  const resolved = block.srcOverride || (block.variant === 'dark' ? darkSrc : lightSrc) || (block.variant === 'dark' ? lightSrc : darkSrc) || '';
+  const usingOverride = !!block.srcOverride;
+  return (
+    <div className="space-y-3">
+      {/* Live preview tile — reflects variant + override + opacity */}
+      <section>
+        <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Brand image</h4>
+        <div className="rounded-md overflow-hidden">
+          <div
+            className="w-full aspect-[5/3] flex items-center justify-center"
+            style={{ background: block.variant === 'dark' ? '#0a0a0a' : '#f4f4f5' }}
+            aria-label="Brand logo preview"
+          >
+            {resolved ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={resolved} alt="" className="max-h-[80%] max-w-[80%] object-contain" style={{ opacity: block.opacity ?? 1 }} />
+            ) : (
+              <span className="text-[10px] text-evari-dim">No brand logo set</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 pt-1.5">
+            <button type="button" onClick={() => setPickerOpen(true)} className="text-[11px] text-evari-gold hover:underline">
+              {usingOverride ? 'Replace' : 'Override'}
+            </button>
+            {usingOverride ? (
+              <button type="button" onClick={() => onChange({ srcOverride: null })} className="text-[11px] text-evari-dim hover:text-evari-text">
+                Reset to brand
+              </button>
+            ) : null}
+            <span className="text-[10px] text-evari-dimmer ml-auto">
+              {usingOverride ? 'Custom override' : `Brand kit · ${block.variant} logo`}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Variant toggle */}
+      <section>
+        <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Variant</h4>
+        <div className="grid grid-cols-2 gap-1 rounded-md bg-evari-ink p-1 border border-evari-edge/30" role="radiogroup" aria-label="Logo variant">
+          {(['light', 'dark'] as const).map((v) => {
+            const active = block.variant === v;
+            const src = v === 'dark' ? darkSrc : lightSrc;
+            return (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => onChange({ variant: v })}
+                className={cn(
+                  'flex items-center gap-2 px-2 py-1.5 rounded transition-colors text-[11px]',
+                  active ? 'bg-evari-gold/20 text-evari-gold' : 'text-evari-dim hover:text-evari-text',
+                )}
+                title={src ? `Use ${v} logo` : `${v} logo not set in brand kit — falls back to the other variant`}
+              >
+                <span
+                  className="h-5 w-8 rounded-sm flex items-center justify-center shrink-0 border border-black/30"
+                  style={{ background: v === 'dark' ? '#0a0a0a' : '#ffffff' }}
+                >
+                  {src ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={src} alt="" className="max-h-[70%] max-w-[80%] object-contain" />
+                  ) : null}
+                </span>
+                <span className="capitalize">{v}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <SliderField label="Width" value={block.widthPx} min={40} max={600} suffix="px" onChange={(v) => onChange({ widthPx: v })} />
+      <SliderField label="Opacity" value={Math.round((block.opacity ?? 1) * 100)} min={0} max={100} suffix="%" onChange={(v) => onChange({ opacity: Math.max(0, Math.min(1, v / 100)) })} />
+
+      <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
+
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
+        <input type="url" value={block.linkUrl ?? ''} onChange={(e) => onChange({ linkUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+      </label>
+
+      {pickerOpen ? (
+        <AssetPickerModal
+          onClose={() => setPickerOpen(false)}
+          onPick={(url) => { onChange({ srcOverride: url }); setPickerOpen(false); }}
+        />
+      ) : null}
     </div>
   );
 }

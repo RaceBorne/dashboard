@@ -87,6 +87,20 @@ function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: Marketing
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>${cells}</tr></table>`;
 }
 
+
+function renderBrandLogo(b: Extract<EmailBlock, { type: 'brandLogo' }>, brand: MarketingBrand): string {
+  // Resolve: per-block override > matching brand kit variant > the
+  // other variant if the chosen one isn't set. Empty out gracefully.
+  const fallback = b.variant === 'dark' ? brand.logoDarkUrl : brand.logoLightUrl;
+  const otherFallback = b.variant === 'dark' ? brand.logoLightUrl : brand.logoDarkUrl;
+  const src = b.srcOverride || fallback || otherFallback || '';
+  if (!src) return '';
+  const opacityStyle = typeof b.opacity === 'number' && b.opacity < 1 ? `opacity:${b.opacity};` : '';
+  const img = `<img src="${escape(src)}" alt="${escape(brand.companyName ?? 'Logo')}" style="display:inline-block;width:${b.widthPx}px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;${opacityStyle}" />`;
+  const wrapped = b.linkUrl ? `<a href="${escape(b.linkUrl)}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;">${img}</a>` : img;
+  return `<div style="${alignStyle(b.alignment)}">${wrapped}</div>`;
+}
+
 function renderHeaderBar(b: Extract<EmailBlock, { type: 'headerBar' }>, brand: MarketingBrand): string {
   const logoSrc = b.logoUrl || brand.logoLightUrl || '';
   const logo = logoSrc ? `<img src="${escape(logoSrc)}" alt="${escape(brand.companyName ?? 'Logo')}" style="display:block;height:32px;width:auto;border:0;" />` : '';
@@ -241,6 +255,7 @@ function renderInner(b: EmailBlock, brand: MarketingBrand): string {
     case 'html':      return renderRawHtml(b);
     case 'split':     return renderSplit(b, brand);
     case 'headerBar': return renderHeaderBar(b, brand);
+    case 'brandLogo': return renderBrandLogo(b, brand);
     case 'card':      return renderCard(b, brand);
     case 'social':    return renderSocial(b);
     case 'coupon':    return renderCoupon(b);
