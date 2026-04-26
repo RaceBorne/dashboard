@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactElement } from 'react';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -20,7 +21,7 @@ const STATUS_BADGE: Record<DomainCheckStatus, string> = {
   pending:  'bg-evari-surfaceSoft text-evari-dim',
 };
 
-const STATUS_ICON: Record<DomainCheckStatus, JSX.Element> = {
+const STATUS_ICON: Record<DomainCheckStatus, ReactElement> = {
   verified: <Check className="h-3.5 w-3.5" />,
   mismatch: <X className="h-3.5 w-3.5" />,
   missing:  <AlertTriangle className="h-3.5 w-3.5" />,
