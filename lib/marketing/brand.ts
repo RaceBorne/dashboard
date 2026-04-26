@@ -10,7 +10,7 @@
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { renderSignature } from '@/lib/dashboard/signature';
 import { DEFAULT_SIGNATURE_HTML } from '@/lib/mock/senders';
-import type { BrandColors, BrandFonts, CustomFont, MarketingBrand } from './types';
+import type { BrandColors, BrandFonts, CustomFont, FooterDesign, MarketingBrand } from './types';
 
 interface BrandRow {
   id: 'singleton';
@@ -23,6 +23,7 @@ interface BrandRow {
   fonts: BrandFonts;
   signature_html: string | null;
   custom_fonts: unknown;
+  footer_design: FooterDesign | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +49,7 @@ const DEFAULTS: MarketingBrand = {
   signatureHtml: null,
   signatureOverride: null,
   customFonts: [],
+  footerDesign: null,
   createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
 };
@@ -65,6 +67,7 @@ function rowToBrand(r: BrandRow): MarketingBrand {
     signatureHtml: r.signature_html,
     signatureOverride: r.signature_html,
     customFonts: Array.isArray(r.custom_fonts) ? (r.custom_fonts as CustomFont[]) : [],
+    footerDesign: (r.footer_design as FooterDesign | null) ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -155,6 +158,7 @@ export async function updateBrand(
     colors: BrandColors;
     fonts: BrandFonts;
     signatureHtml: string | null;
+    footerDesign: FooterDesign | null;
   }>,
 ): Promise<MarketingBrand | null> {
   const sb = createSupabaseAdmin();
@@ -168,6 +172,7 @@ export async function updateBrand(
   if ('colors' in patch)          dbPatch.colors = patch.colors;
   if ('fonts' in patch)           dbPatch.fonts = patch.fonts;
   if ('signatureHtml' in patch)   dbPatch.signature_html = patch.signatureHtml;
+  if ('footerDesign' in patch)    dbPatch.footer_design = patch.footerDesign;
   if (Object.keys(dbPatch).length === 0) return getBrand();
   const { data, error } = await sb
     .from('dashboard_mkt_brand')

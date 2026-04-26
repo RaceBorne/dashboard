@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import type { BrandColors, BrandFonts, CustomFont, MarketingBrand } from '@/lib/marketing/types';
+import type { BrandColors, BrandFonts, CustomFont, FooterDesign, MarketingBrand } from '@/lib/marketing/types';
+import { DEFAULT_FOOTER_DESIGN } from '@/lib/marketing/types';
 import { FontDropzone } from './FontDropzone';
+import { FooterDesigner } from './FooterDesigner';
 
 interface Props {
   initialBrand: MarketingBrand;
@@ -62,6 +64,7 @@ export function BrandClient({ initialBrand }: Props) {
   const [fonts, setFonts] = useState<BrandFonts>(brand.fonts);
   const [signatureOverride, setSignatureOverride] = useState(brand.signatureOverride ?? '');
   const [customFonts, setCustomFonts] = useState<CustomFont[]>(brand.customFonts);
+  const [footerDesign, setFooterDesign] = useState<FooterDesign>(brand.footerDesign ?? DEFAULT_FOOTER_DESIGN);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +85,8 @@ export function BrandClient({ initialBrand }: Props) {
     logoDark       !== (brand.logoDarkUrl ?? '') ||
     signatureOverride !== (brand.signatureOverride ?? '') ||
     JSON.stringify(colors) !== JSON.stringify(brand.colors) ||
-    JSON.stringify(fonts)  !== JSON.stringify(brand.fonts);
+    JSON.stringify(fonts)  !== JSON.stringify(brand.fonts) ||
+    JSON.stringify(footerDesign) !== JSON.stringify(brand.footerDesign ?? DEFAULT_FOOTER_DESIGN);
 
   async function handleSave() {
     if (!dirty || saving) return;
@@ -102,6 +106,7 @@ export function BrandClient({ initialBrand }: Props) {
           colors,
           fonts,
           signatureHtml:  signatureOverride.trim() || null,
+          footerDesign,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -243,6 +248,12 @@ export function BrandClient({ initialBrand }: Props) {
             onChange={(next) => setCustomFonts(next)}
           />
         </section>
+
+        <FooterDesigner
+          initialBrand={brand}
+          value={footerDesign}
+          onChange={setFooterDesign}
+        />
 
         {/* Signature — seeded from the outreach default + sender metadata */}
         <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">

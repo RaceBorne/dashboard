@@ -302,6 +302,7 @@ export interface MarketingBrand {
    *  using the first outreach sender's metadata; otherwise it equals
    *  signatureOverride. */
   customFonts: CustomFont[];
+  footerDesign: FooterDesign | null;
   signatureHtml: string | null;
   /** Raw value of dashboard_mkt_brand.signature_html. Null = use the
    *  rendered default. UI binds the editor to this. */
@@ -329,3 +330,58 @@ export interface MktAsset {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── Footer designer ─────────────────────────────────────────────
+
+export type FooterLayout = 'stacked' | 'split' | 'centered';
+export type FooterAlignment = 'left' | 'center' | 'right';
+
+export interface FooterBlocks {
+  logo: boolean;
+  signature: boolean;
+  address: boolean;
+  social: boolean;
+  unsubscribe: boolean;
+}
+
+export interface FooterSocial {
+  instagram?: string;
+  twitter?: string;
+  linkedin?: string;
+  facebook?: string;
+  tiktok?: string;
+  youtube?: string;
+  website?: string;
+}
+
+export interface FooterDesign {
+  layout: FooterLayout;
+  alignment: FooterAlignment;
+  blocks: FooterBlocks;
+  background: string;        // hex, applied to footer wrapper
+  textColor: string;         // hex, base text colour for footer copy
+  mutedColor: string;        // hex, secondary text (legal, fine print)
+  borderTop: boolean;
+  borderColor: string;
+  paddingPx: number;         // vertical + horizontal padding
+  social: FooterSocial;
+}
+
+export const DEFAULT_FOOTER_DESIGN: FooterDesign = {
+  layout: 'stacked',
+  alignment: 'center',
+  blocks: {
+    logo: true,
+    signature: true,
+    address: true,
+    social: false,
+    unsubscribe: true,
+  },
+  background: '#ffffff',
+  textColor: '#1a1a1a',
+  mutedColor: '#666666',
+  borderTop: true,
+  borderColor: '#e5e5e5',
+  paddingPx: 32,
+  social: {},
+};

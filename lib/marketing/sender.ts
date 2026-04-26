@@ -139,23 +139,16 @@ export async function sendOne(input: SendOneInput): Promise<SendOneResult> {
         : '';
       if (styleBlock) html = styleBlock + html;
 
-      const sigPieces: string[] = [];
-      if (brand.signatureHtml) {
-        sigPieces.push(`<div style="margin:32px 0 8px 0;font:14px/1.5 ${brand.fonts.body || 'sans-serif'};color:${brand.colors.text || '#1a1a1a'};">${brand.signatureHtml}</div>`);
-      }
-      if (brand.companyName || brand.companyAddress) {
-        sigPieces.push(
-          `<div style="margin:24px 0 8px 0;font:11px/1.5 sans-serif;color:${brand.colors.muted || '#666666'};">` +
-            (brand.companyName ? `<strong>${brand.companyName}</strong><br/>` : '') +
-            (brand.companyAddress ? brand.companyAddress.replace(/\n/g, '<br/>') : '') +
-          `</div>`
-        );
-      }
-      if (sigPieces.length > 0) {
-        html += sigPieces.join('\n');
-        text += '\n\n' + (brand.signatureHtml ? brand.signatureHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() + '\n\n' : '') +
-                (brand.companyName ? brand.companyName + '\n' : '') +
-                (brand.companyAddress ?? '');
+      // Renderer reads footer design + brand kit and produces the
+      // canonical footer HTML. Same function the live preview in
+      // /email/brand uses, so what you see in the dashboard is what
+      // ships in the email.
+      const { renderFooter, renderFooterText } = await import('./footer');
+      const footerHtml = renderFooter({ brand, unsubscribeUrl: input.unsubscribeUrl });
+      const footerText = renderFooterText({ brand, unsubscribeUrl: input.unsubscribeUrl });
+      if (footerHtml) {
+        html += footerHtml;
+        text += '\n\n' + footerText;
       }
       // If caller didn't pass a replyTo and brand has one, use it.
       if (!input.replyTo && brand.replyToEmail) {
@@ -172,16 +165,12 @@ export async function sendOne(input: SendOneInput): Promise<SendOneResult> {
     html = html.split(placeholder).join(input.unsubscribeUrl);
     text = text.split(placeholder).join(input.unsubscribeUrl);
     subject = subject.split(placeholder).join(input.unsubscribeUrl);
-    if (!had) {
-      // Auto-append a small footer so the recipient always has a link
-      // — mailbox providers increasingly bulk-classify mail without one.
-      html +=
-        `\n<hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0;"/>` +
-        `<p style="font:12px/1.4 sans-serif;color:#666;">` +
-        `Don't want these emails? <a href="${input.unsubscribeUrl}">Unsubscribe</a>.` +
-        `</p>`;
-      text += `\n\n---\nUnsubscribe: ${input.unsubscribeUrl}`;
-    }
+    // Note: we used to auto-append a small unsubscribe footer here
+    // when the {{unsubscribeUrl}} placeholder was missing. With the
+    // branded-footer renderer above (Phase 13), the unsubscribe block
+    // is part of the footer design — so the auto-append would create
+    // two footers. Keeping the placeholder substitution above for
+    // legacy templates but skipping the appended fallback now.
     // List-Unsubscribe (RFC 2369) + List-Unsubscribe-Post (RFC 8058)
     postmarkHeaders = [
       { Name: 'List-Unsubscribe', Value: `<${input.unsubscribeUrl}>` },
