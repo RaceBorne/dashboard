@@ -225,7 +225,8 @@ function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: Marke
   const inner = children || (b.html ? safeHtml(b.html) : '');
   // Vertical alignment — uses flex when set so 'middle' / 'bottom' actually
   // push content down even when min-height is larger than content height.
-  const ay = b.contentAlignY;
+  // Announcement-bar sections default to centred when nothing's been set.
+  const ay = b.contentAlignY ?? (b.kind === 'announcementBar' ? 'middle' : undefined);
   const flex = ay && ay !== 'top'
     ? `display:flex;flex-direction:column;justify-content:${ay === 'middle' ? 'center' : 'flex-end'};`
     : '';

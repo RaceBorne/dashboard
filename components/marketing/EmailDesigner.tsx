@@ -1811,7 +1811,8 @@ function SectionCanvasWrapper({ block, brand, selectedId, editing, onSelectChild
   onRemoveChild: (id: string) => void;
 }) {
   const fill = bgFillCss(block.backgroundSize);
-  const ay = block.contentAlignY;
+  // Announcement-bar sections default to centred V-alignment.
+  const ay = block.contentAlignY ?? (block.kind === 'announcementBar' ? 'middle' : undefined);
   const wrapperStyle: React.CSSProperties = {
     backgroundColor: block.backgroundColor,
     backgroundImage: block.backgroundImage ? `url(${block.backgroundImage})` : undefined,
@@ -1879,8 +1880,10 @@ function SectionEmptyDrop({ sectionId, editing }: { sectionId: string; editing: 
 
 function SectionEndDrop({ sectionId }: { sectionId: string }) {
   const { isOver, setNodeRef } = useDroppable({ id: `section-end:${sectionId}` });
+  // Idle: collapse to 0 height so V-alignment of the section's children
+  // isn't thrown off by an invisible drop strip taking up vertical space.
   return (
-    <div ref={setNodeRef} className={cn('h-3 rounded transition-colors', isOver && 'h-8 bg-evari-gold/15 border-2 border-dashed border-evari-gold/60')} />
+    <div ref={setNodeRef} className={cn('rounded transition-all', isOver ? 'h-8 mt-1 bg-evari-gold/15 border-2 border-dashed border-evari-gold/60' : 'h-0')} />
   );
 }
 
