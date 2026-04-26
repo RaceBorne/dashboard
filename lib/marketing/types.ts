@@ -286,7 +286,14 @@ export interface MarketingBrand {
   logoDarkUrl: string | null;
   colors: BrandColors;
   fonts: BrandFonts;
+  /** Resolved signature — what actually goes into outbound email. If
+   *  signatureOverride is null this is the rendered DEFAULT_SIGNATURE_HTML
+   *  using the first outreach sender's metadata; otherwise it equals
+   *  signatureOverride. */
   signatureHtml: string | null;
+  /** Raw value of dashboard_mkt_brand.signature_html. Null = use the
+   *  rendered default. UI binds the editor to this. */
+  signatureOverride: string | null;
   createdAt: string;
   updatedAt: string;
 }

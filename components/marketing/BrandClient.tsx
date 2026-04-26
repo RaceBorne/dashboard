@@ -59,7 +59,7 @@ export function BrandClient({ initialBrand }: Props) {
   const [logoDark, setLogoDark] = useState(brand.logoDarkUrl ?? '');
   const [colors, setColors] = useState<BrandColors>(brand.colors);
   const [fonts, setFonts] = useState<BrandFonts>(brand.fonts);
-  const [signature, setSignature] = useState(brand.signatureHtml ?? '');
+  const [signatureOverride, setSignatureOverride] = useState(brand.signatureOverride ?? '');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +78,7 @@ export function BrandClient({ initialBrand }: Props) {
     replyTo        !== (brand.replyToEmail ?? '') ||
     logoLight      !== (brand.logoLightUrl ?? '') ||
     logoDark       !== (brand.logoDarkUrl ?? '') ||
-    signature      !== (brand.signatureHtml ?? '') ||
+    signatureOverride !== (brand.signatureOverride ?? '') ||
     JSON.stringify(colors) !== JSON.stringify(brand.colors) ||
     JSON.stringify(fonts)  !== JSON.stringify(brand.fonts);
 
@@ -99,7 +99,7 @@ export function BrandClient({ initialBrand }: Props) {
           logoDarkUrl:    logoDark.trim() || null,
           colors,
           fonts,
-          signatureHtml:  signature.trim() || null,
+          signatureHtml:  signatureOverride.trim() || null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -140,32 +140,42 @@ export function BrandClient({ initialBrand }: Props) {
           </label>
         </section>
 
-        {/* Logos */}
+        {/* Logos — sourced from Settings → Branding (single source of truth) */}
         <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-evari-text">Logos</h2>
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Logo on light background — image URL</span>
-            <input className={cn(inputCls, 'font-mono text-[12px]')} value={logoLight} onChange={(e) => setLogoLight(e.target.value)} placeholder="https://..." />
-            {logoLight ? (
-              <div className="mt-2 p-3 rounded bg-white inline-block">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoLight} alt="light bg logo" className="h-12 w-auto object-contain" />
-              </div>
-            ) : null}
-          </label>
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Logo on dark background — image URL</span>
-            <input className={cn(inputCls, 'font-mono text-[12px]')} value={logoDark} onChange={(e) => setLogoDark(e.target.value)} placeholder="https://..." />
-            {logoDark ? (
-              <div className="mt-2 p-3 rounded bg-evari-ink inline-block">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoDark} alt="dark bg logo" className="h-12 w-auto object-contain" />
-              </div>
-            ) : null}
-          </label>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-evari-text">Logos</h2>
+            <a href="/settings" className="text-[11px] text-evari-dim hover:text-evari-text underline underline-offset-2">
+              Manage in Settings →
+            </a>
+          </div>
           <p className="text-[10px] text-evari-dimmer">
-            URLs for now — Phase 12 (Asset Library) will let you upload + pick from a media browser.
+            Pulled from <code className="text-evari-text">dashboard_branding</code> — the same image you uploaded under
+            Settings → Branding. Email sends use these automatically.
           </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Light background</span>
+              <div className="p-3 rounded bg-white border border-evari-edge/30 min-h-[64px] flex items-center">
+                {logoLight ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={logoLight} alt="light bg logo" className="h-10 w-auto object-contain" />
+                ) : (
+                  <span className="text-[11px] text-zinc-400 italic">No light logo set</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Dark background</span>
+              <div className="p-3 rounded bg-evari-ink border border-evari-edge/30 min-h-[64px] flex items-center">
+                {logoDark ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={logoDark} alt="dark bg logo" className="h-10 w-auto object-contain" />
+                ) : (
+                  <span className="text-[11px] text-evari-dimmer italic">No dark logo set</span>
+                )}
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Colours */}
@@ -219,24 +229,38 @@ export function BrandClient({ initialBrand }: Props) {
           </p>
         </section>
 
-        {/* Signature */}
+        {/* Signature — seeded from the outreach default + sender metadata */}
         <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
-          <h2 className="text-sm font-semibold text-evari-text mb-1">Email signature</h2>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-semibold text-evari-text">Email signature</h2>
+            {signatureOverride ? (
+              <button
+                type="button"
+                onClick={() => setSignatureOverride('')}
+                className="text-[11px] text-evari-dim hover:text-evari-text underline underline-offset-2"
+                title="Clear the override and fall back to the default outreach signature template"
+              >
+                Reset to default →
+              </button>
+            ) : null}
+          </div>
           <p className="text-[10px] text-evari-dimmer mb-2">
-            Auto-appended to the bottom of every send (above the legal footer + unsubscribe link). HTML allowed.
+            Auto-appended above the legal footer + unsubscribe link on every send. Default is the existing
+            outreach signature template (Settings → Email senders), rendered with the first sender's name / role / phone.
+            Leave the textarea empty to keep using it; type to override.
           </p>
           <textarea
             className={cn(inputCls, 'font-mono text-[12px] min-h-[160px]')}
-            value={signature}
-            onChange={(e) => setSignature(e.target.value)}
-            placeholder={'<p>— Craig<br/>Evari · evari.cc</p>'}
+            value={signatureOverride}
+            onChange={(e) => setSignatureOverride(e.target.value)}
+            placeholder={'(empty = use the default template from Settings → Email senders)'}
           />
-          {signature ? (
-            <div className="mt-2 p-3 rounded bg-white text-zinc-900">
-              <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500 mb-1">Preview</div>
-              <div dangerouslySetInnerHTML={{ __html: signature }} />
+          <div className="mt-2 p-3 rounded bg-white text-zinc-900 max-h-[420px] overflow-auto">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500 mb-1">
+              Preview {signatureOverride ? '(your override)' : '(default — what every email currently uses)'}
             </div>
-          ) : null}
+            <div dangerouslySetInnerHTML={{ __html: signatureOverride || (initialBrand.signatureHtml ?? '') }} />
+          </div>
         </section>
       </div>
 
