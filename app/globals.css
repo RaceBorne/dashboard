@@ -405,6 +405,17 @@ code {
   background: rgb(var(--evari-mute));
 }
 
+/* Hide scrollbar but keep scroll behaviour (for preview pane etc.) */
+.scrollbar-hide {
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;    /* IE / old Edge */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;               /* Chromium / Safari */
+  width: 0;
+  height: 0;
+}
+
 /* --------------------------------------------------------------------------
    Reusable primitives
    -------------------------------------------------------------------------- */

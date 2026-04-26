@@ -1154,7 +1154,7 @@ function ScaledPreview({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={outerRef}
-      className="flex-1 overflow-y-auto overflow-x-hidden bg-white text-zinc-900 min-h-0"
+      className="flex-1 overflow-y-auto overflow-x-hidden bg-white text-zinc-900 min-h-0 scrollbar-hide"
     >
       <div
         style={{
