@@ -70,6 +70,10 @@ interface Props {
   onChange: (next: EmailDesign) => void;
   /** Optional — when provided, surfaces a 'Draft with AI' button in the toolbar. */
   onAIDraft?: () => void;
+  /** Constrains the canvas iframe width — 'mobile' clamps to 380px so
+   *  the operator sees how blocks reflow on a phone. The tools palette
+   *  is unaffected by this; only the preview narrows. */
+  previewDevice?: 'desktop' | 'mobile';
 }
 
 function nid(): string { return Math.random().toString(36).slice(2, 10); }
@@ -186,7 +190,7 @@ function labelForBlock(b: EmailBlock): string {
   return tile?.label ?? b.type;
 }
 
-export function EmailDesigner({ initialBrand, value, onChange, onAIDraft }: Props) {
+export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previewDevice = "desktop" }: Props) {
   const design = normaliseEmailDesign(value) ?? DEFAULT_EMAIL_DESIGN;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragOverlay, setDragOverlay] = useState<string | null>(null);
@@ -295,10 +299,17 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft }: Prop
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,40%)] gap-3 p-3">
-        {/* Viewer LEFT */}
+        {/* Viewer LEFT — only the canvas iframe shrinks in mobile mode;
+            the tools panel on the right stays its full size. */}
         <div className="flex flex-col">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Live preview</div>
-          <div className="rounded-md border border-evari-edge/30 overflow-hidden bg-zinc-100">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1 flex items-center justify-between">
+            <span>Live preview</span>
+            <span className="text-evari-dim">{previewDevice === 'mobile' ? '380px (mobile)' : 'Native (desktop)'}</span>
+          </div>
+          <div className={cn(
+            'rounded-md border border-evari-edge/30 overflow-hidden bg-zinc-100 transition-[max-width] duration-300',
+            previewDevice === 'mobile' ? 'max-w-[380px] mx-auto' : 'w-full',
+          )}>
             <iframe
               title="Email preview"
               className="w-full bg-white block"

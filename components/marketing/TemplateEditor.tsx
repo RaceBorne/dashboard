@@ -166,11 +166,17 @@ export function TemplateEditor({ template, brand }: Props) {
         <div className="px-3 py-1.5 bg-evari-danger/10 text-evari-danger text-[11px] border-b border-evari-danger/30">{error}</div>
       ) : null}
 
-      {/* Designer body — fills the viewport */}
-      <div className={cn('flex-1 min-h-0 overflow-auto p-3', device === 'mobile' && 'flex justify-center')}>
-        <div className={device === 'mobile' ? 'w-[400px]' : 'w-full'}>
-          <EmailDesigner initialBrand={brand} value={design} onChange={setDesign} onAIDraft={() => setDrafting(true)} />
-        </div>
+      {/* Designer body — fills the viewport. Device toggle only narrows
+          the canvas iframe inside the designer; the tools palette stays
+          its full size on both modes. */}
+      <div className="flex-1 min-h-0 overflow-auto p-3">
+        <EmailDesigner
+          initialBrand={brand}
+          value={design}
+          onChange={setDesign}
+          onAIDraft={() => setDrafting(true)}
+          previewDevice={device}
+        />
       </div>
 
       {previewing ? (
