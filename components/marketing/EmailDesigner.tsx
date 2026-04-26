@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AtSign,
   Box,
@@ -33,6 +33,7 @@ import {
   Tag,
   Trash2,
   Type,
+  Undo2,
   X,
 } from 'lucide-react';
 import {
@@ -111,7 +112,7 @@ const ADD_BUTTONS: BlockTile[] = [
   { group: 'blocks', type: 'html',    label: 'HTML',    Icon: Code2,       make: () => ({ id: nid(), type: 'html', html: '<p>Custom HTML here.</p>', paddingBottomPx: 16 }) },
   // Layout group
   { group: 'layout', type: 'columns', label: 'Columns', Icon: Columns3, comingSoon: true },
-  { group: 'layout', type: 'section', label: 'Section', Icon: Square, badge: 'New', make: () => ({ id: nid(), type: 'section', blocks: [], backgroundColor: '#1a1a1a', backgroundImage: '', backgroundSize: 'cover', backgroundPosition: 'center', paddingPx: 60, borderRadiusPx: 0, contentColor: '#ffffff', minHeightPx: 320, paddingBottomPx: 16 }) },
+  { group: 'layout', type: 'section', label: 'Section', Icon: Square, badge: 'New', make: () => ({ id: nid(), type: 'section', blocks: [], backgroundColor: '#1a1a1a', backgroundImage: '', backgroundSize: 'fill', backgroundPosition: 'center', paddingPx: 0, borderRadiusPx: 0, contentColor: '#ffffff', minHeightPx: 320, paddingBottomPx: 16 }) },
 ];
 
 // Heading still gets a tile but we render it inside the Blocks group ahead of Text in the toolbar.
@@ -195,8 +196,54 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragOverlay, setDragOverlay] = useState<string | null>(null);
 
+  // ─── Undo history ─────────────────────────────────────────────
+  // Every designer-initiated mutation goes through commit(), which pushes
+  // the prior design onto historyRef before calling onChange. undo() pops
+  // the last entry and replays it. The version state is purely so the
+  // Undo button re-renders enabled/disabled when history grows/shrinks.
+  const historyRef = useRef<EmailDesign[]>([]);
+  const lastSerializedRef = useRef<string>(JSON.stringify(design));
+  const skipNextSnapshotRef = useRef<boolean>(false);
+  const [historyVersion, setHistoryVersion] = useState(0);
+
+  const commit = useCallback((next: EmailDesign) => {
+    historyRef.current.push(JSON.parse(lastSerializedRef.current));
+    // Cap history at 200 entries to keep memory bounded.
+    if (historyRef.current.length > 200) historyRef.current.shift();
+    lastSerializedRef.current = JSON.stringify(next);
+    skipNextSnapshotRef.current = true;
+    setHistoryVersion((v) => v + 1);
+    onChange(next);
+  }, [onChange]);
+
+  const undo = useCallback(() => {
+    const prev = historyRef.current.pop();
+    if (!prev) return;
+    lastSerializedRef.current = JSON.stringify(prev);
+    skipNextSnapshotRef.current = true;
+    setHistoryVersion((v) => v + 1);
+    setSelectedId(null);
+    onChange(prev);
+  }, [onChange]);
+
+  // Keyboard: Cmd/Ctrl+Z anywhere on the page (when not in a contenteditable)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta || e.key.toLowerCase() !== 'z' || e.shiftKey) return;
+      const t = e.target as HTMLElement | null;
+      const tag = (t?.tagName || '').toLowerCase();
+      // Don't hijack undo while the user is editing text in an input
+      if (tag === 'input' || tag === 'textarea' || (t?.isContentEditable ?? false)) return;
+      e.preventDefault();
+      undo();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo]);
+
   function updateDesign(patch: Partial<EmailDesign>) {
-    onChange({ ...design, ...patch });
+    commit({ ...design, ...patch });
   }
   // ─── Recursive tree helpers ───────────────────────────────────
   // The design tree is now nested (sections hold child blocks). All
@@ -214,6 +261,16 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       }
     }
     return out;
+  }
+  function findBlockById(blocks: EmailBlock[], id: string): EmailBlock | null {
+    for (const b of blocks) {
+      if (b.id === id) return b;
+      if (b.type === 'section') {
+        const inner = findBlockById(b.blocks ?? [], id);
+        if (inner) return inner;
+      }
+    }
+    return null;
   }
   function findContainerOf(blocks: EmailBlock[], id: string, parentId: string | null = null): { parentId: string | null; index: number } | null {
     for (let i = 0; i < blocks.length; i++) {
@@ -239,19 +296,19 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     });
   }
   function updateBlock(id: string, patch: Partial<EmailBlock>) {
-    onChange({
+    commit({
       ...design,
       blocks: mapTree(design.blocks, (b) => (b.id === id ? ({ ...b, ...patch } as EmailBlock) : b)),
     });
   }
   function removeBlock(id: string) {
-    onChange({ ...design, blocks: mapTree(design.blocks, (b) => (b.id === id ? null : b)) });
+    commit({ ...design, blocks: mapTree(design.blocks, (b) => (b.id === id ? null : b)) });
   }
   function addBlock(maker: () => EmailBlock) {
-    onChange({ ...design, blocks: [...design.blocks, maker()] });
+    commit({ ...design, blocks: [...design.blocks, maker()] });
   }
   function insertBlock(parentId: string | null, beforeIndex: number, newBlock: EmailBlock) {
-    onChange({
+    commit({
       ...design,
       blocks: updateChildren(design.blocks, parentId, (kids) => {
         const next = [...kids];
@@ -267,7 +324,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     if (!a || !o) return;
     if (a.parentId !== o.parentId) return; // cross-container moves not yet supported
     if (a.index === o.index) return;
-    onChange({
+    commit({
       ...design,
       blocks: updateChildren(design.blocks, a.parentId, (kids) => arrayMove(kids, a.index, o.index)),
     });
@@ -296,7 +353,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       const tile = ev.active.data.current?.paletteTile as BlockTile | undefined;
       setDragOverlay(tile?.label ?? null);
     } else {
-      const b = design.blocks.find((x) => x.id === id);
+      const b = findBlockById(design.blocks, id);
       setDragOverlay(b ? labelForBlock(b) : null);
     }
   }
@@ -316,12 +373,12 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       if (!tile?.make) return;
       const newBlock = tile.make();
       if (overId === 'end-of-list') {
-        onChange({ ...design, blocks: [...design.blocks, newBlock] });
+        commit({ ...design, blocks: [...design.blocks, newBlock] });
         return;
       }
       if (overId.startsWith('section-end:')) {
         const sectionId = overId.slice('section-end:'.length);
-        onChange({
+        commit({
           ...design,
           blocks: updateChildren(design.blocks, sectionId, (kids) => [...kids, newBlock]),
         });
@@ -329,7 +386,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       }
       const loc = findContainerOf(design.blocks, overId);
       if (!loc) {
-        onChange({ ...design, blocks: [...design.blocks, newBlock] });
+        commit({ ...design, blocks: [...design.blocks, newBlock] });
         return;
       }
       insertBlock(loc.parentId, loc.index, newBlock);
@@ -354,6 +411,18 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
         <h2 className="text-sm font-semibold text-evari-text">Visual editor</h2>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={undo}
+            disabled={historyRef.current.length === 0}
+            title={historyRef.current.length === 0 ? 'Nothing to undo' : `Undo (${historyRef.current.length} steps available) · ⌘Z`}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border border-evari-edge/30 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold disabled:opacity-30 disabled:hover:border-evari-edge/30 disabled:hover:text-evari-text disabled:cursor-not-allowed transition-colors"
+          >
+            <Undo2 className="h-3 w-3" /> Undo
+            {historyRef.current.length > 0 ? <span className="text-evari-dim font-mono tabular-nums text-[10px]">({historyRef.current.length})</span> : null}
+          </button>
+          {/* keep historyVersion in this scope so the disabled state reacts */}
+          <span className="hidden">{historyVersion}</span>
           {onAIDraft ? (
             <button type="button" onClick={onAIDraft} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-colors">
               <Sparkles className="h-3 w-3" /> Draft with AI
@@ -389,19 +458,22 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           </div>
         </div>
 
-        {/* CENTRE — interactive canvas. Each block is a real React node
-            so click + drag work natively (no iframe boundary). */}
-        <div className="flex flex-col min-w-0 min-h-0 overflow-y-auto">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1 flex items-center justify-between">
+        {/* CENTRE — interactive canvas. The OUTER frame always fills
+            the available width + height of this column (even on mobile),
+            so the design.background is visible as page chrome. The INNER
+            email is centred and constrained to the chosen content width
+            (360px on mobile preview). */}
+        <div className="flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1 flex items-center justify-between shrink-0">
             <span>Canvas</span>
-            <span className="text-evari-dim">{previewDevice === 'mobile' ? '360px (mobile)' : `${design.widthPx}px (desktop)`}</span>
+            <span className="text-evari-dim">{previewDevice === 'mobile' ? `360px (mobile) · ${design.widthPx}px content` : `${design.widthPx}px (desktop)`}</span>
           </div>
           <div
-            className="rounded-md border border-evari-edge/30"
+            className="rounded-md border border-evari-edge/30 flex-1 min-h-0 overflow-y-auto p-6 transition-colors"
             style={{ background: design.background }}
           >
             <div
-              className={cn('mx-auto bg-white transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
+              className={cn('mx-auto bg-white shadow-2xl transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
               style={{ maxWidth: `${design.widthPx}px`, padding: `${design.paddingPx}px` }}
             >
               <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
@@ -434,12 +506,13 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
         <div className="min-w-0 min-h-0 overflow-y-auto">
           {selectedId ? (
             (() => {
-              const sel = design.blocks.find((b) => b.id === selectedId);
+              const sel = findBlockById(design.blocks, selectedId);
               if (!sel) return null;
               return (
                 <BlockPropertiesPanel
                   block={sel}
                   brand={initialBrand}
+                  designWidthPx={design.widthPx}
                   onChange={(patch) => updateBlock(sel.id, patch as Partial<EmailBlock>)}
                   onClose={() => setSelectedId(null)}
                 />
@@ -563,7 +636,7 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
  * row when a block is selected. Renders to the right of the palette +
  * block list column so the thumbnails stay visible at the top.
  */
-function BlockPropertiesPanel({ block, brand, onChange, onClose }: { block: EmailBlock; brand: MarketingBrand; onChange: (patch: Partial<EmailBlock>) => void; onClose: () => void }) {
+function BlockPropertiesPanel({ block, brand, designWidthPx, onChange, onClose }: { block: EmailBlock; brand: MarketingBrand; designWidthPx: number; onChange: (patch: Partial<EmailBlock>) => void; onClose: () => void }) {
   const meta = ADD_BUTTONS.find((b) => b.type === block.type) ?? (block.type === 'heading' ? HEADING_TILE : null);
   const Icon = meta?.Icon ?? PenLine;
   const label = meta?.label ?? block.type;
@@ -585,7 +658,7 @@ function BlockPropertiesPanel({ block, brand, onChange, onClose }: { block: Emai
         {block.type === 'spacer'    ? <SpacerFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void} /> : null}
         {block.type === 'html'      ? <HtmlFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void} /> : null}
         {block.type === 'split'     ? <SplitFields     block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
-        {block.type === 'headerBar' ? <HeaderBarFields block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
+        {block.type === 'headerBar' ? <HeaderBarFields block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
         {block.type === 'card'      ? <CardFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void} /> : null}
         {block.type === 'social'    ? <SocialFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'social' }>>) => void} /> : null}
         {block.type === 'coupon'    ? <CouponFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'coupon' }>>) => void} /> : null}
@@ -593,7 +666,7 @@ function BlockPropertiesPanel({ block, brand, onChange, onClose }: { block: Emai
         {block.type === 'review'    ? <ReviewFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'review' }>>) => void} /> : null}
         {block.type === 'video'     ? <VideoFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'video' }>>) => void} /> : null}
         {block.type === 'product'   ? <ProductFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'product' }>>) => void} /> : null}
-        {block.type === 'section'   ? <SectionFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void} /> : null}
+        {block.type === 'section'   ? <SectionFields   block={block} brand={brand} designWidthPx={designWidthPx} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void} /> : null}
         <PaddingFields block={block} onChange={onChange as (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void} />
       </div>
     </aside>
@@ -643,15 +716,117 @@ function FontDropdown({ value, onChange, brand, label = 'Font (override)' }: { v
   );
 }
 
-function ColourField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ColourField({ label, value, onChange, brand }: { label: string; value: string; onChange: (v: string) => void; brand?: MarketingBrand }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  // Click-outside closes the popover
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  // Brand palette swatches (de-duped, in stable order)
+  const brandSwatches = brand
+    ? Array.from(new Set([
+        brand.colors.primary,
+        brand.colors.accent,
+        brand.colors.buttonBg,
+        brand.colors.text,
+        brand.colors.link,
+        brand.colors.bg,
+        brand.colors.muted,
+        brand.colors.buttonText,
+      ].filter(Boolean)))
+    : [];
+  const presets = ['#000000', '#ffffff', '#1a1a1a', '#f4f4f4', '#d4a649', '#3b82f6', '#22c55e', '#ef4444'];
+
   return (
-    <label className="block">
+    <div className="block relative" ref={ref}>
       <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">{label}</span>
-      <div className="flex items-center gap-1">
-        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="h-9 w-9 rounded border border-evari-edge/30 bg-evari-ink cursor-pointer" />
-        <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className="flex-1 px-2 py-1 rounded bg-evari-ink text-evari-text text-[11px] font-mono border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
-      </div>
-    </label>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2 px-1 py-1 rounded bg-evari-ink border border-evari-edge/30 hover:border-evari-gold/60 transition-colors text-left"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <span
+          className="h-7 w-7 rounded border border-evari-edge/40 shrink-0"
+          style={{ background: value }}
+          aria-hidden
+        />
+        <span className="flex-1 text-[11px] font-mono text-evari-text truncate uppercase">{value}</span>
+        <ChevronDown className={cn('h-3 w-3 text-evari-dim transition-transform', open && 'rotate-180')} />
+      </button>
+      {open ? (
+        <div className="absolute z-50 mt-1 left-0 right-0 min-w-[220px] rounded-md border border-evari-edge/40 bg-evari-surface shadow-2xl p-2 space-y-2">
+          <div>
+            <div className="text-[9px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Picker</div>
+            <input
+              type="color"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              className="h-9 w-full rounded border border-evari-edge/30 bg-evari-ink cursor-pointer"
+              aria-label={`${label} colour picker`}
+            />
+          </div>
+          {brandSwatches.length > 0 ? (
+            <div>
+              <div className="text-[9px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Brand kit</div>
+              <div className="grid grid-cols-8 gap-1">
+                {brandSwatches.map((c) => (
+                  <button
+                    key={`b-${c}`}
+                    type="button"
+                    onClick={() => { onChange(c); setOpen(false); }}
+                    className={cn(
+                      'h-5 w-5 rounded-sm border border-black/20',
+                      value.toLowerCase() === c.toLowerCase() && 'ring-2 ring-evari-gold ring-offset-1 ring-offset-evari-surface',
+                    )}
+                    style={{ background: c }}
+                    title={c}
+                    aria-label={`Use brand colour ${c}`}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div>
+            <div className="text-[9px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Presets</div>
+            <div className="grid grid-cols-8 gap-1">
+              {presets.map((c) => (
+                <button
+                  key={`p-${c}`}
+                  type="button"
+                  onClick={() => { onChange(c); setOpen(false); }}
+                  className={cn(
+                    'h-5 w-5 rounded-sm border border-black/20',
+                    value.toLowerCase() === c.toLowerCase() && 'ring-2 ring-evari-gold ring-offset-1 ring-offset-evari-surface',
+                  )}
+                  style={{ background: c }}
+                  title={c}
+                  aria-label={`Use ${c}`}
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Hex</div>
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-[11px] font-mono border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none uppercase"
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -1178,9 +1353,50 @@ function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { 
   );
 }
 
-function HeaderBarFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'headerBar' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void }) {
+function HeaderBarFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'headerBar' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void }) {
+  const [logoPickerOpen, setLogoPickerOpen] = useState(false);
+  // Resolved logo: explicit override URL on the block, else the brand kit's
+  // light logo (matches what the renderer falls back to at send time).
+  const resolvedLogo = block.logoUrl || brand.logoLightUrl || '';
+  const usingBrandDefault = !block.logoUrl;
   return (
     <div className="space-y-2">
+      {/* Brand logo thumbnail — mirrors the section bg image preview UX */}
+      <section>
+        <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Brand image</h4>
+        {resolvedLogo ? (
+          <div className="rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden">
+            <div
+              className="w-full aspect-[5/3] flex items-center justify-center bg-zinc-900"
+              style={{ backgroundColor: block.backgroundColor }}
+              aria-label="Brand logo preview"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={resolvedLogo} alt="" className="max-h-[80%] max-w-[80%] object-contain" />
+            </div>
+            <div className="flex items-center gap-1 p-1.5">
+              <button type="button" onClick={() => setLogoPickerOpen(true)} className="text-[10px] text-evari-gold hover:underline px-1">
+                {usingBrandDefault ? 'Override' : 'Replace'}
+              </button>
+              {!usingBrandDefault ? (
+                <button type="button" onClick={() => onChange({ logoUrl: '' })} className="text-[10px] text-evari-dim hover:text-evari-text px-1">
+                  Reset to brand
+                </button>
+              ) : null}
+              <span className="text-[10px] text-evari-dimmer ml-auto">{usingBrandDefault ? 'Brand kit · light logo' : 'Custom override'}</span>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setLogoPickerOpen(true)}
+            className="w-full aspect-[5/3] rounded-md border-2 border-dashed border-evari-edge/30 flex flex-col items-center justify-center gap-1 text-[11px] text-evari-dim hover:text-evari-text hover:border-evari-gold/60 transition-colors"
+          >
+            <FolderOpen className="h-5 w-5" />
+            <span>No brand logo set — choose one</span>
+          </button>
+        )}
+      </section>
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Logo URL (blank = brand light logo)</span>
         <input type="url" value={block.logoUrl} onChange={(e) => onChange({ logoUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
@@ -1197,6 +1413,12 @@ function HeaderBarFields({ block, onChange }: { block: Extract<EmailBlock, { typ
         <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
         <ColourField label="Text" value={block.textColor} onChange={(v) => onChange({ textColor: v })} />
       </div>
+      {logoPickerOpen ? (
+        <AssetPickerModal
+          onClose={() => setLogoPickerOpen(false)}
+          onPick={(url) => { onChange({ logoUrl: url }); setLogoPickerOpen(false); }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1477,9 +1699,32 @@ function PositionGrid({ value, onChange, disabled }: { value: string; onChange: 
   );
 }
 
-function SectionFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'section' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void }) {
+function SectionFields({ block, brand, designWidthPx, onChange }: { block: Extract<EmailBlock, { type: 'section' }>; brand: MarketingBrand; designWidthPx: number; onChange: (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [fitting, setFitting] = useState(false);
   const childCount = (block.blocks ?? []).length;
+
+  // Loads the bg image, reads its natural ratio, and sets minHeightPx so
+  // the section frames the image at the current content width with no crop.
+  const fitToImageRatio = useCallback(() => {
+    if (!block.backgroundImage) return;
+    setFitting(true);
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      setFitting(false);
+      if (!img.naturalWidth || !img.naturalHeight) return;
+      const ratio = img.naturalHeight / img.naturalWidth;
+      // Subtract horizontal padding from the available width so the image
+      // visually matches the section's content area.
+      const innerWidth = Math.max(40, designWidthPx - (block.paddingPx * 2));
+      const target = Math.round(innerWidth * ratio);
+      onChange({ minHeightPx: target, backgroundSize: 'fill' });
+    };
+    img.onerror = () => setFitting(false);
+    img.src = block.backgroundImage;
+  }, [block.backgroundImage, block.paddingPx, designWidthPx, onChange]);
+
   // Normalise legacy CSS values into the Klaviyo-style fill modes for the dropdown.
   const fillModeRaw = block.backgroundSize ?? 'fill';
   const fillMode: 'original' | 'fit' | 'fill' | 'tile' =
@@ -1496,10 +1741,11 @@ function SectionFields({ block, onChange }: { block: Extract<EmailBlock, { type:
       <section>
         <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Background image</h4>
         {block.backgroundImage ? (
-          <div className="rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden">
-            {/* Live 5:3 preview reflecting current fill + position */}
+          <div className="rounded-md overflow-hidden">
+            {/* Live 5:3 preview reflecting current fill + position. No outline
+                around the image — sits flush like a real preview. */}
             <div
-              className="w-full aspect-[5/3] bg-zinc-900"
+              className="w-full aspect-[5/3] rounded-md"
               style={{
                 backgroundImage: `url(${block.backgroundImage})`,
                 backgroundSize: fill.size,
@@ -1509,8 +1755,12 @@ function SectionFields({ block, onChange }: { block: Extract<EmailBlock, { type:
               }}
               aria-label="Background image preview"
             />
-            <div className="flex items-center gap-1 p-1.5">
+            <div className="flex items-center gap-1 pt-1.5">
               <button type="button" onClick={() => setPickerOpen(true)} className="text-[10px] text-evari-gold hover:underline px-1">Replace</button>
+              <button type="button" onClick={fitToImageRatio} disabled={fitting} className="text-[10px] text-evari-text hover:text-evari-gold disabled:opacity-50 px-1 inline-flex items-center gap-1" title="Resize the section to match the image's aspect ratio">
+                {fitting ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
+                Fit section to image
+              </button>
               <button type="button" onClick={() => onChange({ backgroundImage: '' })} className="text-[10px] text-evari-dim hover:text-evari-danger px-1 ml-auto">Remove</button>
             </div>
           </div>
@@ -1560,8 +1810,8 @@ function SectionFields({ block, onChange }: { block: Extract<EmailBlock, { type:
       <section>
         <h4 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Colours</h4>
         <div className="grid grid-cols-2 gap-2">
-          <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
-          <ColourField label="Text on top" value={block.contentColor ?? '#ffffff'} onChange={(v) => onChange({ contentColor: v })} />
+          <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} brand={brand} />
+          <ColourField label="Text on top" value={block.contentColor ?? '#ffffff'} onChange={(v) => onChange({ contentColor: v })} brand={brand} />
         </div>
       </section>
 
