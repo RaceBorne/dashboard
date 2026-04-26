@@ -287,7 +287,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   const newPostButton = (
     <Link
       href="/social/new"
-      className="inline-flex items-center gap-1.5 rounded-full h-7 px-3 text-xs font-medium bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90 transition"
+      className="inline-flex items-center gap-1 rounded-full h-7 px-1 text-xs font-medium bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90 transition"
     >
       <Plus className="h-3.5 w-3.5" />
       New post
@@ -359,12 +359,12 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   }
 
   return (
-    <div className="flex-1 relative min-h-0 overflow-hidden bg-evari-ink p-3">
+    <div className="flex-1 relative min-h-0 overflow-hidden bg-evari-ink p-1">
       {/* Calendar column is hard-pinned to (100% − rail − gaps). All
           panels are detached floating rounded-md rectangles so content
           height in any one panel can never push or shrink another. */}
       <div
-        className="absolute top-3 left-3 bottom-3 flex flex-col overflow-hidden gap-3 transition-[width] duration-200"
+        className="absolute top-3 left-3 bottom-3 flex flex-col overflow-hidden gap-1 transition-[width] duration-200"
         style={{
           width: selectedEventId
             ? 'calc(100% - 380px - 1.5rem)'
@@ -392,7 +392,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
               setSelectedEventId(null);
             }}
             headerRight={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {viewSwitcher}
                 {newPostButton}
               </div>
@@ -411,7 +411,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
               setView('day');
             }}
             headerRight={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {viewSwitcher}
                 {newPostButton}
               </div>
@@ -428,7 +428,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
               setSelectedDate(e.start ?? e.date);
             }}
             headerRight={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {viewSwitcher}
                 {newPostButton}
               </div>
@@ -436,8 +436,8 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           />
         )}
         {view === 'year' && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-16 gap-6">
-            <div className="flex flex-col gap-2 items-center">
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-16 gap-1">
+            <div className="flex flex-col gap-1 items-center">
               <div className="text-[10px] uppercase tracking-[0.2em] text-evari-dimmer">
                 Year view
               </div>
@@ -449,7 +449,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
                 are well-supplied with content and which are bare.
               </p>
             </div>
-            <div className="flex items-center gap-2">{viewSwitcher}</div>
+            <div className="flex items-center gap-1">{viewSwitcher}</div>
           </div>
         )}
       </div>
@@ -484,7 +484,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
       {selectedEventId ? (
       <aside
         ref={railRef}
-        className="hidden lg:flex flex-col absolute top-3 right-3 bottom-3 z-10 overflow-hidden gap-3"
+        className="hidden lg:flex flex-col absolute top-3 right-3 bottom-3 z-10 overflow-hidden gap-1"
         style={{ width: railWidth - 24 }}
       >
         {/* Drag handle — hover changes cursor to ew-resize. The handle
@@ -523,9 +523,9 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
 function PostCard({ post }: { post: SocialPost }) {
   const Icon = PLATFORM_ICON[post.platform];
   return (
-    <div className="rounded-md bg-evari-surface p-3">
+    <div className="rounded-md bg-evari-surface p-1">
       <div className="flex items-center justify-between mb-2">
-        <div className="inline-flex items-center gap-1.5 text-[10px] rounded-full px-2 py-0.5 capitalize bg-evari-surfaceSoft text-evari-dim">
+        <div className="inline-flex items-center gap-1 text-[10px] rounded-full px-2 py-0.5 capitalize bg-evari-surfaceSoft text-evari-dim">
           <Icon className="h-3 w-3" />
           {post.platform}
         </div>
@@ -548,7 +548,7 @@ function PostCard({ post }: { post: SocialPost }) {
         {post.caption}
       </div>
       {post.metrics && (
-        <div className="mt-2 flex items-center gap-3 text-[10px] text-evari-dim font-mono tabular-nums">
+        <div className="mt-2 flex items-center gap-1 text-[10px] text-evari-dim font-mono tabular-nums">
           <span>{post.metrics.impressions} imp</span>
           <span>{post.metrics.engagements} eng</span>
           {post.metrics.clicks != null && <span>{post.metrics.clicks} clk</span>}
@@ -596,8 +596,8 @@ function ScheduleActionsPanel({
         {/* Placeholder area so the empty state has the same visual
             footprint as the populated state — keeps the rail width
             visually consistent regardless of selection. */}
-        <div className="mt-3 h-9 rounded-md bg-evari-ink/30 ring-1 ring-evari-edge/30" />
-        <div className="mt-1.5 h-7 rounded-md bg-evari-ink/20 ring-1 ring-evari-edge/20" />
+        <div className="mt-1 h-9 rounded-md bg-evari-ink/30" />
+        <div className="mt-1.5 h-7 rounded-md bg-evari-ink/20" />
       </div>
     );
   }
@@ -635,7 +635,7 @@ function ScheduleActionsPanel({
       <h3 className="text-sm font-semibold text-evari-text leading-snug line-clamp-2">
         {title}
       </h3>
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11px]">
+      <dl className="mt-1 grid grid-cols-[auto_1fr] gap-1 gap-y-1.5 text-[11px]">
         <dt className="text-evari-dimmer">Scheduled by</dt>
         <dd className="text-evari-text">{author}</dd>
         {date ? (
@@ -653,7 +653,7 @@ function ScheduleActionsPanel({
         type="button"
         onClick={onSendNow}
         disabled={sending}
-        className="mt-4 w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-md bg-evari-gold text-evari-goldInk text-sm font-semibold disabled:opacity-60 hover:brightness-105 transition"
+        className="mt-4 w-full inline-flex items-center justify-center gap-1 py-2 rounded-md bg-evari-gold text-evari-goldInk text-sm font-semibold disabled:opacity-60 hover:brightness-105 transition"
       >
         {sending ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -671,7 +671,7 @@ function ScheduleActionsPanel({
         <button
           type="button"
           onClick={onEdit}
-          className="mt-2 w-full inline-flex items-center justify-center gap-1.5 py-1.5 rounded-md bg-evari-surface text-evari-dim hover:text-evari-text text-xs font-medium ring-1 ring-evari-edge transition"
+          className="mt-2 w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-md bg-evari-surface text-evari-dim hover:text-evari-text text-xs font-medium transition"
         >
           <ExternalLink className="h-3 w-3" />
           Open in editor
@@ -703,11 +703,11 @@ function PostPreviewWindow({
 }: PreviewWindowProps) {
   if (!selectedJournal && !selectedSocial) {
     return (
-      <section className="flex-1 flex flex-col p-4 gap-3 rounded-md bg-evari-surface">
-        <div className="h-32 rounded-md bg-evari-ink/30 ring-1 ring-evari-edge/30" />
-        <div className="h-4 rounded-md bg-evari-ink/20 ring-1 ring-evari-edge/20 w-3/4" />
-        <div className="h-3 rounded-md bg-evari-ink/20 ring-1 ring-evari-edge/20 w-full" />
-        <div className="h-3 rounded-md bg-evari-ink/20 ring-1 ring-evari-edge/20 w-5/6" />
+      <section className="flex-1 flex flex-col p-4 gap-1 rounded-md bg-evari-surface">
+        <div className="h-32 rounded-md bg-evari-ink/30" />
+        <div className="h-4 rounded-md bg-evari-ink/20 w-3/4" />
+        <div className="h-3 rounded-md bg-evari-ink/20 w-full" />
+        <div className="h-3 rounded-md bg-evari-ink/20 w-5/6" />
         <p className="mt-auto text-[11px] text-evari-dimmer leading-relaxed text-center">
           Pick an event from the calendar to preview the post in its
           finished state.
@@ -721,7 +721,7 @@ function PostPreviewWindow({
   const date = dateIso ? new Date(dateIso) : null;
   return (
     <section className="flex-1 flex flex-col min-h-0 rounded-md bg-evari-surface overflow-hidden">
-      <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
+      <header className="flex items-center justify-between px-1 py-2 border-b border-evari-edge/30 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
         <button
           type="button"
           onClick={() => onNavigate('prev')}
@@ -783,7 +783,7 @@ function SocialPreviewCard({ post }: { post: SocialPost }) {
   const Icon = PLATFORM_ICON[post.platform];
   return (
     <div className="p-4">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-1 mb-1">
         <Icon className="h-4 w-4 text-zinc-700" />
         <span className="text-xs font-semibold capitalize text-zinc-700">
           {post.platform}
@@ -794,7 +794,7 @@ function SocialPreviewCard({ post }: { post: SocialPost }) {
         <img
           src={post.mediaUrls[0]}
           alt=""
-          className="w-full rounded-md mb-3"
+          className="w-full rounded-md mb-1"
           style={{ aspectRatio: '1 / 1', objectFit: 'cover' }}
         />
       ) : null}
@@ -926,7 +926,7 @@ function PlatformDrawer({
   const drawerSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   return (
     <div
-      className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink p-3 rounded-lg"
+      className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink p-1 rounded-lg"
       style={{ height }}
     >
       {/* Toggle bar IS the drag handle — clicking opens/closes,
@@ -950,7 +950,7 @@ function PlatformDrawer({
         className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors shrink-0 rounded-md bg-evari-surface cursor-row-resize select-none"
       >
         <span className="font-semibold">Queue · all platforms</span>
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-1">
           <span className="text-evari-dimmer normal-case tracking-normal">
             {open ? 'Collapse' : `${sorted.length} item${sorted.length === 1 ? '' : 's'}`}
           </span>
@@ -963,18 +963,18 @@ function PlatformDrawer({
         </span>
       </div>
       {open ? (
-        <div className="flex-1 flex flex-col mt-3 min-h-0">
+        <div className="flex-1 flex flex-col mt-1 min-h-0">
           {/* Platform picker — sits inline at the top of the drawer
               (not a floating popup). Click 'Choose broadcast
               applications' to reveal the checkbox list; tick the
               platforms you want as columns. */}
-          <div className="shrink-0 px-1 mb-3">
+          <div className="shrink-0 px-1 mb-1">
             <button
               type="button"
               onClick={onTogglePicker}
               className="w-full inline-flex items-center justify-between px-4 py-2 rounded-md bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors"
             >
-              <span className="inline-flex items-center gap-2">
+              <span className="inline-flex items-center gap-1">
                 <ChevronDown
                   className={cn(
                     'h-4 w-4 transition-transform',
@@ -988,7 +988,7 @@ function PlatformDrawer({
               </span>
             </button>
             {pickerOpen ? (
-              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
                 {DRAWER_COLS.map((col) => {
                   const active = enabledPlatforms.has(col.key);
                   return (
@@ -997,13 +997,13 @@ function PlatformDrawer({
                       type="button"
                       onClick={() => onTogglePlatform(col.key)}
                       className={cn(
-                        'inline-flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm transition-colors',
+                        'inline-flex items-center justify-between gap-1 px-1 py-2 rounded-md text-sm transition-colors',
                         active
-                          ? 'bg-evari-surface text-evari-text ring-1 ring-evari-gold/40'
+                          ? 'bg-evari-surface text-evari-text '
                           : 'bg-evari-surface/40 text-evari-dim hover:bg-evari-surface',
                       )}
                     >
-                      <span className="inline-flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1">
                         <col.icon className="h-4 w-4" />
                         {col.label}
                       </span>
@@ -1041,7 +1041,7 @@ function PlatformDrawer({
                 items={orderedColsKeys}
                 strategy={horizontalListSortingStrategy}
               >
-                <div className="flex h-full gap-3 min-w-fit">
+                <div className="flex h-full gap-1 min-w-fit">
                 {orderedCols.map((col) => {
                   const items = byColumn.get(col.key) ?? [];
                   return (
@@ -1052,7 +1052,7 @@ function PlatformDrawer({
                       label={col.label}
                       count={items.length}
                     >
-                      <ul className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
+                      <ul className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
                     {items.length === 0 ? (
                       <li className="text-[11px] text-evari-dimmer italic px-1 py-2">
                         Nothing queued.
@@ -1061,7 +1061,7 @@ function PlatformDrawer({
                       items.map((e) => (
                         <li
                           key={e.id}
-                          className="rounded-md bg-white text-zinc-900 p-2 cursor-pointer transition-colors hover:bg-zinc-50 ring-1 ring-evari-edge/30"
+                          className="rounded-md bg-white text-zinc-900 p-2 cursor-pointer transition-colors hover:bg-zinc-50"
                           onClick={() => e.onClick?.()}
                         >
                           <div className="text-[11px] leading-tight line-clamp-2">
@@ -1205,11 +1205,11 @@ function SortableDrawerColumn({
         {...attributes}
         {...listeners}
         className={cn(
-          'px-3 py-2 text-xs text-evari-text font-medium border-b border-evari-edge/30 shrink-0 flex items-center justify-between select-none',
+          'px-1 py-2 text-xs text-evari-text font-medium border-b border-evari-edge/30 shrink-0 flex items-center justify-between select-none',
           isDragging ? 'cursor-grabbing' : 'cursor-grab',
         )}
       >
-        <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-1">
           {Icon ? (
             <Icon className="h-3.5 w-3.5 text-evari-dim" aria-hidden="true" />
           ) : null}
