@@ -52,6 +52,8 @@ const NAV = [
   { href: '/social/linkedin', label: 'LinkedIn', icon: Linkedin, group: 'broadcast', child: true },
   { href: '/journals', label: 'Journals', icon: FileText, group: 'broadcast', child: true },
   { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'marketing' },
+  { href: '/email', label: 'Email', icon: Mail, group: 'marketing' },
+  { href: '/email/contacts', label: 'Contacts', icon: Users, group: 'marketing', child: true },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'marketing' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
   { href: '/users', label: 'Users', icon: Users, group: 'system' },
