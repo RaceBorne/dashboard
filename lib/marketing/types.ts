@@ -44,3 +44,52 @@ export interface MarketingEvent {
   metadata: Record<string, unknown>;
   createdAt: string;
 }
+
+// ─── Segmentation rule types ─────────────────────────────────────
+//
+// rules JSON on dashboard_mkt_segments uses this discriminated union.
+// New filter kinds = new variant + a new branch in the engine. Keep
+// the existing four stable so saved segments don't break.
+
+export type SegmentCombinator = 'and' | 'or';
+
+export type SegmentRule =
+  | {
+      type: 'group';
+      op: 'in';
+      groupIds: string[];
+    }
+  | {
+      type: 'tag';
+      op: 'in';
+      tagIds: string[];
+    }
+  | {
+      type: 'status';
+      op: 'eq';
+      status: ContactStatus;
+    }
+  | {
+      type: 'event';
+      op: 'occurred_in_last_days';
+      eventType: string;
+      days: number;
+    };
+
+export interface SegmentRuleSet {
+  combinator: SegmentCombinator;
+  rules: SegmentRule[];
+}
+
+export interface Segment {
+  id: string;
+  name: string;
+  rules: SegmentRuleSet;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SegmentEvaluation {
+  contactIds: string[];
+  count: number;
+}
