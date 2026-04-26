@@ -1195,6 +1195,42 @@ function CaseField({ value, onChange }: { value: 'none' | 'lowercase' | 'upperca
   );
 }
 
+
+/** Named font-weight dropdown — maps display labels to numeric weights. */
+const FONT_WEIGHTS: Array<{ value: number; label: string }> = [
+  { value: 100, label: 'Thin' },
+  { value: 200, label: 'Extra-light' },
+  { value: 300, label: 'Light' },
+  { value: 400, label: 'Regular' },
+  { value: 500, label: 'Medium' },
+  { value: 600, label: 'Semi-bold' },
+  { value: 700, label: 'Bold' },
+  { value: 800, label: 'Extra-bold' },
+  { value: 900, label: 'Black' },
+];
+
+function WeightField({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  // If the saved weight isn't one of the canonical 100-step values
+  // (e.g. user picked 450 on the old slider), still match the closest.
+  const closest = FONT_WEIGHTS.reduce((acc, w) => Math.abs(w.value - value) < Math.abs(acc - value) ? w.value : acc, FONT_WEIGHTS[0].value);
+  return (
+    <label className="block">
+      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Weight</span>
+      <select
+        value={closest}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={inputCls}
+      >
+        {FONT_WEIGHTS.map((w) => (
+          <option key={w.value} value={w.value} style={{ fontWeight: w.value }}>
+            {w.label} ({w.value})
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'heading' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void }) {
   const defaultSize = block.level === 1 ? 28 : block.level === 2 ? 22 : 18;
   const size = block.fontSizePx ?? defaultSize;
@@ -1227,7 +1263,7 @@ function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, 
       </div>
       <SliderField label="Size" value={size} min={10} max={96} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
       <SliderField label="Tracking" value={tracking} min={-0.1} max={0.4} step={0.005} suffix="em" onChange={(v) => onChange({ letterSpacingEm: Number(v.toFixed(3)) })} />
-      <SliderField label="Weight" value={weight} min={100} max={900} step={100} onChange={(v) => onChange({ fontWeight: v })} />
+      <WeightField value={weight} onChange={(v) => onChange({ fontWeight: v })} />
       <div className="grid grid-cols-2 gap-2">
         <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} brand={brand} />
         <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
@@ -1258,7 +1294,7 @@ function TextFields({ block, brand, onChange }: { block: Extract<EmailBlock, { t
       <SliderField label="Size" value={block.fontSizePx} min={10} max={48} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
       <SliderField label="Line height" value={block.lineHeight} min={1} max={3} step={0.05} onChange={(v) => onChange({ lineHeight: Number(v.toFixed(2)) })} />
       <SliderField label="Tracking" value={tracking} min={-0.05} max={0.3} step={0.005} suffix="em" onChange={(v) => onChange({ letterSpacingEm: Number(v.toFixed(3)) })} />
-      <SliderField label="Weight" value={weight} min={100} max={900} step={100} onChange={(v) => onChange({ fontWeight: v })} />
+      <WeightField value={weight} onChange={(v) => onChange({ fontWeight: v })} />
       <div className="grid grid-cols-2 gap-2">
         <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} brand={brand} />
         <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
