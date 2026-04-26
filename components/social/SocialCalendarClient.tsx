@@ -405,8 +405,17 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           preview (bottom, fills remaining height + scrolls). */}
       <aside
         ref={railRef}
-        className="hidden lg:flex flex-col absolute top-0 right-0 bottom-0 z-10 border-l border-evari-edge/30 bg-evari-ink overflow-hidden shadow-[ -4px_0_18px_rgba(0,0,0,0.3)]"
-        style={{ width: railWidth }}
+        className="hidden lg:flex flex-col absolute top-0 right-0 bottom-0 z-10 bg-evari-ink overflow-hidden"
+        style={{
+          width: railWidth,
+          // Strong visible left border + shadow so the rail's pixel
+          // boundary is obvious even when the empty-state content is
+          // small. Eliminates the perceived 'stretching' when the
+          // rail goes from empty to populated — boundary is always
+          // visibly at the same x-position.
+          borderLeft: '3px solid rgb(var(--evari-gold) / 0.45)',
+          boxShadow: '-6px 0 22px rgba(0,0,0,0.4)',
+        }}
       >
         {/* Drag handle — hover changes cursor to ew-resize. The handle
             itself is a 6px-wide invisible strip on the left edge with
@@ -505,14 +514,19 @@ function ScheduleActionsPanel({
 }: SchedulePanelProps) {
   if (!selectedJournal && !selectedSocial) {
     return (
-      <div className="px-5 py-6 border-b border-evari-edge/30 bg-evari-surface text-center">
-        <div className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer mb-2">
+      <div className="flex-none p-4 border-b border-evari-edge/30 bg-evari-surface">
+        <div className="text-xs text-evari-text font-medium mb-2">
           Schedule
         </div>
-        <p className="text-xs text-evari-dim">
+        <p className="text-[11px] text-evari-dim leading-relaxed">
           Click an event on the calendar to see scheduled time, status,
           and quick actions.
         </p>
+        {/* Placeholder area so the empty state has the same visual
+            footprint as the populated state — keeps the rail width
+            visually consistent regardless of selection. */}
+        <div className="mt-3 h-9 rounded-md bg-evari-ink/30 ring-1 ring-evari-edge/30" />
+        <div className="mt-1.5 h-7 rounded-md bg-evari-ink/20 ring-1 ring-evari-edge/20" />
       </div>
     );
   }
@@ -618,8 +632,12 @@ function PostPreviewWindow({
 }: PreviewWindowProps) {
   if (!selectedJournal && !selectedSocial) {
     return (
-      <section className="flex-1 flex items-center justify-center p-6 text-center">
-        <p className="text-xs text-evari-dimmer leading-relaxed">
+      <section className="flex-1 flex flex-col p-4 gap-3">
+        <div className="h-32 rounded-md bg-evari-ink/30 ring-1 ring-evari-edge/30" />
+        <div className="h-4 rounded bg-evari-ink/20 ring-1 ring-evari-edge/20 w-3/4" />
+        <div className="h-3 rounded bg-evari-ink/20 ring-1 ring-evari-edge/20 w-full" />
+        <div className="h-3 rounded bg-evari-ink/20 ring-1 ring-evari-edge/20 w-5/6" />
+        <p className="mt-auto text-[11px] text-evari-dimmer leading-relaxed text-center">
           Pick an event from the calendar to preview the post in its
           finished state.
         </p>
