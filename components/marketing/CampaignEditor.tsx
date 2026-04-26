@@ -15,11 +15,13 @@ interface Props {
   groups: Group[];
   segments: Segment[];
   initialStats?: CampaignStats;
+  /** Pre-loaded recipient emails — typically from /campaigns/new?ids=… */
+  initialRecipientEmails?: string[];
 }
 
-type AudienceKind = 'segment' | 'group';
+type AudienceKind = 'segment' | 'group' | 'custom';
 
-export function CampaignEditor({ mode, campaign, groups, segments, initialStats }: Props) {
+export function CampaignEditor({ mode, campaign, groups, segments, initialStats, initialRecipientEmails }: Props) {
   const router = useRouter();
   const editing = mode === 'edit' && !!campaign;
   const [name, setName] = useState(campaign?.name ?? '');
@@ -28,21 +30,28 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats 
     campaign?.content ??
       '<h1>Hello {{firstName}}</h1>\n<p>Write your email here. Plain HTML — Phase 6 wires real merging + delivery.</p>',
   );
-  const initialAudience: AudienceKind | '' = campaign?.segmentId
-    ? 'segment'
-    : campaign?.groupId
-      ? 'group'
-      : '';
+  // Audience defaults: prefer existing campaign value > deep-link custom emails
+  // > first available picker. 'custom' wins automatically when ids= was used.
+  const seedCustom = (campaign?.recipientEmails ?? initialRecipientEmails ?? []) as string[];
+  const initialAudience: AudienceKind | '' =
+    campaign?.segmentId ? 'segment'
+    : campaign?.groupId ? 'group'
+    : seedCustom.length > 0 ? 'custom'
+    : '';
   const [audienceKind, setAudienceKind] = useState<AudienceKind | ''>(initialAudience || (segments.length > 0 ? 'segment' : 'group'));
   const [segmentId, setSegmentId] = useState<string>(campaign?.segmentId ?? '');
   const [groupId, setGroupId] = useState<string>(campaign?.groupId ?? '');
+  const [recipientEmails, setRecipientEmails] = useState<string[]>(seedCustom);
 
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const audienceOk = (audienceKind === 'segment' && !!segmentId) || (audienceKind === 'group' && !!groupId);
+  const audienceOk =
+    (audienceKind === 'segment' && !!segmentId) ||
+    (audienceKind === 'group' && !!groupId) ||
+    (audienceKind === 'custom' && recipientEmails.length > 0);
   const ready = name.trim().length > 0 && subject.trim().length > 0 && content.length > 0 && audienceOk;
   const sentLocked = campaign?.status === 'sent' || campaign?.status === 'sending';
 
@@ -56,6 +65,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats 
         content,
         segmentId: audienceKind === 'segment' ? segmentId || null : null,
         groupId: audienceKind === 'group' ? groupId || null : null,
+        recipientEmails: audienceKind === 'custom' ? recipientEmails : null,
       };
       const url = editing ? `/api/marketing/campaigns/${campaign!.id}` : '/api/marketing/campaigns';
       const method = editing ? 'PATCH' : 'POST';
@@ -146,7 +156,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats 
           <div>
             <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Audience</span>
             <div className="flex gap-1 mb-2">
-              {(['segment', 'group'] as AudienceKind[]).map((k) => (
+              {(['segment', 'group', 'custom'] as AudienceKind[]).map((k) => (
                 <button
                   key={k}
                   type="button"
@@ -159,7 +169,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats 
                       : 'bg-evari-ink text-evari-dim hover:text-evari-text',
                   )}
                 >
-                  {k}
+                  {k === 'custom' ? 'Custom list' : k}
                 </button>
               ))}
             </div>
@@ -177,7 +187,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats 
                   </option>
                 ))}
               </select>
-            ) : (
+            ) : audienceKind === 'group' ? (
               <select
                 className={inputCls}
                 value={groupId}
@@ -191,6 +201,26 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats 
                   </option>
                 ))}
               </select>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-[10px] text-evari-dimmer">
+                  {recipientEmails.length} recipient{recipientEmails.length === 1 ? '' : 's'} —
+                  {' '}<span className="text-evari-dim">paste emails (one per line) or comma-separated.</span>
+                </p>
+                <textarea
+                  className={cn(inputCls, 'font-mono text-[12px] min-h-[100px]')}
+                  value={recipientEmails.join('\n')}
+                  onChange={(e) => {
+                    const next = e.target.value
+                      .split(/[\n,]+/)
+                      .map((x) => x.trim().toLowerCase())
+                      .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
+                    setRecipientEmails([...new Set(next)]);
+                  }}
+                  disabled={sentLocked}
+                  placeholder="alice@example.com&#10;bob@example.com"
+                />
+              </div>
             )}
           </div>
 

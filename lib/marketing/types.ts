@@ -111,6 +111,8 @@ export interface Campaign {
   status: CampaignStatus;
   segmentId: string | null;
   groupId: string | null;
+  /** Ad-hoc recipient list (emails) when audience is a custom selection. */
+  recipientEmails: string[] | null;
   scheduledFor: string | null;
   sentAt: string | null;
   createdAt: string;

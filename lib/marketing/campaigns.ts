@@ -38,6 +38,7 @@ interface CampaignRow {
   status: CampaignStatus;
   segment_id: string | null;
   group_id: string | null;
+  recipient_emails: string[] | null;
   scheduled_for: string | null;
   sent_at: string | null;
   created_at: string;
@@ -53,6 +54,7 @@ function rowToCampaign(row: CampaignRow): Campaign {
     status: row.status,
     segmentId: row.segment_id,
     groupId: row.group_id,
+    recipientEmails: row.recipient_emails,
     scheduledFor: row.scheduled_for,
     sentAt: row.sent_at,
     createdAt: row.created_at,
@@ -97,6 +99,7 @@ export async function createCampaign(input: {
   content: string;
   segmentId?: string | null;
   groupId?: string | null;
+  recipientEmails?: string[] | null;
 }): Promise<Campaign | null> {
   const sb = createSupabaseAdmin();
   if (!sb) return null;
@@ -108,6 +111,7 @@ export async function createCampaign(input: {
       content: input.content,
       segment_id: input.segmentId ?? null,
       group_id: input.groupId ?? null,
+      recipient_emails: input.recipientEmails && input.recipientEmails.length > 0 ? input.recipientEmails : null,
     })
     .select('*')
     .single();
@@ -126,6 +130,7 @@ export async function updateCampaign(
     content: string;
     segmentId: string | null;
     groupId: string | null;
+    recipientEmails: string[] | null;
     status: CampaignStatus;
     scheduledFor: string | null;
   }>,
@@ -133,6 +138,7 @@ export async function updateCampaign(
   const sb = createSupabaseAdmin();
   if (!sb) return null;
   const dbPatch: Record<string, unknown> = {};
+  if ('recipientEmails' in patch) dbPatch.recipient_emails = patch.recipientEmails && patch.recipientEmails.length > 0 ? patch.recipientEmails : null;
   if ('name' in patch && patch.name) dbPatch.name = patch.name.trim();
   if ('subject' in patch && patch.subject !== undefined) dbPatch.subject = patch.subject;
   if ('content' in patch && patch.content !== undefined) dbPatch.content = patch.content;
@@ -231,6 +237,23 @@ async function resolveRecipientIds(campaign: Campaign): Promise<string[]> {
     }
     return (data ?? []).map((r) => (r as { contact_id: string }).contact_id);
   }
+  // Custom recipient list — emails passed in directly (typically from the
+  // contacts bulk-action 'Send campaign' flow). Resolve to contact ids by
+  // looking up dashboard_mkt_contacts on lower(email).
+  if (campaign.recipientEmails && campaign.recipientEmails.length > 0) {
+    const sb = createSupabaseAdmin();
+    if (!sb) return [];
+    const lowered = campaign.recipientEmails.map((e) => e.toLowerCase());
+    const { data, error } = await sb
+      .from('dashboard_mkt_contacts')
+      .select('id, email')
+      .in('email', lowered);
+    if (error) {
+      console.error('[marketing.resolveRecipientIds custom]', error);
+      return [];
+    }
+    return (data ?? []).map((r) => (r as { id: string }).id);
+  }
   return [];
 }
 
@@ -265,8 +288,12 @@ export async function sendCampaign(id: string): Promise<SendResult> {
   if (campaign.status === 'sent') {
     return { ok: false, attempted: 0, sent: 0, suppressed: 0, failed: 0, error: 'Already sent' };
   }
-  if (!campaign.segmentId && !campaign.groupId) {
-    return { ok: false, attempted: 0, sent: 0, suppressed: 0, failed: 0, error: 'No segment or group selected' };
+  const hasAudience =
+    Boolean(campaign.segmentId) ||
+    Boolean(campaign.groupId) ||
+    Boolean(campaign.recipientEmails && campaign.recipientEmails.length > 0);
+  if (!hasAudience) {
+    return { ok: false, attempted: 0, sent: 0, suppressed: 0, failed: 0, error: 'No segment, group or recipient list selected' };
   }
 
   await updateCampaign(id, { status: 'sending' });

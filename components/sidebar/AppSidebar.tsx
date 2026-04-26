@@ -61,6 +61,7 @@ const NAV = [
   { href: '/email', label: 'Email', icon: Mail, group: 'marketing' },
   { href: '/email/contacts', label: 'Contacts', icon: Users, group: 'marketing', child: true },
   { href: '/email/conversations', label: 'Conversations', icon: Mail, group: 'marketing', child: true },
+  { href: '/email/audience', label: 'Lists & Segments', icon: Users, group: 'marketing', child: true },
   { href: '/email/campaigns', label: 'Campaigns', icon: Send, group: 'marketing', child: true },
   { href: '/email/flows', label: 'Flows', icon: GitBranch, group: 'marketing', child: true },
   { href: '/email/domains', label: 'Domains', icon: Globe, group: 'marketing', child: true },

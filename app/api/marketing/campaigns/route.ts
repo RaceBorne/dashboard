@@ -30,7 +30,10 @@ export async function POST(req: Request) {
   }
   const segmentId = typeof body?.segmentId === 'string' ? body.segmentId : null;
   const groupId = typeof body?.groupId === 'string' ? body.groupId : null;
-  const campaign = await createCampaign({ name, subject, content, segmentId, groupId });
+  const recipientEmails = Array.isArray(body?.recipientEmails)
+    ? (body.recipientEmails as unknown[]).filter((x) => typeof x === 'string') as string[]
+    : null;
+  const campaign = await createCampaign({ name, subject, content, segmentId, groupId, recipientEmails });
   if (!campaign) return NextResponse.json({ ok: false, error: 'create failed' }, { status: 500 });
   return NextResponse.json({ ok: true, campaign });
 }
