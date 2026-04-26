@@ -1110,3 +1110,59 @@ function ScaledPreview({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+// ─── Sortable column wrapper for the drawer ──────────────────────
+
+interface SortableDrawerColumnProps {
+  id: string;
+  icon: typeof Instagram;
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}
+
+/**
+ * Wraps a drawer platform column in a dnd-kit sortable. The HEADER
+ * is the drag handle (cursor: grab) — clicking and dragging the
+ * header reorders the column horizontally. The body (list of items)
+ * is unaffected — items inside the list stay clickable.
+ */
+function SortableDrawerColumn({
+  id,
+  icon: Icon,
+  label,
+  count,
+  children,
+}: SortableDrawerColumnProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.7 : 1,
+      }}
+      className="flex-1 min-w-[180px] flex flex-col min-h-0 rounded-2xl bg-evari-surface overflow-hidden"
+    >
+      <header
+        {...attributes}
+        {...listeners}
+        className={cn(
+          'px-3 py-2 text-xs text-evari-text font-medium border-b border-evari-edge/30 shrink-0 flex items-center justify-between select-none',
+          isDragging ? 'cursor-grabbing' : 'cursor-grab',
+        )}
+      >
+        <span className="inline-flex items-center gap-1.5">
+          {Icon ? (
+            <Icon className="h-3.5 w-3.5 text-evari-dim" aria-hidden="true" />
+          ) : null}
+          {label}
+        </span>
+        <span className="tabular-nums text-evari-dimmer text-[10px]">{count}</span>
+      </header>
+      {children}
+    </div>
+  );
+}
