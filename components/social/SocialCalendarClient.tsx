@@ -1193,7 +1193,7 @@ function SortableDrawerColumn({
   count,
   children,
 }: SortableDrawerColumnProps) {
-  const { attributes, listeners, setNodeRef, transform, transition duration-1000 ease-in-out, isDragging } =
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
   return (
     <div
