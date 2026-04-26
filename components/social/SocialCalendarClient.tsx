@@ -389,7 +389,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           (week/day views) so the column itself doesn't scroll —
           everything outside the post-preview pane stays fixed. */}
       <div
-        className="flex-1 min-h-0 flex flex-col rounded-t-md bg-evari-surface overflow-hidden"
+        className="flex-1 min-h-0 flex flex-col rounded-md bg-evari-surface overflow-hidden"
         style={{
           minHeight: view === 'month' ? 720 : 760,
         }}
@@ -961,7 +961,7 @@ function PlatformDrawer({
         aria-orientation="horizontal"
         onMouseDown={onResizeStart}
         aria-expanded={open}
-        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors duration-1000 ease-in-out shrink-0 rounded-t-md bg-evari-surface cursor-row-resize select-none"
+        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors duration-1000 ease-in-out shrink-0 rounded-md bg-evari-surface cursor-row-resize select-none mb-1"
       >
         <span className="font-semibold">Queue · all platforms</span>
         <span className="flex items-center gap-1">
@@ -982,11 +982,11 @@ function PlatformDrawer({
               (not a floating popup). Click 'Choose broadcast
               applications' to reveal the checkbox list; tick the
               platforms you want as columns. */}
-          <div className="shrink-0">
+          <div className="shrink-0 mb-1">
             <button
               type="button"
               onClick={onTogglePicker}
-              className="w-full inline-flex items-center justify-between px-4 py-2 bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors duration-1000 ease-in-out border-t border-evari-edge/20"
+              className="w-full inline-flex items-center justify-between px-4 py-2 bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors duration-1000 ease-in-out rounded-md"
             >
               <span className="inline-flex items-center gap-1">
                 <ChevronDown
@@ -1213,7 +1213,7 @@ function SortableDrawerColumn({
         transition,
         opacity: isDragging ? 0.7 : 1,
       }}
-      className="flex-1 min-w-[180px] flex flex-col min-h-0 bg-evari-surface overflow-hidden border-t border-evari-edge/20"
+      className="flex-1 min-w-[180px] flex flex-col min-h-0 bg-evari-surface overflow-hidden rounded-md"
     >
       <header
         {...attributes}
