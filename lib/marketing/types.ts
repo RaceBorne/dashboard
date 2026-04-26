@@ -309,3 +309,23 @@ export interface MarketingBrand {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── Asset library ───────────────────────────────────────────────
+
+export type AssetKind = 'image' | 'gif' | 'logo' | 'video_thumb' | 'other';
+
+export interface MktAsset {
+  id: string;
+  kind: AssetKind;
+  filename: string;
+  storageKey: string;
+  url: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  width: number | null;
+  height: number | null;
+  tags: string[];
+  altText: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
