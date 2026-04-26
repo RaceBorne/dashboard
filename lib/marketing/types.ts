@@ -93,3 +93,65 @@ export interface SegmentEvaluation {
   contactIds: string[];
   count: number;
 }
+
+// ─── Campaigns ───────────────────────────────────────────────────
+
+export type CampaignStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'sending'
+  | 'sent'
+  | 'failed';
+
+export interface Campaign {
+  id: string;
+  name: string;
+  subject: string;
+  content: string;
+  status: CampaignStatus;
+  segmentId: string | null;
+  groupId: string | null;
+  scheduledFor: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RecipientStatus =
+  | 'queued'
+  | 'sent'
+  | 'delivered'
+  | 'opened'
+  | 'clicked'
+  | 'bounced'
+  | 'complained'
+  | 'failed'
+  | 'suppressed';
+
+export interface CampaignRecipient {
+  id: string;
+  campaignId: string;
+  contactId: string;
+  status: RecipientStatus;
+  messageId: string | null;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  openedAt: string | null;
+  clickedAt: string | null;
+  bouncedAt: string | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface SendResult {
+  ok: boolean;
+  /** Number of recipients enqueued + processed. */
+  attempted: number;
+  /** Number of recipients the sender said it accepted. */
+  sent: number;
+  /** Number suppressed (in dashboard_mkt_suppressions or status≠active). */
+  suppressed: number;
+  /** Number that failed at the sender layer. */
+  failed: number;
+  error?: string;
+}
