@@ -300,11 +300,18 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   }
 
   return (
-    <div
-      className="flex-1 grid min-h-0 overflow-hidden"
-      style={{ gridTemplateColumns: `minmax(0,1fr) ${railWidth}px` }}
-    >
-      <div className="flex flex-col min-h-0 overflow-hidden">
+    <div className="flex-1 relative min-h-0 overflow-hidden">
+      <div
+        className="flex flex-col h-full min-h-0 overflow-hidden"
+        style={{
+          // Calendar reserves a CONSTANT 380px right gutter so its
+          // grid never resizes when the rail is dragged. The rail
+          // sits on top of this gutter (and overlays into the calendar
+          // when dragged wider) — the calendar layout itself doesn't
+          // know the rail exists.
+          paddingRight: 380,
+        }}
+      >
       {/* Calendar — fills the available height of the LEFT column.
           The calendar component handles its own internal scrolling
           (week/day views) so the column itself doesn't scroll —
@@ -401,7 +408,8 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           preview (bottom, fills remaining height + scrolls). */}
       <aside
         ref={railRef}
-        className="hidden lg:flex flex-col relative border-l border-evari-edge/30 bg-evari-ink overflow-hidden"
+        className="hidden lg:flex flex-col absolute top-0 right-0 bottom-0 z-10 border-l border-evari-edge/30 bg-evari-ink overflow-hidden shadow-[ -4px_0_18px_rgba(0,0,0,0.3)]"
+        style={{ width: railWidth }}
       >
         {/* Drag handle — hover changes cursor to ew-resize. The handle
             itself is a 6px-wide invisible strip on the left edge with
