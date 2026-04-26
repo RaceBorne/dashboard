@@ -104,6 +104,8 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   // publish request is pending.
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const router = useRouter();
   // Resizable right rail — default 380px, dragged via the left edge.
   // Clamped between 280 and 720 so it never disappears or eats the
@@ -226,6 +228,8 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         tone: statusTone(p.status),
         onClick: () => {
           setSelectedDate(d);
+          setMonth(d);
+          setWeekAnchor(d);
           setSelectedEventId((curr) => (curr === p.id ? null : p.id));
         },
       });
@@ -250,6 +254,8 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         imageCaption: j.title,
         onClick: () => {
           setSelectedDate(d);
+          setMonth(d);
+          setWeekAnchor(d);
           setSelectedEventId((curr) => (curr === `journal:${j.id}` ? null : `journal:${j.id}`));
         },
       });
@@ -368,6 +374,30 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
       setSendError(err instanceof Error ? err.message : 'Publish failed');
     } finally {
       setSending(false);
+    }
+  }
+
+  async function saveSchedule(patch: { author?: string; scheduledFor?: string }) {
+    if (saving) return;
+    if (!selectedJournal) {
+      setSaveError('Editing schedule on social posts is not yet supported');
+      return;
+    }
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/journals/${selectedJournal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) throw new Error(data.error ?? 'Update failed');
+      router.refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Update failed');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -526,6 +556,9 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
             onSendNow={sendNow}
             sending={sending}
             sendError={sendError}
+            onSaveSchedule={saveSchedule}
+            saving={saving}
+            saveError={saveError}
             onEdit={() => {
               if (selectedJournal) router.push(`/journals/${selectedJournal.id}`);
             }}
@@ -589,6 +622,9 @@ interface SchedulePanelProps {
   selectedSocial: SocialPost | null;
   onSendNow: () => void;
   onEdit: () => void;
+  onSaveSchedule: (patch: { author?: string; scheduledFor?: string }) => Promise<void>;
+  saving: boolean;
+  saveError: string | null;
   sending: boolean;
   sendError: string | null;
 }
@@ -604,6 +640,9 @@ function ScheduleActionsPanel({
   selectedSocial,
   onSendNow,
   onEdit,
+  onSaveSchedule,
+  saving,
+  saveError,
   sending,
   sendError,
 }: SchedulePanelProps) {
@@ -659,20 +698,14 @@ function ScheduleActionsPanel({
       <h3 className="text-sm font-semibold text-evari-text leading-snug line-clamp-2">
         {title}
       </h3>
-      <dl className="mt-1 grid grid-cols-[auto_1fr] gap-1 gap-y-1.5 text-[11px]">
-        <dt className="text-evari-dimmer">Scheduled by</dt>
-        <dd className="text-evari-text">{author}</dd>
-        {date ? (
-          <>
-            <dt className="text-evari-dimmer">Date</dt>
-            <dd className="text-evari-text">{format(date, 'EEE d LLL')}</dd>
-            <dt className="text-evari-dimmer">Time</dt>
-            <dd className="text-evari-text font-mono tabular-nums">
-              {format(date, 'HH:mm')}
-            </dd>
-          </>
-        ) : null}
-      </dl>
+      <ScheduleEditor
+        author={author}
+        date={date}
+        editable={Boolean(selectedJournal)}
+        onSave={onSaveSchedule}
+        saving={saving}
+        saveError={saveError}
+      />
       <button
         type="button"
         onClick={onSendNow}
@@ -695,7 +728,7 @@ function ScheduleActionsPanel({
         <button
           type="button"
           onClick={onEdit}
-          className="mt-2 w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-md bg-evari-surface text-evari-dim hover:text-evari-text text-xs font-medium transition duration-1000 ease-in-out"
+          className="mt-2 w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-md bg-evari-ink text-evari-text hover:bg-black/40 text-xs font-medium transition duration-500 ease-in-out"
         >
           <ExternalLink className="h-3 w-3" />
           Open in editor
@@ -1107,6 +1140,134 @@ function PlatformDrawer({
           </div>
         </div>
       </div>
+  );
+}
+
+// ─── ScheduleEditor — editable date/time/author for the rail ──────
+
+interface ScheduleEditorProps {
+  author: string;
+  date: Date | null;
+  editable: boolean;
+  onSave: (patch: { author?: string; scheduledFor?: string }) => Promise<void>;
+  saving: boolean;
+  saveError: string | null;
+}
+
+/**
+ * Inline editor for the schedule of a selected journal/post. Date
+ * + time render as native HTML inputs (small, dark, 4px gap).
+ * 'Save' is disabled until the user changes something. Read-only
+ * fallback for kinds we don't have an update endpoint for yet
+ * (social posts).
+ */
+function ScheduleEditor({
+  author,
+  date,
+  editable,
+  onSave,
+  saving,
+  saveError,
+}: ScheduleEditorProps) {
+  const initialDate = date ? format(date, 'yyyy-MM-dd') : '';
+  const initialTime = date ? format(date, 'HH:mm') : '';
+  const [authorVal, setAuthorVal] = useState(author);
+  const [dateVal, setDateVal] = useState(initialDate);
+  const [timeVal, setTimeVal] = useState(initialTime);
+
+  // Sync local state when the parent swaps the selected event.
+  useEffect(() => {
+    setAuthorVal(author);
+    setDateVal(initialDate);
+    setTimeVal(initialTime);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [author, initialDate, initialTime]);
+
+  const dirty =
+    authorVal !== author ||
+    dateVal !== initialDate ||
+    timeVal !== initialTime;
+
+  async function handleSave() {
+    if (!dirty || saving || !editable) return;
+    const patch: { author?: string; scheduledFor?: string } = {};
+    if (authorVal !== author) patch.author = authorVal;
+    if (dateVal !== initialDate || timeVal !== initialTime) {
+      // Compose ISO from date + time. Default time to 09:00 if blank.
+      const t = timeVal || '09:00';
+      const d = dateVal || initialDate || format(new Date(), 'yyyy-MM-dd');
+      const iso = new Date(`${d}T${t}:00`).toISOString();
+      patch.scheduledFor = iso;
+    }
+    await onSave(patch);
+  }
+
+  const inputCls =
+    'bg-evari-ink text-evari-text rounded-md px-2 py-1 text-[11px] w-full border border-evari-edge/30 focus:outline-none focus:border-evari-gold/60 transition-colors duration-500 ease-in-out disabled:opacity-60';
+
+  return (
+    <div className="mt-2 space-y-1">
+      <label className="block">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">
+          Scheduled by
+        </span>
+        <input
+          type="text"
+          value={authorVal}
+          onChange={(ev) => setAuthorVal(ev.target.value)}
+          disabled={!editable || saving}
+          className={cn(inputCls, 'mt-0.5')}
+        />
+      </label>
+      <div className="grid grid-cols-2 gap-1">
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">
+            Date
+          </span>
+          <input
+            type="date"
+            value={dateVal}
+            onChange={(ev) => setDateVal(ev.target.value)}
+            disabled={!editable || saving}
+            className={cn(inputCls, 'mt-0.5 font-mono tabular-nums')}
+          />
+        </label>
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">
+            Time
+          </span>
+          <input
+            type="time"
+            value={timeVal}
+            onChange={(ev) => setTimeVal(ev.target.value)}
+            disabled={!editable || saving}
+            className={cn(inputCls, 'mt-0.5 font-mono tabular-nums')}
+          />
+        </label>
+      </div>
+      {editable ? (
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!dirty || saving}
+          className="w-full mt-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-md bg-evari-surface text-evari-text hover:bg-evari-surfaceSoft disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium transition-colors duration-500 ease-in-out"
+        >
+          {saving ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : null}
+          {saving ? 'Saving…' : dirty ? 'Save schedule' : 'Saved'}
+        </button>
+      ) : (
+        <p className="text-[10px] text-evari-dimmer italic px-1 pt-1">
+          Read-only — schedule editing not yet wired for this kind.
+        </p>
+      )}
+      {saveError ? (
+        <p className="mt-1 text-[10px] text-evari-danger leading-snug">
+          {saveError}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
