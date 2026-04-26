@@ -24,6 +24,7 @@ import {
   MousePointerClick,
   Move,
   PenLine,
+  Pin,
   PlaySquare,
   Quote,
   Share2,
@@ -83,7 +84,7 @@ interface Props {
 function nid(): string { return Math.random().toString(36).slice(2, 10); }
 
 interface BlockTile {
-  type: EmailBlock['type'] | 'columns'; // columns is a placeholder
+  type: EmailBlock['type'] | 'columns' | 'announcementBar'; // announcementBar = section variant
   label: string;
   Icon: typeof Type;
   group: 'blocks' | 'layout';
@@ -114,6 +115,36 @@ const ADD_BUTTONS: BlockTile[] = [
   { group: 'blocks', type: 'video',   label: 'Video',   Icon: PlaySquare,  make: () => ({ id: nid(), type: 'video', thumbnailSrc: '', videoUrl: '', alt: '', maxWidthPx: 600, alignment: 'center', paddingBottomPx: 16 }) },
   { group: 'blocks', type: 'html',    label: 'HTML',    Icon: Code2,       make: () => ({ id: nid(), type: 'html', html: '<p>Custom HTML here.</p>', paddingBottomPx: 16 }) },
   // Layout group
+  // Announcement bar is a section under the hood — pinned to the top,
+  // thin defaults, with one centred uppercase text child by default.
+  { group: 'layout', type: 'announcementBar', label: 'Announcement bar', Icon: Megaphone, badge: 'New', make: () => ({
+      id: nid(),
+      type: 'section',
+      kind: 'announcementBar',
+      pinTo: 'top',
+      blocks: [{
+        id: nid(),
+        type: 'text',
+        html: 'Free shipping on orders over £50',
+        alignment: 'center',
+        fontSizePx: 12,
+        lineHeight: 1.3,
+        color: '#ffffff',
+        fontFamily: '',
+        fontWeight: 600,
+        letterSpacingEm: 0.05,
+        textTransform: 'uppercase',
+        paddingBottomPx: 0,
+      }],
+      backgroundColor: '#1a1a1a',
+      backgroundImage: '',
+      backgroundSize: 'fill',
+      backgroundPosition: 'center',
+      paddingPx: 8,
+      borderRadiusPx: 0,
+      contentColor: '#ffffff',
+      paddingBottomPx: 0,
+    }) },
   { group: 'layout', type: 'columns', label: 'Columns', Icon: Columns3, comingSoon: true },
   { group: 'layout', type: 'section', label: 'Section', Icon: Square, badge: 'New', make: () => ({ id: nid(), type: 'section', blocks: [], backgroundColor: '#1a1a1a', backgroundImage: '', backgroundSize: 'fill', backgroundPosition: 'center', paddingPx: 0, borderRadiusPx: 0, contentColor: '#ffffff', minHeightPx: 320, paddingBottomPx: 16 }) },
 ];
@@ -413,6 +444,18 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     }
     return null;
   }
+  /**
+   * Re-sort the root-level blocks so anything with pinTo='top' (e.g. the
+   * Announcement bar section) is forced to index 0. Stable for everything
+   * else. Run this at the end of every mutation that touches the root
+   * blocks array.
+   */
+  function enforcePins(blocks: EmailBlock[]): EmailBlock[] {
+    const isPinTop = (b: EmailBlock) => b.type === 'section' && (b as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+    const pins = blocks.filter(isPinTop);
+    const rest = blocks.filter((b) => !isPinTop(b));
+    return [...pins, ...rest];
+  }
   function updateChildren(blocks: EmailBlock[], parentId: string | null, fn: (kids: EmailBlock[]) => EmailBlock[]): EmailBlock[] {
     if (parentId === null) return fn(blocks);
     return blocks.map((b) => {
@@ -432,10 +475,10 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     });
   }
   function removeBlock(id: string) {
-    commit({ ...design, blocks: mapTree(design.blocks, (b) => (b.id === id ? null : b)) });
+    commit({ ...design, blocks: enforcePins(mapTree(design.blocks, (b) => (b.id === id ? null : b))) });
   }
   function addBlock(maker: () => EmailBlock) {
-    commit({ ...design, blocks: [...design.blocks, maker()] });
+    commit({ ...design, blocks: enforcePins([...design.blocks, maker()]) });
   }
   function insertBlock(parentId: string | null, beforeIndex: number, newBlock: EmailBlock) {
     commit({
@@ -502,8 +545,21 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       const tile = ev.active.data.current?.paletteTile as BlockTile | undefined;
       if (!tile?.make) return;
       const newBlock = tile.make();
+      // Pinned-to-top blocks always land at root index 0, regardless of
+      // where the user dropped them, and refuse to be nested inside a
+      // section. Only one pinned-top section is allowed per email — if
+      // one already exists, reject the add.
+      const isNewPinTop = newBlock.type === 'section' && (newBlock as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+      if (isNewPinTop) {
+        const alreadyHas = design.blocks.some(
+          (b) => b.type === 'section' && (b as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top',
+        );
+        if (alreadyHas) return;
+        commit({ ...design, blocks: enforcePins([newBlock, ...design.blocks]) });
+        return;
+      }
       if (overId === 'end-of-list') {
-        commit({ ...design, blocks: [...design.blocks, newBlock] });
+        commit({ ...design, blocks: enforcePins([...design.blocks, newBlock]) });
         return;
       }
       if (overId.startsWith('section-end:')) {
@@ -516,7 +572,24 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       }
       const loc = findContainerOf(design.blocks, overId);
       if (!loc) {
-        commit({ ...design, blocks: [...design.blocks, newBlock] });
+        commit({ ...design, blocks: enforcePins([...design.blocks, newBlock]) });
+        return;
+      }
+      // Inserting at root: don't let the new block jump above a pinned-top
+      // sibling. If it would, bump the index past it.
+      if (loc.parentId === null) {
+        const root = design.blocks;
+        const before = root[loc.index];
+        const beforeIsPinned = before && before.type === 'section' && (before as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+        const safeIdx = beforeIsPinned ? loc.index + 1 : loc.index;
+        commit({
+          ...design,
+          blocks: enforcePins(updateChildren(design.blocks, null, (kids) => {
+            const next = [...kids];
+            next.splice(Math.max(0, Math.min(safeIdx, next.length)), 0, newBlock);
+            return next;
+          })),
+        });
         return;
       }
       insertBlock(loc.parentId, loc.index, newBlock);
@@ -524,8 +597,13 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     }
 
     // Sortable in-list reorder. Same-container only — cross-container moves
-    // aren't supported yet (delete + re-add covers that case).
+    // aren't supported yet (delete + re-add covers that case). Pinned-top
+    // sections also refuse to be moved (or to be displaced by another move).
     if (activeId !== overId && overId !== 'end-of-list' && !overId.startsWith('section-end:')) {
+      const active = findBlockById(design.blocks, activeId);
+      const over   = findBlockById(design.blocks, overId);
+      const isPinTop = (b: EmailBlock | null) => !!b && b.type === 'section' && (b as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+      if (isPinTop(active) || isPinTop(over)) return;
       moveBlocks(activeId, overId);
     }
   }
@@ -621,6 +699,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                         brand={initialBrand}
                         selected={selectedId === b.id}
                         selectedId={selectedId}
+                        editing={selectedId !== null}
                         onSelect={() => setSelectedId(b.id)}
                         onRemove={() => { setSelectedId(null); removeBlock(b.id); }}
                         onSelectChild={(id) => setSelectedId(id)}
@@ -1450,11 +1529,12 @@ function CanvasEndDrop() {
  * as nested CanvasBlocks inside their own SortableContext. Every
  * block is its own React node so click + drag work natively.
  */
-function CanvasBlock({ block, brand, selected, selectedId, onSelect, onRemove, onSelectChild, onRemoveChild }: {
+function CanvasBlock({ block, brand, selected, selectedId, editing, onSelect, onRemove, onSelectChild, onRemoveChild }: {
   block: EmailBlock;
   brand: MarketingBrand;
   selected: boolean;
   selectedId: string | null;
+  editing: boolean;
   onSelect: () => void;
   onRemove: () => void;
   onSelectChild: (id: string) => void;
@@ -1485,6 +1565,7 @@ function CanvasBlock({ block, brand, selected, selectedId, onSelect, onRemove, o
             block={block as Extract<EmailBlock, { type: 'section' }>}
             brand={brand}
             selectedId={selectedId}
+            editing={editing}
             onSelectChild={onSelectChild}
             onRemoveChild={onRemoveChild}
           />
@@ -1495,9 +1576,15 @@ function CanvasBlock({ block, brand, selected, selectedId, onSelect, onRemove, o
           'absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink/95 border border-evari-edge/40 shadow-lg backdrop-blur-sm transition-opacity',
           selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
         )}>
-          <button type="button" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="p-1.5 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing" title="Drag to reorder" aria-label="Drag to reorder">
-            <GripVertical className="h-3.5 w-3.5" />
-          </button>
+          {block.type === 'section' && (block as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top' ? (
+            <span className="p-1.5 text-evari-gold" title="Pinned to top — can't be reordered" aria-label="Pinned to top">
+              <Pin className="h-3.5 w-3.5" />
+            </span>
+          ) : (
+            <button type="button" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="p-1.5 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing" title="Drag to reorder" aria-label="Drag to reorder">
+              <GripVertical className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }} className="p-1.5 text-evari-dim hover:text-evari-danger" title="Delete block" aria-label="Delete block">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -1507,10 +1594,11 @@ function CanvasBlock({ block, brand, selected, selectedId, onSelect, onRemove, o
   );
 }
 
-function SectionCanvasWrapper({ block, brand, selectedId, onSelectChild, onRemoveChild }: {
+function SectionCanvasWrapper({ block, brand, selectedId, editing, onSelectChild, onRemoveChild }: {
   block: Extract<EmailBlock, { type: 'section' }>;
   brand: MarketingBrand;
   selectedId: string | null;
+  editing: boolean;
   onSelectChild: (id: string) => void;
   onRemoveChild: (id: string) => void;
 }) {
@@ -1531,7 +1619,7 @@ function SectionCanvasWrapper({ block, brand, selectedId, onSelectChild, onRemov
     <div style={wrapperStyle} className="relative">
       <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
         {(block.blocks ?? []).length === 0 ? (
-          <SectionEmptyDrop sectionId={block.id} />
+          <SectionEmptyDrop sectionId={block.id} editing={editing} />
         ) : (
           <div className="space-y-0">
             {(block.blocks ?? []).map((c) => (
@@ -1541,6 +1629,7 @@ function SectionCanvasWrapper({ block, brand, selectedId, onSelectChild, onRemov
                 brand={brand}
                 selected={selectedId === c.id}
                 selectedId={selectedId}
+                editing={editing}
                 onSelect={() => onSelectChild(c.id)}
                 onRemove={() => onRemoveChild(c.id)}
                 onSelectChild={onSelectChild}
@@ -1555,8 +1644,14 @@ function SectionCanvasWrapper({ block, brand, selectedId, onSelectChild, onRemov
   );
 }
 
-function SectionEmptyDrop({ sectionId }: { sectionId: string }) {
+function SectionEmptyDrop({ sectionId, editing }: { sectionId: string; editing: boolean }) {
   const { isOver, setNodeRef } = useDroppable({ id: `section-end:${sectionId}` });
+  // When the canvas is in clean-preview mode (nothing selected), the
+  // dashed overlay disappears entirely — just an invisible drop hit-area
+  // remains so dragging tiles still works.
+  if (!editing && !isOver) {
+    return <div ref={setNodeRef} className="min-h-[48px]" aria-hidden />;
+  }
   return (
     <div
       ref={setNodeRef}

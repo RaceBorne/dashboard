@@ -633,6 +633,7 @@ export type EmailBlock =
       backgroundColor: string;
       textColor: string;
     })
+
   | (EmailBlockBase & {
       type: 'card';          // 'Drop shadow' tile in the toolbar — wraps content in a shadowed card.
       html: string;
@@ -713,6 +714,13 @@ export type EmailBlock =
       contentColor?: string;
       /** Forces a tall hero feel when set. */
       minHeightPx?: number;
+      /** Pin this section to a fixed slot in the email. 'top' = always
+       *  at design.blocks[0] (announcement bars). Reorder attempts are
+       *  rejected and the section can't be dragged into another section. */
+      pinTo?: 'top';
+      /** Display label so tiles like "Announcement bar" can keep their
+       *  identity in the editor even though they're stored as sections. */
+      kind?: 'section' | 'announcementBar';
     });
 
 export interface EmailDesign {

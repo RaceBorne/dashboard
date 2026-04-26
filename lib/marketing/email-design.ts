@@ -96,6 +96,7 @@ function renderHeaderBar(b: Extract<EmailBlock, { type: 'headerBar' }>, brand: M
   return `<div style="background:${b.backgroundColor};padding:14px 20px;color:${b.textColor};">${wrapped}</div>`;
 }
 
+
 const SHADOW_STYLES: Record<'sm' | 'md' | 'lg', string> = {
   sm: '0 1px 2px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05)',
   md: '0 4px 6px rgba(0,0,0,0.07), 0 10px 15px rgba(0,0,0,0.06)',
