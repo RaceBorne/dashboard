@@ -28,6 +28,10 @@ export interface SendOneInput {
    *  header are added, and any {{unsubscribeUrl}} placeholder in the
    *  HTML / TEXT / SUBJECT is replaced with this URL. */
   unsubscribeUrl?: string;
+  /** Optional Reply-To override — falls back to brand kit, then to None. */
+  replyTo?: string;
+  /** Skip auto-appending the brand signature + legal footer. Default false. */
+  skipBrandFooter?: boolean;
 }
 
 export interface SendOneResult {
@@ -96,6 +100,40 @@ export async function sendOne(input: SendOneInput): Promise<SendOneResult> {
   let text = input.text ?? htmlToText(input.html);
   let subject = input.subject;
   let postmarkHeaders: Array<{ Name: string; Value: string }> | undefined;
+
+  // Brand-kit driven footer: signature + legal info auto-appended.
+  // Loaded lazily so the import cycle stays clean in stub mode.
+  if (!input.skipBrandFooter) {
+    try {
+      const { getBrand } = await import('./brand');
+      const brand = await getBrand();
+      const sigPieces: string[] = [];
+      if (brand.signatureHtml) {
+        sigPieces.push(`<div style="margin:32px 0 8px 0;font:14px/1.5 ${brand.fonts.body || 'sans-serif'};color:${brand.colors.text || '#1a1a1a'};">${brand.signatureHtml}</div>`);
+      }
+      if (brand.companyName || brand.companyAddress) {
+        sigPieces.push(
+          `<div style="margin:24px 0 8px 0;font:11px/1.5 sans-serif;color:${brand.colors.muted || '#666666'};">` +
+            (brand.companyName ? `<strong>${brand.companyName}</strong><br/>` : '') +
+            (brand.companyAddress ? brand.companyAddress.replace(/\n/g, '<br/>') : '') +
+          `</div>`
+        );
+      }
+      if (sigPieces.length > 0) {
+        html += sigPieces.join('\n');
+        text += '\n\n' + (brand.signatureHtml ? brand.signatureHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() + '\n\n' : '') +
+                (brand.companyName ? brand.companyName + '\n' : '') +
+                (brand.companyAddress ?? '');
+      }
+      // If caller didn't pass a replyTo and brand has one, use it.
+      if (!input.replyTo && brand.replyToEmail) {
+        input = { ...input, replyTo: brand.replyToEmail };
+      }
+    } catch (err) {
+      console.error('[mkt.sender brand footer]', err);
+    }
+  }
+
   if (input.unsubscribeUrl) {
     const placeholder = '{{unsubscribeUrl}}';
     const had = html.includes(placeholder);
@@ -135,6 +173,7 @@ export async function sendOne(input: SendOneInput): Promise<SendOneResult> {
         TextBody: text,
         MessageStream: input.stream ?? cfg.stream,
         ...(postmarkHeaders ? { Headers: postmarkHeaders } : {}),
+        ...(input.replyTo ? { ReplyTo: input.replyTo } : {}),
       }),
     });
     const data = (await res.json().catch(() => ({}))) as {

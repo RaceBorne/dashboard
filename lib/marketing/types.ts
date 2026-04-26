@@ -258,3 +258,35 @@ export interface Suppression {
   contactId: string | null;
   addedAt: string;
 }
+
+// ─── Brand kit ───────────────────────────────────────────────────
+
+export interface BrandColors {
+  primary: string;
+  accent: string;
+  text: string;
+  bg: string;
+  link: string;
+  buttonBg: string;
+  buttonText: string;
+  muted: string;
+}
+
+export interface BrandFonts {
+  heading: string;
+  body: string;
+}
+
+export interface MarketingBrand {
+  id: 'singleton';
+  companyName: string | null;
+  companyAddress: string | null;
+  replyToEmail: string | null;
+  logoLightUrl: string | null;
+  logoDarkUrl: string | null;
+  colors: BrandColors;
+  fonts: BrandFonts;
+  signatureHtml: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
