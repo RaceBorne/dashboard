@@ -128,7 +128,7 @@ function BlockTileGroup({ title, tiles, onAdd }: { title: string; tiles: BlockTi
   return (
     <section>
       <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">{title}</h3>
-      <ul className="grid grid-cols-4 gap-1.5">
+      <ul className="grid grid-cols-2 gap-1.5">
         {tiles.map((t, i) => (
           <li key={`${t.group}-${t.type}-${t.label}`}>
             <PaletteTile tile={t} draggableId={`palette:${t.group}:${i}`} onAdd={onAdd} />
@@ -163,7 +163,7 @@ function PaletteTile({ tile, draggableId, onAdd }: { tile: BlockTile; draggableI
       title={disabled ? 'Coming soon' : `Drag or click to add ${tile.label}`}
       onClick={() => { if (tile.make) onAdd(tile.make); }}
       className={cn(
-        'relative w-full h-14 rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 cursor-grab active:cursor-grabbing',
+        'relative w-full aspect-square rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200 cursor-grab active:cursor-grabbing',
         disabled
           ? 'border-evari-edge/20 text-evari-dimmer cursor-not-allowed opacity-60'
           : 'border-evari-edge/30 text-evari-dim hover:text-evari-text hover:border-evari-gold/60 hover:bg-evari-ink/70',
@@ -173,8 +173,8 @@ function PaletteTile({ tile, draggableId, onAdd }: { tile: BlockTile; draggableI
       {tile.badge ? (
         <span className={cn('absolute top-0.5 right-0.5 text-[7px] uppercase tracking-[0.05em] font-bold px-1 py-px rounded', tile.badge === 'New' ? 'bg-blue-500/30 text-blue-200' : 'bg-evari-edge/30 text-evari-dimmer')}>{tile.badge}</span>
       ) : null}
-      <Icon className="h-3.5 w-3.5" />
-      <span className="text-[9px] leading-tight text-center px-0.5 truncate w-full">{tile.label}</span>
+      <Icon className="h-5 w-5" />
+      <span className="text-[11px] leading-tight text-center px-1">{tile.label}</span>
     </button>
   );
 }
@@ -298,7 +298,12 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
         </div>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,40%)] gap-3 p-3">
+      <div className={cn(
+        'grid grid-cols-1 gap-3 p-3',
+        selectedId
+          ? 'xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)_minmax(280px,340px)]'
+          : 'xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)]',
+      )}>
         {/* Viewer LEFT — only the canvas iframe shrinks in mobile mode;
             the tools panel on the right stays its full size. */}
         <div className="flex flex-col">
@@ -363,6 +368,19 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             )}
           </SortableContext>
         </div>
+        {selectedId ? (
+          (() => {
+            const sel = design.blocks.find((b) => b.id === selectedId);
+            if (!sel) return null;
+            return (
+              <BlockPropertiesPanel
+                block={sel}
+                onChange={(patch) => updateBlock(sel.id, patch as Partial<EmailBlock>)}
+                onClose={() => setSelectedId(null)}
+              />
+            );
+          })()
+        ) : null}
       </div>
     </section>
     {/* Drag overlay — chip floats with the cursor while dragging */}
@@ -465,29 +483,50 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </header>
-      {selected ? (
-        <div className="border-t border-evari-edge/20 px-3 py-2 space-y-2">
-          {block.type === 'heading'   ? <HeadingFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
-          {block.type === 'text'      ? <TextFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
-          {block.type === 'image'     ? <ImageFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'image' }>>) => void} /> : null}
-          {block.type === 'button'    ? <ButtonFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void} /> : null}
-          {block.type === 'divider'   ? <DividerFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'divider' }>>) => void} /> : null}
-          {block.type === 'spacer'    ? <SpacerFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void} /> : null}
-          {block.type === 'html'      ? <HtmlFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void} /> : null}
-          {block.type === 'split'     ? <SplitFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
-          {block.type === 'headerBar' ? <HeaderBarFields block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
-          {block.type === 'card'      ? <CardFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void} /> : null}
-          {block.type === 'social'    ? <SocialFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'social' }>>) => void} /> : null}
-          {block.type === 'coupon'    ? <CouponFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'coupon' }>>) => void} /> : null}
-          {block.type === 'table'     ? <TableFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'table' }>>) => void} /> : null}
-          {block.type === 'review'    ? <ReviewFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'review' }>>) => void} /> : null}
-          {block.type === 'video'     ? <VideoFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'video' }>>) => void} /> : null}
-          {block.type === 'product'   ? <ProductFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'product' }>>) => void} /> : null}
-          {block.type === 'section'   ? <SectionFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void} /> : null}
-          <PaddingFields block={block} onChange={onChange as (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void} />
-        </div>
-      ) : null}
+
     </div>
+  );
+}
+
+/**
+ * Right-side properties panel — replaces the inline expansion on the
+ * row when a block is selected. Renders to the right of the palette +
+ * block list column so the thumbnails stay visible at the top.
+ */
+function BlockPropertiesPanel({ block, onChange, onClose }: { block: EmailBlock; onChange: (patch: Partial<EmailBlock>) => void; onClose: () => void }) {
+  const meta = ADD_BUTTONS.find((b) => b.type === block.type) ?? (block.type === 'heading' ? HEADING_TILE : null);
+  const Icon = meta?.Icon ?? PenLine;
+  const label = meta?.label ?? block.type;
+  return (
+    <aside className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-evari-edge/20">
+        <Icon className="h-3.5 w-3.5 text-evari-dim shrink-0" />
+        <span className="text-sm text-evari-text font-semibold flex-1 truncate">{label}</span>
+        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1 rounded" aria-label="Close">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </header>
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2">
+        {block.type === 'heading'   ? <HeadingFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
+        {block.type === 'text'      ? <TextFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
+        {block.type === 'image'     ? <ImageFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'image' }>>) => void} /> : null}
+        {block.type === 'button'    ? <ButtonFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void} /> : null}
+        {block.type === 'divider'   ? <DividerFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'divider' }>>) => void} /> : null}
+        {block.type === 'spacer'    ? <SpacerFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void} /> : null}
+        {block.type === 'html'      ? <HtmlFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void} /> : null}
+        {block.type === 'split'     ? <SplitFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
+        {block.type === 'headerBar' ? <HeaderBarFields block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
+        {block.type === 'card'      ? <CardFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void} /> : null}
+        {block.type === 'social'    ? <SocialFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'social' }>>) => void} /> : null}
+        {block.type === 'coupon'    ? <CouponFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'coupon' }>>) => void} /> : null}
+        {block.type === 'table'     ? <TableFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'table' }>>) => void} /> : null}
+        {block.type === 'review'    ? <ReviewFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'review' }>>) => void} /> : null}
+        {block.type === 'video'     ? <VideoFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'video' }>>) => void} /> : null}
+        {block.type === 'product'   ? <ProductFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'product' }>>) => void} /> : null}
+        {block.type === 'section'   ? <SectionFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void} /> : null}
+        <PaddingFields block={block} onChange={onChange as (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void} />
+      </div>
+    </aside>
   );
 }
 
