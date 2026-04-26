@@ -495,40 +495,50 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           drag handle (clamped 280-720px, default 380). Stacks two
           panels: the action card (top, content-sized) and the post
           preview (bottom, fills remaining height + scrolls). */}
-      {selectedEventId ? (
+      {/* Right rail is ALWAYS mounted so its width can animate at the
+          same 1s ease-in-out pace as the calendar wrapper. When no
+          event is selected width collapses to 0 (overflow hidden);
+          on selection it expands to railWidth-24. The inner div keeps
+          content at full natural width so it slides out as a unit
+          rather than reflowing as the wrapper shrinks. */}
       <aside
         ref={railRef}
-        className="hidden lg:flex flex-col absolute top-3 right-3 bottom-3 z-10 overflow-hidden"
-        style={{ width: railWidth - 24 }}
+        aria-hidden={!selectedEventId}
+        className="hidden lg:flex flex-col absolute top-3 right-3 bottom-3 z-10 overflow-hidden transition-[width] duration-1000 ease-in-out"
+        style={{ width: selectedEventId ? railWidth - 24 : 0 }}
       >
-        {/* Drag handle — hover changes cursor to ew-resize. The handle
-            itself is a 6px-wide invisible strip on the left edge with
-            a 1px visible accent on hover so it discoverable. */}
         <div
-          role="separator"
-          aria-orientation="vertical"
-          onMouseDown={onResizeMouseDown}
-          className="absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 cursor-ew-resize z-30 hover:bg-evari-gold/40 transition-colors duration-1000 ease-in-out"
-        />
-        <ScheduleActionsPanel
-          selectedJournal={selectedJournal}
-          selectedSocial={selectedSocial}
-          onSendNow={sendNow}
-          sending={sending}
-          sendError={sendError}
-          onEdit={() => {
-            if (selectedJournal) router.push(`/journals/${selectedJournal.id}`);
-          }}
-        />
-        <PostPreviewWindow
-          selectedJournal={selectedJournal}
-          selectedSocial={selectedSocial}
-          dayCount={dayEvents.length}
-          dayIndex={dayIndex >= 0 ? dayIndex : 0}
-          onNavigate={navigateDay}
-        />
+          className="relative flex flex-col h-full"
+          style={{ width: railWidth - 24 }}
+        >
+          {/* Drag handle — hover changes cursor to ew-resize. The handle
+              itself is a 6px-wide invisible strip on the left edge with
+              a 1px visible accent on hover so it discoverable. */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={onResizeMouseDown}
+            className="absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 cursor-ew-resize z-30 hover:bg-evari-gold/40 transition-colors duration-1000 ease-in-out"
+          />
+          <ScheduleActionsPanel
+            selectedJournal={selectedJournal}
+            selectedSocial={selectedSocial}
+            onSendNow={sendNow}
+            sending={sending}
+            sendError={sendError}
+            onEdit={() => {
+              if (selectedJournal) router.push(`/journals/${selectedJournal.id}`);
+            }}
+          />
+          <PostPreviewWindow
+            selectedJournal={selectedJournal}
+            selectedSocial={selectedSocial}
+            dayCount={dayEvents.length}
+            dayIndex={dayIndex >= 0 ? dayIndex : 0}
+            onNavigate={navigateDay}
+          />
+        </div>
       </aside>
-      ) : null}
     </div>
   );
 }
