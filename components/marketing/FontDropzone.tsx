@@ -28,7 +28,11 @@ const ACCEPTED = ['.woff2', '.woff', '.ttf', '.otf'];
  */
 export function FontDropzone({ initialFonts, onChange }: Props) {
   const router = useRouter();
-  const [fonts, setFonts] = useState<CustomFont[]>(initialFonts);
+  // Controlled — fonts come from props; mutations go straight back through onChange.
+  // Removed the prop-mirror + onChange-mirror effects that re-fired every parent
+  // render and were starving the main thread (each cycle reloaded 25 FontFaces).
+  const fonts = initialFonts;
+  const setFonts = (next: CustomFont[]) => onChange?.(next);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,14 +42,14 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
   const [pendingStyle, setPendingStyle] = useState<string>('');     // '' = auto-detect from filename
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setFonts(initialFonts), [initialFonts]);
-  useEffect(() => onChange?.(fonts), [fonts, onChange]);
-
-  // Live-load each custom font into the document so previews render
-  // using the actual file rather than a system fallback.
+  // Track which font URLs we've already injected as FontFace so we don't
+  // re-load on every render — this was the second main-thread starver.
+  const loadedUrls = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (typeof document === 'undefined' || typeof FontFace === 'undefined') return;
     fonts.forEach((f) => {
+      if (loadedUrls.current.has(f.url)) return;
+      loadedUrls.current.add(f.url);
       const ff = new FontFace(f.name, `url(${f.url}) format('${f.format}')`, {
         weight: String(f.weight),
         style: f.style,
@@ -79,10 +83,8 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
           setError(data.error ?? 'Upload failed');
           continue;
         }
-        setFonts((curr) => {
-          const others = curr.filter((c) => c.name !== data.font.name);
-          return [...others, data.font as CustomFont];
-        });
+        const others = fonts.filter((c) => c.name !== data.font.name);
+        setFonts([...others, data.font as CustomFont]);
       }
       setPendingName('');
       setPendingWeight('');
@@ -99,9 +101,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
     const res = await fetch(url, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (data.ok) {
-      setFonts((curr) =>
-        curr.filter((f) => !(f.name === font.name && f.weight === font.weight && f.style === font.style)),
-      );
+      setFonts(fonts.filter((f) => !(f.name === font.name && f.weight === font.weight && f.style === font.style)));
       router.refresh();
     }
   }
@@ -111,7 +111,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
     const res = await fetch(`/api/marketing/brand/fonts/${encodeURIComponent(name)}`, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (data.ok) {
-      setFonts((curr) => curr.filter((f) => f.name !== name));
+      setFonts(fonts.filter((f) => f.name !== name));
       router.refresh();
     }
   }
@@ -126,9 +126,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
     });
     const data = await res.json().catch(() => ({}));
     if (data.ok) {
-      setFonts((curr) =>
-        curr.map((f) => (f.name === oldName ? { ...f, name: trimmed } : f)),
-      );
+      setFonts(fonts.map((f) => (f.name === oldName ? { ...f, name: trimmed } : f)));
       router.refresh();
     } else {
       setError(data.error ?? 'Rename failed');
