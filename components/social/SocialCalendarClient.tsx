@@ -301,17 +301,12 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
 
   return (
     <div className="flex-1 flex min-h-0 overflow-hidden">
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-      {/* Calendar — full width of the LEFT column. Week/Day views need
-          a fixed height so their internal scroll works; Month is
-          content-sized. */}
-      <div
-        className="flex-none flex flex-col"
-        style={{
-          height: view === 'week' || view === 'day' ? '760px' : undefined,
-          minHeight: view === 'month' ? '680px' : undefined,
-        }}
-      >
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Calendar — fills the available height of the LEFT column.
+          The calendar component handles its own internal scrolling
+          (week/day views) so the column itself doesn't scroll —
+          everything outside the post-preview pane stays fixed. */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {view === 'month' && (
           <MonthCalendar
             events={events}
