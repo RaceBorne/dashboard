@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import {
   Sparkles,
@@ -26,8 +26,9 @@ import {
 import { WeekCalendar } from '@/components/ui/week-calendar';
 import { PillTabs } from '@/components/ui/pill-tabs';
 import Link from 'next/link';
+import { ShopifyPreview, type JournalBlock } from '@/components/journals/ShopifyPreview';
 import { useRouter } from 'next/navigation';
-import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink } from 'lucide-react';
+import { Send, ChevronLeft, ChevronRight, Loader2, ExternalLink, ChevronDown } from 'lucide-react';
 
 const PLATFORM_ICON: Record<SocialPlatform, typeof Linkedin> = {
   linkedin: Linkedin,
@@ -76,6 +77,7 @@ export interface JournalCalendarEntry {
   scheduledFor: string;
   blogTarget: string;
   coverImageUrl: string | null;
+  blocks: Array<{ id?: string; type: string; data: Record<string, unknown> }>;
 }
 
 interface Props {
@@ -100,6 +102,33 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const router = useRouter();
+  // Resizable right rail — default 380px, dragged via the left edge.
+  // Clamped between 280 and 720 so it never disappears or eats the
+  // calendar entirely.
+  const [railWidth, setRailWidth] = useState(380);
+  const railRef = useRef<HTMLElement | null>(null);
+  const dragRef = useRef<{ startX: number; startW: number } | null>(null);
+  function onResizeMouseDown(ev: React.MouseEvent) {
+    ev.preventDefault();
+    dragRef.current = { startX: ev.clientX, startW: railWidth };
+    function onMove(e: MouseEvent) {
+      if (!dragRef.current) return;
+      const dx = dragRef.current.startX - e.clientX;
+      const next = Math.min(720, Math.max(280, dragRef.current.startW + dx));
+      setRailWidth(next);
+    }
+    function onUp() {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+    }
+    document.body.style.cursor = 'ew-resize';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+  // Bottom drawer state — collapsed by default, height while open.
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // composer state
   const [platform, setPlatform] = useState<SocialPlatform>('instagram');
@@ -353,16 +382,30 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         )}
       </div>
 
-            </div>
-      {/* RIGHT RAIL — context-dependent preview + actions. Scaleable
-          via clamp() so it grows on large displays but never bigger
-          than ~28% of viewport. Stacks two panels: the action card
-          (top, ~220px) and the post preview (bottom, fills remaining
-          height). */}
+            <PlatformDrawer
+        open={drawerOpen}
+        onToggle={() => setDrawerOpen((v) => !v)}
+        events={events}
+      />
+      </div>
+      {/* RIGHT RAIL — preview + actions. Resizable via the left-edge
+          drag handle (clamped 280-720px, default 380). Stacks two
+          panels: the action card (top, content-sized) and the post
+          preview (bottom, fills remaining height + scrolls). */}
       <aside
-        className="hidden lg:flex flex-col shrink-0 border-l border-evari-edge/30 bg-evari-ink overflow-hidden"
-        style={{ width: 'clamp(280px, 28vw, 440px)' }}
+        ref={railRef}
+        className="hidden lg:flex flex-col shrink-0 relative border-l border-evari-edge/30 bg-evari-ink overflow-hidden"
+        style={{ width: railWidth }}
       >
+        {/* Drag handle — hover changes cursor to ew-resize. The handle
+            itself is a 6px-wide invisible strip on the left edge with
+            a 1px visible accent on hover so it discoverable. */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          onMouseDown={onResizeMouseDown}
+          className="absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 cursor-ew-resize z-30 hover:bg-evari-gold/40 transition-colors"
+        />
         <ScheduleActionsPanel
           selectedJournal={selectedJournal}
           selectedSocial={selectedSocial}
@@ -612,50 +655,27 @@ function PostPreviewWindow({
 }
 
 function JournalPreviewCard({ journal }: { journal: JournalCalendarEntry }) {
+  // Render the FULL article through ShopifyPreview so the right rail
+  // shows the exact final layout users will see on evari.cc — hero
+  // overlay, body blocks, captions, the lot. Scrollable inside the
+  // rail's preview window. The format is identical to the editor
+  // preview; this is a final 'what will it look like when published'
+  // check.
+  const blocks: JournalBlock[] = journal.blocks.map((b, i) => ({
+    id: b.id ?? `b${i}`,
+    type: b.type,
+    data: b.data,
+  }));
   return (
-    <article className="text-zinc-900">
-      {/* Mini full-bleed hero — title + summary overlay matches the
-          ShopifyPreview hero style at a smaller scale. */}
-      <header className="relative w-full" style={{ aspectRatio: '4 / 3' }}>
-        {journal.coverImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={journal.coverImageUrl}
-            alt={journal.title}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-zinc-200" />
-        )}
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.65) 100%)',
-          }}
-        />
-        <div className="absolute inset-x-0 bottom-0 p-4 text-white">
-          <h2 className="text-lg font-bold leading-tight">{journal.title}</h2>
-          {journal.summary ? (
-            <p
-              className="mt-1.5 text-[12px] leading-snug line-clamp-3 opacity-90"
-              style={{ whiteSpace: 'pre-line' }}
-            >
-              {journal.summary}
-            </p>
-          ) : null}
-        </div>
-      </header>
-      <div className="p-4 space-y-2">
-        <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-          By {journal.author}
-        </p>
-        <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500 font-mono tabular-nums">
-          {format(new Date(journal.scheduledFor), 'EEE d LLL · HH:mm')}
-        </p>
-      </div>
-    </article>
+    <ShopifyPreview
+      title={journal.title}
+      author={journal.author}
+      publishedAt={journal.scheduledFor}
+      coverImageUrl={journal.coverImageUrl}
+      blocks={blocks}
+      subLabel={journal.blogTarget === 'cs_plus' ? 'CS+ | Bike Builds' : 'Blogs'}
+      summary={journal.summary}
+    />
   );
 }
 
@@ -685,6 +705,153 @@ function SocialPreviewCard({ post }: { post: SocialPost }) {
         <p className="mt-2 text-[11px] text-blue-700 leading-relaxed">
           {post.hashtags.map((h) => `#${h}`).join(' ')}
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+// ─── Bottom platform-queue drawer ──────────────────────────────────
+
+interface PlatformDrawerProps {
+  open: boolean;
+  onToggle: () => void;
+  events: CalendarEvent[];
+}
+
+const DRAWER_COLS: Array<{
+  key: string;
+  label: string;
+  matches: (e: CalendarEvent) => boolean;
+}> = [
+  {
+    key: 'instagram',
+    label: 'Instagram',
+    matches: (e) => e.id.startsWith('post-') || /^IG /i.test(e.title) || e.title.startsWith('IG '),
+  },
+  {
+    key: 'facebook',
+    label: 'Facebook',
+    matches: (e) => /^FB /i.test(e.title),
+  },
+  {
+    key: 'tiktok',
+    label: 'TikTok',
+    matches: (e) => /^TT /i.test(e.title),
+  },
+  {
+    key: 'linkedin',
+    label: 'LinkedIn',
+    matches: (e) => /^LI /i.test(e.title),
+  },
+  {
+    key: 'klaviyo',
+    label: 'Klaviyo',
+    matches: (e) => /^Email /i.test(e.title) || e.title.startsWith('Email '),
+  },
+  {
+    key: 'blogs',
+    label: 'Blogs',
+    matches: (e) => e.id.startsWith('journal:'),
+  },
+];
+
+/**
+ * Pull-up drawer below the calendar — six columns, one per channel,
+ * each listing the queued items in chronological order. Lets the
+ * user scan everything stacked up on a single platform without
+ * navigating around the calendar grid.
+ *
+ * Collapsed by default so the calendar gets full vertical room;
+ * a small chevron handle at the top toggles the drawer open
+ * to ~360px tall.
+ */
+function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
+  const sorted = useMemo(
+    () =>
+      [...events].sort(
+        (a, b) =>
+          (a.start ?? a.date).getTime() - (b.start ?? b.date).getTime(),
+      ),
+    [events],
+  );
+  const byColumn = useMemo(() => {
+    const m = new Map<string, CalendarEvent[]>();
+    for (const col of DRAWER_COLS) m.set(col.key, []);
+    for (const e of sorted) {
+      for (const col of DRAWER_COLS) {
+        if (col.matches(e)) {
+          m.get(col.key)!.push(e);
+          break;
+        }
+      }
+    }
+    return m;
+  }, [sorted]);
+  return (
+    <div
+      className={cn(
+        'border-t border-evari-edge/30 bg-evari-surface flex flex-col shrink-0 transition-[height] duration-300 ease-out overflow-hidden',
+      )}
+      style={{ height: open ? 360 : 36 }}
+    >
+      {/* Pull handle — drag-affordance bar + label + chevron */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="h-9 px-4 flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-evari-dim hover:text-evari-text transition-colors shrink-0"
+      >
+        <span className="font-semibold">Queue · all platforms</span>
+        <span className="flex items-center gap-2">
+          <span className="text-evari-dimmer normal-case tracking-normal">
+            {open ? 'Collapse' : `${sorted.length} item${sorted.length === 1 ? '' : 's'}`}
+          </span>
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 transition-transform duration-200',
+              open ? '' : 'rotate-180',
+            )}
+          />
+        </span>
+      </button>
+      {open ? (
+        <div className="flex-1 overflow-x-auto overflow-y-hidden">
+          <div className="grid grid-cols-6 min-w-[900px] h-full divide-x divide-evari-edge/30">
+            {DRAWER_COLS.map((col) => {
+              const items = byColumn.get(col.key) ?? [];
+              return (
+                <div key={col.key} className="flex flex-col min-h-0">
+                  <header className="px-3 py-2 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-semibold border-b border-evari-edge/30 shrink-0 flex items-center justify-between">
+                    <span className="text-evari-text">{col.label}</span>
+                    <span className="tabular-nums">{items.length}</span>
+                  </header>
+                  <ul className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
+                    {items.length === 0 ? (
+                      <li className="text-[11px] text-evari-dimmer italic px-1 py-2">
+                        Nothing queued.
+                      </li>
+                    ) : (
+                      items.map((e) => (
+                        <li
+                          key={e.id}
+                          className="rounded bg-evari-ink/40 hover:bg-evari-ink p-2 cursor-pointer transition-colors"
+                          onClick={() => e.onClick?.()}
+                        >
+                          <div className="text-[11px] text-evari-text leading-tight line-clamp-2">
+                            {e.title}
+                          </div>
+                          <div className="mt-1 text-[10px] text-evari-dimmer font-mono tabular-nums">
+                            {format(e.start ?? e.date, 'EEE d LLL · HH:mm')}
+                          </div>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       ) : null}
     </div>
   );

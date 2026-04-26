@@ -17,15 +17,23 @@ export default async function SocialPage() {
   // client converts to CalendarEvents alongside the social posts.
   const journalDrafts = allDrafts
     .filter((d) => d.scheduledFor && !d.shopifyArticleId)
-    .map((d) => ({
-      id: d.id,
-      title: (d.title || 'Untitled draft').replace(/<[^>]*>/g, '').trim(),
-      summary: (d.summary ?? '').replace(/<[^>]*>/g, '').trim(),
-      author: d.author ?? 'Evari',
-      scheduledFor: d.scheduledFor as string,
-      blogTarget: d.blogTarget,
-      coverImageUrl: d.coverImageUrl,
-    }));
+    .map((d) => {
+      const rawBlocks = (d.editorData as { blocks?: unknown })?.blocks;
+      const blocks = Array.isArray(rawBlocks) ? rawBlocks : [];
+      return {
+        id: d.id,
+        title: (d.title || 'Untitled draft').replace(/<[^>]*>/g, '').trim(),
+        summary: (d.summary ?? '').replace(/<[^>]*>/g, '').trim(),
+        author: d.author ?? 'Evari',
+        scheduledFor: d.scheduledFor as string,
+        blogTarget: d.blogTarget,
+        coverImageUrl: d.coverImageUrl,
+        // Full block array — the right-rail preview renders this
+        // through ShopifyPreview so authors see the exact final
+        // layout before publishing.
+        blocks,
+      };
+    });
   return (
     <>
       <TopBar
