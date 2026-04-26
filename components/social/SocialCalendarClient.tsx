@@ -136,6 +136,10 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   const drawerClosedH = 36;
   const drawerDefaultH = typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.25) : 240;
   const [drawerHeight, setDrawerHeight] = useState(drawerClosedH);
+  // True only while the user is mid-drag — used to suppress the
+  // CSS height transition so the drawer follows the cursor in real
+  // time. The 1s ease animation only kicks in for click-to-toggle.
+  const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
   const drawerOpen = drawerHeight > drawerClosedH;
   // Which broadcast platforms are currently visible as columns inside
   // the drawer. Default: all six. User can tick / un-tick via the
@@ -173,8 +177,10 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
     let moved = false;
     function onMove(e: MouseEvent) {
       const dy = startY - e.clientY;
-      // Tiny pointer wobble shouldn't count as a drag.
-      if (!moved && Math.abs(dy) > 3) moved = true;
+      if (!moved && Math.abs(dy) > 3) {
+        moved = true;
+        setIsDraggingDrawer(true);
+      }
       if (!moved) return;
       const next = Math.min(
         Math.round(window.innerHeight * 0.85),
@@ -186,9 +192,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       document.body.style.cursor = '';
-      // Pure click (no actual movement) toggles the drawer between
-      // closed (36px) and the default-open height. A real drag has
-      // already updated drawerHeight live, so we don't touch it.
+      setIsDraggingDrawer(false);
       if (!moved) {
         setDrawerHeight((h) => (h > drawerClosedH ? drawerClosedH : drawerDefaultH));
       }
@@ -464,6 +468,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
       </div>
 
             <PlatformDrawer
+        isDragging={isDraggingDrawer}
         height={drawerHeight}
         open={drawerOpen}
         onToggle={() =>
@@ -824,6 +829,7 @@ function SocialPreviewCard({ post }: { post: SocialPost }) {
 interface PlatformDrawerProps {
   open: boolean;
   height: number;
+  isDragging: boolean;
   onToggle: () => void;
   onResizeStart: (ev: React.MouseEvent) => void;
   events: CalendarEvent[];
@@ -893,6 +899,7 @@ const DRAWER_COLS: Array<{
 function PlatformDrawer({
   open,
   height,
+  isDragging,
   onToggle,
   onResizeStart,
   events,
@@ -934,7 +941,7 @@ function PlatformDrawer({
   const orderedColsKeys = orderedCols.map((c) => c.key);
   const drawerSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   return (
-    <div className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink p-1 rounded-lg transition-[height] duration-1000 ease-in-out" style={{ height }}
+    <div className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink p-1 rounded-lg" style={{ height, transition: isDragging ? \'none\' : \'height 1000ms ease-in-out\' }}
     >
       {/* Toggle bar IS the drag handle — clicking opens/closes,
           dragging up/down resizes. Whole bar is row-resize so the
