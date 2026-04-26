@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import {
+  AtSign,
   ChevronDown,
   ChevronUp,
+  FolderOpen,
   GripVertical,
   Heading1,
   Image as ImageIcon,
@@ -13,8 +15,10 @@ import {
   MousePointerClick,
   Move,
   PenLine,
+  Sparkles,
   Trash2,
   Type,
+  X,
 } from 'lucide-react';
 import {
   DndContext,
@@ -45,6 +49,8 @@ interface Props {
   initialBrand: MarketingBrand;
   value: EmailDesign | null;
   onChange: (next: EmailDesign) => void;
+  /** Optional — when provided, surfaces a 'Draft with AI' button in the toolbar. */
+  onAIDraft?: () => void;
 }
 
 function nid(): string { return Math.random().toString(36).slice(2, 10); }
@@ -64,7 +70,7 @@ const ADD_BUTTONS: Array<{ type: EmailBlock['type']; label: string; Icon: typeof
  * stay in sync stylistically. Viewer LEFT, tools RIGHT, drag-to-reorder,
  * highlight-selected-block in the preview, common per-block padding.
  */
-export function EmailDesigner({ initialBrand, value, onChange }: Props) {
+export function EmailDesigner({ initialBrand, value, onChange, onAIDraft }: Props) {
   const design = normaliseEmailDesign(value) ?? DEFAULT_EMAIL_DESIGN;
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -111,7 +117,14 @@ export function EmailDesigner({ initialBrand, value, onChange }: Props) {
     <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
       <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
         <h2 className="text-sm font-semibold text-evari-text">Visual editor</h2>
-        <span className="text-[10px] text-evari-dimmer">Drag blocks to reorder · same renderer at preview + send</span>
+        <div className="flex items-center gap-2">
+          {onAIDraft ? (
+            <button type="button" onClick={onAIDraft} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-colors">
+              <Sparkles className="h-3 w-3" /> Draft with AI
+            </button>
+          ) : null}
+          <span className="text-[10px] text-evari-dimmer">Drag blocks · same renderer at preview + send</span>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,40%)] gap-3 p-3">
@@ -323,7 +336,10 @@ function HeadingFields({ block, onChange }: { block: Extract<EmailBlock, { type:
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Heading text (HTML allowed)</span>
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Heading text (HTML allowed)</span>
+          <VariableMenu onPick={(token) => onChange({ html: block.html + token })} />
+        </span>
         <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[60px] font-mono text-[12px]')} />
       </label>
       <div className="grid grid-cols-3 gap-2">
@@ -350,7 +366,10 @@ function TextFields({ block, onChange }: { block: Extract<EmailBlock, { type: 't
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Content (HTML allowed)</span>
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Content (HTML allowed)</span>
+          <VariableMenu onPick={(token) => onChange({ html: block.html + token })} />
+        </span>
         <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[100px] font-mono text-[12px]')} />
       </label>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -368,12 +387,27 @@ function TextFields({ block, onChange }: { block: Extract<EmailBlock, { type: 't
 }
 
 function ImageFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'image' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'image' }>>) => void }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Image URL</span>
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Image URL</span>
+          <button type="button" onClick={() => setPickerOpen(true)} className="normal-case tracking-normal text-[10px] text-evari-gold hover:underline inline-flex items-center gap-1">
+            <FolderOpen className="h-3 w-3" /> Browse library
+          </button>
+        </span>
         <input type="url" value={block.src} onChange={(e) => onChange({ src: e.target.value })} placeholder="https://…" className={cn(inputCls, 'font-mono text-[12px]')} />
       </label>
+      {pickerOpen ? (
+        <AssetPickerModal
+          onClose={() => setPickerOpen(false)}
+          onPick={(url, alt) => {
+            onChange({ src: url, alt: alt || block.alt });
+            setPickerOpen(false);
+          }}
+        />
+      ) : null}
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
@@ -395,7 +429,10 @@ function ButtonFields({ block, onChange }: { block: Extract<EmailBlock, { type: 
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Label</span>
+          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+            <span>Label</span>
+            <VariableMenu onPick={(token) => onChange({ label: block.label + token })} />
+          </span>
           <input type="text" value={block.label} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} />
         </label>
         <label className="block">
@@ -452,6 +489,119 @@ function PaddingFields({ block, onChange }: { block: { paddingTopPx?: number; pa
         <input type="range" min={0} max={120} value={bot} onChange={(e) => onChange({ paddingBottomPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
         <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{bot}px</span>
       </label>
+    </div>
+  );
+}
+
+// ─── Variable insertion menu ────────────────────────────────────
+
+const VARIABLES: Array<{ token: string; label: string; hint: string }> = [
+  { token: '{{firstName}}',     label: 'First name',     hint: 'Recipient first name' },
+  { token: '{{lastName}}',      label: 'Last name',      hint: 'Recipient last name' },
+  { token: '{{email}}',         label: 'Email',          hint: 'Recipient email address' },
+  { token: '{{companyName}}',   label: 'Company',        hint: 'Recipient company name' },
+  { token: '{{jobTitle}}',      label: 'Role',           hint: 'Recipient job title' },
+  { token: '{{unsubscribeUrl}}', label: 'Unsubscribe URL', hint: 'Personalised unsubscribe link' },
+];
+
+function VariableMenu({ onPick }: { onPick: (token: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="normal-case tracking-normal text-[10px] text-evari-gold hover:underline inline-flex items-center gap-1"
+      >
+        <AtSign className="h-3 w-3" /> Insert variable
+      </button>
+      {open ? (
+        <div className="absolute top-5 right-0 z-20 rounded-md bg-evari-surface border border-evari-edge/40 shadow-lg py-1 min-w-[200px]">
+          {VARIABLES.map((v) => (
+            <button
+              key={v.token}
+              type="button"
+              onClick={() => { onPick(v.token); setOpen(false); }}
+              className="w-full text-left px-3 py-1.5 hover:bg-evari-ink text-evari-text"
+            >
+              <div className="text-[12px]">{v.label}</div>
+              <div className="text-[10px] text-evari-dimmer font-mono">{v.token}</div>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ─── Asset library picker ───────────────────────────────────────
+
+interface MktAssetLite { id: string; url: string; filename: string; altText: string | null; }
+
+function AssetPickerModal({ onClose, onPick }: { onClose: () => void; onPick: (url: string, alt: string) => void }) {
+  const [assets, setAssets] = useState<MktAssetLite[]>([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useMemo(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    const url = search.trim() ? `/api/marketing/assets?search=${encodeURIComponent(search.trim())}` : '/api/marketing/assets';
+    fetch(url, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((d) => setAssets(((d?.assets ?? []) as Array<{ id: string; url: string; filename: string; altText?: string | null }>).map((a) => ({ id: a.id, url: a.url, filename: a.filename, altText: a.altText ?? null }))))
+      .catch((e) => { if (e?.name !== 'AbortError') setError(e instanceof Error ? e.message : 'Load failed'); })
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6" onClick={onClose}>
+      <div className="w-full max-w-5xl h-[80vh] rounded-md bg-evari-surface border border-evari-edge/40 flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center gap-2 px-4 py-3 border-b border-evari-edge/20">
+          <h3 className="text-sm font-semibold text-evari-text">Asset library</h3>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search filename…"
+            className="flex-1 max-w-xs px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none ml-3"
+          />
+          <a href="/email/assets" target="_blank" rel="noopener" className="text-[11px] text-evari-dim hover:text-evari-text underline underline-offset-2">Manage library →</a>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text inline-flex items-center gap-1 px-2 py-1 rounded">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+        <div className="flex-1 overflow-y-auto p-3">
+          {loading ? (
+            <div className="py-12 text-center text-sm text-evari-dimmer inline-flex items-center gap-2 w-full justify-center"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+          ) : error ? (
+            <div className="py-12 text-center text-sm text-evari-danger">{error}</div>
+          ) : assets.length === 0 ? (
+            <div className="py-12 text-center text-sm text-evari-dimmer">
+              No assets {search ? 'match that filter' : 'yet'}. Upload some at <a href="/email/assets" className="text-evari-gold underline">/email/assets</a>.
+            </div>
+          ) : (
+            <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {assets.map((a) => (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(a.url, a.altText ?? a.filename)}
+                    className="block w-full text-left rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden hover:border-evari-gold/60 transition-colors"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt={a.altText ?? a.filename} className="w-full aspect-square object-cover bg-zinc-100" />
+                    <div className="p-1.5 text-[10px] text-evari-dim truncate font-mono">{a.filename}</div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

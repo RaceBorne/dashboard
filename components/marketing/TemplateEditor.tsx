@@ -11,6 +11,8 @@ import {
   Smartphone,
   Send,
   Eye,
+  Sparkles,
+  Wand2,
   X,
 } from 'lucide-react';
 
@@ -45,6 +47,8 @@ export function TemplateEditor({ template, brand }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const [usingInCampaign, setUsingInCampaign] = useState(false);
 
   const dirty = name !== template.name || JSON.stringify(design) !== JSON.stringify(template.design);
 
@@ -72,6 +76,26 @@ export function TemplateEditor({ template, brand }: Props) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function useInCampaign() {
+    if (usingInCampaign) return;
+    setUsingInCampaign(true); setError(null);
+    try {
+      // Persist any unsaved edits first so the campaign clones the
+      // newest design, not the stale server one.
+      if (dirty) await save();
+      const res = await fetch('/api/marketing/campaigns/from-template', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId: template.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) throw new Error(data.error ?? 'Could not create campaign');
+      router.push(`/email/campaigns/${data.campaign.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create campaign');
+      setUsingInCampaign(false);
     }
   }
 
@@ -126,6 +150,16 @@ export function TemplateEditor({ template, brand }: Props) {
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           {dirty ? 'Save' : 'Saved'}
         </button>
+        <button
+          type="button"
+          onClick={useInCampaign}
+          disabled={usingInCampaign}
+          title="Create a draft campaign from this template"
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-evari-ink text-evari-text border border-evari-edge/30 hover:bg-black/40 disabled:opacity-50 transition"
+        >
+          {usingInCampaign ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+          Use in campaign
+        </button>
       </header>
 
       {error ? (
@@ -135,13 +169,107 @@ export function TemplateEditor({ template, brand }: Props) {
       {/* Designer body — fills the viewport */}
       <div className={cn('flex-1 min-h-0 overflow-auto p-3', device === 'mobile' && 'flex justify-center')}>
         <div className={device === 'mobile' ? 'w-[400px]' : 'w-full'}>
-          <EmailDesigner initialBrand={brand} value={design} onChange={setDesign} />
+          <EmailDesigner initialBrand={brand} value={design} onChange={setDesign} onAIDraft={() => setDrafting(true)} />
         </div>
       </div>
 
       {previewing ? (
         <PreviewModal design={design} brand={brand} onClose={() => setPreviewing(false)} />
       ) : null}
+      {drafting ? (
+        <AIDraftModal
+          design={design}
+          template={template}
+          onClose={() => setDrafting(false)}
+          onApply={(next) => { setDesign(next); setDrafting(false); }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// ─── AI draft modal ─────────────────────────────────────────────
+
+function AIDraftModal({ design, template, onClose, onApply }: { design: EmailDesign; template: EmailTemplate; onClose: () => void; onApply: (d: EmailDesign) => void }) {
+  const [prompt, setPrompt] = useState('');
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [updatedCount, setUpdatedCount] = useState<number | null>(null);
+  const [draftDesign, setDraftDesign] = useState<EmailDesign | null>(null);
+
+  async function generate() {
+    if (!prompt.trim() || working) return;
+    setWorking(true); setError(null); setUpdatedCount(null); setDraftDesign(null);
+    try {
+      const res = await fetch('/api/marketing/templates/draft-content', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ design, prompt }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) throw new Error(data.error ?? 'Generation failed');
+      setDraftDesign(data.design as EmailDesign);
+      setUpdatedCount(data.updatedCount as number);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generation failed');
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-purple-400" />
+          <h3 className="text-sm font-semibold text-evari-text flex-1">Draft email content</h3>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
+        </header>
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-[0.1em] text-evari-dimmer">Reference template</p>
+          <p className="text-sm text-evari-text">{template.name}</p>
+        </div>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.1em] text-evari-dimmer mb-0.5">Describe the email <span className="text-evari-danger">*</span></span>
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g. Spring launch — announce the 856 with a 7-day trial offer, warm + considered tone"
+            className="w-full px-2 py-1.5 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-purple-400/60 focus:outline-none min-h-[110px]"
+            maxLength={1000}
+          />
+          <span className="text-[10px] text-evari-dimmer tabular-nums">{prompt.length}/1000</span>
+        </label>
+        {error ? <p className="text-[11px] text-evari-danger">{error}</p> : null}
+        {draftDesign ? (
+          <div className="rounded-md bg-evari-ink/40 border border-evari-edge/30 p-3 text-[12px] text-evari-text">
+            ✓ Generated — {updatedCount ?? 0} block{updatedCount === 1 ? '' : 's'} rewritten. Click <strong>Apply to design</strong> to drop the new copy in (you can still tweak it after).
+          </div>
+        ) : (
+          <p className="text-[10px] text-evari-dimmer">Rewrites every text + heading + button block in the design while preserving images, buttons URLs, and merge tokens.</p>
+        )}
+        <footer className="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onClick={onClose} className="text-[11px] text-evari-dim hover:text-evari-text px-3 py-1 rounded">Cancel</button>
+          {draftDesign ? (
+            <button
+              type="button"
+              onClick={() => onApply(draftDesign)}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded"
+            >
+              <Check className="h-3 w-3" /> Apply to design
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={working || !prompt.trim()}
+              onClick={generate}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold bg-purple-500 text-white px-3 py-1 rounded disabled:opacity-50"
+            >
+              {working ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+              {working ? 'Generating' : 'Generate drafts'}
+            </button>
+          )}
+        </footer>
+      </div>
     </div>
   );
 }
