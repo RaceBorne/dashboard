@@ -34,8 +34,8 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   // Per-upload form state — name/weight/style applied to the next dropped file.
   const [pendingName, setPendingName] = useState('');
-  const [pendingWeight, setPendingWeight] = useState(400);
-  const [pendingStyle, setPendingStyle] = useState<'normal' | 'italic'>('normal');
+  const [pendingWeight, setPendingWeight] = useState<string>('');  // '' = auto-detect from filename
+  const [pendingStyle, setPendingStyle] = useState<string>('');     // '' = auto-detect from filename
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => setFonts(initialFonts), [initialFonts]);
@@ -71,8 +71,8 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
         const fd = new FormData();
         fd.append('file', file);
         if (pendingName.trim()) fd.append('name', pendingName.trim());
-        fd.append('weight', String(pendingWeight));
-        fd.append('style', pendingStyle);
+        if (pendingWeight) fd.append('weight', pendingWeight);
+        if (pendingStyle)  fd.append('style', pendingStyle);
         const res = await fetch('/api/marketing/brand/fonts', { method: 'POST', body: fd });
         const data = await res.json().catch(() => ({}));
         if (!data.ok) {
@@ -85,6 +85,8 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
         });
       }
       setPendingName('');
+      setPendingWeight('');
+      setPendingStyle('');
       router.refresh();
     } finally {
       setUploading(false);
@@ -129,7 +131,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
             type="text"
             value={pendingName}
             onChange={(e) => setPendingName(e.target.value)}
-            placeholder="(use filename)"
+            placeholder="(auto-detect from filename)"
             className="px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
           />
         </label>
@@ -137,9 +139,10 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Weight</span>
           <select
             value={pendingWeight}
-            onChange={(e) => setPendingWeight(Number(e.target.value))}
+            onChange={(e) => setPendingWeight(e.target.value)}
             className="px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
           >
+            <option value="">Auto (from filename)</option>
             {[100,200,300,400,500,600,700,800,900].map((w) => <option key={w} value={w}>{w}</option>)}
           </select>
         </label>
@@ -147,9 +150,10 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Style</span>
           <select
             value={pendingStyle}
-            onChange={(e) => setPendingStyle(e.target.value as 'normal' | 'italic')}
+            onChange={(e) => setPendingStyle(e.target.value)}
             className="px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
           >
+            <option value="">Auto (from filename)</option>
             <option value="normal">normal</option>
             <option value="italic">italic</option>
           </select>
@@ -191,7 +195,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
             {uploading ? 'Uploading…' : 'Drop a font file here or click to browse'}
           </p>
           <p className="text-[11px] text-evari-dimmer">
-            .woff2 / .woff / .ttf / .otf · max 5 MB · weight + style apply to the next dropped file
+            .woff2 / .woff / .ttf / .otf · max 5 MB · family + weight + style auto-detected from filename — override above if needed
           </p>
         </div>
       </div>

@@ -23,6 +23,89 @@ import type { CustomFont } from '@/lib/marketing/types';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+
+/**
+ * Parse a font filename into its family + weight + style components.
+ *
+ * Most foundries ship files like:
+ *   Katerina-Regular.woff2          → family Katerina, 400 normal
+ *   Katerina-BoldItalic.woff2       → family Katerina, 700 italic
+ *   KaterinaAlt-300.ttf             → family KaterinaAlt, 300 normal
+ *   Inter Variable Bold Italic.otf  → family Inter Variable, 700 italic
+ *
+ * Strategy: walk the basename right-to-left peeling off any tokens
+ * that match a known weight or style word (or numeric weight). Whatever
+ * remains is the family name. Tokens are split by - _ space so all
+ * three common naming conventions work.
+ */
+const WEIGHT_WORDS: Record<string, number> = {
+  hairline: 100, thin: 100,
+  extralight: 200, ultralight: 200,
+  light: 300,
+  regular: 400, normal: 400, book: 400, roman: 400,
+  medium: 500,
+  semibold: 600, demibold: 600, demi: 600,
+  bold: 700,
+  extrabold: 800, ultrabold: 800, heavy: 800,
+  black: 900, ultra: 900,
+};
+const STYLE_WORDS = new Set(['italic', 'oblique', 'slanted']);
+
+function parseFontName(filename: string): {
+  family: string;
+  weight: number;
+  style: 'normal' | 'italic';
+} {
+  const base = filename.replace(/\.[^.]+$/, '');
+  // Split on - _ and spaces, drop empty tokens.
+  const tokens = base.split(/[-_\s]+/).filter(Boolean);
+  let weight: number | null = null;
+  let style: 'normal' | 'italic' = 'normal';
+  // Walk right-to-left, peeling off recognised tokens.
+  while (tokens.length > 1) {
+    const last = tokens[tokens.length - 1];
+    const lower = last.toLowerCase();
+    // Numeric weight (100..900)
+    if (/^[1-9]00$/.test(lower)) {
+      weight = weight ?? Number(lower);
+      tokens.pop();
+      continue;
+    }
+    // Style tokens
+    if (STYLE_WORDS.has(lower)) {
+      style = 'italic';
+      tokens.pop();
+      continue;
+    }
+    // Weight words (and combined 'bolditalic' / 'mediumitalic' etc.)
+    let matched = false;
+    for (const word of Object.keys(WEIGHT_WORDS)) {
+      if (lower === word) {
+        weight = weight ?? WEIGHT_WORDS[word];
+        matched = true;
+        break;
+      }
+      // Compound: 'bolditalic', 'mediumitalic', etc.
+      if (lower === word + 'italic' || lower === word + 'oblique') {
+        weight = weight ?? WEIGHT_WORDS[word];
+        style = 'italic';
+        matched = true;
+        break;
+      }
+    }
+    if (matched) {
+      tokens.pop();
+      continue;
+    }
+    break;
+  }
+  return {
+    family: tokens.join(' ') || base,
+    weight: weight ?? 400,
+    style,
+  };
+}
+
 const BUCKET = 'mkt-brand-fonts';
 
 function detectFormat(filename: string): CustomFont['format'] | null {
@@ -66,12 +149,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'Unsupported font file. Use .woff2 / .woff / .ttf / .otf' }, { status: 400 });
   }
 
+  // Auto-derive family + weight + style from the filename, then let
+  // explicit form fields override (lets the user be lazy AND precise).
+  const auto = parseFontName(f.name);
   const rawName = String(form.get('name') ?? '').trim();
-  const baseName = rawName || f.name.replace(/\.[^.]+$/, '');
-  const familyName = baseName.trim() || 'Custom font';
-  const weightRaw = Number(form.get('weight') ?? '400');
-  const weight = Number.isFinite(weightRaw) && weightRaw >= 100 && weightRaw <= 900 ? Math.round(weightRaw) : 400;
-  const styleRaw = String(form.get('style') ?? 'normal').toLowerCase();
+  const familyName = rawName || auto.family;
+  const weightRawForm = form.get('weight');
+  const weightRaw = weightRawForm == null || weightRawForm === '' ? auto.weight : Number(weightRawForm);
+  const weight = Number.isFinite(weightRaw) && weightRaw >= 100 && weightRaw <= 900 ? Math.round(weightRaw) : auto.weight;
+  const styleRawForm = form.get('style');
+  const styleRaw = styleRawForm == null || styleRawForm === '' ? auto.style : String(styleRawForm).toLowerCase();
   const style: CustomFont['style'] = styleRaw === 'italic' ? 'italic' : 'normal';
 
   // Storage key — slug + timestamp so re-uploads don't clobber and we
