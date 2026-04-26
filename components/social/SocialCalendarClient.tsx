@@ -377,11 +377,11 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           panels are detached floating rounded-md rectangles so content
           height in any one panel can never push or shrink another. */}
       <div
-        className="absolute top-3 left-3 bottom-3 flex flex-col overflow-hidden transition-[width] duration-1000 ease-in-out"
+        className="absolute top-0 left-0 bottom-0 flex flex-col overflow-hidden transition-[width] duration-1000 ease-in-out"
         style={{
           width: selectedEventId
-            ? 'calc(100% - 380px - 1.5rem)'
-            : 'calc(100% - 1.5rem)',
+            ? 'calc(100% - 380px - 4px)'
+            : '100%',
         }}
       >
       {/* Calendar — fills the available height of the LEFT column.
@@ -504,12 +504,12 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
       <aside
         ref={railRef}
         aria-hidden={!selectedEventId}
-        className="hidden lg:flex flex-col absolute top-3 right-3 bottom-3 z-10 overflow-hidden transition-[width] duration-1000 ease-in-out"
-        style={{ width: selectedEventId ? railWidth - 24 : 0 }}
+        className="hidden lg:flex flex-col absolute top-0 right-0 bottom-0 z-10 overflow-hidden transition-[width] duration-1000 ease-in-out"
+        style={{ width: selectedEventId ? railWidth : 0 }}
       >
         <div
-          className="relative flex flex-col h-full"
-          style={{ width: railWidth - 24 }}
+          className="relative flex flex-col h-full gap-1"
+          style={{ width: railWidth }}
         >
           {/* Drag handle — hover changes cursor to ew-resize. The handle
               itself is a 6px-wide invisible strip on the left edge with
