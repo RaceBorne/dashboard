@@ -93,28 +93,36 @@ export function EmailDesigner({ initialBrand, value, onChange }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const blockIds = design.blocks.map((b) => b.id);
 
-  const previewHtml = useMemo(
+  const baseHtml = useMemo(
     () => renderEmailDesign(design, initialBrand),
     [design, initialBrand],
   );
+  // Inject the selection-highlight CSS INTO the iframe's document so it
+  // actually targets the rendered blocks. Doing this in the parent
+  // document (as we do for the footer + signature designers) doesn't
+  // work for an iframe because shadow boundaries.
+  const previewHtml = useMemo(() => {
+    if (!selectedId) return baseHtml;
+    const style = `<style>[data-block-id="${selectedId}"]{outline:2px solid #d4a649;outline-offset:2px;border-radius:3px;background:rgba(212,166,73,0.08);}</style>`;
+    return baseHtml.replace('</head>', `${style}</head>`);
+  }, [baseHtml, selectedId]);
 
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col min-h-[600px]">
+    <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
       <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
         <h2 className="text-sm font-semibold text-evari-text">Visual editor</h2>
         <span className="text-[10px] text-evari-dimmer">Drag blocks to reorder · same renderer at preview + send</span>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,40%)] gap-3 p-3 flex-1">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,40%)] gap-3 p-3">
         {/* Viewer LEFT */}
-        <div className="min-h-0 flex flex-col">
+        <div className="flex flex-col">
           <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Live preview</div>
-          <div className="flex-1 rounded-md border border-evari-edge/30 overflow-hidden bg-zinc-100">
-            <style dangerouslySetInnerHTML={{ __html: selectedId ? `[data-email-preview] [data-block-id="${selectedId}"]{outline:2px solid #d4a649;outline-offset:2px;border-radius:3px;background:rgba(212,166,73,0.08);}` : '' }} />
+          <div className="rounded-md border border-evari-edge/30 overflow-hidden bg-zinc-100">
             <iframe
-              data-email-preview
               title="Email preview"
-              className="w-full h-full min-h-[520px] bg-white"
+              className="w-full bg-white block"
+              style={{ height: '720px' }}
               srcDoc={previewHtml}
             />
           </div>
@@ -164,7 +172,7 @@ export function EmailDesigner({ initialBrand, value, onChange }: Props) {
               }}
             >
               <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
-                <ul className="space-y-1.5 max-h-[520px] overflow-y-auto">
+                <ul className="space-y-1.5">
                   {design.blocks.map((b) => (
                     <SortableBlockRow
                       key={b.id}

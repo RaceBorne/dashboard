@@ -254,7 +254,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
         </section>
 
         {/* Right: body editor — toggle between visual block builder and raw HTML */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col min-h-[400px] overflow-hidden">
+        <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col min-h-[400px]">
           <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
             <h2 className="text-sm font-semibold text-evari-text">Body</h2>
             <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5">
@@ -277,17 +277,23 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
               >HTML</button>
             </div>
           </header>
-          {editorMode === 'visual' && brand ? (
-            <div className="flex-1 min-h-0 overflow-hidden p-2">
-              <EmailDesigner
-                initialBrand={brand}
-                value={emailDesign}
-                onChange={setEmailDesign}
-              />
-              <p className="text-[10px] text-evari-dimmer px-2 pt-1.5">
-                Visual mode supersedes the raw HTML body at send time. Switch to HTML to override.
-              </p>
-            </div>
+          {editorMode === 'visual' ? (
+            brand ? (
+              <div className="p-2">
+                <EmailDesigner
+                  initialBrand={brand}
+                  value={emailDesign}
+                  onChange={setEmailDesign}
+                />
+                <p className="text-[10px] text-evari-dimmer px-2 pt-1.5">
+                  Visual mode supersedes the raw HTML body at send time. Switch to HTML to override.
+                </p>
+              </div>
+            ) : (
+              <div className="p-6 text-center text-sm text-evari-dimmer">
+                Couldn't load the brand kit — falling back to HTML mode.
+              </div>
+            )
           ) : (
             <div className="flex-1 flex flex-col p-4">
               <textarea
