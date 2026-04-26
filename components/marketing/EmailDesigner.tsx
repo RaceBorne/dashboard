@@ -1579,12 +1579,18 @@ function SectionEndDrop({ sectionId }: { sectionId: string }) {
 
 function CanvasInsertionZone({ overId }: { overId: string }) {
   const { isOver, setNodeRef } = useDroppable({ id: overId });
+  // Idle: 0 visible height — no canvas-background line bleeds between
+  // adjacent blocks. The droppable hit area lives just at the seam,
+  // and only inflates into a visible insertion bar while the cursor
+  // is over it during a drag.
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'h-1 -my-px rounded transition-all',
-        isOver && 'h-3 bg-evari-gold/15 border-y-2 border-dashed border-evari-gold/70',
+        'rounded transition-all',
+        isOver
+          ? 'h-3 my-1 bg-evari-gold/15 border-y-2 border-dashed border-evari-gold/70'
+          : 'h-0',
       )}
     />
   );
