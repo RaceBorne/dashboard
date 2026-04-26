@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Loader2, Send, Trash2 } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Loader2, Send, Trash2, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import type { Campaign, EmailDesign, Group, MarketingBrand, Segment } from '@/lib/marketing/types';
+import type { EmailTemplate } from '@/lib/marketing/templates';
+import { renderEmailDesignWithStub } from '@/lib/marketing/email-design';
 import { DEFAULT_EMAIL_DESIGN } from '@/lib/marketing/types';
 import type { CampaignStats } from '@/lib/marketing/campaigns';
 import { EmailDesigner } from './EmailDesigner';
@@ -21,11 +23,13 @@ interface Props {
   initialRecipientEmails?: string[];
   /** Brand kit — used by the visual designer's preview renderer. */
   brand?: MarketingBrand;
+  /** Saved templates — drives the 'Use template' picker. */
+  templates?: EmailTemplate[];
 }
 
 type AudienceKind = 'segment' | 'group' | 'custom';
 
-export function CampaignEditor({ mode, campaign, groups, segments, initialStats, initialRecipientEmails, brand }: Props) {
+export function CampaignEditor({ mode, campaign, groups, segments, initialStats, initialRecipientEmails, brand, templates }: Props) {
   const router = useRouter();
   const editing = mode === 'edit' && !!campaign;
   const [name, setName] = useState(campaign?.name ?? '');
@@ -37,6 +41,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
   // Phase 14: visual design supersedes content when set.
   const [emailDesign, setEmailDesign] = useState<EmailDesign | null>(campaign?.emailDesign ?? null);
   const [editorMode, setEditorMode] = useState<'visual' | 'html'>(campaign?.emailDesign ? 'visual' : 'html');
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   // Audience defaults: prefer existing campaign value > deep-link custom emails
   // > first available picker. 'custom' wins automatically when ids= was used.
   const seedCustom = (campaign?.recipientEmails ?? initialRecipientEmails ?? []) as string[];
@@ -257,6 +262,17 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
         <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col min-h-[400px]">
           <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
             <h2 className="text-sm font-semibold text-evari-text">Body</h2>
+            <div className="flex items-center gap-2">
+            {templates && templates.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setTemplatePickerOpen(true)}
+                disabled={sentLocked}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-evari-ink text-evari-dim hover:text-evari-text hover:bg-black/40 transition-colors"
+              >
+                <LayoutGrid className="h-3 w-3" /> Use template
+              </button>
+            ) : null}
             <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5">
               <button
                 type="button"
@@ -275,6 +291,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
                 disabled={sentLocked}
                 className={cn('px-2.5 py-1 rounded text-[11px] font-medium transition-colors duration-300', editorMode === 'html' ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}
               >HTML</button>
+            </div>
             </div>
           </header>
           {editorMode === 'visual' ? (
@@ -351,6 +368,82 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
           This campaign has already been {campaign?.status} — fields are read-only. Duplicate it to send again.
         </p>
       ) : null}
+    {templatePickerOpen && templates ? (
+      <TemplatePickerModal
+        templates={templates}
+        onClose={() => setTemplatePickerOpen(false)}
+        onPick={(t) => {
+          // Deep-copy so subsequent edits don't mutate the source template.
+          const cloned = JSON.parse(JSON.stringify(t.design)) as EmailDesign;
+          setEmailDesign(cloned);
+          setEditorMode('visual');
+          setTemplatePickerOpen(false);
+        }}
+      />
+    ) : null}
+    </div>
+  );
+}
+
+// ─── Template picker modal ──────────────────────────────────────
+
+function TemplatePickerModal({ templates, onClose, onPick }: { templates: EmailTemplate[]; onClose: () => void; onPick: (t: EmailTemplate) => void }) {
+  const [search, setSearch] = useState('');
+  const visible = templates.filter((t) => !search.trim() || t.name.toLowerCase().includes(search.trim().toLowerCase()));
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex flex-col" onClick={onClose}>
+      <div className="flex-1 min-h-0 flex flex-col p-6" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center gap-3 mb-3">
+          <h3 className="text-base font-semibold text-evari-text">Pick a template</h3>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search…"
+            className="flex-1 max-w-xs px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+          />
+          <span className="text-[10px] text-evari-dimmer tabular-nums ml-auto">{visible.length} / {templates.length}</span>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text inline-flex items-center gap-1 px-2 py-1 rounded">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+        <div className="flex-1 min-h-0 overflow-auto rounded-md bg-evari-surface border border-evari-edge/30 p-3">
+          {visible.length === 0 ? (
+            <div className="py-12 text-center text-sm text-evari-dimmer">
+              {templates.length === 0
+                ? 'No templates yet — design one in /email/templates first.'
+                : 'Nothing matches that filter.'}
+            </div>
+          ) : (
+            <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {visible.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(t)}
+                    className="block w-full text-left rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden hover:border-evari-gold/60 transition-colors"
+                  >
+                    <div className="aspect-[3/4] bg-zinc-100 overflow-hidden relative pointer-events-none">
+                      <iframe
+                        title={`Preview of ${t.name}`}
+                        srcDoc={renderEmailDesignWithStub(t.design)}
+                        className="absolute inset-0 origin-top-left bg-white"
+                        style={{ width: '600px', height: '800px', transform: 'scale(0.4)', transformOrigin: 'top left', border: 0 }}
+                      />
+                    </div>
+                    <div className="p-2">
+                      <div className="text-sm text-evari-text font-medium truncate">{t.name}</div>
+                      <div className="text-[10px] text-evari-dimmer font-mono tabular-nums mt-0.5">
+                        {new Date(t.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </div>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { TopBar } from '@/components/sidebar/TopBar';
 import { listGroups } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
 import { getBrand } from '@/lib/marketing/brand';
+import { listTemplates } from '@/lib/marketing/templates';
 import { CampaignEditor } from '@/components/marketing/CampaignEditor';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import type { Lead } from '@/lib/types';
@@ -37,11 +38,12 @@ async function loadEmailsForLeadIds(ids: string[]): Promise<string[]> {
 export default async function NewCampaignPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const ids = (sp.ids ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  const [groups, segments, customEmails, brand] = await Promise.all([
+  const [groups, segments, customEmails, brand, templates] = await Promise.all([
     listGroups(),
     listSegments(),
     loadEmailsForLeadIds(ids),
     getBrand(),
+    listTemplates(),
   ]);
   return (
     <>
@@ -57,6 +59,7 @@ export default async function NewCampaignPage({ searchParams }: PageProps) {
         segments={segments}
         initialRecipientEmails={customEmails}
         brand={brand}
+        templates={templates}
       />
     </>
   );
