@@ -306,6 +306,8 @@ export interface TypographyPreset {
   lineHeight: number;
   /** Hex colour. */
   color: string;
+  /** Optional CSS text-transform — 'none' / 'lowercase' / 'uppercase' / 'capitalize'. */
+  textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize';
   /** When the preset was saved — useful for sort + display. */
   createdAt: string;
 }
@@ -559,6 +561,8 @@ export type EmailBlock =
       /** Letter-spacing in em (e.g. -0.01 = tight, 0.05 = loose). */
       letterSpacingEm?: number;
       fontWeight?: number;
+      /** CSS text-transform — 'none' (as typed), 'lowercase', 'uppercase', 'capitalize' (title case). */
+      textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize';
     })
   | (EmailBlockBase & {
       type: 'text';
@@ -571,6 +575,8 @@ export type EmailBlock =
       /** Letter-spacing in em (e.g. -0.01 = tight, 0.05 = loose). */
       letterSpacingEm?: number;
       fontWeight?: number;
+      /** CSS text-transform — 'none' (as typed), 'lowercase', 'uppercase', 'capitalize' (title case). */
+      textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize';
     })
   | (EmailBlockBase & {
       type: 'image';

@@ -976,7 +976,7 @@ function TypographyStyles({
   onApply,
 }: {
   brand: MarketingBrand;
-  current: { fontFamily: string; fontSizePx: number; fontWeight: number; letterSpacingEm: number; lineHeight: number; color: string };
+  current: { fontFamily: string; fontSizePx: number; fontWeight: number; letterSpacingEm: number; lineHeight: number; color: string; textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize' };
   onApply: (preset: TypographyPreset) => void;
 }) {
   const [presets, setPresets] = useState<TypographyPreset[]>(brand.fonts.presets ?? []);
@@ -1020,6 +1020,7 @@ function TypographyStyles({
       letterSpacingEm: current.letterSpacingEm,
       lineHeight: current.lineHeight,
       color: current.color,
+      textTransform: current.textTransform ?? 'none',
       createdAt: new Date().toISOString(),
     };
     // De-dupe by id (overwrite if name collides).
@@ -1068,6 +1069,7 @@ function TypographyStyles({
                     fontWeight: p.fontWeight,
                     letterSpacing: `${p.letterSpacingEm}em`,
                     color: p.color,
+                    textTransform: p.textTransform && p.textTransform !== 'none' ? p.textTransform : undefined,
                   }}
                 >
                   {p.name}
@@ -1094,6 +1096,26 @@ function TypographyStyles({
   );
 }
 
+
+/** Text-case dropdown — maps to CSS text-transform on heading/text blocks. */
+function CaseField({ value, onChange }: { value: 'none' | 'lowercase' | 'uppercase' | 'capitalize' | undefined; onChange: (v: 'none' | 'lowercase' | 'uppercase' | 'capitalize') => void }) {
+  return (
+    <label className="block">
+      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Case</span>
+      <select
+        value={value ?? 'none'}
+        onChange={(e) => onChange(e.target.value as 'none' | 'lowercase' | 'uppercase' | 'capitalize')}
+        className={inputCls}
+      >
+        <option value="none">As typed</option>
+        <option value="lowercase">all small case</option>
+        <option value="uppercase">ALL CAPS</option>
+        <option value="capitalize">Title Case</option>
+      </select>
+    </label>
+  );
+}
+
 function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'heading' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void }) {
   const defaultSize = block.level === 1 ? 28 : block.level === 2 ? 22 : 18;
   const size = block.fontSizePx ?? defaultSize;
@@ -1110,8 +1132,8 @@ function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, 
       </label>
       <TypographyStyles
         brand={brand}
-        current={{ fontFamily: block.fontFamily, fontSizePx: size, fontWeight: weight, letterSpacingEm: tracking, lineHeight: 1.25, color: block.color }}
-        onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, color: p.color })}
+        current={{ fontFamily: block.fontFamily, fontSizePx: size, fontWeight: weight, letterSpacingEm: tracking, lineHeight: 1.25, color: block.color, textTransform: block.textTransform }}
+        onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, color: p.color, textTransform: p.textTransform ?? 'none' })}
       />
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
@@ -1131,6 +1153,7 @@ function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, 
         <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} brand={brand} />
         <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
       </div>
+      <CaseField value={block.textTransform} onChange={(v) => onChange({ textTransform: v })} />
     </div>
   );
 }
@@ -1149,8 +1172,8 @@ function TextFields({ block, brand, onChange }: { block: Extract<EmailBlock, { t
       </label>
       <TypographyStyles
         brand={brand}
-        current={{ fontFamily: block.fontFamily, fontSizePx: block.fontSizePx, fontWeight: weight, letterSpacingEm: tracking, lineHeight: block.lineHeight, color: block.color }}
-        onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, lineHeight: p.lineHeight, color: p.color })}
+        current={{ fontFamily: block.fontFamily, fontSizePx: block.fontSizePx, fontWeight: weight, letterSpacingEm: tracking, lineHeight: block.lineHeight, color: block.color, textTransform: block.textTransform }}
+        onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, lineHeight: p.lineHeight, color: p.color, textTransform: p.textTransform ?? 'none' })}
       />
       <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
       <SliderField label="Size" value={block.fontSizePx} min={10} max={48} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
@@ -1161,6 +1184,7 @@ function TextFields({ block, brand, onChange }: { block: Extract<EmailBlock, { t
         <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} brand={brand} />
         <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
       </div>
+      <CaseField value={block.textTransform} onChange={(v) => onChange({ textTransform: v })} />
     </div>
   );
 }
