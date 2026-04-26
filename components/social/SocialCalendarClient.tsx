@@ -226,7 +226,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         tone: statusTone(p.status),
         onClick: () => {
           setSelectedDate(d);
-          setSelectedEventId(p.id);
+          setSelectedEventId((curr) => (curr === p.id ? null : p.id));
         },
       });
     }
@@ -250,7 +250,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         imageCaption: j.title,
         onClick: () => {
           setSelectedDate(d);
-          setSelectedEventId(`journal:${j.id}`);
+          setSelectedEventId((curr) => (curr === `journal:${j.id}` ? null : `journal:${j.id}`));
         },
       });
     }
