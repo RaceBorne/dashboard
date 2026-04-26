@@ -126,5 +126,23 @@ export async function trackEvent(input: {
     console.error('[marketing.trackEvent]', error);
     return null;
   }
-  return rowToEvent(data);
+  const event = rowToEvent(data);
+  // Fan out to active flows whose trigger matches this event type.
+  // Done after the insert so we have the event id in metadata, and
+  // so a fan-out failure can't block the event from being recorded.
+  // Lazy-import to avoid a cycle with lib/marketing/flows.ts which
+  // calls trackEvent for flow-emitted events.
+  void (async () => {
+    try {
+      const { fanOutEventToFlows } = await import('./flows');
+      await fanOutEventToFlows({
+        eventId: event.id,
+        contactId: event.contactId,
+        eventType: event.type,
+      });
+    } catch (err) {
+      console.error('[marketing.trackEvent flow fan-out]', err);
+    }
+  })();
+  return event;
 }

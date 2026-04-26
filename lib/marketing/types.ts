@@ -155,3 +155,55 @@ export interface SendResult {
   failed: number;
   error?: string;
 }
+
+// ─── Flows ───────────────────────────────────────────────────────
+
+export type FlowTriggerType = 'event';
+
+export interface Flow {
+  id: string;
+  name: string;
+  triggerType: FlowTriggerType;
+  /** For triggerType='event': the event.type value to listen for. */
+  triggerValue: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FlowStepConfig =
+  | { type: 'delay'; hours?: number; days?: number; minutes?: number }
+  | { type: 'email'; subject: string; html: string }
+  | { type: 'condition'; eventType?: string; withinDays?: number };
+
+export interface FlowStep {
+  id: string;
+  flowId: string;
+  stepType: 'delay' | 'email' | 'condition';
+  config: FlowStepConfig;
+  order: number;
+  createdAt: string;
+}
+
+export type FlowRunStatus =
+  | 'pending'
+  | 'waiting'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface FlowRun {
+  id: string;
+  flowId: string;
+  contactId: string;
+  currentStepOrder: number;
+  status: FlowRunStatus;
+  wakeAt: string | null;
+  triggerEventId: string | null;
+  triggerEventType: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
