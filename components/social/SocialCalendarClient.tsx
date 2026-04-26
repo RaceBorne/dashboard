@@ -1022,26 +1022,37 @@ function PlatformDrawer({
             ) : null}
           </div>
 
-          {/* Visible columns = the platforms the user has ticked. */}
+          {/* Visible columns — drag the column HEADER to reorder.
+              Order persists via parent's localStorage. */}
           <div className="flex-1 overflow-x-auto overflow-y-hidden">
-            <div className="flex h-full gap-3 min-w-fit">
-            {DRAWER_COLS.filter((c) => enabledPlatforms.has(c.key)).map((col) => {
-              const items = byColumn.get(col.key) ?? [];
-              return (
-                <div key={col.key} className="flex-1 min-w-[180px] flex flex-col min-h-0 rounded-md bg-evari-surface overflow-hidden">
-                  <header className="px-3 py-2 text-xs text-evari-text font-medium border-b border-evari-edge/30 shrink-0 flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5">
-                      {col.icon ? (
-                        <col.icon
-                          className="h-3.5 w-3.5 text-evari-dim"
-                          aria-hidden="true"
-                        />
-                      ) : null}
-                      {col.label}
-                    </span>
-                    <span className="tabular-nums text-evari-dimmer text-[10px]">{items.length}</span>
-                  </header>
-                  <ul className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
+            <DndContext
+              sensors={drawerSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(ev) => {
+                const { active, over } = ev;
+                if (!over || active.id === over.id) return;
+                const from = platformOrder.indexOf(String(active.id));
+                const to = platformOrder.indexOf(String(over.id));
+                if (from < 0 || to < 0) return;
+                onReorderPlatforms(arrayMove(platformOrder, from, to));
+              }}
+            >
+              <SortableContext
+                items={orderedColsKeys}
+                strategy={horizontalListSortingStrategy}
+              >
+                <div className="flex h-full gap-3 min-w-fit">
+                {orderedCols.map((col) => {
+                  const items = byColumn.get(col.key) ?? [];
+                  return (
+                    <SortableDrawerColumn
+                      key={col.key}
+                      id={col.key}
+                      icon={col.icon}
+                      label={col.label}
+                      count={items.length}
+                    >
+                      <ul className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
                     {items.length === 0 ? (
                       <li className="text-[11px] text-evari-dimmer italic px-1 py-2">
                         Nothing queued.
@@ -1062,11 +1073,13 @@ function PlatformDrawer({
                         </li>
                       ))
                     )}
-                  </ul>
+                      </ul>
+                    </SortableDrawerColumn>
+                  );
+                })}
                 </div>
-              );
-            })}
-            </div>
+              </SortableContext>
+            </DndContext>
           </div>
         </div>
       ) : null}
