@@ -4,7 +4,9 @@ import { TopBar } from '@/components/sidebar/TopBar';
 import { getCampaign, getCampaignStats } from '@/lib/marketing/campaigns';
 import { listGroups } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
+import { getCampaignAnalytics } from '@/lib/marketing/campaign-analytics';
 import { CampaignEditor } from '@/components/marketing/CampaignEditor';
+import { CampaignAnalyticsTabs } from '@/components/marketing/CampaignAnalyticsTabs';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -22,6 +24,11 @@ export default async function CampaignEditPage({
     getCampaignStats(id),
   ]);
   if (!campaign) notFound();
+  // Only fetch analytics for sent / sending campaigns — drafts have nothing to show.
+  const showAnalytics = campaign.status === 'sent' || campaign.status === 'sending';
+  const analytics = showAnalytics
+    ? await getCampaignAnalytics(campaign.id, campaign.content)
+    : null;
   return (
     <>
       <TopBar title={campaign.name || 'Untitled campaign'} subtitle="Email · Broadcasts" />
@@ -32,6 +39,11 @@ export default async function CampaignEditPage({
         segments={segments}
         initialStats={stats}
       />
+      {analytics ? (
+        <div className="px-4 pb-4">
+          <CampaignAnalyticsTabs analytics={analytics} />
+        </div>
+      ) : null}
     </>
   );
 }
