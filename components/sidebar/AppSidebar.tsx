@@ -215,7 +215,7 @@ export function AppSidebar() {
           collapsed ? 'px-1.5' : 'px-2',
         )}
       >
-        {Object.entries(groups).map(([group, items]) => {
+        {Object.entries(groups).filter(([g]) => g !== 'system').map(([group, items]) => {
           const groupOpen = openGroups.has(group);
           return (
           <div key={group} className="mb-4">
@@ -339,6 +339,104 @@ export function AppSidebar() {
           );
         })}
       </nav>
+
+      {/* System group — pinned to the bottom of the sidebar.
+          When the user clicks the header the items grow UPWARD from
+          0 → fit (max-h interpolated over 500ms ease-evari) so they
+          unfold above the header. Source order inside the wrapper is
+          items-then-header, which is what gives the upward-reveal
+          feel: as max-height increases the items push the rest of
+          the sidebar contents up by the same amount. */}
+      {(() => {
+        const systemItems = groups['system'] ?? [];
+        if (systemItems.length === 0) return null;
+        const open = openGroups.has('system');
+        return (
+          <div className="shrink-0 border-t border-evari-edge/20">
+            {!collapsed ? (
+              <>
+                <div
+                  className={cn(
+                    'overflow-hidden transition-[max-height] duration-500 ease-evari',
+                    open ? 'max-h-[400px]' : 'max-h-0',
+                  )}
+                  aria-hidden={!open}
+                >
+                  <div className="space-y-0.5 px-2 pt-2 pb-1">
+                    {systemItems.map((item) => {
+                      const active = pathname.startsWith(item.href);
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={cn(
+                            'flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors',
+                            active
+                              ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                              : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              'h-4 w-4 shrink-0',
+                              active ? 'text-evari-text' : 'text-evari-dimmer',
+                            )}
+                          />
+                          <span className="flex-1">{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup('system')}
+                  aria-expanded={open}
+                  className="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium hover:text-evari-dim transition-colors"
+                >
+                  <ChevronDown
+                    className={cn(
+                      'h-3 w-3 text-evari-dimmer/70 transition-transform duration-500 ease-evari',
+                      // Closed: chevron points UP to hint that the
+                      // group reveals upward. Open: rotated back to
+                      // its standard pointing-down position.
+                      open ? '' : 'rotate-180',
+                    )}
+                  />
+                  <span className="flex-1 text-left">System</span>
+                </button>
+              </>
+            ) : (
+              /* Collapsed sidebar: show system items inline as
+                 icon-only links pinned to the bottom. No expand/
+                 collapse since the icons already fit. */
+              <div className="py-2 space-y-0.5 flex flex-col items-center">
+                {systemItems.map((item) => {
+                  const active = pathname.startsWith(item.href);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      title={item.label}
+                      aria-label={item.label}
+                      className={cn(
+                        'flex items-center justify-center h-9 w-9 rounded-md transition-colors',
+                        active
+                          ? 'bg-evari-surfaceSoft text-evari-text'
+                          : 'text-evari-dimmer hover:bg-evari-surface/60 hover:text-evari-text',
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Footer */}
       {!collapsed ? (
