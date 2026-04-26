@@ -306,7 +306,16 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           The calendar component handles its own internal scrolling
           (week/day views) so the column itself doesn't scroll —
           everything outside the post-preview pane stays fixed. */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div
+        className="flex-1 min-h-0 flex flex-col"
+        style={{
+          // Stable minimum so the calendar grid never compresses when
+          // the right rail content gets taller or the drawer expands.
+          // Month needs ~6 rows × ~110px + header; week/day need a
+          // fixed grid height so internal time scroll works.
+          minHeight: view === 'month' ? 720 : 760,
+        }}
+      >
         {view === 'month' && (
           <MonthCalendar
             events={events}
