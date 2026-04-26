@@ -96,33 +96,59 @@ export function BrandClient({ initialBrand }: Props) {
     JSON.stringify(footerDesign) !== JSON.stringify(brand.footerDesign ?? DEFAULT_FOOTER_DESIGN) ||
     JSON.stringify(signatureDesign) !== JSON.stringify(brand.signatureDesign ?? DEFAULT_SIGNATURE_DESIGN);
 
+  /**
+   * Save → PATCH the API → re-sync EVERY local state field from the
+   * server response. The re-sync is the safety net: if the server
+   * silently drops a field (e.g. wrong column type, RLS, validation),
+   * the input snaps back to what was actually saved, so the user sees
+   * the truth instead of a misleading 'Saved' toast.
+   */
   async function handleSave() {
     if (!dirty || saving) return;
     setSaving(true);
     setError(null);
     setInfo(null);
     try {
+      const body = {
+        companyName:    companyName.trim() || null,
+        companyAddress: companyAddress.trim() || null,
+        replyToEmail:   replyTo.trim() || null,
+        logoLightUrl:   logoLight.trim() || null,
+        logoDarkUrl:    logoDark.trim() || null,
+        colors,
+        fonts,
+        // Clear the legacy plaintext override when the designer is in play —
+        // resolution priority is override > design > default template.
+        signatureHtml:    null,
+        signatureDesign,
+        footerDesign,
+      };
       const res = await fetch('/api/marketing/brand', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName:    companyName.trim() || null,
-          companyAddress: companyAddress.trim() || null,
-          replyToEmail:   replyTo.trim() || null,
-          logoLightUrl:   logoLight.trim() || null,
-          logoDarkUrl:    logoDark.trim() || null,
-          colors,
-          fonts,
-          // Clear the legacy plaintext override when the designer is in play —
-          // resolution priority is override > design > default template.
-          signatureHtml:    null,
-          signatureDesign,
-          footerDesign,
-        }),
+        body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!data.ok) throw new Error(data.error ?? 'Save failed');
-      setBrand(data.brand as MarketingBrand);
+      // Surface non-200s clearly — Vercel SSO redirect, Supabase errors, etc.
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status}${text ? ': ' + text.slice(0, 160) : ''}`);
+      }
+      const data = await res.json().catch(() => ({} as Record<string, unknown>));
+      if (!data.ok) throw new Error(((data as { error?: string }).error) ?? 'Save returned ok=false');
+      const fresh = data.brand as MarketingBrand;
+      // Re-sync every local field from the server's view of the brand —
+      // exposes any silent drift between request and persistence.
+      setBrand(fresh);
+      setCompanyName(fresh.companyName ?? '');
+      setCompanyAddress(fresh.companyAddress ?? '');
+      setReplyTo(fresh.replyToEmail ?? '');
+      setLogoLight(fresh.logoLightUrl ?? '');
+      setLogoDark(fresh.logoDarkUrl ?? '');
+      setColors(fresh.colors);
+      setFonts(fresh.fonts);
+      setCustomFonts(fresh.customFonts);
+      setFooterDesign(fresh.footerDesign ?? DEFAULT_FOOTER_DESIGN);
+      setSignatureDesign(fresh.signatureDesign ?? DEFAULT_SIGNATURE_DESIGN);
       setInfo('Saved');
       router.refresh();
     } catch (err) {

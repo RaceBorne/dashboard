@@ -476,7 +476,7 @@ export const DEFAULT_SIGNATURE_DESIGN: SignatureDesign = {
       html: 'Craig McDonald',
       fontFamily: '', fontSizePx: 13, color: '#111111', lineHeight: 1.4 },
     { id: _sid(), type: 'text', alignment: 'left',
-      html: 'CEO &amp; Head of Design',
+      html: 'CEO & Head of Design',
       fontFamily: '', fontSizePx: 10, color: '#6b6b6b', lineHeight: 1.4 },
     { id: _sid(), type: 'spacer', heightPx: 24 },
     { id: _sid(), type: 'logo', alignment: 'left',

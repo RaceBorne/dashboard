@@ -59,7 +59,9 @@ function renderLogo(b: Extract<FooterBlock, { type: 'logo' }>, brand: MarketingB
 
 function renderText(b: Extract<FooterBlock, { type: 'text' }>): string {
   const family = b.fontFamily ? `'${b.fontFamily}',` : '';
-  return `<div style="${alignStyle(b.alignment)}font:${b.fontSizePx}px/${b.lineHeight} ${family}Arial,sans-serif;color:${b.color};">${b.html}</div>`;
+  // Encode lone ampersands without re-escaping properly-formed tags / entities.
+  const html = b.html.replace(/&(?!(amp|lt|gt|quot|apos|nbsp|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
+  return `<div style="${alignStyle(b.alignment)}font:${b.fontSizePx}px/${b.lineHeight} ${family}Arial,sans-serif;color:${b.color};">${html}</div>`;
 }
 
 function renderSpacer(b: Extract<FooterBlock, { type: 'spacer' }>): string {

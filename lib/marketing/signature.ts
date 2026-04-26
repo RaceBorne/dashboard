@@ -39,7 +39,10 @@ function renderBlockInner(b: SignatureBlock, brand: MarketingBrand): string {
     }
     case 'text': {
       const family = b.fontFamily ? `'${b.fontFamily}',` : '';
-      return `<div style="${alignStyle(b.alignment)}font:${b.fontSizePx}px/${b.lineHeight} ${family}Arial,sans-serif;color:${b.color};">${b.html}</div>`;
+      // Encode lone ampersands so & in user text becomes a valid &amp; in the
+      // rendered HTML — without re-escaping properly-formed tags or entities.
+      const html = b.html.replace(/&(?!(amp|lt|gt|quot|apos|nbsp|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
+      return `<div style="${alignStyle(b.alignment)}font:${b.fontSizePx}px/${b.lineHeight} ${family}Arial,sans-serif;color:${b.color};">${html}</div>`;
     }
     case 'spacer':
       return `<div style="height:${b.heightPx}px;line-height:${b.heightPx}px;font-size:0;">&nbsp;</div>`;

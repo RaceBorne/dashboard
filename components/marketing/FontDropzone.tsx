@@ -136,14 +136,19 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-evari-text uppercase tracking-[0.12em]">Custom fonts</h3>
         <span className="text-[10px] text-evari-dimmer tabular-nums">{fonts.length} uploaded</span>
       </div>
 
+      {/* 2-column layout: uploader on the LEFT (~40%), uploaded font list
+          stacked on the RIGHT (~60%) so we don't waste vertical real estate. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,40%)_minmax(0,1fr)] gap-3">
+        <div className="space-y-2">
+
       {/* Per-upload metadata */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-1">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Family name (optional)</span>
           <input
@@ -190,7 +195,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
         }}
         onClick={() => fileRef.current?.click()}
         className={cn(
-          'rounded-md border-2 border-dashed p-6 text-center cursor-pointer transition-colors duration-300 ease-in-out',
+          'rounded-md border-2 border-dashed p-4 text-center cursor-pointer transition-colors duration-300 ease-in-out',
           dragOver
             ? 'border-evari-gold/60 bg-evari-gold/5'
             : 'border-evari-edge/40 bg-evari-ink/40 hover:border-evari-edge/60 hover:bg-evari-ink/60',
@@ -220,14 +225,19 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
       </div>
 
       {error ? <p className="text-xs text-evari-danger">{error}</p> : null}
+        </div>
 
-      {/* Uploaded — grouped by family */}
-      <FontFamilyList
-        fonts={fonts}
-        onRemoveVariant={handleRemoveVariant}
-        onRemoveFamily={handleRemoveFamily}
-        onRenameFamily={handleRenameFamily}
-      />
+        {/* RIGHT column — family list, each row's preview line uses the
+            actual @font-face so heights/widths match what subscribers see. */}
+        <div className="min-h-0">
+          <FontFamilyList
+            fonts={fonts}
+            onRemoveVariant={handleRemoveVariant}
+            onRemoveFamily={handleRemoveFamily}
+            onRenameFamily={handleRenameFamily}
+          />
+        </div>
+      </div>
     </div>
   );
 }
