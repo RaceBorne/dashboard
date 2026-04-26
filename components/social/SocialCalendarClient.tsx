@@ -301,16 +301,13 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
 
   return (
     <div className="flex-1 relative min-h-0 overflow-hidden">
+      {/* Calendar column is hard-pinned to (100% − 380px). It
+          NEVER recalculates with railWidth — the rail is a free
+          floating overlay; the calendar's layout has no idea it
+          exists. */}
       <div
-        className="flex flex-col h-full min-h-0 overflow-hidden"
-        style={{
-          // Calendar reserves a CONSTANT 380px right gutter so its
-          // grid never resizes when the rail is dragged. The rail
-          // sits on top of this gutter (and overlays into the calendar
-          // when dragged wider) — the calendar layout itself doesn't
-          // know the rail exists.
-          paddingRight: 380,
-        }}
+        className="absolute top-0 left-0 bottom-0 flex flex-col overflow-hidden"
+        style={{ width: 'calc(100% - 380px)' }}
       >
       {/* Calendar — fills the available height of the LEFT column.
           The calendar component handles its own internal scrolling
