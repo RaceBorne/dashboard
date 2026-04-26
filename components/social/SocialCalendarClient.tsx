@@ -168,21 +168,30 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   const drawerDragRef = useRef<{ startY: number; startH: number } | null>(null);
   function onDrawerResizeStart(ev: React.MouseEvent) {
     ev.preventDefault();
-    drawerDragRef.current = { startY: ev.clientY, startH: drawerHeight };
+    const startY = ev.clientY;
+    const startH = drawerHeight;
+    let moved = false;
     function onMove(e: MouseEvent) {
-      if (!drawerDragRef.current) return;
-      const dy = drawerDragRef.current.startY - e.clientY;
+      const dy = startY - e.clientY;
+      // Tiny pointer wobble shouldn't count as a drag.
+      if (!moved && Math.abs(dy) > 3) moved = true;
+      if (!moved) return;
       const next = Math.min(
         Math.round(window.innerHeight * 0.85),
-        Math.max(drawerClosedH, drawerDragRef.current.startH + dy),
+        Math.max(drawerClosedH, startH + dy),
       );
       setDrawerHeight(next);
     }
     function onUp() {
-      drawerDragRef.current = null;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       document.body.style.cursor = '';
+      // Pure click (no actual movement) toggles the drawer between
+      // closed (36px) and the default-open height. A real drag has
+      // already updated drawerHeight live, so we don't touch it.
+      if (!moved) {
+        setDrawerHeight((h) => (h > drawerClosedH ? drawerClosedH : drawerDefaultH));
+      }
     }
     document.body.style.cursor = 'row-resize';
     window.addEventListener('mousemove', onMove);
@@ -287,7 +296,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   const newPostButton = (
     <Link
       href="/social/new"
-      className="inline-flex items-center gap-1 rounded-full h-7 px-1 text-xs font-medium bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90 transition"
+      className="inline-flex items-center gap-1 rounded-full h-7 px-1 text-xs font-medium bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90 transition duration-1000 ease-in-out"
     >
       <Plus className="h-3.5 w-3.5" />
       New post
@@ -364,7 +373,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           panels are detached floating rounded-md rectangles so content
           height in any one panel can never push or shrink another. */}
       <div
-        className="absolute top-3 left-3 bottom-3 flex flex-col overflow-hidden gap-1 transition-[width] duration-200"
+        className="absolute top-3 left-3 bottom-3 flex flex-col overflow-hidden gap-1 transition-[width] duration-1000 ease-in-out"
         style={{
           width: selectedEventId
             ? 'calc(100% - 380px - 1.5rem)'
@@ -494,7 +503,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           role="separator"
           aria-orientation="vertical"
           onMouseDown={onResizeMouseDown}
-          className="absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 cursor-ew-resize z-30 hover:bg-evari-gold/40 transition-colors"
+          className="absolute left-0 top-0 bottom-0 w-1.5 -ml-0.5 cursor-ew-resize z-30 hover:bg-evari-gold/40 transition-colors duration-1000 ease-in-out"
         />
         <ScheduleActionsPanel
           selectedJournal={selectedJournal}
@@ -653,7 +662,7 @@ function ScheduleActionsPanel({
         type="button"
         onClick={onSendNow}
         disabled={sending}
-        className="mt-4 w-full inline-flex items-center justify-center gap-1 py-2 rounded-md bg-evari-gold text-evari-goldInk text-sm font-semibold disabled:opacity-60 hover:brightness-105 transition"
+        className="mt-4 w-full inline-flex items-center justify-center gap-1 py-2 rounded-md bg-evari-gold text-evari-goldInk text-sm font-semibold disabled:opacity-60 hover:brightness-105 transition duration-1000 ease-in-out"
       >
         {sending ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -671,7 +680,7 @@ function ScheduleActionsPanel({
         <button
           type="button"
           onClick={onEdit}
-          className="mt-2 w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-md bg-evari-surface text-evari-dim hover:text-evari-text text-xs font-medium transition"
+          className="mt-2 w-full inline-flex items-center justify-center gap-1 py-1.5 rounded-md bg-evari-surface text-evari-dim hover:text-evari-text text-xs font-medium transition duration-1000 ease-in-out"
         >
           <ExternalLink className="h-3 w-3" />
           Open in editor
@@ -726,7 +735,7 @@ function PostPreviewWindow({
           type="button"
           onClick={() => onNavigate('prev')}
           disabled={dayCount <= 1}
-          className="h-6 w-6 inline-flex items-center justify-center rounded-md hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition"
+          className="h-6 w-6 inline-flex items-center justify-center rounded-md hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition duration-1000 ease-in-out"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </button>
@@ -738,7 +747,7 @@ function PostPreviewWindow({
           type="button"
           onClick={() => onNavigate('next')}
           disabled={dayCount <= 1}
-          className="h-6 w-6 inline-flex items-center justify-center rounded-md hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition"
+          className="h-6 w-6 inline-flex items-center justify-center rounded-md hover:bg-evari-surface disabled:opacity-30 disabled:cursor-not-allowed transition duration-1000 ease-in-out"
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </button>
@@ -925,9 +934,7 @@ function PlatformDrawer({
   const orderedColsKeys = orderedCols.map((c) => c.key);
   const drawerSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   return (
-    <div
-      className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink p-1 rounded-lg"
-      style={{ height }}
+    <div className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink p-1 rounded-lg transition-[height] duration-1000 ease-in-out" style={{ height }}
     >
       {/* Toggle bar IS the drag handle — clicking opens/closes,
           dragging up/down resizes. Whole bar is row-resize so the
@@ -936,18 +943,8 @@ function PlatformDrawer({
         role="separator"
         aria-orientation="horizontal"
         onMouseDown={onResizeStart}
-        onClick={(e) => {
-          // Only fire toggle on a clean click (no drag movement).
-          // After a drag the mouseup happens after movement; mousedown
-          // on the parent handler captures the start, so the click
-          // event fires only when no drag was registered.
-          // Heuristic: if the document body cursor is still
-          // 'row-resize' the drag is active — skip.
-          if (document.body.style.cursor === 'row-resize') return;
-          onToggle();
-        }}
         aria-expanded={open}
-        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors shrink-0 rounded-md bg-evari-surface cursor-row-resize select-none"
+        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors duration-1000 ease-in-out shrink-0 rounded-md bg-evari-surface cursor-row-resize select-none"
       >
         <span className="font-semibold">Queue · all platforms</span>
         <span className="flex items-center gap-1">
@@ -956,7 +953,7 @@ function PlatformDrawer({
           </span>
           <ChevronDown
             className={cn(
-              'h-4 w-4 transition-transform duration-200',
+              'h-4 w-4 transition-transform duration-1000 ease-in-out',
               open ? '' : 'rotate-180',
             )}
           />
@@ -972,12 +969,12 @@ function PlatformDrawer({
             <button
               type="button"
               onClick={onTogglePicker}
-              className="w-full inline-flex items-center justify-between px-4 py-2 rounded-md bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors"
+              className="w-full inline-flex items-center justify-between px-4 py-2 rounded-md bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors duration-1000 ease-in-out"
             >
               <span className="inline-flex items-center gap-1">
                 <ChevronDown
                   className={cn(
-                    'h-4 w-4 transition-transform',
+                    'h-4 w-4 transition-transform duration-1000 ease-in-out',
                     pickerOpen ? 'rotate-180' : '',
                   )}
                 />
@@ -997,7 +994,7 @@ function PlatformDrawer({
                       type="button"
                       onClick={() => onTogglePlatform(col.key)}
                       className={cn(
-                        'inline-flex items-center justify-between gap-1 px-1 py-2 rounded-md text-sm transition-colors',
+                        'inline-flex items-center justify-between gap-1 px-1 py-2 rounded-md text-sm transition-colors duration-1000 ease-in-out',
                         active
                           ? 'bg-evari-surface text-evari-text '
                           : 'bg-evari-surface/40 text-evari-dim hover:bg-evari-surface',
@@ -1061,7 +1058,7 @@ function PlatformDrawer({
                       items.map((e) => (
                         <li
                           key={e.id}
-                          className="rounded-md bg-white text-zinc-900 p-2 cursor-pointer transition-colors hover:bg-zinc-50"
+                          className="rounded-md bg-white text-zinc-900 p-2 cursor-pointer transition-colors duration-1000 ease-in-out hover:bg-zinc-50"
                           onClick={() => e.onClick?.()}
                         >
                           <div className="text-[11px] leading-tight line-clamp-2">
@@ -1189,14 +1186,14 @@ function SortableDrawerColumn({
   count,
   children,
 }: SortableDrawerColumnProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+  const { attributes, listeners, setNodeRef, transform, transition duration-1000 ease-in-out, isDragging } =
     useSortable({ id });
   return (
     <div
       ref={setNodeRef}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
+        transition duration-1000 ease-in-out,
         opacity: isDragging ? 0.7 : 1,
       }}
       className="flex-1 min-w-[180px] flex flex-col min-h-0 rounded-md bg-evari-surface overflow-hidden"
