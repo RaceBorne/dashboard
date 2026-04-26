@@ -37,11 +37,15 @@ import {
 } from 'lucide-react';
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   closestCenter,
+  useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
@@ -120,35 +124,54 @@ function BlockTileGroup({ title, tiles, onAdd }: { title: string; tiles: BlockTi
   return (
     <section>
       <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">{title}</h3>
-      <ul className="grid grid-cols-3 gap-1.5">
-        {tiles.map((t) => {
-          const Icon = t.Icon;
-          const disabled = !!t.comingSoon;
-          return (
-            <li key={`${t.group}-${t.type}-${t.label}`}>
-              <button
-                type="button"
-                disabled={disabled}
-                title={disabled ? 'Coming soon' : `Add ${t.label}`}
-                onClick={() => { if (t.make) onAdd(t.make); }}
-                className={cn(
-                  'relative w-full aspect-square rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200',
-                  disabled
-                    ? 'border-evari-edge/20 text-evari-dimmer cursor-not-allowed opacity-60'
-                    : 'border-evari-edge/30 text-evari-dim hover:text-evari-text hover:border-evari-gold/60 hover:bg-evari-ink/70',
-                )}
-              >
-                {t.badge ? (
-                  <span className={cn('absolute top-1 right-1 text-[8px] uppercase tracking-[0.08em] font-bold px-1 py-0.5 rounded', t.badge === 'New' ? 'bg-blue-500/20 text-blue-300' : 'bg-evari-edge/30 text-evari-dimmer')}>{t.badge}</span>
-                ) : null}
-                <Icon className="h-5 w-5" />
-                <span className="text-[11px] leading-tight text-center">{t.label}</span>
-              </button>
-            </li>
-          );
-        })}
+      <ul className="grid grid-cols-4 gap-1.5">
+        {tiles.map((t, i) => (
+          <li key={`${t.group}-${t.type}-${t.label}`}>
+            <PaletteTile tile={t} draggableId={`palette:${t.group}:${i}`} onAdd={onAdd} />
+          </li>
+        ))}
       </ul>
     </section>
+  );
+}
+
+/**
+ * Single palette tile. Doubles as a click-to-append button (compatible
+ * with the original behaviour) and a draggable source for the unified
+ * DnD context — the parent designer routes the drop into an insertion
+ * at the matching block position.
+ */
+function PaletteTile({ tile, draggableId, onAdd }: { tile: BlockTile; draggableId: string; onAdd: (make: () => EmailBlock) => void }) {
+  const disabled = !!tile.comingSoon;
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: draggableId,
+    disabled,
+    data: { paletteTile: tile },
+  });
+  const Icon = tile.Icon;
+  return (
+    <button
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      type="button"
+      disabled={disabled}
+      title={disabled ? 'Coming soon' : `Drag or click to add ${tile.label}`}
+      onClick={() => { if (tile.make) onAdd(tile.make); }}
+      className={cn(
+        'relative w-full h-14 rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 cursor-grab active:cursor-grabbing',
+        disabled
+          ? 'border-evari-edge/20 text-evari-dimmer cursor-not-allowed opacity-60'
+          : 'border-evari-edge/30 text-evari-dim hover:text-evari-text hover:border-evari-gold/60 hover:bg-evari-ink/70',
+        isDragging && 'opacity-30',
+      )}
+    >
+      {tile.badge ? (
+        <span className={cn('absolute top-0.5 right-0.5 text-[7px] uppercase tracking-[0.05em] font-bold px-1 py-px rounded', tile.badge === 'New' ? 'bg-blue-500/30 text-blue-200' : 'bg-evari-edge/30 text-evari-dimmer')}>{tile.badge}</span>
+      ) : null}
+      <Icon className="h-3.5 w-3.5" />
+      <span className="text-[9px] leading-tight text-center px-0.5 truncate w-full">{tile.label}</span>
+    </button>
   );
 }
 
@@ -158,9 +181,15 @@ function BlockTileGroup({ title, tiles, onAdd }: { title: string; tiles: BlockTi
  * stay in sync stylistically. Viewer LEFT, tools RIGHT, drag-to-reorder,
  * highlight-selected-block in the preview, common per-block padding.
  */
+function labelForBlock(b: EmailBlock): string {
+  const tile = ADD_BUTTONS.find((t) => t.type === b.type) ?? (b.type === 'heading' ? HEADING_TILE : null);
+  return tile?.label ?? b.type;
+}
+
 export function EmailDesigner({ initialBrand, value, onChange, onAIDraft }: Props) {
   const design = normaliseEmailDesign(value) ?? DEFAULT_EMAIL_DESIGN;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dragOverlay, setDragOverlay] = useState<string | null>(null);
 
   function updateDesign(patch: Partial<EmailDesign>) {
     onChange({ ...design, ...patch });
@@ -201,7 +230,57 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft }: Prop
     return baseHtml.replace('</head>', `${style}</head>`);
   }, [baseHtml, selectedId]);
 
+  function handleDragStart(ev: DragStartEvent) {
+    const id = String(ev.active.id);
+    if (id.startsWith('palette:')) {
+      const tile = ev.active.data.current?.paletteTile as BlockTile | undefined;
+      setDragOverlay(tile?.label ?? null);
+    } else {
+      const b = design.blocks.find((x) => x.id === id);
+      setDragOverlay(b ? labelForBlock(b) : null);
+    }
+  }
+
+  function handleDragEnd(ev: DragEndEvent) {
+    setDragOverlay(null);
+    const activeId = String(ev.active.id);
+    const overId = ev.over ? String(ev.over.id) : null;
+    if (!overId) return;
+
+    // Palette tile → insert at the over position (or append when over the
+    // end-of-list placeholder).
+    if (activeId.startsWith('palette:')) {
+      const tile = ev.active.data.current?.paletteTile as BlockTile | undefined;
+      if (!tile?.make) return;
+      const newBlock = tile.make();
+      if (overId === 'end-of-list') {
+        onChange({ ...design, blocks: [...design.blocks, newBlock] });
+        return;
+      }
+      const idx = design.blocks.findIndex((b) => b.id === overId);
+      if (idx < 0) {
+        onChange({ ...design, blocks: [...design.blocks, newBlock] });
+        return;
+      }
+      const next = [...design.blocks];
+      next.splice(idx, 0, newBlock);
+      onChange({ ...design, blocks: next });
+      return;
+    }
+
+    // Sortable in-list reorder.
+    if (activeId !== overId && overId !== 'end-of-list') {
+      moveBlocks(activeId, overId);
+    }
+  }
+
   return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
     <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
       <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
         <h2 className="text-sm font-semibold text-evari-text">Visual editor</h2>
@@ -253,39 +332,57 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft }: Prop
             </div>
           </div>
 
-          {design.blocks.length === 0 ? (
-            <div className="rounded-md border-2 border-dashed border-evari-edge/30 px-3 py-12 text-center text-evari-dimmer text-sm">
-              No blocks yet — pick something from the toolbar above.
-            </div>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={(ev) => {
-                if (ev.over && ev.active.id !== ev.over.id) {
-                  moveBlocks(String(ev.active.id), String(ev.over.id));
-                }
-              }}
-            >
-              <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
-                <ul className="space-y-1.5">
-                  {design.blocks.map((b) => (
-                    <SortableBlockRow
-                      key={b.id}
-                      block={b}
-                      selected={selectedId === b.id}
-                      onSelect={() => setSelectedId(selectedId === b.id ? null : b.id)}
-                      onChange={(p) => updateBlock(b.id, p)}
-                      onRemove={() => { setSelectedId(null); removeBlock(b.id); }}
-                    />
-                  ))}
-                </ul>
-              </SortableContext>
-            </DndContext>
-          )}
+          <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
+            {design.blocks.length === 0 ? (
+              <ul><EndOfListDrop empty /></ul>
+            ) : (
+              <ul className="space-y-1.5">
+                {design.blocks.map((b) => (
+                  <SortableBlockRow
+                    key={b.id}
+                    block={b}
+                    selected={selectedId === b.id}
+                    onSelect={() => setSelectedId(selectedId === b.id ? null : b.id)}
+                    onChange={(p) => updateBlock(b.id, p)}
+                    onRemove={() => { setSelectedId(null); removeBlock(b.id); }}
+                  />
+                ))}
+                <EndOfListDrop />
+              </ul>
+            )}
+          </SortableContext>
         </div>
       </div>
     </section>
+    {/* Drag overlay — chip floats with the cursor while dragging */}
+    <DragOverlay>
+      {dragOverlay ? (
+        <div className="inline-flex items-center gap-1 px-2 py-1 rounded bg-evari-gold text-evari-goldInk text-[11px] font-semibold shadow-lg">
+          {dragOverlay}
+        </div>
+      ) : null}
+    </DragOverlay>
+    </DndContext>
+  );
+}
+
+// End-of-list drop target — lets the user drop a palette tile after
+// the final block. When `empty` is true we render the bigger placeholder.
+function EndOfListDrop({ empty }: { empty?: boolean }) {
+  const { isOver, setNodeRef } = useDroppable({ id: 'end-of-list' });
+  return (
+    <li
+      ref={setNodeRef}
+      className={cn(
+        'rounded-md border-2 border-dashed text-center text-evari-dimmer text-sm transition-colors',
+        empty ? 'border-evari-edge/30 px-3 py-12' : 'border-transparent px-3 py-2 mt-1.5',
+        isOver && 'border-evari-gold/60 bg-evari-gold/5 text-evari-gold',
+      )}
+    >
+      {empty
+        ? 'Drag a tile here, or click one to add.'
+        : isOver ? 'Drop to add to end' : <span className="opacity-0">_</span>}
+    </li>
   );
 }
 
