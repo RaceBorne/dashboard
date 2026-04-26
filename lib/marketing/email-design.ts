@@ -220,6 +220,15 @@ function renderBlock(b: EmailBlock, brand: MarketingBrand): string {
   return `<div data-block-id="${b.id}" style="display:block;${padStyle}">${inner}</div>`;
 }
 
+/**
+ * Render a single block to its email-safe HTML wrapper. Used by the
+ * interactive canvas (each block becomes its own React node + we drop
+ * its rendered HTML inside via dangerouslySetInnerHTML).
+ */
+export function renderEmailBlockHtml(block: EmailBlock, brand: MarketingBrand): string {
+  return renderBlock(block, brand);
+}
+
 export function normaliseEmailDesign(d: unknown): EmailDesign | null {
   if (!d || typeof d !== 'object') return null;
   const cur = d as Partial<EmailDesign>;

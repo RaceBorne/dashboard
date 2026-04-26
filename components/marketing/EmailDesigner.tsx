@@ -62,7 +62,7 @@ import {
   type EmailDesign,
   type MarketingBrand,
 } from '@/lib/marketing/types';
-import { renderEmailDesign, normaliseEmailDesign } from '@/lib/marketing/email-design';
+import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign } from '@/lib/marketing/email-design';
 
 interface Props {
   initialBrand: MarketingBrand;
@@ -298,89 +298,90 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
         </div>
       </header>
 
-      <div className={cn(
-        'grid grid-cols-1 gap-3 p-3',
-        selectedId
-          ? 'xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)_minmax(280px,340px)]'
-          : 'xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)]',
-      )}>
-        {/* Viewer LEFT — only the canvas iframe shrinks in mobile mode;
-            the tools panel on the right stays its full size. */}
-        <div className="flex flex-col">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1 flex items-center justify-between">
-            <span>Live preview</span>
-            <span className="text-evari-dim">{previewDevice === 'mobile' ? '380px (mobile)' : 'Native (desktop)'}</span>
-          </div>
-          <div className={cn(
-            'rounded-md border border-evari-edge/30 overflow-hidden bg-zinc-100 transition-[max-width] duration-300',
-            previewDevice === 'mobile' ? 'max-w-[380px] mx-auto' : 'w-full',
-          )}>
-            <iframe
-              title="Email preview"
-              className="w-full bg-white block"
-              style={{ height: '720px' }}
-              srcDoc={previewHtml}
-            />
-          </div>
-        </div>
+      {/* Three-column layout: tile palette LEFT, interactive canvas
+          CENTRE, properties RIGHT (when something is selected). */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(280px,340px)] gap-3 p-3">
 
-        {/* Tools RIGHT */}
-        <div className="space-y-2 min-w-0">
-          <div className="space-y-3">
-            <BlockTileGroup
-              title="Blocks"
-              tiles={[HEADING_TILE, ...ADD_BUTTONS.filter((t) => t.group === 'blocks')]}
-              onAdd={(make) => addBlock(make)}
-            />
-            <BlockTileGroup
-              title="Layout"
-              tiles={ADD_BUTTONS.filter((t) => t.group === 'layout')}
-              onAdd={(make) => addBlock(make)}
-            />
-          </div>
-
+        {/* LEFT — palette tiles 3-across */}
+        <div className="space-y-3 min-w-0 overflow-y-auto">
+          <BlockTileGroup
+            title="Blocks"
+            tiles={[HEADING_TILE, ...ADD_BUTTONS.filter((t) => t.group === 'blocks')]}
+            onAdd={(make) => addBlock(make)}
+          />
+          <BlockTileGroup
+            title="Layout"
+            tiles={ADD_BUTTONS.filter((t) => t.group === 'layout')}
+            onAdd={(make) => addBlock(make)}
+          />
           <div className="rounded-md bg-evari-ink/40 border border-evari-edge/20 p-3">
-            <h3 className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-2">Canvas</h3>
-            <div className="grid grid-cols-3 gap-2">
+            <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-2">Canvas settings</h3>
+            <div className="space-y-2">
               <ColourField label="Background" value={design.background} onChange={(v) => updateDesign({ background: v })} />
-              <NumField label="Width (px)" value={design.widthPx} min={320} max={900} onChange={(v) => updateDesign({ widthPx: v })} />
-              <NumField label="Padding (px)" value={design.paddingPx} min={0} max={96} onChange={(v) => updateDesign({ paddingPx: v })} />
+              <NumField label="Content width (px)" value={design.widthPx} min={320} max={900} onChange={(v) => updateDesign({ widthPx: v })} />
+              <NumField label="Outer padding (px)" value={design.paddingPx} min={0} max={96} onChange={(v) => updateDesign({ paddingPx: v })} />
             </div>
           </div>
-
-          <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
-            {design.blocks.length === 0 ? (
-              <ul><EndOfListDrop empty /></ul>
-            ) : (
-              <ul className="space-y-1.5">
-                {design.blocks.map((b) => (
-                  <SortableBlockRow
-                    key={b.id}
-                    block={b}
-                    selected={selectedId === b.id}
-                    onSelect={() => setSelectedId(selectedId === b.id ? null : b.id)}
-                    onChange={(p) => updateBlock(b.id, p)}
-                    onRemove={() => { setSelectedId(null); removeBlock(b.id); }}
-                  />
-                ))}
-                <EndOfListDrop />
-              </ul>
-            )}
-          </SortableContext>
         </div>
-        {selectedId ? (
-          (() => {
-            const sel = design.blocks.find((b) => b.id === selectedId);
-            if (!sel) return null;
-            return (
-              <BlockPropertiesPanel
-                block={sel}
-                onChange={(patch) => updateBlock(sel.id, patch as Partial<EmailBlock>)}
-                onClose={() => setSelectedId(null)}
-              />
-            );
-          })()
-        ) : null}
+
+        {/* CENTRE — interactive canvas. Each block is a real React node
+            so click + drag work natively (no iframe boundary). */}
+        <div className="flex flex-col min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1 flex items-center justify-between">
+            <span>Canvas</span>
+            <span className="text-evari-dim">{previewDevice === 'mobile' ? '360px (mobile)' : `${design.widthPx}px (desktop)`}</span>
+          </div>
+          <div
+            className="rounded-md border border-evari-edge/30 overflow-y-auto"
+            style={{ background: design.background, maxHeight: '720px' }}
+          >
+            <div
+              className={cn('mx-auto bg-white transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
+              style={{ maxWidth: `${design.widthPx}px`, padding: `${design.paddingPx}px` }}
+            >
+              <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
+                {design.blocks.length === 0 ? (
+                  <EmptyCanvas />
+                ) : (
+                  <div className="space-y-0">
+                    {design.blocks.map((b) => (
+                      <CanvasBlock
+                        key={b.id}
+                        block={b}
+                        brand={initialBrand}
+                        selected={selectedId === b.id}
+                        onSelect={() => setSelectedId(b.id)}
+                        onRemove={() => { setSelectedId(null); removeBlock(b.id); }}
+                      />
+                    ))}
+                    <CanvasEndDrop />
+                  </div>
+                )}
+              </SortableContext>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT — properties panel (or placeholder when nothing selected) */}
+        <div className="min-w-0">
+          {selectedId ? (
+            (() => {
+              const sel = design.blocks.find((b) => b.id === selectedId);
+              if (!sel) return null;
+              return (
+                <BlockPropertiesPanel
+                  block={sel}
+                  onChange={(patch) => updateBlock(sel.id, patch as Partial<EmailBlock>)}
+                  onClose={() => setSelectedId(null)}
+                />
+              );
+            })()
+          ) : (
+            <aside className="rounded-md bg-evari-surface border border-evari-edge/30 p-6 text-center text-sm text-evari-dimmer h-full flex items-center justify-center">
+              Click any block in the canvas to edit it, or drag a tile from the left into the canvas.
+            </aside>
+          )}
+        </div>
       </div>
     </section>
     {/* Drag overlay — chip floats with the cursor while dragging */}
@@ -844,6 +845,109 @@ function AssetPickerModal({ onClose, onPick }: { onClose: () => void; onPick: (u
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Interactive canvas blocks ─────────────────────────────────
+
+function EmptyCanvas() {
+  const { isOver, setNodeRef } = useDroppable({ id: 'end-of-list' });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded-md border-2 border-dashed text-center text-evari-dimmer text-sm py-16 px-3 transition-colors',
+        isOver ? 'border-evari-gold/60 bg-evari-gold/5 text-evari-gold' : 'border-zinc-300 text-zinc-400',
+      )}
+    >
+      Drag a tile from the palette to start, or click one to add.
+    </div>
+  );
+}
+
+function CanvasEndDrop() {
+  const { isOver, setNodeRef } = useDroppable({ id: 'end-of-list' });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'h-3 rounded transition-colors',
+        isOver && 'h-8 bg-evari-gold/15 border-2 border-dashed border-evari-gold/60',
+      )}
+    />
+  );
+}
+
+/**
+ * One block rendered into the interactive canvas. Clicking selects;
+ * hovering reveals a small toolbar with the drag handle + delete; the
+ * rendered email-safe HTML is dropped inside via dangerouslySetInnerHTML
+ * so what the operator sees is exactly what subscribers will get. The
+ * insertion drop zone above the block lets users splice a new block
+ * in just before this one.
+ */
+function CanvasBlock({ block, brand, selected, onSelect, onRemove }: { block: EmailBlock; brand: MarketingBrand; selected: boolean; onSelect: () => void; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
+  const html = useMemo(() => renderEmailBlockHtml(block, brand), [block, brand]);
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="relative group">
+      {/* Insertion drop zone above this block */}
+      <CanvasInsertionZone overId={block.id} />
+      <div
+        onClick={(e) => { e.stopPropagation(); onSelect(); }}
+        className={cn(
+          'relative cursor-pointer transition-shadow',
+          selected ? 'ring-2 ring-evari-gold ring-offset-1 ring-offset-white' : 'hover:ring-2 hover:ring-evari-gold/30 hover:ring-offset-1 hover:ring-offset-white',
+        )}
+      >
+        <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: html }} />
+        {/* Hover toolbar — drag handle + delete. Always visible when
+            the block is selected; otherwise reveals on hover. */}
+        <div className={cn(
+          'absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink border border-evari-edge/40 shadow-lg transition-opacity',
+          selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+        )}>
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+            className="p-1.5 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing"
+            title="Drag to reorder"
+            aria-label="Drag to reorder"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="p-1.5 text-evari-dim hover:text-evari-danger"
+            title="Delete block"
+            aria-label="Delete block"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CanvasInsertionZone({ overId }: { overId: string }) {
+  const { isOver, setNodeRef } = useDroppable({ id: overId });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'h-1 -my-px rounded transition-all',
+        isOver && 'h-3 bg-evari-gold/15 border-y-2 border-dashed border-evari-gold/70',
+      )}
+    />
   );
 }
 
