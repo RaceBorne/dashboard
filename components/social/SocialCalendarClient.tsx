@@ -129,6 +129,13 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
   }
   // Bottom drawer state — collapsed by default, height while open.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Which broadcast platforms are currently visible as columns inside
+  // the drawer. Default: all six. User can tick / un-tick via the
+  // 'Choose broadcast applications' picker at the top of the drawer.
+  const [enabledPlatforms, setEnabledPlatforms] = useState<Set<string>>(
+    () => new Set(['instagram', 'facebook', 'tiktok', 'linkedin', 'klaviyo', 'blogs']),
+  );
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // composer state
   const [platform, setPlatform] = useState<SocialPlatform>('instagram');
@@ -392,6 +399,17 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
         open={drawerOpen}
         onToggle={() => setDrawerOpen((v) => !v)}
         events={events}
+        enabledPlatforms={enabledPlatforms}
+        onTogglePlatform={(key) => {
+          setEnabledPlatforms((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+          });
+        }}
+        pickerOpen={pickerOpen}
+        onTogglePicker={() => setPickerOpen((v) => !v)}
       />
       </div>
       {/* RIGHT RAIL — preview + actions. Resizable via the left-edge
@@ -731,6 +749,10 @@ interface PlatformDrawerProps {
   open: boolean;
   onToggle: () => void;
   events: CalendarEvent[];
+  enabledPlatforms: Set<string>;
+  onTogglePlatform: (key: string) => void;
+  pickerOpen: boolean;
+  onTogglePicker: () => void;
 }
 
 type LucideIcon = typeof Instagram;
@@ -788,7 +810,15 @@ const DRAWER_COLS: Array<{
  * a small chevron handle at the top toggles the drawer open
  * to ~360px tall.
  */
-function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
+function PlatformDrawer({
+  open,
+  onToggle,
+  events,
+  enabledPlatforms,
+  onTogglePlatform,
+  pickerOpen,
+  onTogglePicker,
+}: PlatformDrawerProps) {
   const sorted = useMemo(
     () =>
       [...events].sort(
@@ -812,8 +842,11 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
   }, [sorted]);
   return (
     <div
-      className="flex flex-col shrink-0 transition-[height] duration-300 ease-out overflow-hidden"
-      style={{ height: open ? 360 : 36 }}
+      className={cn(
+        'flex flex-col overflow-hidden transition-all duration-300 ease-out',
+        open ? 'flex-1 absolute inset-0 z-20' : 'shrink-0',
+      )}
+      style={{ height: open ? undefined : 36 }}
     >
       {/* Pull handle — drag-affordance bar + label + chevron */}
       <button
@@ -836,12 +869,72 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
         </span>
       </button>
       {open ? (
-        <div className="flex-1 overflow-x-auto overflow-y-hidden mt-3">
-          <div className="flex h-full gap-3 min-w-[900px]">
-            {DRAWER_COLS.map((col) => {
+        <div className="flex-1 flex flex-col mt-3 min-h-0">
+          {/* Platform picker — sits inline at the top of the drawer
+              (not a floating popup). Click 'Choose broadcast
+              applications' to reveal the checkbox list; tick the
+              platforms you want as columns. */}
+          <div className="shrink-0 px-1 mb-3">
+            <button
+              type="button"
+              onClick={onTogglePicker}
+              className="w-full inline-flex items-center justify-between px-4 py-2 rounded-2xl bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors"
+            >
+              <span className="inline-flex items-center gap-2">
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 transition-transform',
+                    pickerOpen ? 'rotate-180' : '',
+                  )}
+                />
+                Choose broadcast applications
+              </span>
+              <span className="text-evari-dimmer text-xs tabular-nums">
+                {enabledPlatforms.size} of {DRAWER_COLS.length} active
+              </span>
+            </button>
+            {pickerOpen ? (
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {DRAWER_COLS.map((col) => {
+                  const active = enabledPlatforms.has(col.key);
+                  return (
+                    <button
+                      key={col.key}
+                      type="button"
+                      onClick={() => onTogglePlatform(col.key)}
+                      className={cn(
+                        'inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm transition-colors',
+                        active
+                          ? 'bg-evari-surface text-evari-text ring-1 ring-evari-gold/40'
+                          : 'bg-evari-surface/40 text-evari-dim hover:bg-evari-surface',
+                      )}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <col.icon className="h-4 w-4" />
+                        {col.label}
+                      </span>
+                      <span
+                        className={cn(
+                          'h-3.5 w-3.5 rounded-sm border',
+                          active
+                            ? 'bg-evari-gold border-evari-gold'
+                            : 'border-evari-edge',
+                        )}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
+          {/* Visible columns = the platforms the user has ticked. */}
+          <div className="flex-1 overflow-x-auto overflow-y-hidden">
+            <div className="flex h-full gap-3 min-w-fit">
+            {DRAWER_COLS.filter((c) => enabledPlatforms.has(c.key)).map((col) => {
               const items = byColumn.get(col.key) ?? [];
               return (
-                <div key={col.key} className="flex-1 min-w-[140px] flex flex-col min-h-0 rounded-2xl bg-evari-surface overflow-hidden">
+                <div key={col.key} className="flex-1 min-w-[180px] flex flex-col min-h-0 rounded-2xl bg-evari-surface overflow-hidden">
                   <header className="px-3 py-2 text-xs text-evari-text font-medium border-b border-evari-edge/30 shrink-0 flex items-center justify-between">
                     <span className="inline-flex items-center gap-1.5">
                       {col.icon ? (
@@ -879,6 +972,7 @@ function PlatformDrawer({ open, onToggle, events }: PlatformDrawerProps) {
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
       ) : null}
