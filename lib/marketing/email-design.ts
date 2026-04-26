@@ -363,9 +363,9 @@ export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand): s
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${design.background};">
     <tr>
       <td align="center" style="padding:${design.paddingPx}px;">
-        <table role="presentation" width="${design.widthPx}" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;max-width:100%;">
+        <table role="presentation" width="${design.widthPx}" cellpadding="0" cellspacing="0" border="0" style="background:${design.background};max-width:100%;">
           <tr>
-            <td style="padding:24px;">
+            <td style="padding:0;">
               ${inner}
             </td>
           </tr>
