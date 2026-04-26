@@ -951,7 +951,7 @@ function PlatformDrawer({
   const orderedColsKeys = orderedCols.map((c) => c.key);
   const drawerSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   return (
-    <div className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink rounded-t-lg" style={{ height, transition: isDragging ? 'none' : 'height 1000ms ease-in-out' }}
+    <div className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink rounded-t-lg" style={{ height, transition: isDragging ? 'none' : 'height 1000ms ease-in-out', boxShadow: '0 -1px 1px rgba(0,0,0,0.10), 0 -2px 4px rgba(0,0,0,0.12), 0 -8px 16px rgba(0,0,0,0.18), 0 -16px 32px rgba(0,0,0,0.14)' }}
     >
       {/* Toggle bar IS the drag handle — clicking opens/closes,
           dragging up/down resizes. Whole bar is row-resize so the
