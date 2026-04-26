@@ -389,7 +389,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           (week/day views) so the column itself doesn't scroll —
           everything outside the post-preview pane stays fixed. */}
       <div
-        className="flex-1 min-h-0 flex flex-col rounded-md bg-evari-surface overflow-hidden"
+        className="flex-1 min-h-0 flex flex-col rounded-t-md bg-evari-surface overflow-hidden"
         style={{
           minHeight: view === 'month' ? 720 : 760,
         }}
@@ -941,7 +941,7 @@ function PlatformDrawer({
   const orderedColsKeys = orderedCols.map((c) => c.key);
   const drawerSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   return (
-    <div className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink rounded-lg" style={{ height, transition: isDragging ? 'none' : 'height 1000ms ease-in-out' }}
+    <div className="absolute left-0 right-0 bottom-0 z-20 flex flex-col overflow-hidden bg-evari-ink rounded-t-lg" style={{ height, transition: isDragging ? 'none' : 'height 1000ms ease-in-out' }}
     >
       {/* Toggle bar IS the drag handle — clicking opens/closes,
           dragging up/down resizes. Whole bar is row-resize so the
@@ -951,7 +951,7 @@ function PlatformDrawer({
         aria-orientation="horizontal"
         onMouseDown={onResizeStart}
         aria-expanded={open}
-        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors duration-1000 ease-in-out shrink-0 rounded-md bg-evari-surface cursor-row-resize select-none"
+        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors duration-1000 ease-in-out shrink-0 rounded-t-md bg-evari-surface cursor-row-resize select-none"
       >
         <span className="font-semibold">Queue · all platforms</span>
         <span className="flex items-center gap-1">
@@ -976,7 +976,7 @@ function PlatformDrawer({
             <button
               type="button"
               onClick={onTogglePicker}
-              className="w-full inline-flex items-center justify-between px-4 py-2 rounded-md bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors duration-1000 ease-in-out"
+              className="w-full inline-flex items-center justify-between px-4 py-2 bg-evari-surface text-evari-text text-sm hover:bg-evari-surfaceSoft transition-colors duration-1000 ease-in-out border-t border-evari-edge/20"
             >
               <span className="inline-flex items-center gap-1">
                 <ChevronDown
@@ -1203,7 +1203,7 @@ function SortableDrawerColumn({
         transition duration-1000 ease-in-out,
         opacity: isDragging ? 0.7 : 1,
       }}
-      className="flex-1 min-w-[180px] flex flex-col min-h-0 rounded-md bg-evari-surface overflow-hidden"
+      className="flex-1 min-w-[180px] flex flex-col min-h-0 bg-evari-surface overflow-hidden border-t border-evari-edge/20"
     >
       <header
         {...attributes}
