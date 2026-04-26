@@ -1038,7 +1038,7 @@ function PlatformDrawer({
 
           {/* Visible columns — drag the column HEADER to reorder.
               Order persists via parent's localStorage. */}
-          <div className="flex-1 overflow-x-auto overflow-y-hidden">
+          <div className="flex-1 overflow-hidden min-w-0">
             <DndContext
               sensors={drawerSensors}
               collisionDetection={closestCenter}
@@ -1055,7 +1055,7 @@ function PlatformDrawer({
                 items={orderedColsKeys}
                 strategy={horizontalListSortingStrategy}
               >
-                <div className="flex h-full gap-1 min-w-fit">
+                <div className="flex h-full gap-1 w-full min-w-0">
                 {orderedCols.map((col) => {
                   const items = byColumn.get(col.key) ?? [];
                   return (
@@ -1213,7 +1213,7 @@ function SortableDrawerColumn({
         transition,
         opacity: isDragging ? 0.7 : 1,
       }}
-      className="flex-1 min-w-[180px] flex flex-col min-h-0 bg-evari-surface overflow-hidden rounded-md"
+      className="flex-1 min-w-0 flex flex-col min-h-0 bg-evari-surface overflow-hidden rounded-md"
     >
       <header
         {...attributes}
