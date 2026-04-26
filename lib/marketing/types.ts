@@ -525,6 +525,11 @@ export type EmailBlock =
       alignment: EmailAlignment;
       color: string;
       fontFamily: string;
+      /** Optional override for size; when omitted falls back to a per-level default. */
+      fontSizePx?: number;
+      /** Letter-spacing in em (e.g. -0.01 = tight, 0.05 = loose). */
+      letterSpacingEm?: number;
+      fontWeight?: number;
     })
   | (EmailBlockBase & {
       type: 'text';
@@ -534,6 +539,9 @@ export type EmailBlock =
       lineHeight: number;
       color: string;
       fontFamily: string;
+      /** Letter-spacing in em (e.g. -0.01 = tight, 0.05 = loose). */
+      letterSpacingEm?: number;
+      fontWeight?: number;
     })
   | (EmailBlockBase & {
       type: 'image';

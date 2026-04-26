@@ -17,6 +17,7 @@ import {
   Layout,
   Link2,
   Loader2,
+  Maximize2,
   Megaphone,
   Minus,
   MousePointerClick,
@@ -125,6 +126,80 @@ const HEADING_TILE: BlockTile = { group: 'blocks', type: 'heading', label: 'Head
  * on the top-right corner when applicable. Coming-soon tiles open a
  * tooltip on click instead of inserting a block.
  */
+
+/**
+ * Always-visible brand-kit summary in the LEFT palette: logo thumbnail,
+ * a strip of brand colour swatches, and the heading/body font names.
+ * Lets the user see what the design is supposed to inherit at a glance.
+ */
+function BrandKitPreview({ brand }: { brand: MarketingBrand }) {
+  const logo = brand.logoLightUrl || brand.logoDarkUrl;
+  const swatches = Array.from(new Set([
+    brand.colors.primary,
+    brand.colors.accent,
+    brand.colors.buttonBg,
+    brand.colors.text,
+    brand.colors.link,
+    brand.colors.bg,
+    brand.colors.muted,
+  ].filter(Boolean)));
+  return (
+    <div className="rounded-md bg-evari-ink/40 border border-evari-edge/20 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em]">Brand kit</h3>
+        <a href="/brand" className="text-[10px] text-evari-gold hover:underline">Edit</a>
+      </div>
+      {/* Brand image thumbnail */}
+      <div className="rounded-md overflow-hidden mb-2 bg-zinc-900">
+        {logo ? (
+          <div className="w-full aspect-[5/3] flex items-center justify-center" style={{ background: brand.colors.bg || '#0a0a0a' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logo} alt={brand.companyName ?? 'Brand logo'} className="max-h-[80%] max-w-[80%] object-contain" />
+          </div>
+        ) : (
+          <div className="w-full aspect-[5/3] flex items-center justify-center text-[10px] text-evari-dim">
+            No brand logo set
+          </div>
+        )}
+      </div>
+      {/* Colour swatches */}
+      {swatches.length > 0 ? (
+        <div className="flex flex-wrap gap-1 mb-2" aria-label="Brand colours">
+          {swatches.map((c) => (
+            <span
+              key={c}
+              className="h-5 w-5 rounded-sm border border-black/30"
+              style={{ background: c }}
+              title={c}
+            />
+          ))}
+        </div>
+      ) : null}
+      {/* Fonts */}
+      <div className="space-y-1">
+        {brand.fonts?.heading ? (
+          <div
+            className="text-[13px] text-evari-text leading-tight truncate"
+            style={{ fontFamily: `'${brand.fonts.heading}', sans-serif`, fontWeight: 700 }}
+            title={`Heading: ${brand.fonts.heading}`}
+          >
+            {brand.fonts.heading}
+          </div>
+        ) : null}
+        {brand.fonts?.body ? (
+          <div
+            className="text-[12px] text-evari-dim leading-tight truncate"
+            style={{ fontFamily: `'${brand.fonts.body}', sans-serif` }}
+            title={`Body: ${brand.fonts.body}`}
+          >
+            {brand.fonts.body}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function BlockTileGroup({ title, tiles, onAdd }: { title: string; tiles: BlockTile[]; onAdd: (make: () => EmailBlock) => void }) {
   return (
     <section>
@@ -264,6 +339,36 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       }).catch(() => { /* preview falls back to system stack */ });
     });
   }, [initialBrand.customFonts]);
+
+  // Inject a Google Fonts <link> that loads every named font from the
+  // dropdown that ISN'T a system font and ISN'T uploaded as a custom
+  // brand font. Without this, picking 'Inter' or 'Playfair Display'
+  // in the dropdown only sets the family name — the font itself never
+  // loads, and the canvas falls back to Arial.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const customNames = new Set((initialBrand.customFonts ?? []).map((f) => f.name));
+    const systemFonts = new Set(['Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Trebuchet MS']);
+    const families = new Set<string>();
+    // Brand defaults that need loading
+    if (initialBrand.fonts?.heading) families.add(initialBrand.fonts.heading);
+    if (initialBrand.fonts?.body)    families.add(initialBrand.fonts.body);
+    // The full Google fonts list shown in the dropdown
+    ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Playfair Display', 'Merriweather', 'Raleway']
+      .forEach((f) => families.add(f));
+    const toLoad = [...families].filter((f) => f && !systemFonts.has(f) && !customNames.has(f));
+    if (toLoad.length === 0) return;
+    const id = 'evari-designer-google-fonts';
+    let link = document.getElementById(id) as HTMLLinkElement | null;
+    const href = `https://fonts.googleapis.com/css2?${toLoad.map((n) => `family=${encodeURIComponent(n).replace(/%20/g, '+')}:wght@400;500;600;700`).join('&')}&display=swap`;
+    if (!link) {
+      link = document.createElement('link');
+      link.id = id;
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    if (link.href !== href) link.href = href;
+  }, [initialBrand.fonts?.heading, initialBrand.fonts?.body, initialBrand.customFonts]);
 
   function updateDesign(patch: Partial<EmailDesign>) {
     commit({ ...design, ...patch });
@@ -474,11 +579,12 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           <div className="rounded-md bg-evari-ink/40 border border-evari-edge/20 p-3">
             <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-2">Canvas settings</h3>
             <div className="space-y-2">
-              <ColourField label="Background" value={design.background} onChange={(v) => updateDesign({ background: v })} />
+              <ColourField label="Background" value={design.background} onChange={(v) => updateDesign({ background: v })} brand={initialBrand} />
               <NumField label="Content width (px)" value={design.widthPx} min={320} max={900} onChange={(v) => updateDesign({ widthPx: v })} />
               <NumField label="Outer padding (px)" value={design.paddingPx} min={0} max={96} onChange={(v) => updateDesign({ paddingPx: v })} />
             </div>
           </div>
+          <BrandKitPreview brand={initialBrand} />
         </div>
 
         {/* CENTRE — interactive canvas. The OUTER frame always fills
@@ -492,12 +598,14 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             <span className="text-evari-dim">{previewDevice === 'mobile' ? `360px (mobile) · ${design.widthPx}px content` : `${design.widthPx}px (desktop)`}</span>
           </div>
           <div
-            className="rounded-md border border-evari-edge/30 flex-1 min-h-0 overflow-y-auto p-6 transition-colors"
+            className="flex-1 min-h-0 overflow-y-auto p-6 transition-colors"
             style={{ background: design.background }}
+            onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
           >
             <div
-              className={cn('mx-auto bg-white shadow-2xl transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
-              style={{ maxWidth: `${design.widthPx}px`, padding: `${design.paddingPx}px` }}
+              className={cn('mx-auto transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
+              style={{ maxWidth: `${design.widthPx}px`, padding: `${design.paddingPx}px`, background: design.background }}
+              onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
             >
               <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
                 {design.blocks.length === 0 ? (
@@ -740,20 +848,7 @@ function FontDropdown({ value, onChange, brand, label = 'Font (override)' }: { v
 }
 
 function ColourField({ label, value, onChange, brand }: { label: string; value: string; onChange: (v: string) => void; brand?: MarketingBrand }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
-  // Click-outside closes the popover
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
-  // Brand palette swatches (de-duped, in stable order)
+  // Brand palette swatches (de-duped, in stable order). Only show if brand is provided.
   const brandSwatches = brand
     ? Array.from(new Set([
         brand.colors.primary,
@@ -766,90 +861,47 @@ function ColourField({ label, value, onChange, brand }: { label: string; value: 
         brand.colors.buttonText,
       ].filter(Boolean)))
     : [];
-  const presets = ['#000000', '#ffffff', '#1a1a1a', '#f4f4f4', '#d4a649', '#3b82f6', '#22c55e', '#ef4444'];
 
+  // The native <input type="color"> trigger sits inline — clicking opens
+  // the OS colour picker directly with no popover step in between.
   return (
-    <div className="block relative" ref={ref}>
+    <label className="block">
       <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">{label}</span>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 px-1 py-1 rounded bg-evari-ink border border-evari-edge/30 hover:border-evari-gold/60 transition-colors text-left"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-      >
-        <span
-          className="h-7 w-7 rounded border border-evari-edge/40 shrink-0"
-          style={{ background: value }}
-          aria-hidden
+      <div className="flex items-center gap-1">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-9 rounded border border-evari-edge/30 bg-transparent cursor-pointer p-0"
+          aria-label={`${label} colour picker`}
+          title="Click to open the colour picker"
         />
-        <span className="flex-1 text-[11px] font-mono text-evari-text truncate uppercase">{value}</span>
-        <ChevronDown className={cn('h-3 w-3 text-evari-dim transition-transform', open && 'rotate-180')} />
-      </button>
-      {open ? (
-        <div className="absolute z-50 mt-1 left-0 right-0 min-w-[220px] rounded-md border border-evari-edge/40 bg-evari-surface shadow-2xl p-2 space-y-2">
-          <div>
-            <div className="text-[9px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Picker</div>
-            <input
-              type="color"
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              className="h-9 w-full rounded border border-evari-edge/30 bg-evari-ink cursor-pointer"
-              aria-label={`${label} colour picker`}
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 px-2 py-1 rounded bg-evari-ink text-evari-text text-[11px] font-mono border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none uppercase"
+        />
+      </div>
+      {brandSwatches.length > 0 ? (
+        <div className="flex flex-wrap gap-1 mt-1.5" aria-label="Brand kit swatches">
+          {brandSwatches.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onChange(c)}
+              className={cn(
+                'h-5 w-5 rounded-sm border border-black/20 transition-transform hover:scale-110',
+                value.toLowerCase() === c.toLowerCase() && 'ring-2 ring-evari-gold ring-offset-1 ring-offset-evari-surface',
+              )}
+              style={{ background: c }}
+              title={c}
+              aria-label={`Use brand colour ${c}`}
             />
-          </div>
-          {brandSwatches.length > 0 ? (
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Brand kit</div>
-              <div className="grid grid-cols-8 gap-1">
-                {brandSwatches.map((c) => (
-                  <button
-                    key={`b-${c}`}
-                    type="button"
-                    onClick={() => { onChange(c); setOpen(false); }}
-                    className={cn(
-                      'h-5 w-5 rounded-sm border border-black/20',
-                      value.toLowerCase() === c.toLowerCase() && 'ring-2 ring-evari-gold ring-offset-1 ring-offset-evari-surface',
-                    )}
-                    style={{ background: c }}
-                    title={c}
-                    aria-label={`Use brand colour ${c}`}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
-          <div>
-            <div className="text-[9px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Presets</div>
-            <div className="grid grid-cols-8 gap-1">
-              {presets.map((c) => (
-                <button
-                  key={`p-${c}`}
-                  type="button"
-                  onClick={() => { onChange(c); setOpen(false); }}
-                  className={cn(
-                    'h-5 w-5 rounded-sm border border-black/20',
-                    value.toLowerCase() === c.toLowerCase() && 'ring-2 ring-evari-gold ring-offset-1 ring-offset-evari-surface',
-                  )}
-                  style={{ background: c }}
-                  title={c}
-                  aria-label={`Use ${c}`}
-                />
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="text-[9px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Hex</div>
-            <input
-              type="text"
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-[11px] font-mono border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none uppercase"
-            />
-          </div>
+          ))}
         </div>
       ) : null}
-    </div>
+    </label>
   );
 }
 
@@ -880,7 +932,39 @@ function AlignmentField({ value, onChange }: { value: EmailAlignment; onChange: 
   );
 }
 
+
+/**
+ * Range slider with a numeric readout. Used for font size + tracking
+ * + line-height where dragging is more natural than typing.
+ */
+function SliderField({ label, value, min, max, step, suffix, onChange }: {
+  label: string; value: number; min: number; max: number; step?: number;
+  suffix?: string; onChange: (v: number) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+        <span>{label}</span>
+        <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{value}{suffix ?? ''}</span>
+      </span>
+      <input
+        type="range"
+        value={value}
+        min={min}
+        max={max}
+        step={step ?? 1}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full h-1.5 rounded-full bg-evari-ink accent-evari-gold cursor-pointer"
+      />
+    </label>
+  );
+}
+
 function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'heading' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void }) {
+  const defaultSize = block.level === 1 ? 28 : block.level === 2 ? 22 : 18;
+  const size = block.fontSizePx ?? defaultSize;
+  const tracking = block.letterSpacingEm ?? 0;
+  const weight = block.fontWeight ?? 700;
   return (
     <div className="space-y-2">
       <label className="block">
@@ -890,24 +974,31 @@ function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, 
         </span>
         <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[60px] font-mono text-[12px]')} />
       </label>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Level</span>
           <select value={block.level} onChange={(e) => onChange({ level: Number(e.target.value) as 1 | 2 | 3 })} className={inputCls}>
-            <option value={1}>H1 (28px)</option>
-            <option value={2}>H2 (22px)</option>
-            <option value={3}>H3 (18px)</option>
+            <option value={1}>H1</option>
+            <option value={2}>H2</option>
+            <option value={3}>H3</option>
           </select>
         </label>
-        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />
         <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
       </div>
-      <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
+      <SliderField label="Size" value={size} min={10} max={96} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
+      <SliderField label="Tracking" value={tracking} min={-0.1} max={0.4} step={0.005} suffix="em" onChange={(v) => onChange({ letterSpacingEm: Number(v.toFixed(3)) })} />
+      <SliderField label="Weight" value={weight} min={100} max={900} step={100} onChange={(v) => onChange({ fontWeight: v })} />
+      <div className="grid grid-cols-2 gap-2">
+        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} brand={brand} />
+        <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
+      </div>
     </div>
   );
 }
 
 function TextFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'text' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void }) {
+  const tracking = block.letterSpacingEm ?? 0;
+  const weight = block.fontWeight ?? 400;
   return (
     <div className="space-y-2">
       <label className="block">
@@ -917,13 +1008,15 @@ function TextFields({ block, brand, onChange }: { block: Extract<EmailBlock, { t
         </span>
         <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[100px] font-mono text-[12px]')} />
       </label>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <NumField label="Size (px)" value={block.fontSizePx} min={10} max={48} onChange={(v) => onChange({ fontSizePx: v })} />
-        <NumField label="Line height" value={block.lineHeight} step={0.05} min={1} max={3} onChange={(v) => onChange({ lineHeight: v })} />
-        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />
-        <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
+      <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
+      <SliderField label="Size" value={block.fontSizePx} min={10} max={48} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
+      <SliderField label="Line height" value={block.lineHeight} min={1} max={3} step={0.05} onChange={(v) => onChange({ lineHeight: Number(v.toFixed(2)) })} />
+      <SliderField label="Tracking" value={tracking} min={-0.05} max={0.3} step={0.005} suffix="em" onChange={(v) => onChange({ letterSpacingEm: Number(v.toFixed(3)) })} />
+      <SliderField label="Weight" value={weight} min={100} max={900} step={100} onChange={(v) => onChange({ fontWeight: v })} />
+      <div className="grid grid-cols-2 gap-2">
+        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} brand={brand} />
+        <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
       </div>
-      <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
     </div>
   );
 }
@@ -1216,7 +1309,7 @@ function CanvasBlock({ block, brand, selected, selectedId, onSelect, onRemove, o
         onClick={(e) => { e.stopPropagation(); onSelect(); }}
         className={cn(
           'relative cursor-pointer transition-shadow',
-          selected ? 'ring-2 ring-evari-gold ring-offset-1 ring-offset-white' : 'hover:ring-2 hover:ring-evari-gold/30 hover:ring-offset-1 hover:ring-offset-white',
+          selected ? 'ring-2 ring-evari-gold' : 'hover:ring-1 hover:ring-evari-gold/40',
         )}
       >
         {isSection ? (
@@ -1778,14 +1871,20 @@ function SectionFields({ block, brand, designWidthPx, onChange }: { block: Extra
               }}
               aria-label="Background image preview"
             />
-            <div className="flex items-center gap-1 pt-1.5">
-              <button type="button" onClick={() => setPickerOpen(true)} className="text-[10px] text-evari-gold hover:underline px-1">Replace</button>
-              <button type="button" onClick={fitToImageRatio} disabled={fitting} className="text-[10px] text-evari-text hover:text-evari-gold disabled:opacity-50 px-1 inline-flex items-center gap-1" title="Resize the section to match the image's aspect ratio">
-                {fitting ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
-                Fit section to image
-              </button>
-              <button type="button" onClick={() => onChange({ backgroundImage: '' })} className="text-[10px] text-evari-dim hover:text-evari-danger px-1 ml-auto">Remove</button>
+            <div className="flex items-center gap-2 pt-1.5">
+              <button type="button" onClick={() => setPickerOpen(true)} className="text-[11px] text-evari-gold hover:underline">Replace image</button>
+              <button type="button" onClick={() => onChange({ backgroundImage: '' })} className="text-[11px] text-evari-dim hover:text-evari-danger ml-auto">Remove</button>
             </div>
+            <button
+              type="button"
+              onClick={fitToImageRatio}
+              disabled={fitting}
+              className="mt-2 w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-md bg-evari-gold/15 text-evari-gold border border-evari-gold/40 text-[12px] font-medium hover:bg-evari-gold/25 hover:border-evari-gold/70 disabled:opacity-50 transition-colors"
+              title="Resize the section to match the image's aspect ratio so it fills exactly with no crop"
+            >
+              {fitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Maximize2 className="h-4 w-4" />}
+              Fit section to image ratio
+            </button>
           </div>
         ) : (
           <button

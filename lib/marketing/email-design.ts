@@ -32,12 +32,16 @@ function fontFor(brand: MarketingBrand, family: string): string {
 
 function renderHeading(b: Extract<EmailBlock, { type: 'heading' }>, brand: MarketingBrand): string {
   const sizes = { 1: 28, 2: 22, 3: 18 } as const;
-  const size = sizes[b.level];
-  return `<div style="${alignStyle(b.alignment)}font:bold ${size}px/1.25 ${fontFor(brand, b.fontFamily)}Arial,sans-serif;color:${b.color};">${safeHtml(b.html)}</div>`;
+  const size = b.fontSizePx ?? sizes[b.level];
+  const weight = b.fontWeight ?? 700;
+  const tracking = typeof b.letterSpacingEm === 'number' ? `letter-spacing:${b.letterSpacingEm}em;` : '';
+  return `<div style="${alignStyle(b.alignment)}font:${weight} ${size}px/1.25 ${fontFor(brand, b.fontFamily)}Arial,sans-serif;color:${b.color};${tracking}">${safeHtml(b.html)}</div>`;
 }
 
 function renderText(b: Extract<EmailBlock, { type: 'text' }>, brand: MarketingBrand): string {
-  return `<div style="${alignStyle(b.alignment)}font:${b.fontSizePx}px/${b.lineHeight} ${fontFor(brand, b.fontFamily)}Arial,sans-serif;color:${b.color};">${safeHtml(b.html)}</div>`;
+  const weight = b.fontWeight ?? 400;
+  const tracking = typeof b.letterSpacingEm === 'number' ? `letter-spacing:${b.letterSpacingEm}em;` : '';
+  return `<div style="${alignStyle(b.alignment)}font:${weight} ${b.fontSizePx}px/${b.lineHeight} ${fontFor(brand, b.fontFamily)}Arial,sans-serif;color:${b.color};${tracking}">${safeHtml(b.html)}</div>`;
 }
 
 function renderImage(b: Extract<EmailBlock, { type: 'image' }>): string {
