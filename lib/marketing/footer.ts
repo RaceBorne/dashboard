@@ -106,7 +106,7 @@ function renderUnsubscribe(
   </div>`;
 }
 
-function renderBlock(block: FooterBlock, brand: MarketingBrand, unsubscribeUrl: string | undefined): string {
+function renderBlockInner(block: FooterBlock, brand: MarketingBrand, unsubscribeUrl: string | undefined): string {
   switch (block.type) {
     case 'logo':        return renderLogo(block, brand);
     case 'text':        return renderText(block);
@@ -118,6 +118,16 @@ function renderBlock(block: FooterBlock, brand: MarketingBrand, unsubscribeUrl: 
     case 'unsubscribe': return renderUnsubscribe(block, brand, unsubscribeUrl);
     default:            return '';
   }
+}
+
+/** Wraps every block in a span carrying its id so the in-app preview can
+ * highlight the currently-selected block via [data-block-id="..."] CSS.
+ * Display:contents keeps the wrapper layout-neutral so mailbox providers
+ * see the exact same DOM either way. */
+function renderBlock(block: FooterBlock, brand: MarketingBrand, unsubscribeUrl: string | undefined): string {
+  const inner = renderBlockInner(block, brand, unsubscribeUrl);
+  if (!inner) return '';
+  return `<div data-block-id="${block.id}" style="display:block;">${inner}</div>`;
 }
 
 // ─── Legacy shape detection + migration ───────────────────────────

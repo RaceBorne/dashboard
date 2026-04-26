@@ -28,7 +28,7 @@ function alignStyle(a: 'left' | 'center' | 'right'): string {
   return `text-align:${a};`;
 }
 
-function renderBlock(b: SignatureBlock, brand: MarketingBrand): string {
+function renderBlockInner(b: SignatureBlock, brand: MarketingBrand): string {
   switch (b.type) {
     case 'logo': {
       const url = b.srcOverride || brand.logoLightUrl || brand.logoDarkUrl;
@@ -48,6 +48,14 @@ function renderBlock(b: SignatureBlock, brand: MarketingBrand): string {
     default:
       return '';
   }
+}
+
+/** Wraps each block in a per-id span so the live preview can highlight
+ * the currently-selected block via [data-block-id="..."] CSS. */
+function renderBlock(b: SignatureBlock, brand: MarketingBrand): string {
+  const inner = renderBlockInner(b, brand);
+  if (!inner) return '';
+  return `<div data-block-id="${b.id}" style="display:block;">${inner}</div>`;
 }
 
 export function normaliseSignatureDesign(d: unknown): SignatureDesign | null {

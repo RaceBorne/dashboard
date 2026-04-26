@@ -81,6 +81,7 @@ const FONT_OPTIONS = [
 
 export function FooterDesigner({ initialBrand, value, onChange }: Props) {
   const design = normaliseDesign(value);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   function updateDesign(patch: Partial<FooterDesign>) {
     onChange({ ...design, ...patch });
@@ -185,6 +186,8 @@ export function FooterDesigner({ initialBrand, value, onChange }: Props) {
                     <SortableBlockRow
                       key={b.id}
                       block={b}
+                      selected={selectedId === b.id}
+                      onSelect={() => setSelectedId(selectedId === b.id ? null : b.id)}
                       onChange={(p) => updateBlock(b.id, p)}
                       onRemove={() => removeBlock(b.id)}
                     />
@@ -199,7 +202,9 @@ export function FooterDesigner({ initialBrand, value, onChange }: Props) {
         <div className="space-y-2">
           <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Live preview</div>
           <div className="rounded-md border border-evari-edge/30 overflow-hidden bg-zinc-50">
+            <style dangerouslySetInnerHTML={{ __html: selectedId ? `[data-footer-preview] [data-block-id="${selectedId}"]{outline:2px solid #d4a649;outline-offset:2px;border-radius:3px;background:rgba(212,166,73,0.08);}` : '' }} />
             <div
+              data-footer-preview
               className="text-zinc-900 max-h-[640px] overflow-auto"
               dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
@@ -217,10 +222,14 @@ export function FooterDesigner({ initialBrand, value, onChange }: Props) {
 
 function SortableBlockRow({
   block,
+  selected,
+  onSelect,
   onChange,
   onRemove,
 }: {
   block: FooterBlock;
+  selected: boolean;
+  onSelect: () => void;
   onChange: (patch: Partial<FooterBlock>) => void;
   onRemove: () => void;
 }) {
@@ -234,6 +243,8 @@ function SortableBlockRow({
     <li ref={setNodeRef} style={style}>
       <BlockEditor
         block={block}
+        selected={selected}
+        onSelect={onSelect}
         onChange={onChange}
         onRemove={onRemove}
         dragHandleProps={{ ...attributes, ...listeners }}
@@ -247,36 +258,57 @@ function SortableBlockRow({
 
 interface BlockEditorProps {
   block: FooterBlock;
+  selected: boolean;
+  onSelect: () => void;
   onChange: (patch: Partial<FooterBlock>) => void;
   onRemove: () => void;
   dragHandleProps: React.HTMLAttributes<HTMLButtonElement>;
   isDragging: boolean;
 }
 
-function BlockEditor({ block, onChange, onRemove, dragHandleProps, isDragging }: BlockEditorProps) {
-  const [open, setOpen] = useState(false);
+/** Whole header acts as a single click target — toggles open AND
+ * highlights the corresponding block in the live preview. Drag handle
+ * + delete button stop propagation so they don't double-fire. */
+function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandleProps, isDragging }: BlockEditorProps) {
   const meta = ADD_BUTTONS.find((b) => b.type === block.type);
   const Icon = meta?.Icon ?? PenLine;
   const label = meta?.label ?? block.type;
   const summary = blockSummary(block);
 
   return (
-    <div className={cn('rounded-md border bg-evari-ink/30 transition-colors duration-300 ease-in-out', isDragging ? 'border-evari-gold/60' : 'border-evari-edge/30')}>
-      <header className="flex items-center gap-2 px-2 py-1.5">
-        <button type="button" {...dragHandleProps} className="p-1 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing" aria-label="Drag">
+    <div className={cn(
+      'rounded-md border bg-evari-ink/30 transition-colors duration-300 ease-in-out',
+      isDragging ? 'border-evari-gold/60' : selected ? 'border-evari-gold/70 bg-evari-ink/60' : 'border-evari-edge/30',
+    )}>
+      <header
+        onClick={onSelect}
+        className="flex items-center gap-2 px-2 py-1.5 cursor-pointer select-none"
+      >
+        <button
+          type="button"
+          {...dragHandleProps}
+          onClick={(e) => e.stopPropagation()}
+          className="p-1 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing"
+          aria-label="Drag"
+        >
           <GripVertical className="h-3.5 w-3.5" />
         </button>
         <Icon className="h-3.5 w-3.5 text-evari-dim shrink-0" />
         <span className="text-sm text-evari-text truncate">{label}</span>
         {summary ? <span className="text-[10px] text-evari-dimmer truncate ml-2">{summary}</span> : null}
-        <button type="button" onClick={() => setOpen((o) => !o)} className="ml-auto text-evari-dim hover:text-evari-text px-1">
-          {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
-        <button type="button" onClick={onRemove} className="text-evari-dim hover:text-evari-danger px-1" aria-label="Remove">
+        <span className="ml-auto text-evari-dim">
+          {selected ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="text-evari-dim hover:text-evari-danger px-1"
+          aria-label="Remove"
+        >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </header>
-      {open ? (
+      {selected ? (
         <div className="border-t border-evari-edge/20 px-3 py-2">
           {block.type === 'text'        ? <TextFields        block={block} onChange={onChange} /> : null}
           {block.type === 'logo'        ? <LogoFields        block={block} onChange={onChange} /> : null}
