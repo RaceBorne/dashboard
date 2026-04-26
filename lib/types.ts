@@ -19,7 +19,8 @@ export type LeadSource =
   | 'event'
   | 'press'
   | 'existing_customer'
-  | 'outreach_agent';   // sourced automatically by a Play's Source Prospects run
+  | 'outreach_agent'    // sourced automatically by a Play's Source Prospects run
+  | 'manual';           // hand-added from Email · Contacts
 
 /** Coarse bucket for filtering — groups detailed sources into channels. */
 export type LeadSourceCategory =
@@ -33,7 +34,8 @@ export type LeadSourceCategory =
   | 'press'      // Journalist / magazine enquiries
   | 'in_person'  // Walk-in / showroom
   | 'commerce'   // Shopify order or abandoned cart
-  | 'outreach';  // Play-driven outreach agent (prospect tier)
+  | 'outreach'   // Play-driven outreach agent (prospect tier)
+  | 'manual';    // hand-added directly from a CRM screen
 
 export type LeadStage =
   | 'new'
@@ -290,6 +292,8 @@ export function sourceCategoryFor(source: LeadSource): LeadSourceCategory {
       return 'press';
     case 'outreach_agent':
       return 'outreach';
+    case 'manual':
+      return 'manual';
   }
 }
 

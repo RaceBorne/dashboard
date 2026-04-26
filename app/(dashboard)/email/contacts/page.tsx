@@ -1,19 +1,19 @@
 import { TopBar } from '@/components/sidebar/TopBar';
-import { listContacts } from '@/lib/marketing/contacts';
-import { ContactsClient } from '@/components/marketing/ContactsClient';
+import { loadContactsBundle } from '@/lib/marketing/leads-as-contacts';
+import { ContactsExplorer } from '@/components/marketing/ContactsExplorer';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function ContactsPage() {
-  const contacts = await listContacts();
+  const bundle = await loadContactsBundle();
   return (
     <>
       <TopBar
         title="Contacts"
-        subtitle="Email · CRM"
+        subtitle="Email · CRM · Folders from Plays"
       />
-      <ContactsClient initialContacts={contacts} />
+      <ContactsExplorer initialBundle={bundle} />
     </>
   );
 }
