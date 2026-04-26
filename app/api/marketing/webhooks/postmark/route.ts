@@ -47,6 +47,7 @@ export const dynamic = 'force-dynamic';
 interface RecipientRow {
   id: string;
   contact_id: string;
+  campaign_id: string;
 }
 
 async function findRecipientByMessageId(messageId: string | undefined): Promise<RecipientRow | null> {
@@ -55,7 +56,7 @@ async function findRecipientByMessageId(messageId: string | undefined): Promise<
   if (!sb) return null;
   const { data, error } = await sb
     .from('dashboard_mkt_campaign_recipients')
-    .select('id, contact_id')
+    .select('id, contact_id, campaign_id')
     .eq('message_id', messageId)
     .maybeSingle();
   if (error) {
@@ -120,6 +121,9 @@ interface WebhookBody {
   Description?: string;
   Details?: string;
   OriginalLink?: string;
+  UserAgent?: string;
+  IP?: string;
+  GeoIP?: { IP?: string };
   SuppressionReason?: string;
   SuppressSending?: boolean;
   // Anything else — we hand into the event metadata as-is.
@@ -183,12 +187,30 @@ export async function POST(req: Request) {
     }
     case 'Click': {
       recipientStatus = 'clicked';
+      const clickedAt = body.ReceivedAt ?? new Date().toISOString();
       recipientPatch = {
         status: recipientStatus,
-        clicked_at: body.ReceivedAt ?? new Date().toISOString(),
+        clicked_at: clickedAt,
         // Don't lose the open timestamp if it wasn't already set.
         opened_at: body.ReceivedAt ?? new Date().toISOString(),
       };
+      // Per-URL click history. Inserts one row per Click event so
+      // analytics can report per-URL counts (UniqueClicks + TotalClicks)
+      // distinct from the per-recipient 'has clicked' boolean.
+      if (recipient && body.OriginalLink) {
+        const { error: clickErr } = await sb
+          .from('dashboard_mkt_campaign_clicks')
+          .insert({
+            recipient_id: recipient.id,
+            campaign_id: recipient.campaign_id,
+            contact_id: recipient.contact_id,
+            url: body.OriginalLink,
+            clicked_at: clickedAt,
+            user_agent: body.UserAgent ?? null,
+            ip: body.GeoIP?.IP ?? body.IP ?? null,
+          });
+        if (clickErr) console.error('[mkt.webhook click history]', clickErr);
+      }
       break;
     }
     case 'Bounce': {

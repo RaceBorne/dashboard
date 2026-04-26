@@ -62,7 +62,7 @@ export interface CampaignAnalytics {
    * Per-URL counts require Postmark Click webhook payload retention,
    * which we don't store yet — UI shows the link list with the total
    * 'people clicked' figure. */
-  links: { url: string }[];
+  links: { url: string; uniqueClicks: number; totalClicks: number }[];
   peopleClicked: number;
   totalClicks: number;
 }
@@ -188,9 +188,10 @@ export async function getCampaignAnalytics(campaignId: string, htmlBody: string)
     buckets.get(key)![e.kind]++;
   }
 
-  // Links — extract distinct URLs from the campaign HTML body via a
-  // simple href regex. Per-URL click counts need richer event storage
-  // we can ship next; for now we report unique URLs + cohort totals.
+  // Links — extract distinct URLs from the campaign HTML body for the
+  // 'didn't see any clicks yet' empty case, then merge with the real
+  // per-URL click history from dashboard_mkt_campaign_clicks (uniqueClicks
+  // = distinct contact_id, totalClicks = row count, both per URL).
   const linkSet = new Set<string>();
   const linkRe = /\bhref\s*=\s*"([^"]+)"|\bhref\s*=\s*'([^']+)'/gi;
   let match: RegExpExecArray | null;
@@ -199,13 +200,51 @@ export async function getCampaignAnalytics(campaignId: string, htmlBody: string)
     if (url && /^https?:\/\//i.test(url) && !url.includes('{{')) linkSet.add(url);
   }
 
+  const { data: clickRows, error: clickErr } = await sb
+    .from('dashboard_mkt_campaign_clicks')
+    .select('url, contact_id')
+    .eq('campaign_id', campaignId);
+  if (clickErr) console.error('[mkt.analytics.clicks]', clickErr);
+
+  type ClickAgg = { url: string; uniqueClicks: number; totalClicks: number };
+  const perUrl = new Map<string, { contacts: Set<string>; total: number }>();
+  let totalClicks = 0;
+  const distinctClickContacts = new Set<string>();
+  for (const c of (clickRows ?? []) as { url: string; contact_id: string }[]) {
+    if (!perUrl.has(c.url)) perUrl.set(c.url, { contacts: new Set(), total: 0 });
+    const agg = perUrl.get(c.url)!;
+    agg.contacts.add(c.contact_id);
+    agg.total += 1;
+    totalClicks += 1;
+    distinctClickContacts.add(c.contact_id);
+  }
+  // Merge: every URL we found in the body, plus every URL we have clicks
+  // for (Postmark may rewrite a URL that didn't appear literally in the
+  // body via tracking redirects).
+  const allUrls = new Set<string>([...linkSet, ...perUrl.keys()]);
+  const links: ClickAgg[] = [...allUrls]
+    .map((url) => {
+      const agg = perUrl.get(url);
+      return {
+        url,
+        uniqueClicks: agg?.contacts.size ?? 0,
+        totalClicks: agg?.total ?? 0,
+      };
+    })
+    .sort((a, b) => b.totalClicks - a.totalClicks);
+
+  // peopleClicked prefers the click-history-derived count when available
+  // (handles cases where the recipient row's clicked_at column got reset
+  // or never set), falling back to the recipients projection.
+  const peopleClicked = distinctClickContacts.size > 0 ? distinctClickContacts.size : clicked;
+
   return {
     totals: { total, delivered, bounced, skipped, opened, clicked, unsubscribed, spamComplaints },
     rates,
     recipients,
     buckets: [...buckets.values()].sort((a, b) => a.at.localeCompare(b.at)),
-    links: [...linkSet].map((url) => ({ url })),
-    peopleClicked: clicked,
-    totalClicks: clicked, // proxy until per-URL events are stored
+    links,
+    peopleClicked,
+    totalClicks: totalClicks > 0 ? totalClicks : clicked,
   };
 }

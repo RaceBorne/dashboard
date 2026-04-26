@@ -237,25 +237,24 @@ function Links({ a }: { a: CampaignAnalytics }) {
           <thead className="bg-evari-ink text-[10px] uppercase tracking-[0.1em] text-evari-dimmer">
             <tr>
               <th className="px-3 py-1.5 text-left">URL</th>
-              <th className="px-3 py-1.5 text-right">Recipients clicked</th>
+              <th className="px-3 py-1.5 text-right">Unique clicks</th>
+              <th className="px-3 py-1.5 text-right">Total clicks</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-evari-edge/10">
             {a.links.length === 0 ? (
-              <tr><td colSpan={2} className="px-3 py-6 text-center text-evari-dimmer text-sm">No tracked links found in the campaign body.</td></tr>
+              <tr><td colSpan={3} className="px-3 py-6 text-center text-evari-dimmer text-sm">No tracked links found in the campaign body.</td></tr>
             ) : a.links.map((link) => (
               <tr key={link.url} className="hover:bg-evari-ink/30">
                 <td className="px-3 py-1.5">
                   <a href={link.url} target="_blank" rel="noopener" className="text-evari-gold hover:underline truncate inline-block max-w-[480px]">{link.url}</a>
                 </td>
-                <td className="px-3 py-1.5 text-right text-evari-dim font-mono tabular-nums text-[11px]">{a.peopleClicked}</td>
+                <td className="px-3 py-1.5 text-right text-evari-text font-mono tabular-nums text-[11px]">{link.uniqueClicks.toLocaleString()}</td>
+                <td className="px-3 py-1.5 text-right text-evari-dim font-mono tabular-nums text-[11px]">{link.totalClicks.toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div className="px-3 py-2 text-[10px] text-evari-dimmer border-t border-evari-edge/20">
-          Per-URL counts will populate once the Postmark Click webhook starts logging the OriginalLink — current count reflects all clickers across the campaign.
-        </div>
       </div>
     </div>
   );

@@ -297,8 +297,16 @@ function FolderRow({ folder, active, onClick }: { folder: ContactFolder; active:
 // ─── Contact list row ──────────────────────────────────────────
 
 function ContactListRow({ contact, active, checked, onToggle, onClick }: { contact: EmailContact; active: boolean; checked: boolean; onToggle: () => void; onClick: () => void }) {
+  // Initials avatar — first letter of first + (last word of) full name
+  const initials = (() => {
+    const parts = (contact.fullName || contact.email || '?').split(/\s+/).filter(Boolean);
+    const a = parts[0]?.[0] ?? '?';
+    const b = parts.length > 1 ? parts[parts.length - 1][0] : '';
+    return (a + b).toUpperCase().slice(0, 2);
+  })();
+  const lastTouch = contact.lastActivityAt ?? contact.lastTouchAt;
   return (
-    <li className={cn('flex items-stretch transition-colors duration-150', active ? 'bg-evari-ink/70' : 'hover:bg-evari-ink/30')}>
+    <li className={cn('flex items-stretch transition-colors duration-150 border-l-2', active ? 'bg-evari-ink/70 border-evari-gold' : 'hover:bg-evari-ink/30 border-transparent')}>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onToggle(); }}
@@ -310,27 +318,60 @@ function ContactListRow({ contact, active, checked, onToggle, onClick }: { conta
       <button
         type="button"
         onClick={onClick}
-        className="flex-1 px-1 py-2 text-left min-w-0"
+        className="flex-1 px-2 py-2.5 text-left min-w-0 flex items-start gap-2.5"
       >
-        <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="text-sm text-evari-text truncate">{contact.fullName}</div>
-            <div className="text-[11px] text-evari-dim truncate">
-              {contact.jobTitle ? `${contact.jobTitle} · ` : ''}{contact.companyName ?? '—'}
-            </div>
+        {/* Avatar — Klaviyo-style initials chip */}
+        <div className={cn(
+          'h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 border',
+          active ? 'bg-evari-gold/15 text-evari-gold border-evari-gold/30' : 'bg-evari-ink border-evari-edge/40 text-evari-dim',
+        )}>
+          {initials}
+        </div>
+        {/* Identity column */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className={cn('text-sm truncate', active ? 'font-semibold text-evari-text' : 'text-evari-text')}>
+              {contact.fullName || contact.email}
+            </span>
+            {contact.emailInferred ? (
+              <span className="text-[9px] uppercase tracking-[0.1em] text-evari-gold/80 px-1.5 py-0 rounded bg-evari-gold/10 shrink-0" title="Email was AI-inferred — verify before sending">inferred</span>
+            ) : null}
           </div>
-          {contact.emailInferred ? (
-            <span className="text-[9px] uppercase tracking-[0.1em] text-evari-gold/80 px-1.5 py-0.5 rounded bg-evari-gold/10 shrink-0" title="Email was AI-inferred — verify before sending">inferred</span>
+          <div className="text-[11px] text-evari-dim truncate font-mono">{contact.email}</div>
+          {(contact.jobTitle || contact.companyName) ? (
+            <div className="text-[11px] text-evari-dimmer truncate mt-0.5">
+              {contact.jobTitle ? <span className="text-evari-dim">{contact.jobTitle}</span> : null}
+              {contact.jobTitle && contact.companyName ? <span className="text-evari-dimmer"> · </span> : null}
+              {contact.companyName ?? null}
+            </div>
+          ) : null}
+          {contact.tags.length > 0 ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {contact.tags.slice(0, 4).map((t) => (
+                <span key={t} className="text-[9px] uppercase tracking-[0.08em] text-evari-dim bg-evari-ink/60 px-1.5 py-0.5 rounded">{t}</span>
+              ))}
+              {contact.tags.length > 4 ? <span className="text-[9px] text-evari-dimmer">+{contact.tags.length - 4}</span> : null}
+            </div>
           ) : null}
         </div>
-        <div className="mt-0.5 text-[11px] text-evari-dimmer truncate font-mono">{contact.email}</div>
-        {contact.tags.length > 0 ? (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {contact.tags.slice(0, 4).map((t) => (
-              <span key={t} className="text-[9px] uppercase tracking-[0.08em] text-evari-dim bg-evari-ink/60 px-1.5 py-0.5 rounded">{t}</span>
-            ))}
-          </div>
-        ) : null}
+        {/* Right column — last activity + status dot */}
+        <div className="shrink-0 flex flex-col items-end gap-0.5 text-right">
+          <span className={cn(
+            'inline-flex items-center gap-1 text-[9px] uppercase tracking-[0.1em] px-1.5 py-0.5 rounded-full border',
+            contact.status === 'active'
+              ? 'bg-evari-success/10 text-evari-success border-evari-success/30'
+              : contact.status === 'unsubscribed'
+                ? 'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                : 'bg-evari-danger/10 text-evari-danger border-evari-danger/30',
+          )}>
+            {contact.status}
+          </span>
+          {lastTouch ? (
+            <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">
+              {new Date(lastTouch).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            </span>
+          ) : null}
+        </div>
       </button>
     </li>
   );
