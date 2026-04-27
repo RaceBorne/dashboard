@@ -741,6 +741,13 @@ export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand, op
   <title></title>
   ${styles}
   ${mobileCss}
+  <style type="text/css">
+    html { scrollbar-color: rgba(128,128,128,0.45) transparent; scrollbar-width: thin; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.45); border-radius: 6px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.7); }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:${design.background};">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${design.background};">

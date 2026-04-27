@@ -396,7 +396,7 @@ function PreviewModal({ design, brand, onClose }: { design: EmailDesign; brand: 
             title="Preview"
             srcDoc={html}
             className="bg-white"
-            style={{ width: device === 'mobile' ? '360px' : '100%', height: '100%', maxWidth: '900px', border: 0 }}
+            style={{ width: device === 'mobile' ? '360px' : '100%', height: '100%', border: 0 }}
           />
         </div>
 
