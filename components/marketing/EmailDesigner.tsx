@@ -36,6 +36,7 @@ import {
   Sparkles,
   Square,
   SquareSplitHorizontal,
+  ArrowLeftRight,
   Star,
   Table as TableIcon,
   Tag,
@@ -73,10 +74,12 @@ import {
   type EmailBlock,
   type EmailDesign,
   type MarketingBrand,
+  SplitCell,
+  SplitCells,
   type TypographyPreset,
   type ButtonPreset,
 } from '@/lib/marketing/types';
-import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign, bgFillCss, effectiveBlock } from '@/lib/marketing/email-design';
+import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign, bgFillCss, effectiveBlock , getSplitCells } from '@/lib/marketing/email-design';
 
 interface Props {
   initialBrand: MarketingBrand;
@@ -3109,37 +3112,184 @@ function HtmlFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'h
 }
 
 function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'split' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void }) {
-  // brand reserved for future split-font support
+  // The editor always works against the cells shape. getSplitCells
+  // migrates legacy blocks (saved before Phase 1) on the fly.
   void brand;
+  const cells: SplitCells = getSplitCells(block);
+
+  function setLeft(patch: Partial<SplitCell>) {
+    const left = { ...cells.left, ...patch };
+    onChange({ cells: { ...cells, left: enforceCellKind(left) } });
+  }
+  function setRight(patch: Partial<SplitCell>) {
+    const right = { ...cells.right, ...patch };
+    onChange({ cells: { ...cells, right: enforceCellKind(right) } });
+  }
+  function swap() {
+    onChange({ cells: { left: cells.right, right: cells.left } });
+  }
+
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Image URL</span>
-          <input type="url" value={block.imageSrc} onChange={(e) => onChange({ imageSrc: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Image position</span>
-          <select value={block.imagePosition} onChange={(e) => onChange({ imagePosition: e.target.value as 'left' | 'right' })} className={inputCls}>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-          </select>
-        </label>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Layout (50 / 50)</span>
+        <button
+          type="button"
+          onClick={swap}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] text-evari-dim hover:text-evari-text bg-evari-ink hover:bg-black/40 border border-evari-edge/30 transition-colors"
+          title="Swap left and right"
+        >
+          <ArrowLeftRight className="h-3 w-3" />
+          Swap
+        </button>
+      </div>
+      <SplitCellEditor label="Left"  cell={cells.left}  onChange={setLeft} />
+      <SplitCellEditor label="Right" cell={cells.right} onChange={setRight} />
+    </div>
+  );
+}
+
+/**
+ * Make sure a freshly toggled cell has the fields its kind needs.
+ * Without this a user clicking the Image toggle on a text cell would
+ * inherit no src field and the renderer would render an empty cell.
+ */
+function enforceCellKind(c: SplitCell): SplitCell {
+  if (c.kind === 'image') {
+    return {
+      kind: 'image',
+      src: c.src ?? '',
+      alt: c.alt ?? '',
+    };
+  }
+  return {
+    kind: 'text',
+    html: c.html ?? 'Side-by-side text.',
+    fontSizePx: c.fontSizePx ?? 16,
+    lineHeight: c.lineHeight ?? 1.55,
+    color: c.color ?? '#333333',
+    buttonLabel: c.buttonLabel,
+    buttonUrl: c.buttonUrl,
+  };
+}
+
+/**
+ * Per-cell editor: kind toggle (image / text) + fields for the chosen
+ * kind. Image kind opens the shared AssetPickerModal so users grab from
+ * the asset library rather than typing URLs.
+ */
+function SplitCellEditor({ label, cell, onChange }: { label: string; cell: SplitCell; onChange: (p: Partial<SplitCell>) => void }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  return (
+    <div className="rounded-md border border-evari-edge/20 bg-evari-ink/30 p-2.5 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{label} cell</span>
+        <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5">
+          {(['image', 'text'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onChange({ kind: k })}
+              className={cn(
+                'px-2 py-0.5 rounded text-[11px] font-medium capitalize transition-colors',
+                cell.kind === k ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text',
+              )}
+            >{k}</button>
+          ))}
+        </div>
+      </div>
+      {cell.kind === 'image' ? (
+        <SplitImageCellFields cell={cell} onChange={onChange} onOpenPicker={() => setPickerOpen(true)} />
+      ) : (
+        <SplitTextCellFields cell={cell} onChange={onChange} />
+      )}
+      {pickerOpen ? (
+        <AssetPickerModal
+          onClose={() => setPickerOpen(false)}
+          onPick={(url, alt) => { onChange({ src: url, alt }); setPickerOpen(false); }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function SplitImageCellFields({ cell, onChange, onOpenPicker }: { cell: SplitCell; onChange: (p: Partial<SplitCell>) => void; onOpenPicker: () => void }) {
+  const src = cell.src ?? '';
+  const alt = cell.alt ?? '';
+  return (
+    <div className="space-y-2">
+      <div className="rounded-md overflow-hidden border border-evari-edge/30 bg-evari-ink">
+        <div className="aspect-[5/3] flex items-center justify-center bg-zinc-100">
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt={alt} className="max-h-full max-w-full object-contain" />
+          ) : (
+            <span className="text-[10px] text-evari-dim">No image picked</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 px-2 py-1.5">
+          <button type="button" onClick={onOpenPicker} className="text-[11px] text-evari-gold hover:underline">
+            {src ? 'Replace from library' : 'Choose from library'}
+          </button>
+          {src ? (
+            <button type="button" onClick={() => onChange({ src: '', alt: '' })} className="text-[11px] text-evari-dim hover:text-evari-text ml-auto">
+              Clear
+            </button>
+          ) : null}
+        </div>
       </div>
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text (HTML)</span>
-        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[80px] font-mono')} />
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
+        <input type="text" value={alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
       </label>
-      <div className="grid grid-cols-2 gap-2">
+      <details>
+        <summary className="text-[10px] text-evari-dim hover:text-evari-text cursor-pointer">Or paste a URL</summary>
+        <input type="url" value={src} onChange={(e) => onChange({ src: e.target.value })} className={cn(inputCls, 'font-mono mt-1')} placeholder="https://..." />
+      </details>
+    </div>
+  );
+}
+
+function SplitTextCellFields({ cell, onChange }: { cell: SplitCell; onChange: (p: Partial<SplitCell>) => void }) {
+  const html = cell.html ?? '';
+  const fontSizePx = cell.fontSizePx ?? 16;
+  const lineHeight = cell.lineHeight ?? 1.55;
+  const color = cell.color ?? '#333333';
+  const buttonLabel = cell.buttonLabel ?? '';
+  const buttonUrl = cell.buttonUrl ?? '';
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text (HTML allowed)</span>
+        <textarea value={html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[80px] font-mono')} />
+      </label>
+      <div className="grid grid-cols-3 gap-2">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Button label</span>
-          <input type="text" value={block.buttonLabel ?? ''} onChange={(e) => onChange({ buttonLabel: e.target.value })} className={inputCls} />
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Size (px)</span>
+          <input type="number" min={8} max={64} value={fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(8, Math.min(64, Number(e.target.value) || 16)) })} className={cn(inputCls, 'font-mono')} />
         </label>
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Button URL</span>
-          <input type="url" value={block.buttonUrl ?? ''} onChange={(e) => onChange({ buttonUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Line height</span>
+          <input type="number" step={0.05} min={1} max={3} value={lineHeight} onChange={(e) => onChange({ lineHeight: Math.max(1, Math.min(3, Number(e.target.value) || 1.55)) })} className={cn(inputCls, 'font-mono')} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Colour</span>
+          <input type="color" value={color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
         </label>
       </div>
+      <fieldset className="pt-1 border-t border-evari-edge/10">
+        <legend className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Optional CTA button</legend>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Label</span>
+            <input type="text" value={buttonLabel} onChange={(e) => onChange({ buttonLabel: e.target.value })} className={inputCls} placeholder="e.g. Shop now" />
+          </label>
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">URL</span>
+            <input type="url" value={buttonUrl} onChange={(e) => onChange({ buttonUrl: e.target.value })} className={cn(inputCls, 'font-mono')} placeholder="https://..." />
+          </label>
+        </div>
+      </fieldset>
     </div>
   );
 }

@@ -581,6 +581,27 @@ export const DEFAULT_SIGNATURE_DESIGN: SignatureDesign = {
 
 export type EmailAlignment = 'left' | 'center' | 'right';
 
+export interface SplitCell {
+  kind: 'image' | 'text';
+  // image cell:
+  src?: string;
+  alt?: string;
+  // text cell:
+  html?: string;
+  fontSizePx?: number;
+  lineHeight?: number;
+  color?: string;
+  // text cell can carry a single CTA button (Phase 1). Phase 2 will
+  // turn this into a stack item alongside text and image.
+  buttonLabel?: string;
+  buttonUrl?: string;
+}
+
+export interface SplitCells {
+  left: SplitCell;
+  right: SplitCell;
+}
+
 type EmailBlockBase = {
   id: string;
   paddingTopPx?: number;
@@ -676,6 +697,11 @@ export type EmailBlock =
   | (EmailBlockBase & {
       type: 'split';
       // Image + text side-by-side at 50/50.
+      // ─── Legacy (Phase 14C) ──────────────────────────────────
+      // The original split was image-or-text per side, governed by
+      // imagePosition. These fields stay on the type so previously
+      // saved blocks render correctly until the user opens them in
+      // the designer and the editor migrates them into cells.
       imageSrc: string;
       imageAlt: string;
       imagePosition: 'left' | 'right';
@@ -685,6 +711,13 @@ export type EmailBlock =
       color: string;
       buttonLabel?: string;
       buttonUrl?: string;
+      // ─── Phase 1 (current) ───────────────────────────────────
+      // Per-cell content. When set, supersedes the legacy fields
+      // above. Each cell is independently image or text. text cells
+      // can carry an optional CTA button. Phase 2 will turn each
+      // cell into a draggable stack of items; Phase 3 adds an image
+      // overlay mode.
+      cells?: SplitCells;
     })
   | (EmailBlockBase & {
       type: 'headerBar';

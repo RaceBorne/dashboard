@@ -7,7 +7,7 @@
  * subscribers receive.
  */
 
-import type { EmailAlignment, EmailBlock, EmailDesign, MarketingBrand } from './types';
+import type { EmailAlignment, EmailBlock, EmailDesign, MarketingBrand, SplitCell, SplitCells } from './types';
 
 function escape(s: string): string {
   return s
@@ -164,18 +164,50 @@ function renderRawHtml(b: Extract<EmailBlock, { type: 'html' }>): string {
 
 // ─── Phase 14C: extended renderers ────────────────────────────
 
+/**
+ * Resolve a split block's per-cell content. New blocks save into the
+ * `cells` field; legacy blocks (saved before Phase 1) carry only the
+ * flat fields and get migrated here on every render. The designer
+ * also calls this so the editor always works against the cell shape.
+ */
+export function getSplitCells(b: Extract<EmailBlock, { type: 'split' }>): SplitCells {
+  if (b.cells) return b.cells;
+  const imageCell: SplitCell = { kind: 'image', src: b.imageSrc, alt: b.imageAlt };
+  const textCell: SplitCell = {
+    kind: 'text',
+    html: b.html,
+    fontSizePx: b.fontSizePx,
+    lineHeight: b.lineHeight,
+    color: b.color,
+    buttonLabel: b.buttonLabel,
+    buttonUrl: b.buttonUrl,
+  };
+  return b.imagePosition === 'right'
+    ? { left: textCell, right: imageCell }
+    : { left: imageCell, right: textCell };
+}
+
+function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
+  if (c.kind === 'image') {
+    if (!c.src) return '';
+    return `<img src="${escape(c.src)}" alt="${escape(c.alt ?? '')}" style="display:block;width:100%;max-width:280px;height:auto;border:0;" />`;
+  }
+  // text cell
+  const html = c.html ?? '';
+  const size = c.fontSizePx ?? 16;
+  const lh = c.lineHeight ?? 1.55;
+  const colour = c.color ?? '#333333';
+  const button = c.buttonLabel && c.buttonUrl
+    ? `<div style="margin-top:12px;"><a href="${escape(c.buttonUrl)}" style="display:inline-block;background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:4px;font:bold 13px Arial,sans-serif;text-decoration:none;">${escape(c.buttonLabel)}</a></div>`
+    : '';
+  return `<div style="font:${size}px/${lh} ${fontFor(brand, '')}Arial,sans-serif;color:${colour};">${safeHtml(html)}${button}</div>`;
+}
+
 function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: MarketingBrand): string {
-  const img = b.imageSrc
-    ? `<img src="${escape(b.imageSrc)}" alt="${escape(b.imageAlt)}" style="display:block;width:100%;max-width:280px;height:auto;border:0;" />`
-    : '';
-  const button = b.buttonLabel && b.buttonUrl
-    ? `<div style="margin-top:12px;"><a href="${escape(b.buttonUrl)}" style="display:inline-block;background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:4px;font:bold 13px Arial,sans-serif;text-decoration:none;">${escape(b.buttonLabel)}</a></div>`
-    : '';
-  const text = `<div style="font:${b.fontSizePx}px/${b.lineHeight} ${fontFor(brand, '')}Arial,sans-serif;color:${b.color};">${safeHtml(b.html)}${button}</div>`;
-  const cells = b.imagePosition === 'right'
-    ? `<td valign="top" width="50%" style="padding-right:12px;">${text}</td><td valign="top" width="50%">${img}</td>`
-    : `<td valign="top" width="50%" style="padding-right:12px;">${img}</td><td valign="top" width="50%">${text}</td>`;
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>${cells}</tr></table>`;
+  const cells = getSplitCells(b);
+  const left = renderSplitCell(cells.left, brand);
+  const right = renderSplitCell(cells.right, brand);
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td valign="top" width="50%" style="padding-right:12px;">${left}</td><td valign="top" width="50%">${right}</td></tr></table>`;
 }
 
 
