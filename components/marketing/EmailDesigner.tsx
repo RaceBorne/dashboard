@@ -1209,12 +1209,55 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     const a = findContainerOf(design.blocks, activeId);
     const o = findContainerOf(design.blocks, overId);
     if (!a || !o) return;
-    if (a.parentId !== o.parentId) return; // cross-container moves not yet supported
-    if (a.index === o.index) return;
-    commit({
-      ...design,
-      blocks: updateChildren(design.blocks, a.parentId, (kids) => arrayMove(kids, a.index, o.index)),
+    if (a.parentId === o.parentId) {
+      if (a.index === o.index) return;
+      commit({
+        ...design,
+        blocks: updateChildren(design.blocks, a.parentId, (kids) => arrayMove(kids, a.index, o.index)),
+      });
+      return;
+    }
+    // Cross-container move: lift the block out of its current parent
+    // and splice it into the destination parent at the over-block's
+    // current index. Sections refuse to be nested inside another
+    // section; pinned-top sections refuse to move at all.
+    const moving = findBlockById(design.blocks, activeId);
+    if (!moving) return;
+    if (moving.type === 'section') {
+      // Sections only live at root.
+      if (o.parentId !== null) return;
+      const isPin = (moving as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+      if (isPin) return;
+    }
+    const removed = updateChildren(design.blocks, a.parentId, (kids) => kids.filter((k) => k.id !== activeId));
+    // After removing, the over-block's index in its container is unchanged
+    // (it lives in a different parent than the source).
+    const inserted = updateChildren(removed, o.parentId, (kids) => {
+      const next = [...kids];
+      const idx = Math.max(0, Math.min(o.index, next.length));
+      next.splice(idx, 0, moving);
+      return next;
     });
+    commit({ ...design, blocks: enforcePins(inserted) });
+  }
+  /**
+   * Drop a moving block into a section's body (append) or onto a root
+   * sentinel ('end-of-list', 'section-end:X'). Same lift-and-insert
+   * pattern as the cross-container path in moveBlocks.
+   */
+  function moveBlockInto(activeId: string, target: { parentId: string | null; appendAtEnd: boolean }) {
+    const a = findContainerOf(design.blocks, activeId);
+    if (!a) return;
+    const moving = findBlockById(design.blocks, activeId);
+    if (!moving) return;
+    if (moving.type === 'section') {
+      if (target.parentId !== null) return;
+      const isPin = (moving as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+      if (isPin) return;
+    }
+    const removed = updateChildren(design.blocks, a.parentId, (kids) => kids.filter((k) => k.id !== activeId));
+    const inserted = updateChildren(removed, target.parentId, (kids) => target.appendAtEnd ? [...kids, moving] : [moving, ...kids]);
+    commit({ ...design, blocks: enforcePins(inserted) });
   }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -1381,26 +1424,37 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     // aren't supported yet (delete + re-add covers that case). Pinned-top
     // sections also refuse to be moved (or to be displaced by another move).
     // Layers-panel drag: ids prefixed with 'layer:' come from the
-    // LayersTree. Strip the prefix on both sides and reorder blocks
-    // the same way a canvas sortable would.
+    // LayersTree. Strip the prefix and route through the same
+    // moveBlocks helper, which now supports cross-section moves.
     if (activeId.startsWith('layer:')) {
       if (!overId.startsWith('layer:')) return;
       const aId = activeId.slice('layer:'.length);
       const oId = overId.slice('layer:'.length);
       if (aId === oId) return;
-      const aLoc = findContainerOf(design.blocks, aId);
-      const oLoc = findContainerOf(design.blocks, oId);
-      if (!aLoc || !oLoc) return;
-      // Only same-container reorder; cross-container moves not supported.
-      if (aLoc.parentId !== oLoc.parentId) return;
-      commit({
-        ...design,
-        blocks: updateChildren(design.blocks, aLoc.parentId, (kids) => arrayMove(kids, aLoc.index, oLoc.index)),
-      });
+      moveBlocks(aId, oId);
       return;
     }
 
-    if (activeId !== overId && overId !== 'end-of-list' && !overId.startsWith('section-end:') && !overId.startsWith('section-body:')) {
+    // Existing block dropped onto a sentinel (end-of-list / section-end /
+    // section-body). Route through moveBlockInto so the block lifts out
+    // of its current parent and is appended to the target.
+    if (activeId !== overId) {
+      if (overId === 'end-of-list') {
+        moveBlockInto(activeId, { parentId: null, appendAtEnd: true });
+        return;
+      }
+      if (overId.startsWith('section-end:')) {
+        const sectionId = overId.slice('section-end:'.length);
+        moveBlockInto(activeId, { parentId: sectionId, appendAtEnd: true });
+        return;
+      }
+      if (overId.startsWith('section-body:')) {
+        const sectionId = overId.slice('section-body:'.length);
+        moveBlockInto(activeId, { parentId: sectionId, appendAtEnd: true });
+        return;
+      }
+      // Block dropped onto another block: same-container reorder OR
+      // cross-container splice. moveBlocks decides.
       const active = findBlockById(design.blocks, activeId);
       const over   = findBlockById(design.blocks, overId);
       const isPinTop = (b: EmailBlock | null) => !!b && b.type === 'section' && (b as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
