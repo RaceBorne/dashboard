@@ -308,8 +308,10 @@ export async function sendCampaign(id: string): Promise<SendResult> {
   // Resolve the body once. Phase 14: when the campaign has an
   // emailDesign, render it through the visual builder and use the
   // result; legacy `content` is the fallback.
+  // Sender appends the brand footer on its own; tell renderEmailDesign
+  // to skip the inline footer so it isn't included twice.
   const renderedHtml = campaign.emailDesign
-    ? renderEmailDesign(campaign.emailDesign, await getBrand())
+    ? renderEmailDesign(campaign.emailDesign, await getBrand(), { includeFooter: false })
     : campaign.content;
 
   const recipientIds = await resolveRecipientIds(campaign);

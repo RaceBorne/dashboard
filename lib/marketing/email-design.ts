@@ -348,9 +348,23 @@ export function brandStyleBlock(brand: MarketingBrand): string {
     `</style>`;
 }
 
-export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand): string {
+export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand, opts?: { includeFooter?: boolean; unsubscribeUrl?: string }): string {
   const inner = design.blocks.map((b) => renderBlock(b, brand)).filter(Boolean).join('\n');
   const styles = brandStyleBlock(brand);
+  // The brand footer is auto-appended at send time. To match what the user
+  // is going to ship, always include a non-editable footer block in
+  // previews + thumbnails too. Caller can opt out (e.g. to avoid
+  // duplicating when the sender will append its own).
+  let footerHtml = '';
+  if (opts?.includeFooter !== false) {
+    try {
+      // Lazy require avoids a circular import — footer depends on this file's
+      // types only.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { renderFooter } = require('./footer') as { renderFooter: (i: { brand: MarketingBrand; unsubscribeUrl?: string | null }) => string };
+      footerHtml = renderFooter({ brand, unsubscribeUrl: opts?.unsubscribeUrl ?? '{{unsubscribeUrl}}' });
+    } catch { /* footer optional */ }
+  }
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -367,6 +381,7 @@ export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand): s
           <tr>
             <td style="padding:0;">
               ${inner}
+              ${footerHtml}
             </td>
           </tr>
         </table>

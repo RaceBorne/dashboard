@@ -1058,6 +1058,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                   </div>
                 )}
               </SortableContext>
+              <CanvasFooterPreview brand={initialBrand} />
             </div>
           </div>
         </div>
@@ -2075,6 +2076,36 @@ function EmptyCanvas() {
       )}
     >
       Drag a tile from the palette to start, or click one to add.
+    </div>
+  );
+}
+
+
+/**
+ * Read-only brand footer rendered at the bottom of the canvas. It's the
+ * same renderFooter() the sender uses, so the user sees exactly what's
+ * going to ship — minus the interactivity (no select / drag / delete).
+ * Edit the footer in the dedicated Footer designer (/footer).
+ */
+function CanvasFooterPreview({ brand }: { brand: MarketingBrand }) {
+  const html = useMemo(() => {
+    try {
+      // Inline call avoids a circular dependency since both files are TS.
+      // The renderer accepts the brand + a placeholder unsubscribe URL.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mod = require('@/lib/marketing/footer') as { renderFooter: (i: { brand: MarketingBrand; unsubscribeUrl?: string | null }) => string };
+      return mod.renderFooter({ brand, unsubscribeUrl: '#' });
+    } catch {
+      return '';
+    }
+  }, [brand]);
+  if (!html.trim()) return null;
+  return (
+    <div className="relative pointer-events-none select-none" aria-label="Brand footer (preview)">
+      <div className="absolute -top-2 right-2 z-10 text-[9px] uppercase tracking-[0.12em] text-evari-dim bg-evari-ink/80 px-1.5 py-0.5 rounded">
+        Footer · auto-included
+      </div>
+      <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }
