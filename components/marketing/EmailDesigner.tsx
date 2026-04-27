@@ -43,6 +43,7 @@ import {
   Type,
   Undo2,
   Unlock,
+  Wand2,
   X,
 } from 'lucide-react';
 import {
@@ -263,9 +264,19 @@ function BrandKitPreview({ brand }: { brand: MarketingBrand }) {
  * end of the canvas with that preset applied. Lets the user reach for
  * 'Hero headline' or 'Primary CTA' without rebuilding from sliders.
  */
-function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock: (b: EmailBlock) => void }) {
+function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onApplyButtonPreset }: {
+  brand: MarketingBrand;
+  selectedBlock: EmailBlock | null;
+  onAddBlock: (b: EmailBlock) => void;
+  onApplyTypoPreset: (p: TypographyPreset) => void;
+  onApplyButtonPreset: (p: ButtonPreset) => void;
+}) {
   const typo = brand.fonts.presets ?? [];
   const buttons = brand.fonts.buttonPresets ?? [];
+  const selKind: 'typo' | 'button' | null = selectedBlock
+    ? (selectedBlock.type === 'heading' || selectedBlock.type === 'text' ? 'typo'
+       : selectedBlock.type === 'button' ? 'button' : null)
+    : null;
 
   function addFromTypoPreset(p: TypographyPreset, target: 'heading' | 'text') {
     if (target === 'heading') {
@@ -339,12 +350,19 @@ function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock
 
   return (
     <div className="space-y-4">
+      {selKind ? (
+        <div className="rounded-md border border-evari-gold/40 bg-evari-gold/5 px-2.5 py-1.5 text-[10px] text-evari-gold flex items-center gap-1.5">
+          <Wand2 className="h-3 w-3 shrink-0" />
+          <span>Click any preset to apply it to the selected {selKind === 'typo' ? 'text/heading' : 'button'}.</span>
+        </div>
+      ) : null}
       {typo.length > 0 ? (
         <section>
           <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-2">Typography</h3>
           <ul className="space-y-1.5">
-            {typo.map((p) => (
-              <li key={p.id} className="group rounded-md border border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-ink/50 transition-colors overflow-hidden">
+            {typo.map((p, idx) => (
+              <PresetCardDraggable key={p.id} draggableId={`preset-typo:${idx}`} data={{ presetTypo: p }}>
+              <li className="group rounded-md border border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-ink/50 transition-colors overflow-hidden">
                 <div className="px-2.5 py-2">
                   <div
                     className="text-evari-text leading-tight truncate"
@@ -368,24 +386,38 @@ function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock
                   </div>
                 </div>
                 <div className="flex border-t border-evari-edge/20 divide-x divide-evari-edge/20">
-                  <button
-                    type="button"
-                    onClick={() => addFromTypoPreset(p, 'heading')}
-                    className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] font-medium py-1.5 text-evari-dim hover:text-evari-gold hover:bg-evari-gold/10 transition-colors"
-                    title="Add as a heading block"
-                  >
-                    <Plus className="h-3 w-3" />Heading
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => addFromTypoPreset(p, 'text')}
-                    className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] font-medium py-1.5 text-evari-dim hover:text-evari-gold hover:bg-evari-gold/10 transition-colors"
-                    title="Add as a text block"
-                  >
-                    <Plus className="h-3 w-3" />Text
-                  </button>
+                  {selKind === 'typo' ? (
+                    <button
+                      type="button"
+                      onClick={() => onApplyTypoPreset(p)}
+                      className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] font-medium py-1.5 text-evari-gold bg-evari-gold/10 hover:bg-evari-gold/20 transition-colors"
+                      title="Apply this style to the selected block"
+                    >
+                      <Wand2 className="h-3 w-3" />Apply to selected
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => addFromTypoPreset(p, 'heading')}
+                        className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] font-medium py-1.5 text-evari-dim hover:text-evari-gold hover:bg-evari-gold/10 transition-colors"
+                        title="Add as a heading block"
+                      >
+                        <Plus className="h-3 w-3" />Heading
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addFromTypoPreset(p, 'text')}
+                        className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] font-medium py-1.5 text-evari-dim hover:text-evari-gold hover:bg-evari-gold/10 transition-colors"
+                        title="Add as a text block"
+                      >
+                        <Plus className="h-3 w-3" />Text
+                      </button>
+                    </>
+                  )}
                 </div>
               </li>
+              </PresetCardDraggable>
             ))}
           </ul>
         </section>
@@ -394,13 +426,19 @@ function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock
         <section>
           <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-2">Buttons</h3>
           <ul className="space-y-1.5">
-            {buttons.map((p) => (
-              <li key={p.id}>
+            {buttons.map((p, idx) => (
+              <PresetCardDraggable key={p.id} draggableId={`preset-button:${idx}`} data={{ presetButton: p }}>
+              <li>
                 <button
                   type="button"
-                  onClick={() => addFromButtonPreset(p)}
-                  className="w-full flex items-center gap-2.5 rounded-md border border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-ink/50 transition-colors px-2.5 py-2 group"
-                  title={`Insert a button using "${p.name}"`}
+                  onClick={() => selKind === 'button' ? onApplyButtonPreset(p) : addFromButtonPreset(p)}
+                  className={cn(
+                    'w-full flex items-center gap-2.5 rounded-md border transition-colors px-2.5 py-2 group',
+                    selKind === 'button'
+                      ? 'border-evari-gold/40 bg-evari-gold/10 hover:bg-evari-gold/20'
+                      : 'border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-ink/50',
+                  )}
+                  title={selKind === 'button' ? `Apply "${p.name}" to the selected button` : `Insert a button using "${p.name}"`}
                 >
                   <span
                     className="inline-flex items-center justify-center px-2.5 py-1 text-[10px] font-medium shrink-0"
@@ -420,13 +458,37 @@ function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock
                     <span className="block text-[11px] text-evari-text leading-tight truncate">{p.name}</span>
                     <span className="block text-[9px] text-evari-dimmer font-mono tabular-nums mt-0.5">{p.paddingYPx}px · r{p.borderRadiusPx}</span>
                   </span>
-                  <Plus className="h-3 w-3 text-evari-dim group-hover:text-evari-gold transition-colors shrink-0" />
+                  {selKind === 'button' ? (
+                    <Wand2 className="h-3 w-3 text-evari-gold shrink-0" />
+                  ) : (
+                    <Plus className="h-3 w-3 text-evari-dim group-hover:text-evari-gold transition-colors shrink-0" />
+                  )}
                 </button>
               </li>
+              </PresetCardDraggable>
             ))}
           </ul>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Wraps a preset card in a useDraggable so it can be dropped onto an
+ * existing block in the canvas. The drop handler reads the data payload
+ * to figure out which preset type and applies the patch via updateBlock.
+ */
+function PresetCardDraggable({ draggableId, data, children }: { draggableId: string; data: { presetTypo?: TypographyPreset; presetButton?: ButtonPreset }; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: draggableId, data });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={cn('cursor-grab active:cursor-grabbing touch-none', isDragging && 'opacity-50')}
+    >
+      {children}
     </div>
   );
 }
@@ -881,6 +943,9 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     if (id.startsWith('palette:')) {
       const tile = ev.active.data.current?.paletteTile as BlockTile | undefined;
       setDragOverlay(tile?.label ?? null);
+    } else if (id.startsWith('preset-typo:') || id.startsWith('preset-button:')) {
+      const data = ev.active.data.current as { presetTypo?: TypographyPreset; presetButton?: ButtonPreset } | undefined;
+      setDragOverlay(data?.presetTypo?.name ?? data?.presetButton?.name ?? 'Preset');
     } else {
       const b = findBlockById(design.blocks, id);
       setDragOverlay(b ? labelForBlock(b) : null);
@@ -897,6 +962,55 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     //   'end-of-list'           → append to root
     //   'section-end:<id>'      → append into that section's children
     //   '<blockId>'             → splice before that block in its container
+    // Preset drag → apply to the block under the cursor.
+    if (activeId.startsWith('preset-typo:') || activeId.startsWith('preset-button:')) {
+      const data = ev.active.data.current as { presetTypo?: TypographyPreset; presetButton?: ButtonPreset } | undefined;
+      // Find the target block — overId may be a block id, an insertion zone
+      // (which has the same id as the block), or a section drop target.
+      let targetId: string | null = null;
+      if (overId.startsWith('section-body:')) targetId = overId.slice('section-body:'.length);
+      else if (overId.startsWith('section-end:')) targetId = overId.slice('section-end:'.length);
+      else if (overId !== 'end-of-list') targetId = overId;
+      if (!targetId) return;
+      const target = findBlockById(design.blocks, targetId);
+      if (!target) return;
+      if (data?.presetTypo && (target.type === 'heading' || target.type === 'text')) {
+        const p = data.presetTypo;
+        const patch: Partial<EmailBlock> = {
+          fontFamily: p.fontFamily ?? '',
+          fontSizePx: p.fontSizePx,
+          fontWeight: p.fontWeight,
+          letterSpacingEm: p.letterSpacingEm,
+          color: p.color,
+          textTransform: p.textTransform ?? 'none',
+        } as Partial<EmailBlock>;
+        if (target.type === 'text' && p.lineHeight) {
+          (patch as Partial<Extract<EmailBlock, { type: 'text' }>>).lineHeight = p.lineHeight;
+        }
+        updateBlock(target.id, patch);
+        setSelectedId(target.id);
+      }
+      if (data?.presetButton && target.type === 'button') {
+        const p = data.presetButton;
+        updateBlock(target.id, {
+          backgroundColor: p.backgroundColor,
+          textColor: p.textColor,
+          borderRadiusPx: p.borderRadiusPx,
+          paddingXPx: p.paddingXPx,
+          paddingYPx: p.paddingYPx,
+          fontFamily: p.fontFamily ?? '',
+          fontSizePx: p.fontSizePx,
+          fontWeight: p.fontWeight,
+          letterSpacingEm: p.letterSpacingEm,
+          textTransform: p.textTransform,
+          widthMode: p.widthMode,
+          widthPx: p.widthPx,
+        } as Partial<EmailBlock>);
+        setSelectedId(target.id);
+      }
+      return;
+    }
+
     if (activeId.startsWith('palette:')) {
       const tile = ev.active.data.current?.paletteTile as BlockTile | undefined;
       if (!tile?.make) return;
@@ -1038,6 +1152,43 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             <div className="space-y-1 min-w-0 overflow-y-auto pr-1 flex-1 min-h-0" role="tabpanel">
               <PresetsPanel
                 brand={initialBrand}
+                selectedBlock={selectedId ? findBlockById(design.blocks, selectedId) : null}
+                onApplyTypoPreset={(p) => {
+                  if (!selectedId) return;
+                  const sel = findBlockById(design.blocks, selectedId);
+                  if (!sel || (sel.type !== 'heading' && sel.type !== 'text')) return;
+                  const patch: Partial<EmailBlock> = {
+                    fontFamily: p.fontFamily ?? '',
+                    fontSizePx: p.fontSizePx,
+                    fontWeight: p.fontWeight,
+                    letterSpacingEm: p.letterSpacingEm,
+                    color: p.color,
+                    textTransform: p.textTransform ?? 'none',
+                  } as Partial<EmailBlock>;
+                  if (sel.type === 'text' && p.lineHeight) {
+                    (patch as Partial<Extract<EmailBlock, { type: 'text' }>>).lineHeight = p.lineHeight;
+                  }
+                  updateBlock(selectedId, patch);
+                }}
+                onApplyButtonPreset={(p) => {
+                  if (!selectedId) return;
+                  const sel = findBlockById(design.blocks, selectedId);
+                  if (!sel || sel.type !== 'button') return;
+                  updateBlock(selectedId, {
+                    backgroundColor: p.backgroundColor,
+                    textColor: p.textColor,
+                    borderRadiusPx: p.borderRadiusPx,
+                    paddingXPx: p.paddingXPx,
+                    paddingYPx: p.paddingYPx,
+                    fontFamily: p.fontFamily ?? '',
+                    fontSizePx: p.fontSizePx,
+                    fontWeight: p.fontWeight,
+                    letterSpacingEm: p.letterSpacingEm,
+                    textTransform: p.textTransform,
+                    widthMode: p.widthMode,
+                    widthPx: p.widthPx,
+                  } as Partial<EmailBlock>);
+                }}
                 onAddBlock={(b) => commit({ ...design, blocks: enforcePins([...design.blocks, b]) })}
               />
             </div>
