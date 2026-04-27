@@ -3757,6 +3757,7 @@ function SplitItemTextFields({ item, brand, onChange }: { item: Extract<SplitIte
         <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Colour</span>
         <input type="color" value={item.color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
       </label>
+      <SliderField label="Spacer below" value={item.paddingBottomPx ?? 8} min={0} max={64} suffix="px" onChange={(v) => onChange({ paddingBottomPx: v })} />
     </div>
   );
 }

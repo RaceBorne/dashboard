@@ -636,6 +636,10 @@ export type SplitItem =
       alignment?: 'left' | 'center' | 'right';
       /** CSS text-transform: 'none' (default), 'uppercase', 'lowercase', 'capitalize'. */
       textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize';
+      /** Bottom spacer in px below the text item, before the next stacked
+       *  item or the cell edge. Default 8px (same as the legacy hardcoded
+       *  margin-bottom). */
+      paddingBottomPx?: number;
     })
   | (SplitItemBase & {
       kind: 'button';
