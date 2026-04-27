@@ -104,7 +104,11 @@ function renderSocial(b: Extract<FooterBlock, { type: 'social' }>, brand: Market
   const size = b.iconSizePx ?? 24;
   const gap = b.gapPx ?? 12;
   const colourHex = (b.color || '#1a1a1a').replace('#', '');
-  const links = (Object.entries(b.social) as Array<[keyof FooterSocial, string | undefined]>)
+  // Brand kit's socials are the single source of truth. block.social is
+  // a per-block override (rarely needed); merge so any URL set on the
+  // block wins, otherwise pull from brand.
+  const merged: FooterSocial = { ...(brand.socials ?? {}), ...(b.social ?? {}) };
+  const links = (Object.entries(merged) as Array<[keyof FooterSocial, string | undefined]>)
     .filter(([, url]) => Boolean(url && url.trim()))
     .map(([key, url]) => {
       const label = SOCIAL_LABELS[key] ?? String(key);

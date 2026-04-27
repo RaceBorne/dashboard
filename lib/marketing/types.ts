@@ -371,6 +371,10 @@ export interface MarketingBrand {
   /** Raw value of dashboard_mkt_brand.signature_html. Null = use the
    *  rendered default. UI binds the editor to this. */
   signatureOverride: string | null;
+  /** Single source of truth for the company's social URLs. The footer
+   *  Social block, the email signature, and any social-thumbnail
+   *  generator all read from here so the user only fills them in once. */
+  socials: FooterSocial;
   createdAt: string;
   updatedAt: string;
 }

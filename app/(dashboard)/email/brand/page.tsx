@@ -9,7 +9,7 @@ export default async function BrandPage() {
   const brand = await getBrand();
   return (
     <>
-      <TopBar title="Brand" subtitle="Email · Design system" />
+      <TopBar title="Brand setup" subtitle="Email · Design system" />
       <BrandClient initialBrand={brand} />
     </>
   );

@@ -585,6 +585,7 @@ export function renderEmailDesignWithStub(design: EmailDesign, brandLike?: Parti
     customFonts: brandLike?.customFonts ?? [],
     footerDesign: brandLike?.footerDesign ?? null,
     signatureDesign: brandLike?.signatureDesign ?? null,
+    socials: brandLike?.socials ?? {},
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
   };

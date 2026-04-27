@@ -10,7 +10,7 @@
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { renderSignature } from '@/lib/dashboard/signature';
 import { DEFAULT_SIGNATURE_HTML } from '@/lib/mock/senders';
-import type { BrandColors, BrandFonts, CustomFont, FooterDesign, MarketingBrand, SignatureDesign } from './types';
+import type { BrandColors, BrandFonts, CustomFont, FooterDesign, MarketingBrand, SignatureDesign , FooterSocial } from './types';
 
 interface BrandRow {
   id: 'singleton';
@@ -25,6 +25,7 @@ interface BrandRow {
   custom_fonts: unknown;
   footer_design: FooterDesign | null;
   signature_design: SignatureDesign | null;
+  socials: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +53,7 @@ const DEFAULTS: MarketingBrand = {
   customFonts: [],
   footerDesign: null,
   signatureDesign: null,
+  socials: {},
   createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
 };
@@ -71,6 +73,7 @@ function rowToBrand(r: BrandRow): MarketingBrand {
     customFonts: Array.isArray(r.custom_fonts) ? (r.custom_fonts as CustomFont[]) : [],
     footerDesign: (r.footer_design as FooterDesign | null) ?? null,
     signatureDesign: (r.signature_design as SignatureDesign | null) ?? null,
+    socials: (r.socials && typeof r.socials === 'object') ? (r.socials as FooterSocial) : {},
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -170,6 +173,7 @@ export async function updateBrand(
     signatureHtml: string | null;
     footerDesign: FooterDesign | null;
     signatureDesign: SignatureDesign | null;
+    socials: FooterSocial;
   }>,
 ): Promise<MarketingBrand | null> {
   const sb = createSupabaseAdmin();
@@ -185,6 +189,7 @@ export async function updateBrand(
   if ('signatureHtml' in patch)   dbPatch.signature_html = patch.signatureHtml;
   if ('footerDesign' in patch)    dbPatch.footer_design = patch.footerDesign;
   if ('signatureDesign' in patch) dbPatch.signature_design = patch.signatureDesign;
+  if ('socials' in patch)         dbPatch.socials = patch.socials;
   if (Object.keys(dbPatch).length === 0) return getBrand();
   const { data, error } = await sb
     .from('dashboard_mkt_brand')

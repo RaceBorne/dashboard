@@ -10,6 +10,7 @@ import type {
   BrandFonts,
   CustomFont,
   FooterDesign,
+  FooterSocial,
   MarketingBrand,
   SignatureDesign,
 } from '@/lib/marketing/types';
@@ -73,6 +74,7 @@ export function BrandClient({ initialBrand }: Props) {
   const [customFonts, setCustomFonts] = useState<CustomFont[]>(brand.customFonts);
   const [footerDesign, setFooterDesign] = useState<FooterDesign>(brand.footerDesign ?? DEFAULT_FOOTER_DESIGN);
   const [signatureDesign, setSignatureDesign] = useState<SignatureDesign>(brand.signatureDesign ?? DEFAULT_SIGNATURE_DESIGN);
+  const [socials, setSocials] = useState<FooterSocial>(brand.socials ?? {});
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +96,8 @@ export function BrandClient({ initialBrand }: Props) {
     JSON.stringify(colors) !== JSON.stringify(brand.colors) ||
     JSON.stringify(fonts)  !== JSON.stringify(brand.fonts) ||
     JSON.stringify(footerDesign) !== JSON.stringify(brand.footerDesign ?? DEFAULT_FOOTER_DESIGN) ||
-    JSON.stringify(signatureDesign) !== JSON.stringify(brand.signatureDesign ?? DEFAULT_SIGNATURE_DESIGN);
+    JSON.stringify(signatureDesign) !== JSON.stringify(brand.signatureDesign ?? DEFAULT_SIGNATURE_DESIGN) ||
+    JSON.stringify(socials) !== JSON.stringify(brand.socials ?? {});
 
   /**
    * Save → PATCH the API → re-sync EVERY local state field from the
@@ -122,6 +125,7 @@ export function BrandClient({ initialBrand }: Props) {
         signatureHtml:    null,
         signatureDesign,
         footerDesign,
+        socials,
       };
       const res = await fetch('/api/marketing/brand', {
         method: 'PATCH',
@@ -149,6 +153,7 @@ export function BrandClient({ initialBrand }: Props) {
       setCustomFonts(fresh.customFonts);
       setFooterDesign(fresh.footerDesign ?? DEFAULT_FOOTER_DESIGN);
       setSignatureDesign(fresh.signatureDesign ?? DEFAULT_SIGNATURE_DESIGN);
+      setSocials(fresh.socials ?? {});
       setInfo('Saved');
       router.refresh();
     } catch (err) {
@@ -293,6 +298,39 @@ export function BrandClient({ initialBrand }: Props) {
                 onChange={(next) => setCustomFonts(next)}
               />
             </div>
+          </div>
+        </section>
+
+        {/* Social media — single source of truth for company URLs.
+            Footer Social block, email signature, and any social-thumbnail
+            generator all read from here so the user only fills them in
+            once. */}
+        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-3 xl:col-span-2">
+          <header className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-evari-text">Social media</h2>
+            <span className="text-[10px] text-evari-dimmer">Single source of truth — used by every email + thumbnail</span>
+          </header>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+            {([
+              { key: 'instagram', label: 'Instagram',   placeholder: 'https://instagram.com/yourhandle' },
+              { key: 'twitter',   label: 'X / Twitter', placeholder: 'https://x.com/yourhandle' },
+              { key: 'linkedin',  label: 'LinkedIn',    placeholder: 'https://linkedin.com/company/yourcompany' },
+              { key: 'facebook',  label: 'Facebook',    placeholder: 'https://facebook.com/yourpage' },
+              { key: 'tiktok',    label: 'TikTok',      placeholder: 'https://tiktok.com/@yourhandle' },
+              { key: 'youtube',   label: 'YouTube',     placeholder: 'https://youtube.com/@yourchannel' },
+              { key: 'website',   label: 'Website',     placeholder: 'https://your-site.com' },
+            ] as Array<{ key: keyof FooterSocial; label: string; placeholder: string }>).map((f) => (
+              <label key={String(f.key)} className="block">
+                <span className="block text-[10px] font-medium uppercase tracking-[0.1em] text-evari-dimmer mb-1">{f.label}</span>
+                <input
+                  type="url"
+                  value={socials[f.key] ?? ''}
+                  onChange={(e) => setSocials((cur: FooterSocial) => ({ ...cur, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                  className={inputCls + ' font-mono text-[12px]'}
+                />
+              </label>
+            ))}
           </div>
         </section>
 

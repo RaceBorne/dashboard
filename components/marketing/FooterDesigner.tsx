@@ -482,9 +482,6 @@ function AddressFields({ block, onChange }: { block: Extract<FooterBlock, { type
 }
 
 function SocialFields({ block, onChange }: { block: Extract<FooterBlock, { type: 'social' }>; onChange: (p: Partial<Extract<FooterBlock, { type: 'social' }>>) => void }) {
-  function setSocial(k: keyof FooterSocial, v: string) {
-    onChange({ social: { ...block.social, [k]: v } });
-  }
   const size = block.iconSizePx ?? 24;
   const gap  = block.gapPx ?? 12;
   return (
@@ -507,15 +504,10 @@ function SocialFields({ block, onChange }: { block: Extract<FooterBlock, { type:
         </span>
         <input type="range" min={0} max={48} value={gap} onChange={(e) => onChange({ gapPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
       </label>
-      <div className="space-y-1.5 mt-2">
-        {SOCIAL_FIELDS.map((f) => (
-          <label key={f.key} className="block">
-            <span className="block text-[10px] text-evari-dimmer mb-0.5">{f.label}</span>
-            <input type="url" value={block.social[f.key] ?? ''} onChange={(e) => setSocial(f.key, e.target.value)} placeholder={f.placeholder} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text font-mono text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
-          </label>
-        ))}
+      <div className="mt-2 rounded-md border border-evari-edge/30 bg-evari-ink/40 px-2.5 py-2 text-[11px] text-evari-dim leading-snug">
+        URLs come from the <a href="/email/brand" className="text-evari-gold hover:underline">Brand setup → Social media</a> panel. Set them once there and every email + thumbnail uses the same handles.
       </div>
-      <p className="text-[10px] text-evari-dimmer leading-snug">Icons render via the Simple Icons CDN — colour matches the brand colour exactly and falls back to the platform name as alt text in clients that block images.</p>
+      <p className="text-[10px] text-evari-dimmer leading-snug">Icons render via Iconify (Material Design) and recolour to match the brand colour exactly. Falls back to the platform name as alt text in clients that block images.</p>
     </div>
   );
 }

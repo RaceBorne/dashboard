@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getBrand, updateBrand } from '@/lib/marketing/brand';
-import type { BrandColors, BrandFonts, FooterDesign, SignatureDesign } from '@/lib/marketing/types';
+import type { BrandColors, BrandFonts, FooterDesign, FooterSocial, SignatureDesign } from '@/lib/marketing/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,6 +25,7 @@ export async function PATCH(req: Request) {
   if ('signatureHtml' in body)  patch.signatureHtml  = body.signatureHtml as string | null;
   if ('footerDesign' in body)    patch.footerDesign    = body.footerDesign as FooterDesign | null;
   if ('signatureDesign' in body) patch.signatureDesign = body.signatureDesign as SignatureDesign | null;
+  if ('socials' in body)         patch.socials         = body.socials as FooterSocial;
   const brand = await updateBrand(patch);
   if (!brand) return NextResponse.json({ ok: false, error: 'Update failed' }, { status: 500 });
   return NextResponse.json({ ok: true, brand });
