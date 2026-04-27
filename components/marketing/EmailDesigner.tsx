@@ -18,6 +18,7 @@ import {
   Layers,
   Layout,
   Link2,
+  Lock,
   Loader2,
   Maximize2,
   Megaphone,
@@ -40,6 +41,7 @@ import {
   Trash2,
   Type,
   Undo2,
+  Unlock,
   X,
 } from 'lucide-react';
 import {
@@ -1472,21 +1474,38 @@ function SliderField({ label, value, min, max, step, suffix, onChange }: {
   label: string; value: number; min: number; max: number; step?: number;
   suffix?: string; onChange: (v: number) => void;
 }) {
+  const stepPrecision = (step ?? 1).toString().split('.')[1]?.length ?? 0;
+  const clamp = (n: number) => Math.min(max, Math.max(min, n));
   return (
     <label className="block">
-      <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
-        <span>{label}</span>
-        <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{value}{suffix ?? ''}</span>
-      </span>
-      <input
-        type="range"
-        value={value}
-        min={min}
-        max={max}
-        step={step ?? 1}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-1.5 rounded-full bg-evari-ink accent-evari-gold cursor-pointer"
-      />
+      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">{label}</span>
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          value={value}
+          min={min}
+          max={max}
+          step={step ?? 1}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="flex-1 h-1.5 rounded-full bg-evari-ink accent-evari-gold cursor-pointer"
+        />
+        <div className="flex items-center gap-0.5 shrink-0">
+          <input
+            type="number"
+            value={Number(value.toFixed(stepPrecision))}
+            min={min}
+            max={max}
+            step={step ?? 1}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (!Number.isFinite(v)) return;
+              onChange(clamp(stepPrecision > 0 ? Number(v.toFixed(stepPrecision)) : Math.round(v)));
+            }}
+            className="w-14 px-1.5 py-0.5 rounded bg-evari-ink text-evari-text text-[11px] font-mono tabular-nums border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none text-right"
+          />
+          {suffix ? <span className="text-[10px] text-evari-dimmer font-mono">{suffix}</span> : null}
+        </div>
+      </div>
     </label>
   );
 }
@@ -2045,40 +2064,66 @@ function PaddingFields({ block, onChange }: { block: PaddingPatch; onChange: (p:
   const bot   = block.paddingBottomPx ?? 0;
   const left  = block.paddingLeftPx   ?? 0;
   const right = block.paddingRightPx  ?? 0;
+  // Lock state — when locked, dragging either slider in the pair changes
+  // both values to the same number. Per-pair, persisted only locally.
+  const [lockY, setLockY] = useState(top === bot);
+  const [lockX, setLockX] = useState(left === right);
   return (
-    <div className="space-y-1.5 pt-1 border-t border-evari-edge/10">
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
-            <span>Padding top</span>
-            <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{top}px</span>
-          </span>
-          <input type="range" min={0} max={120} value={top} onChange={(e) => onChange({ paddingTopPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
-        </label>
-        <label className="block">
-          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
-            <span>Padding bottom</span>
-            <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{bot}px</span>
-          </span>
-          <input type="range" min={0} max={120} value={bot} onChange={(e) => onChange({ paddingBottomPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
-        </label>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
-            <span>Padding left</span>
-            <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{left}px</span>
-          </span>
-          <input type="range" min={0} max={120} value={left} onChange={(e) => onChange({ paddingLeftPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
-        </label>
-        <label className="block">
-          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
-            <span>Padding right</span>
-            <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{right}px</span>
-          </span>
-          <input type="range" min={0} max={120} value={right} onChange={(e) => onChange({ paddingRightPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
-        </label>
-      </div>
+    <div className="space-y-2 pt-1 border-t border-evari-edge/10">
+      {/* Vertical pair — top + bottom */}
+      <PairedPadding
+        labelA="Padding top"    valueA={top}
+        labelB="Padding bottom" valueB={bot}
+        locked={lockY}
+        onToggleLock={() => setLockY((v) => !v)}
+        onChangeA={(v) => onChange(lockY ? { paddingTopPx: v, paddingBottomPx: v } : { paddingTopPx: v })}
+        onChangeB={(v) => onChange(lockY ? { paddingTopPx: v, paddingBottomPx: v } : { paddingBottomPx: v })}
+      />
+      {/* Horizontal pair — left + right */}
+      <PairedPadding
+        labelA="Padding left"  valueA={left}
+        labelB="Padding right" valueB={right}
+        locked={lockX}
+        onToggleLock={() => setLockX((v) => !v)}
+        onChangeA={(v) => onChange(lockX ? { paddingLeftPx: v, paddingRightPx: v } : { paddingLeftPx: v })}
+        onChangeB={(v) => onChange(lockX ? { paddingLeftPx: v, paddingRightPx: v } : { paddingRightPx: v })}
+      />
+    </div>
+  );
+}
+
+/**
+ * Two padding sliders (with number inputs) sitting either side of a
+ * lock toggle. When locked, both sliders move in lockstep — adjust
+ * either, both update. Click the lock to unlock.
+ */
+function PairedPadding({ labelA, valueA, labelB, valueB, locked, onToggleLock, onChangeA, onChangeB }: {
+  labelA: string; valueA: number;
+  labelB: string; valueB: number;
+  locked: boolean;
+  onToggleLock: () => void;
+  onChangeA: (v: number) => void;
+  onChangeB: (v: number) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+      <SliderField label={labelA} value={valueA} min={0} max={120} suffix="px" onChange={onChangeA} />
+      <button
+        type="button"
+        onClick={onToggleLock}
+        className={cn(
+          'mb-1 self-end inline-flex items-center justify-center h-7 w-7 rounded-md border transition-colors',
+          locked
+            ? 'border-evari-gold/60 bg-evari-gold/15 text-evari-gold'
+            : 'border-evari-edge/30 text-evari-dim hover:text-evari-text hover:border-evari-edge/60',
+        )}
+        title={locked ? 'Linked — both sides change together. Click to unlink.' : 'Unlinked. Click to link both sides.'}
+        aria-pressed={locked}
+        aria-label={locked ? 'Unlink padding' : 'Link padding'}
+      >
+        {locked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+      </button>
+      <SliderField label={labelB} value={valueB} min={0} max={120} suffix="px" onChange={onChangeB} />
     </div>
   );
 }
