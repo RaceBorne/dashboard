@@ -3150,12 +3150,12 @@ function makeSplitItem(kind: SplitItem['kind']): SplitItem {
     return { id: nidSplitItem(), kind: 'image', src: '', alt: '', shadow: 'none' };
   }
   if (kind === 'text') {
-    return { id: nidSplitItem(), kind: 'text', html: 'Side-by-side text.', fontSizePx: 16, lineHeight: 1.55, color: '#333333', fontFamily: '' };
+    return { id: nidSplitItem(), kind: 'text', html: 'Side-by-side text.', fontSizePx: 14, lineHeight: 1.55, color: '#333333', fontFamily: '', fontWeight: 400 };
   }
   if (kind === 'divider') {
     return { id: nidSplitItem(), kind: 'divider', color: '#e5e5e5', thicknessPx: 1, marginYPx: 8 };
   }
-  return { id: nidSplitItem(), kind: 'button', label: 'Click me', url: '', backgroundColor: '#1a1a1a', textColor: '#ffffff', fontSizePx: 13, paddingXPx: 18, paddingYPx: 10, borderRadiusPx: 4, fontFamily: '' };
+  return { id: nidSplitItem(), kind: 'button', label: 'Click me', url: '', backgroundColor: '#1a1a1a', textColor: '#ffffff', fontSizePx: 12, paddingXPx: 14, paddingYPx: 8, borderRadiusPx: 4, fontFamily: '', fontWeight: 600 };
 }
 
 /**
@@ -3425,7 +3425,7 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
   return (
     <div className="space-y-2">
       <div className="rounded-md overflow-hidden border border-evari-edge/30 bg-evari-ink">
-        <div className="aspect-[5/3] flex items-center justify-center bg-zinc-100">
+        <div className="aspect-[2/1] flex items-center justify-center bg-zinc-100">
           {item.src ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={item.src} alt={item.alt} className="max-h-full max-w-full object-contain" />
@@ -3433,7 +3433,7 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
             <span className="text-[10px] text-evari-dim">No image picked</span>
           )}
         </div>
-        <div className="flex items-center gap-2 px-2 py-1.5">
+        <div className="flex items-center gap-2 px-2 py-1">
           <button type="button" onClick={() => setPickerOpen(true)} className="text-[11px] text-evari-gold hover:underline">
             {item.src ? 'Replace from library' : 'Choose from library'}
           </button>
@@ -3497,11 +3497,14 @@ function SplitItemTextFields({ item, brand, onChange }: { item: Extract<SplitIte
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text (HTML allowed)</span>
         <textarea value={item.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[80px] font-mono')} />
       </label>
-      <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
+      <div className="grid grid-cols-2 gap-2">
+        <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
+        <SplitWeightField value={item.fontWeight ?? 400} onChange={(v) => onChange({ fontWeight: v })} />
+      </div>
       <div className="grid grid-cols-3 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Size (px)</span>
-          <input type="number" min={8} max={64} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(8, Math.min(64, Number(e.target.value) || 16)) })} className={cn(inputCls, 'font-mono')} />
+          <input type="number" min={8} max={64} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(8, Math.min(64, Number(e.target.value) || 14)) })} className={cn(inputCls, 'font-mono')} />
         </label>
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Line height</span>
@@ -3543,7 +3546,10 @@ function SplitItemButtonFields({ item, brand, onChange }: { item: Extract<SplitI
           </select>
         </label>
       ) : null}
-      <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
+      <div className="grid grid-cols-2 gap-2">
+        <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
+        <SplitWeightField value={item.fontWeight ?? 600} onChange={(v) => onChange({ fontWeight: v })} />
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Label</span>
@@ -3565,17 +3571,17 @@ function SplitItemButtonFields({ item, brand, onChange }: { item: Extract<SplitI
         </label>
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Size (px)</span>
-          <input type="number" min={9} max={32} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(9, Math.min(32, Number(e.target.value) || 13)) })} className={cn(inputCls, 'font-mono')} />
+          <input type="number" min={9} max={24} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(9, Math.min(24, Number(e.target.value) || 12)) })} className={cn(inputCls, 'font-mono')} />
         </label>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Pad X (px)</span>
-          <input type="number" min={0} max={64} value={item.paddingXPx} onChange={(e) => onChange({ paddingXPx: Math.max(0, Math.min(64, Number(e.target.value) || 18)) })} className={cn(inputCls, 'font-mono')} />
+          <input type="number" min={0} max={32} value={item.paddingXPx} onChange={(e) => onChange({ paddingXPx: Math.max(0, Math.min(32, Number(e.target.value) || 14)) })} className={cn(inputCls, 'font-mono')} />
         </label>
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Pad Y (px)</span>
-          <input type="number" min={0} max={64} value={item.paddingYPx} onChange={(e) => onChange({ paddingYPx: Math.max(0, Math.min(64, Number(e.target.value) || 10)) })} className={cn(inputCls, 'font-mono')} />
+          <input type="number" min={0} max={32} value={item.paddingYPx} onChange={(e) => onChange({ paddingYPx: Math.max(0, Math.min(32, Number(e.target.value) || 8)) })} className={cn(inputCls, 'font-mono')} />
         </label>
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Radius (px)</span>
@@ -3615,6 +3621,25 @@ function SplitItemDividerFields({ item, onChange }: { item: Extract<SplitItem, {
         </div>
       </label>
     </div>
+  );
+}
+
+function SplitWeightField({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const opts: Array<{ v: number; label: string }> = [
+    { v: 300, label: '300 Light' },
+    { v: 400, label: '400 Regular' },
+    { v: 500, label: '500 Medium' },
+    { v: 600, label: '600 Semibold' },
+    { v: 700, label: '700 Bold' },
+    { v: 800, label: '800 Extrabold' },
+  ];
+  return (
+    <label className="block">
+      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Weight</span>
+      <select value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputCls}>
+        {opts.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+      </select>
+    </label>
   );
 }
 

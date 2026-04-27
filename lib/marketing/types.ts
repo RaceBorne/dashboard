@@ -617,6 +617,8 @@ export type SplitItem =
       color: string;
       /** Optional family override. Empty / undefined inherits brand body. */
       fontFamily?: string;
+      /** 100-900 numeric weight. Default 400. */
+      fontWeight?: number;
     })
   | (SplitItemBase & {
       kind: 'button';
@@ -630,6 +632,8 @@ export type SplitItem =
       borderRadiusPx: number;
       /** Optional family override. Empty / undefined inherits brand body. */
       fontFamily?: string;
+      /** 100-900 numeric weight. Default 600 (was hardcoded bold = 700). */
+      fontWeight?: number;
     })
   | (SplitItemBase & {
       kind: 'divider';

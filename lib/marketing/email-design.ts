@@ -276,7 +276,8 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
   }
   if (it.kind === 'text') {
     const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : fontFor(brand, '');
-    return `<div style="margin-bottom:8px;font:${it.fontSizePx}px/${it.lineHeight} ${family}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
+    const weight = it.fontWeight ?? 400;
+    return `<div style="margin-bottom:8px;font:${weight} ${it.fontSizePx}px/${it.lineHeight} ${family}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
   }
   if (it.kind === 'divider') {
     const w = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct < 100 ? it.widthPct : 100;
@@ -287,7 +288,8 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
   }
   // button
   const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : '';
-  return `<div style="margin-bottom:8px;"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:bold ${it.fontSizePx}px ${family}Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
+  const weight = it.fontWeight ?? 600;
+  return `<div style="margin-bottom:8px;"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:${weight} ${it.fontSizePx}px ${family}Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
 }
 
 function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
