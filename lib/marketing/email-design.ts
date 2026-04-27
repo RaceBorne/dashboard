@@ -286,7 +286,13 @@ function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: Marke
   const styles = [
     `background-color:${b.backgroundColor}`,
     b.backgroundImage ? `background-image:url(${escape(b.backgroundImage)})` : '',
-    (() => { const css = bgFillCss(b.backgroundSize); return `background-size:${css.size};background-repeat:${css.repeat}`; })(),
+    (() => {
+      const css = bgFillCss(b.backgroundSize);
+      // Explicit width override takes priority over the fill mode unless
+      // the fill mode is 'tile' (tile + custom width is contradictory).
+      const size = b.backgroundWidthPct && b.backgroundSize !== 'tile' ? `${b.backgroundWidthPct}% auto` : css.size;
+      return `background-size:${size};background-repeat:${css.repeat}`;
+    })(),
     `background-position:${b.backgroundPosition ?? 'center'}`,
     `border-radius:${b.borderRadiusPx}px`,
     `padding:${b.paddingPx}px`,

@@ -763,6 +763,12 @@ export type EmailBlock =
       backgroundColor: string;
       backgroundImage?: string;       // URL or asset library id
       backgroundSize?: 'cover' | 'contain' | 'auto' | 'original' | 'fit' | 'fill' | 'tile';
+      /** Optional explicit width override for the background image, as a
+       *  percentage of the section width. When set, overrides whatever the
+       *  fill mode would have applied — the image renders at this width
+       *  with auto height (preserves aspect ratio). Ignored when fill is
+       *  'tile' (tiling uses native size by definition). */
+      backgroundWidthPct?: number;
       backgroundPosition?: string;    // 'center', 'top', 'bottom left', etc
       paddingPx: number;
       borderRadiusPx: number;

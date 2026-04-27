@@ -2409,10 +2409,15 @@ function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSel
   const fill = bgFillCss(block.backgroundSize);
   // Announcement-bar sections default to centred V-alignment.
   const ay = block.contentAlignY ?? (block.kind === 'announcementBar' ? 'middle' : undefined);
+  // Explicit width override (% of section width) takes priority over fill,
+  // except when tiling (which uses the image's native size).
+  const bgSize = block.backgroundWidthPct && block.backgroundSize !== 'tile'
+    ? `${block.backgroundWidthPct}% auto`
+    : fill.size;
   const wrapperStyle: React.CSSProperties = {
     backgroundColor: block.backgroundColor,
     backgroundImage: block.backgroundImage ? `url(${block.backgroundImage})` : undefined,
-    backgroundSize: fill.size,
+    backgroundSize: bgSize,
     backgroundRepeat: fill.repeat,
     backgroundPosition: block.backgroundPosition ?? 'center',
     borderRadius: `${block.borderRadiusPx}px`,
@@ -3044,7 +3049,7 @@ function SectionFields({ block, brand, designWidthPx, onChange }: { block: Extra
               className="w-full aspect-[5/3] rounded-md"
               style={{
                 backgroundImage: `url(${block.backgroundImage})`,
-                backgroundSize: fill.size,
+                backgroundSize: block.backgroundWidthPct && block.backgroundSize !== 'tile' ? `${block.backgroundWidthPct}% auto` : fill.size,
                 backgroundRepeat: fill.repeat,
                 backgroundPosition: position,
                 backgroundColor: block.backgroundColor,
@@ -3095,6 +3100,28 @@ function SectionFields({ block, brand, designWidthPx, onChange }: { block: Extra
             </select>
           </label>
         </div>
+        {fillMode !== 'tile' ? (
+          <div className="mt-2">
+            <SliderField
+              label={`Image width${block.backgroundWidthPct ? '' : ' (auto)'}`}
+              value={block.backgroundWidthPct ?? 100}
+              min={10}
+              max={200}
+              suffix="%"
+              onChange={(v) => onChange({ backgroundWidthPct: v })}
+            />
+            {block.backgroundWidthPct ? (
+              <button
+                type="button"
+                onClick={() => onChange({ backgroundWidthPct: undefined })}
+                className="mt-1 text-[10px] text-evari-dim hover:text-evari-text underline"
+                title="Clear the width override and let the fill mode decide"
+              >
+                Clear width override
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="mt-2">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Position</span>
           <PositionGrid
