@@ -42,6 +42,34 @@ export function TemplateEditor({ template, brand }: Props) {
   const router = useRouter();
   const [name, setName] = useState(template.name);
   const [design, setDesign] = useState<EmailDesign>(template.design);
+  // Local copy of brand so changes saved in /brand (footer, logos, fonts,
+  // colours, presets) refresh in this editor without a hard reload.
+  const [liveBrand, setLiveBrand] = useState<MarketingBrand>(brand);
+  useEffect(() => { setLiveBrand(brand); }, [brand]);
+  useEffect(() => {
+    let cancelled = false;
+    async function refetch() {
+      try {
+        const res = await fetch('/api/marketing/brand', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null) as { brand?: MarketingBrand } | null;
+        if (!cancelled && data?.brand) setLiveBrand(data.brand);
+      } catch { /* swallow — keep prior brand */ }
+    }
+    // Refetch on mount and any time the tab regains focus, so footer /
+    // logo / colour / font edits made in /brand show up here without a
+    // hard refresh.
+    void refetch();
+    function onFocus() { void refetch(); }
+    function onVis() { if (document.visibilityState === 'visible') void refetch(); }
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
   const [device, setDevice] = useState<Device>('desktop');
   const [savedAt, setSavedAt] = useState<string | null>(template.updatedAt);
   const [saving, setSaving] = useState(false);
@@ -172,7 +200,7 @@ export function TemplateEditor({ template, brand }: Props) {
           so each EmailDesigner column manages its own scroll. */}
       <div className="flex-1 min-h-0 overflow-hidden p-3 flex">
         <EmailDesigner
-          initialBrand={brand}
+          initialBrand={liveBrand}
           value={design}
           onChange={setDesign}
           onAIDraft={() => setDrafting(true)}
@@ -181,7 +209,7 @@ export function TemplateEditor({ template, brand }: Props) {
       </div>
 
       {previewing ? (
-        <PreviewModal design={design} brand={brand} onClose={() => setPreviewing(false)} />
+        <PreviewModal design={design} brand={liveBrand} onClose={() => setPreviewing(false)} />
       ) : null}
       {drafting ? (
         <AIDraftModal
