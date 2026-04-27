@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -81,6 +81,21 @@ const FONT_OPTIONS = [
 export function FooterDesigner({ initialBrand, value, onChange }: Props) {
   const design = normaliseDesign(value);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLElement | null>(null);
+  // Click-outside the designer's container drops selection — closes the
+  // open detail window for the row being edited. Same UX as the email
+  // designer.
+  useEffect(() => {
+    if (!selectedId) return;
+    function onMouseDown(e: MouseEvent) {
+      const t = e.target as HTMLElement | null;
+      if (!t || !containerRef.current) return;
+      if (containerRef.current.contains(t)) return;
+      setSelectedId(null);
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [selectedId]);
 
   function updateDesign(patch: Partial<FooterDesign>) {
     onChange({ ...design, ...patch });
@@ -130,7 +145,7 @@ export function FooterDesigner({ initialBrand, value, onChange }: Props) {
     'px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out w-full';
 
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
+    <section ref={containerRef} className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-evari-text">Branded footer</h2>
         <span className="text-[10px] text-evari-dimmer">Drag blocks to reorder · same renderer as the mailbox preview</span>
