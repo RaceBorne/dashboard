@@ -229,19 +229,61 @@ export function getSplitCellItems(c: SplitCell): SplitItem[] {
   return out;
 }
 
+/**
+ * Multi-stop box-shadow presets for split-image items. Authored to
+ * read as soft and realistic in modern email clients (the 'ray traced'
+ * look Craig asked for). Outlook desktop strips box-shadow entirely
+ * which is fine, the image just renders flat.
+ */
+const SPLIT_IMAGE_SHADOWS: Record<'sm' | 'md' | 'lg', { layers: string[]; defaultColor: string }> = {
+  sm: { layers: ['0 1px 2px {c}/0.10', '0 1px 3px {c}/0.06'],     defaultColor: '0,0,0' },
+  md: { layers: ['0 4px 6px {c}/0.08', '0 10px 18px {c}/0.10', '0 18px 36px {c}/0.06'], defaultColor: '0,0,0' },
+  lg: { layers: ['0 8px 16px {c}/0.10', '0 24px 48px {c}/0.14', '0 36px 72px {c}/0.10'], defaultColor: '0,0,0' },
+};
+
+function splitImageShadowCss(preset: 'sm' | 'md' | 'lg', tintHex?: string): string {
+  const ref = SPLIT_IMAGE_SHADOWS[preset];
+  // Convert tint hex to rgb. Falls back to flat black.
+  let rgb = ref.defaultColor;
+  if (tintHex && /^#[0-9a-f]{6}$/i.test(tintHex)) {
+    const n = parseInt(tintHex.slice(1), 16);
+    rgb = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  }
+  return ref.layers
+    .map((tmpl) => tmpl.replace('{c}', `rgba(${rgb}`).replace('/', ','))
+    .map((s2) => s2 + ')')
+    .join(', ');
+}
+
 function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
   if (it.kind === 'image') {
-    if (!it.src) return '';
+    const shadow = it.shadow && it.shadow !== 'none' ? splitImageShadowCss(it.shadow, it.shadowColor) : '';
+    const shadowStyle = shadow ? `box-shadow:${shadow};border-radius:4px;` : '';
+    if (!it.src) {
+      // Phase 4: dashed placeholder card so the user can see the cell
+      // is reserving space for an image they have not picked yet. Mirrors
+      // the empty-image pattern used in the top-level renderImage block.
+      return `<div style="margin-bottom:8px;"><div style="display:inline-block;width:100%;max-width:280px;height:160px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/160px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
+    }
     const widthCss = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct <= 100
       ? `width:${it.widthPct}%;height:auto;`
       : `width:100%;max-width:280px;height:auto;`;
-    return `<div style="margin-bottom:8px;"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;" /></div>`;
+    return `<div style="margin-bottom:8px;"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
   }
   if (it.kind === 'text') {
-    return `<div style="margin-bottom:8px;font:${it.fontSizePx}px/${it.lineHeight} ${fontFor(brand, '')}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
+    const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : fontFor(brand, '');
+    return `<div style="margin-bottom:8px;font:${it.fontSizePx}px/${it.lineHeight} ${family}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
+  }
+  if (it.kind === 'divider') {
+    const w = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct < 100 ? it.widthPct : 100;
+    if (w >= 100) {
+      return `<div style="margin:${it.marginYPx}px 0;height:${it.thicknessPx}px;line-height:0;font-size:0;background:${it.color};">&nbsp;</div>`;
+    }
+    return `<div style="margin:${it.marginYPx}px 0;text-align:center;font-size:0;line-height:0;"><div style="display:inline-block;width:${w}%;height:${it.thicknessPx}px;background:${it.color};">&nbsp;</div></div>`;
   }
   // button
-  return `<div style="margin-bottom:8px;"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:bold ${it.fontSizePx}px Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
+  const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : '';
+  return `<div style="margin-bottom:8px;"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:bold ${it.fontSizePx}px ${family}Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
 }
 
 function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
@@ -253,13 +295,11 @@ function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
     const minH = c.overlayMinHeightPx ?? 240;
     const v = c.overlayVerticalAlignment ?? 'middle';
     const h = c.overlayHorizontalAlignment ?? 'center';
-    const pad = c.overlayPaddingPx ?? 16;
+    // Phase 4: paddingPx wins over the legacy overlayPaddingPx.
+    const pad = typeof c.paddingPx === 'number' ? c.paddingPx : (c.overlayPaddingPx ?? 16);
     const inner = items.length > 0
       ? items.map((it) => renderSplitItem(it, brand)).join('')
       : '';
-    // td-with-background-image pattern. Works in Gmail / Apple Mail /
-    // Outlook.com / Yahoo / iOS / Android. Outlook desktop (Office)
-    // shows the foreground content over the configured solid bg colour.
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="min-height:${minH}px;">
       <tr>
         <td valign="${v}" align="${h}" background="${escape(bg)}" style="background:#1a1a1a url('${escape(bg)}') center/cover no-repeat;min-height:${minH}px;height:${minH}px;padding:${pad}px;">${inner}</td>
@@ -268,7 +308,14 @@ function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
   }
 
   if (items.length === 0) return '';
-  return items.map((it) => renderSplitItem(it, brand)).join('');
+  const inner = items.map((it) => renderSplitItem(it, brand)).join('');
+  // Stack mode: optionally wrap in a padding div so the items sit
+  // inset from the cell edges.
+  const pad = typeof c.paddingPx === 'number' ? c.paddingPx : 0;
+  if (pad > 0) {
+    return `<div style="padding:${pad}px;">${inner}</div>`;
+  }
+  return inner;
 }
 
 function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: MarketingBrand): string {

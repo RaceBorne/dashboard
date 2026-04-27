@@ -1708,7 +1708,7 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
     )}>
       <header
         onClick={onSelect}
-        className="flex items-center gap-2 px-2 py-1.5 cursor-pointer select-none"
+        className="flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none"
       >
         <button type="button" {...dragHandleProps} onClick={(e) => e.stopPropagation()} className="p-1.5 -ml-1 mr-0.5 text-evari-dim hover:text-evari-text hover:bg-evari-ink/60 rounded cursor-grab active:cursor-grabbing" title="Drag to reorder" aria-label="Drag to reorder">
           <GripVertical className="h-4 w-4" />
@@ -3147,12 +3147,15 @@ function nidSplitItem(): string { return Math.random().toString(36).slice(2, 10)
 
 function makeSplitItem(kind: SplitItem['kind']): SplitItem {
   if (kind === 'image') {
-    return { id: nidSplitItem(), kind: 'image', src: '', alt: '' };
+    return { id: nidSplitItem(), kind: 'image', src: '', alt: '', shadow: 'none' };
   }
   if (kind === 'text') {
-    return { id: nidSplitItem(), kind: 'text', html: 'Side-by-side text.', fontSizePx: 16, lineHeight: 1.55, color: '#333333' };
+    return { id: nidSplitItem(), kind: 'text', html: 'Side-by-side text.', fontSizePx: 16, lineHeight: 1.55, color: '#333333', fontFamily: '' };
   }
-  return { id: nidSplitItem(), kind: 'button', label: 'Click me', url: '', backgroundColor: '#1a1a1a', textColor: '#ffffff', fontSizePx: 13, paddingXPx: 18, paddingYPx: 10, borderRadiusPx: 4 };
+  if (kind === 'divider') {
+    return { id: nidSplitItem(), kind: 'divider', color: '#e5e5e5', thicknessPx: 1, marginYPx: 8 };
+  }
+  return { id: nidSplitItem(), kind: 'button', label: 'Click me', url: '', backgroundColor: '#1a1a1a', textColor: '#ffffff', fontSizePx: 13, paddingXPx: 18, paddingYPx: 10, borderRadiusPx: 4, fontFamily: '' };
 }
 
 /**
@@ -3205,9 +3208,10 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
   const vAlign = cell.overlayVerticalAlignment ?? 'middle';
   const hAlign = cell.overlayHorizontalAlignment ?? 'center';
   const pad = cell.overlayPaddingPx ?? 16;
+  const cellPad = typeof cell.paddingPx === 'number' ? cell.paddingPx : (cell.mode === 'overlay' ? pad : 0);
 
   return (
-    <div className="rounded-md border border-evari-edge/20 bg-evari-ink/30 p-2.5 space-y-2">
+    <div className="rounded-md border border-evari-edge/20 bg-evari-ink/30 p-3 space-y-2.5">
       <div className="flex items-center justify-between">
         <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{side === 'left' ? 'Left cell' : 'Right cell'}</span>
         <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5">
@@ -3222,6 +3226,16 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
           ))}
         </div>
       </div>
+
+      <label className="block">
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Cell padding</span>
+          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{cellPad}px</span>
+        </span>
+        <div className="px-2.5">
+          <input type="range" min={0} max={64} value={cellPad} onChange={(e) => onCellChange({ paddingPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+        </div>
+      </label>
 
       {mode === 'overlay' ? (
         <div className="rounded-md border border-evari-edge/20 bg-evari-ink/40 p-2 space-y-2">
@@ -3313,6 +3327,7 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
                   key={it.id}
                   item={it}
                   open={openId === it.id}
+                  brand={brand}
                   onToggle={() => setOpenId(openId === it.id ? null : it.id)}
                   onChange={(patch) => patchItem(it.id, patch)}
                   onDuplicate={() => duplicateItem(it.id)}
@@ -3335,6 +3350,9 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
         <button type="button" onClick={() => addItem('button')} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-evari-dim hover:text-evari-text bg-evari-ink hover:bg-black/40 transition-colors">
           <MousePointerClick className="h-3 w-3" /> Button
         </button>
+        <button type="button" onClick={() => addItem('divider')} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-evari-dim hover:text-evari-text bg-evari-ink hover:bg-black/40 transition-colors">
+          <Minus className="h-3 w-3" /> Line
+        </button>
       </div>
     </div>
   );
@@ -3343,16 +3361,17 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
 interface SortableSplitItemProps {
   item: SplitItem;
   open: boolean;
+  brand: MarketingBrand;
   onToggle: () => void;
   onChange: (patch: Partial<SplitItem>) => void;
   onDuplicate: () => void;
   onRemove: () => void;
 }
 
-function SortableSplitItem({ item, open, onToggle, onChange, onDuplicate, onRemove }: SortableSplitItemProps) {
+function SortableSplitItem({ item, open, brand, onToggle, onChange, onDuplicate, onRemove }: SortableSplitItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.7 : 1 };
-  const meta = item.kind === 'image' ? { Icon: ImageIcon, label: 'Image' } : item.kind === 'text' ? { Icon: Type, label: 'Text' } : { Icon: MousePointerClick, label: 'Button' };
+  const meta = item.kind === 'image' ? { Icon: ImageIcon, label: 'Image' } : item.kind === 'text' ? { Icon: Type, label: 'Text' } : item.kind === 'divider' ? { Icon: Minus, label: 'Line' } : { Icon: MousePointerClick, label: 'Button' };
   const Icon = meta.Icon;
   const summary = splitItemSummary(item);
   return (
@@ -3361,7 +3380,7 @@ function SortableSplitItem({ item, open, onToggle, onChange, onDuplicate, onRemo
         'rounded-md border bg-evari-ink/40 transition-colors',
         isDragging ? 'border-evari-gold/60' : open ? 'border-evari-gold/70 bg-evari-ink/70' : 'border-evari-edge/30',
       )}>
-        <header onClick={onToggle} className="flex items-center gap-2 px-2 py-1.5 cursor-pointer select-none">
+        <header onClick={onToggle} className="flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none">
           <button type="button" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="p-1 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing" aria-label="Drag">
             <GripVertical className="h-3.5 w-3.5" />
           </button>
@@ -3380,9 +3399,10 @@ function SortableSplitItem({ item, open, onToggle, onChange, onDuplicate, onRemo
         </header>
         {open ? (
           <div className="border-t border-evari-edge/20 px-2.5 py-2 space-y-2">
-            {item.kind === 'image'  ? <SplitItemImageFields  item={item} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'image'  }>>) => void} /> : null}
-            {item.kind === 'text'   ? <SplitItemTextFields   item={item} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'text'   }>>) => void} /> : null}
-            {item.kind === 'button' ? <SplitItemButtonFields item={item} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'button' }>>) => void} /> : null}
+            {item.kind === 'image'   ? <SplitItemImageFields   item={item} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'image'   }>>) => void} /> : null}
+            {item.kind === 'text'    ? <SplitItemTextFields    item={item} brand={brand} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'text'    }>>) => void} /> : null}
+            {item.kind === 'button'  ? <SplitItemButtonFields  item={item} brand={brand} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'button'  }>>) => void} /> : null}
+            {item.kind === 'divider' ? <SplitItemDividerFields item={item} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'divider' }>>) => void} /> : null}
           </div>
         ) : null}
       </div>
@@ -3391,14 +3411,17 @@ function SortableSplitItem({ item, open, onToggle, onChange, onDuplicate, onRemo
 }
 
 function splitItemSummary(it: SplitItem): string {
-  if (it.kind === 'image') return it.src ? (it.widthPct ? `${it.widthPct}%` : 'fit') : 'no image';
-  if (it.kind === 'text')  return `${it.fontSizePx}px`;
+  if (it.kind === 'image')   return it.src ? (it.widthPct ? `${it.widthPct}%` : 'fit') : 'no image';
+  if (it.kind === 'text')    return `${it.fontSizePx}px`;
+  if (it.kind === 'divider') return `${it.thicknessPx}px${it.widthPct && it.widthPct < 100 ? ` · ${it.widthPct}%` : ''}`;
   return it.label || 'unlabelled';
 }
 
 function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { kind: 'image' }>; onChange: (p: Partial<Extract<SplitItem, { kind: 'image' }>>) => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const w = item.widthPct ?? 100;
+  const shadow = item.shadow ?? 'none';
+  const shadowColor = item.shadowColor ?? '#000000';
   return (
     <div className="space-y-2">
       <div className="rounded-md overflow-hidden border border-evari-edge/30 bg-evari-ink">
@@ -3434,6 +3457,25 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
           <input type="range" min={20} max={100} value={w} onChange={(e) => onChange({ widthPct: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
         </div>
       </label>
+      <fieldset className="pt-2 border-t border-evari-edge/10">
+        <legend className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Drop shadow</legend>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,72px)] gap-2">
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Intensity</span>
+            <select value={shadow} onChange={(e) => onChange({ shadow: e.target.value as 'none' | 'sm' | 'md' | 'lg' })} className={inputCls}>
+              <option value="none">None</option>
+              <option value="sm">Subtle</option>
+              <option value="md">Soft</option>
+              <option value="lg">Strong</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Tint</span>
+            <input type="color" value={shadowColor} disabled={shadow === 'none'} onChange={(e) => onChange({ shadowColor: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer disabled:opacity-50" />
+          </label>
+        </div>
+        <p className="text-[10px] text-evari-dimmer mt-1 leading-snug">Soft, multi-stop shadow. Renders in modern email clients (Gmail, Apple Mail, Outlook.com). Outlook desktop strips it cleanly.</p>
+      </fieldset>
       <details>
         <summary className="text-[10px] text-evari-dim hover:text-evari-text cursor-pointer">Or paste a URL</summary>
         <input type="url" value={item.src} onChange={(e) => onChange({ src: e.target.value })} className={cn(inputCls, 'font-mono mt-1')} placeholder="https://..." />
@@ -3448,13 +3490,14 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
   );
 }
 
-function SplitItemTextFields({ item, onChange }: { item: Extract<SplitItem, { kind: 'text' }>; onChange: (p: Partial<Extract<SplitItem, { kind: 'text' }>>) => void }) {
+function SplitItemTextFields({ item, brand, onChange }: { item: Extract<SplitItem, { kind: 'text' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<SplitItem, { kind: 'text' }>>) => void }) {
   return (
     <div className="space-y-2">
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text (HTML allowed)</span>
         <textarea value={item.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[80px] font-mono')} />
       </label>
+      <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
       <div className="grid grid-cols-3 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Size (px)</span>
@@ -3473,9 +3516,34 @@ function SplitItemTextFields({ item, onChange }: { item: Extract<SplitItem, { ki
   );
 }
 
-function SplitItemButtonFields({ item, onChange }: { item: Extract<SplitItem, { kind: 'button' }>; onChange: (p: Partial<Extract<SplitItem, { kind: 'button' }>>) => void }) {
+function SplitItemButtonFields({ item, brand, onChange }: { item: Extract<SplitItem, { kind: 'button' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<SplitItem, { kind: 'button' }>>) => void }) {
+  const presets = brand.fonts.buttonPresets ?? [];
+  function applyPreset(id: string) {
+    const p = presets.find((x) => x.id === id);
+    if (!p) return;
+    onChange({
+      backgroundColor: p.backgroundColor,
+      textColor: p.textColor,
+      borderRadiusPx: p.borderRadiusPx,
+      paddingXPx: p.paddingXPx,
+      paddingYPx: p.paddingYPx,
+      fontFamily: p.fontFamily ?? '',
+      fontSizePx: p.fontSizePx ?? item.fontSizePx,
+      label: p.label && !item.label ? p.label : item.label,
+    });
+  }
   return (
     <div className="space-y-2">
+      {presets.length > 0 ? (
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Apply preset</span>
+          <select onChange={(e) => { const v = e.target.value; if (v) applyPreset(v); e.currentTarget.value = ''; }} defaultValue="" className={inputCls}>
+            <option value="">Pick a preset…</option>
+            {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+      ) : null}
+      <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Label</span>
@@ -3515,6 +3583,70 @@ function SplitItemButtonFields({ item, onChange }: { item: Extract<SplitItem, { 
         </label>
       </div>
     </div>
+  );
+}
+
+
+function SplitItemDividerFields({ item, onChange }: { item: Extract<SplitItem, { kind: 'divider' }>; onChange: (p: Partial<Extract<SplitItem, { kind: 'divider' }>>) => void }) {
+  const w = item.widthPct ?? 100;
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Colour</span>
+          <input type="color" value={item.color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Thickness (px)</span>
+          <input type="number" min={1} max={8} value={item.thicknessPx} onChange={(e) => onChange({ thicknessPx: Math.max(1, Math.min(8, Number(e.target.value) || 1)) })} className={cn(inputCls, 'font-mono')} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Margin Y (px)</span>
+          <input type="number" min={0} max={64} value={item.marginYPx} onChange={(e) => onChange({ marginYPx: Math.max(0, Math.min(64, Number(e.target.value) || 0)) })} className={cn(inputCls, 'font-mono')} />
+        </label>
+      </div>
+      <label className="block">
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Width</span>
+          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{w}%</span>
+        </span>
+        <div className="px-2.5">
+          <input type="range" min={20} max={100} value={w} onChange={(e) => onChange({ widthPct: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+        </div>
+      </label>
+    </div>
+  );
+}
+
+/**
+ * Font dropdown for split text + button items. Pulls brand heading,
+ * brand body, then any uploaded brand fonts, then the standard
+ * web-safe + Google Fonts options. Empty value = inherit brand body.
+ */
+function SplitFontField({ brand, value, onChange }: { brand: MarketingBrand; value: string; onChange: (v: string) => void }) {
+  const heading = brand.fonts.heading;
+  const body = brand.fonts.body;
+  const customNames = Array.from(new Set((brand.customFonts ?? []).map((f) => f.name)));
+  const websafe = ['Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat'];
+  return (
+    <label className="block">
+      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+        <option value="">Inherit (brand body)</option>
+        <optgroup label="Brand kit">
+          {heading ? <option value={heading}>{heading} (heading)</option> : null}
+          {body && body !== heading ? <option value={body}>{body} (body)</option> : null}
+        </optgroup>
+        {customNames.length > 0 ? (
+          <optgroup label="Brand fonts (uploaded)">
+            {customNames.map((n) => <option key={`c-${n}`} value={n}>{n}</option>)}
+          </optgroup>
+        ) : null}
+        <optgroup label="Web-safe + Google Fonts">
+          {websafe.map((f) => <option key={f} value={f}>{f}</option>)}
+        </optgroup>
+      </select>
+    </label>
   );
 }
 

@@ -599,6 +599,15 @@ export type SplitItem =
       // 0-100 percent. undefined means natural max-width:280px (legacy
       // default). Lets a stacked image align tighter than the cell.
       widthPct?: number;
+      /**
+       * Optional drop shadow. 'none' (default) renders no shadow; the
+       * named presets map to multi-stop CSS box-shadow values that
+       * read as soft and realistic (the ray-traced look). shadowColor
+       * is an optional tint; undefined falls back to a calibrated
+       * black with the intensity baked into alpha.
+       */
+      shadow?: 'none' | 'sm' | 'md' | 'lg';
+      shadowColor?: string;
     })
   | (SplitItemBase & {
       kind: 'text';
@@ -606,6 +615,8 @@ export type SplitItem =
       fontSizePx: number;
       lineHeight: number;
       color: string;
+      /** Optional family override. Empty / undefined inherits brand body. */
+      fontFamily?: string;
     })
   | (SplitItemBase & {
       kind: 'button';
@@ -617,6 +628,17 @@ export type SplitItem =
       paddingXPx: number;
       paddingYPx: number;
       borderRadiusPx: number;
+      /** Optional family override. Empty / undefined inherits brand body. */
+      fontFamily?: string;
+    })
+  | (SplitItemBase & {
+      kind: 'divider';
+      color: string;
+      thicknessPx: number;
+      /** 0-100. undefined means full width. */
+      widthPct?: number;
+      /** Vertical margin so the line sits with breathing room. */
+      marginYPx: number;
     });
 
 export interface SplitCell {
@@ -640,6 +662,13 @@ export interface SplitCell {
   overlayVerticalAlignment?: 'top' | 'middle' | 'bottom';
   overlayHorizontalAlignment?: 'left' | 'center' | 'right';
   overlayPaddingPx?: number;
+
+  /**
+   * Phase 4: per-cell interior padding. Applies in both stack and
+   * overlay modes. In overlay mode, supersedes overlayPaddingPx when
+   * set. Default 0 in stack mode, 16 in overlay if neither is set.
+   */
+  paddingPx?: number;
 
   // ─── Phase 1 (legacy) ────────────────────────────────────────
   kind?: 'image' | 'text';
