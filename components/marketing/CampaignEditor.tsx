@@ -473,9 +473,12 @@ function PickerThumbnail({ title, html }: { title: string; html: string }) {
     return () => ro.disconnect();
   }, []);
   useEffect(() => { measureContent(); }, [html]);
-  const scale = containerW / 600;
+  // Use Math.ceil on the scaled width and divide back to ensure the
+  // transformed iframe always covers the container width — no sub-pixel
+  // sliver of the wrapper bg shows on the right edge.
+  const scale = Math.ceil(containerW * 1000 / 600) / 1000;
   return (
-    <div ref={wrapRef} className="aspect-[4/5] bg-white overflow-hidden relative pointer-events-none">
+    <div ref={wrapRef} className="aspect-[4/5] bg-evari-ink overflow-hidden relative pointer-events-none">
       <iframe
         ref={iframeRef}
         title={title}
