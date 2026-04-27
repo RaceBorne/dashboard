@@ -1079,7 +1079,14 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           >
             <div
               className={cn('mx-auto transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
-              style={{ maxWidth: `${design.widthPx}px`, padding: `${design.paddingPx}px`, background: design.background }}
+              style={{
+                maxWidth: `${design.widthPx}px`,
+                paddingTop: `${design.paddingPx}px`,
+                paddingLeft: `${design.paddingPx}px`,
+                paddingRight: `${design.paddingPx}px`,
+                paddingBottom: 0,
+                background: design.background,
+              }}
               onClick={() => setSelectedId(null)}
             >
               <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
@@ -2213,11 +2220,10 @@ function EmptyCanvas() {
  * going to ship — minus the interactivity (no select / drag / delete).
  * Edit the footer in the dedicated Footer designer (/footer).
  */
-function CanvasFooterPreview({ brand, onRefresh, refreshing }: { brand: MarketingBrand; onRefresh?: () => void | Promise<void>; refreshing?: boolean }) {
+function CanvasFooterPreview({ brand }: { brand: MarketingBrand; onRefresh?: () => void | Promise<void>; refreshing?: boolean }) {
   const html = useMemo(() => {
     try {
       // Inline call avoids a circular dependency since both files are TS.
-      // The renderer accepts the brand + a placeholder unsubscribe URL.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require('@/lib/marketing/footer') as { renderFooter: (i: { brand: MarketingBrand; unsubscribeUrl?: string | null }) => string };
       return mod.renderFooter({ brand, unsubscribeUrl: '#' });
@@ -2227,25 +2233,7 @@ function CanvasFooterPreview({ brand, onRefresh, refreshing }: { brand: Marketin
   }, [brand]);
   if (!html.trim()) return null;
   return (
-    <div className="relative select-none" aria-label="Brand footer (preview)">
-      <div className="absolute -top-2 right-2 z-10 flex items-center gap-1 text-[9px] uppercase tracking-[0.12em] text-evari-dim bg-evari-ink/80 px-1.5 py-0.5 rounded">
-        <span>Footer · auto-included</span>
-        {onRefresh ? (
-          <button
-            type="button"
-            onClick={() => { void onRefresh(); }}
-            disabled={refreshing}
-            className="ml-1 inline-flex items-center text-evari-gold hover:text-evari-text disabled:opacity-50"
-            title="Refresh from brand kit"
-            aria-label="Refresh footer from brand kit"
-          >
-            {refreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-          </button>
-        ) : null}
-        <a href="/brand" className="ml-1 underline text-evari-gold/80 hover:text-evari-gold normal-case tracking-normal" title="Edit footer in brand kit">Edit</a>
-      </div>
-      <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: html }} />
-    </div>
+    <div className="pointer-events-none select-none" dangerouslySetInnerHTML={{ __html: html }} />
   );
 }
 
