@@ -185,7 +185,7 @@ export function ContactDetailClient({ initialContact, allGroups, allTags, initia
   }
 
   const inputCls =
-    'px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out w-full';
+    'px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out w-full';
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink p-4">
@@ -214,7 +214,7 @@ export function ContactDetailClient({ initialContact, allGroups, allTags, initia
             </label>
             <label className="block col-span-2">
               <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Email</span>
-              <input type="email" className={cn(inputCls, 'font-mono text-[12px]')} value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input type="email" className={cn(inputCls, 'font-mono')} value={email} onChange={(e) => setEmail(e.target.value)} />
             </label>
             <label className="block">
               <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Phone</span>

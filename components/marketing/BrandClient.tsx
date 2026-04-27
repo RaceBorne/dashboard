@@ -166,7 +166,7 @@ export function BrandClient({ initialBrand }: Props) {
   // Match the global designer rule: every single-line input + select in
   // the brand setup is exactly 34px tall.
   const inputCls =
-    'h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[10px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors w-full';
+    'h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors w-full';
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink p-4">
@@ -186,7 +186,7 @@ export function BrandClient({ initialBrand }: Props) {
           </label>
           <label className="block">
             <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Reply-To email</span>
-            <input className={cn(inputCls, 'font-mono text-[12px]')} value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="hello@evari.cc" />
+            <input className={cn(inputCls, 'font-mono')} value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="hello@evari.cc" />
             <span className="block text-[10px] text-evari-dimmer mt-1">Where replies to your sends land. Leave blank to use the From address.</span>
           </label>
         </section>

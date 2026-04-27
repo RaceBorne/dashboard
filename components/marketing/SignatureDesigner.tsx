@@ -187,7 +187,7 @@ export function SignatureDesigner({ initialBrand, value, onChange }: Props) {
               <ColourField label="Background" value={design.background} onChange={(v) => updateDesign({ background: v })} allowTransparent />
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Padding (px)</span>
-                <input type="number" min={0} max={48} value={design.paddingPx} onChange={(e) => updateDesign({ paddingPx: Math.max(0, Math.min(48, Number(e.target.value) || 0)) })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm font-mono border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
+                <input type="number" min={0} max={48} value={design.paddingPx} onChange={(e) => updateDesign({ paddingPx: Math.max(0, Math.min(48, Number(e.target.value) || 0)) })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[11px] font-mono border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
               </label>
             </div>
           </div>
@@ -420,12 +420,12 @@ function TextFields({ block, onChange }: { block: Extract<SignatureBlock, { type
     <div className="space-y-2">
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Content (HTML allowed)</span>
-        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text font-mono text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none min-h-[80px]" />
+        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text font-mono text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none min-h-[80px]" />
       </label>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font</span>
-          <select value={block.fontFamily} onChange={(e) => onChange({ fontFamily: e.target.value })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none">
+          <select value={block.fontFamily} onChange={(e) => onChange({ fontFamily: e.target.value })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none">
             {FONT_OPTIONS.map((f) => <option key={f || 'inherit'} value={f}>{f || '— inherit brand body —'}</option>)}
           </select>
         </label>
@@ -583,7 +583,7 @@ function UnsubscribeFields({ block, onChange }: { block: Extract<SignatureBlock,
     <div className="space-y-2">
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Link label</span>
-        <input type="text" value={block.label} onChange={(e) => onChange({ label: e.target.value })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
+        <input type="text" value={block.label} onChange={(e) => onChange({ label: e.target.value })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
       </label>
       <div className="grid grid-cols-2 gap-2">
         <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />

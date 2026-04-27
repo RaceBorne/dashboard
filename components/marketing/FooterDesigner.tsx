@@ -144,7 +144,7 @@ export function FooterDesigner({ initialBrand, value, onChange }: Props) {
   );
 
   const inputCls =
-    'px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out w-full';
+    'px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out w-full';
 
   return (
     <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
