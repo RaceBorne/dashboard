@@ -3329,6 +3329,7 @@ function SplitCellEditor({ side, cell, brand, openItemId, setOpenItemId, onItems
         </div>
       </div>
 
+      <SplitAlignmentField value={cell.horizontalAlignment ?? 'center'} onChange={(v) => onCellChange({ horizontalAlignment: v })} />
       <label className="block">
         <span className="flex items-center justify-between text-[11px] font-medium text-evari-dimmer mb-0.5">
           <span>Cell padding</span>

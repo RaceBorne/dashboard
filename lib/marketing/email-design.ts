@@ -298,45 +298,50 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
 
 function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
   const items = getSplitCellItems(c);
+  const halign = c.horizontalAlignment ?? 'center';
 
   // Overlay mode: bg image fills the cell, items composite on top.
   if (c.mode === 'overlay' && c.backgroundImage?.src) {
     const bg = c.backgroundImage.src;
     const minH = c.overlayMinHeightPx ?? 240;
     const v = c.overlayVerticalAlignment ?? 'middle';
-    const h = c.overlayHorizontalAlignment ?? 'center';
-    // Phase 4: paddingPx wins over the legacy overlayPaddingPx.
+    const h = c.overlayHorizontalAlignment ?? halign;
     const pad = typeof c.paddingPx === 'number' ? c.paddingPx : (c.overlayPaddingPx ?? 16);
     const inner = items.length > 0
       ? items.map((it) => renderSplitItem(it, brand)).join('')
       : '';
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="min-height:${minH}px;">
       <tr>
-        <td valign="${v}" align="${h}" background="${escape(bg)}" style="background:#1a1a1a url('${escape(bg)}') center/cover no-repeat;min-height:${minH}px;height:${minH}px;padding:${pad}px;">${inner}</td>
+        <td valign="${v}" align="${h}" background="${escape(bg)}" style="background:#1a1a1a url('${escape(bg)}') center/cover no-repeat;min-height:${minH}px;height:${minH}px;padding:${pad}px;text-align:${h};">${inner}</td>
       </tr>
     </table>`;
   }
 
   if (items.length === 0) return '';
   const inner = items.map((it) => renderSplitItem(it, brand)).join('');
-  // Stack mode: optionally wrap in a padding div so the items sit
-  // inset from the cell edges.
   const pad = typeof c.paddingPx === 'number' ? c.paddingPx : 0;
-  if (pad > 0) {
-    return `<div style="padding:${pad}px;">${inner}</div>`;
-  }
-  return inner;
+  // Stack mode: wrap in a centring container so the cell-level
+  // horizontalAlignment actually moves the visible block of content,
+  // not just inline text. inline-block + max-width:100% lets long
+  // text still wrap to the cell width while shorter content shrinks
+  // to its natural size and packs to the chosen side. Per-item
+  // text-align is preserved within each item div.
+  const padStyle = pad > 0 ? `padding:${pad}px;` : '';
+  return `<div style="text-align:${halign};${padStyle}"><div style="display:inline-block;max-width:100%;text-align:left;vertical-align:top;">${inner}</div></div>`;
 }
 
 function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: MarketingBrand): string {
   const cells = getSplitCells(b);
   const left = renderSplitCell(cells.left, brand);
   const right = renderSplitCell(cells.right, brand);
+  const lh = cells.left.horizontalAlignment ?? 'center';
+  const rh = cells.right.horizontalAlignment ?? 'center';
   // valign='middle' so when one side is taller (e.g. a full image) the
-  // shorter side's items sit centred vertically next to it instead of
-  // anchoring to the top. height:100% on the row + cells lets the cells
-  // share the row's height for proper centring across email clients.
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;"><tr style="height:100%;"><td valign="middle" width="50%" style="padding-right:12px;height:100%;">${left}</td><td valign="middle" width="50%" style="height:100%;">${right}</td></tr></table>`;
+  // shorter side's items sit centred vertically next to it. align='${'${'}halign}'
+  // + matching text-align in the td style centres inline content in
+  // every email client; the cell renderer also wraps the stack in an
+  // inline-block centring container so block-level items follow.
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;"><tr style="height:100%;"><td valign="middle" align="${lh}" width="50%" style="padding-right:12px;height:100%;text-align:${lh};">${left}</td><td valign="middle" align="${rh}" width="50%" style="height:100%;text-align:${rh};">${right}</td></tr></table>`;
 }
 
 

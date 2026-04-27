@@ -679,6 +679,13 @@ export interface SplitCell {
    * set. Default 0 in stack mode, 16 in overlay if neither is set.
    */
   paddingPx?: number;
+  /**
+   * Phase 5: cell-level horizontal alignment of the items stack within
+   * the cell. Independent of each item's own text-align field. Default
+   * 'center' so a stack of mixed content (text + buttons + image)
+   * packs to the middle of the cell instead of hugging the left edge.
+   */
+  horizontalAlignment?: 'left' | 'center' | 'right';
 
   // ─── Phase 1 (legacy) ────────────────────────────────────────
   kind?: 'image' | 'text';
