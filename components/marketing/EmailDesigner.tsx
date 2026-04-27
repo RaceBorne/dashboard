@@ -1075,14 +1075,16 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             <span className="text-evari-dim">{previewDevice === 'mobile' ? `360px (mobile) · ${design.widthPx}px content` : `${design.widthPx}px (desktop)`}</span>
           </div>
           <div
-            className="flex-1 min-h-0 overflow-y-auto p-6 transition-colors"
+            className="flex-1 min-h-0 overflow-y-auto transition-colors"
             style={{ background: design.background }}
             onClick={() => setSelectedId(null)}
           >
-            {/* Outer padded layer — mirrors the email HTML's outer table
-                cell padding. Keeps blocks edge-to-edge of the inner email
-                frame so sections sit flush; the design.paddingPx margin
-                shows around the email instead of inside it. */}
+            {/* Inner padded layer — moves the canvas's chrome padding
+                INSIDE the scroll container so the scrollbar sits flush
+                with the far right edge of the canvas instead of 24px
+                inset. The first child is the outer-padded mirror of
+                the email HTML's outer table cell. */}
+            <div className="p-6" onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }} style={{ background: design.background }}>
             <div
               style={{ padding: `${design.paddingPx}px 0`, background: design.background }}
               onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
@@ -1122,6 +1124,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                 )}
               </SortableContext>
               <CanvasFooterPreview brand={initialBrand} onRefresh={onRefreshBrand} refreshing={refreshingBrand} />
+            </div>
             </div>
             </div>
           </div>
