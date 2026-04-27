@@ -2936,25 +2936,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
       <CanvasInsertionZone overId={block.id} />
       <div
         {...dragProps}
-        onClick={(e) => {
-          e.stopPropagation();
-          // Stop links / button-hrefs in the rendered email content from
-          // navigating when the user is actually editing.
-          e.preventDefault();
-          // Split block click-to-edit. e.target is now the actual rendered
-          // element (image, text div, button) since pointer-events-none
-          // is no longer blanketing the content. Walk up to the nearest
-          // data-split-item-id and route to its editor.
-          if (block.type === 'split' && onSelectItem) {
-            const t = e.target as HTMLElement | null;
-            const hit = t?.closest('[data-split-item-id]') as HTMLElement | null;
-            if (hit && hit.dataset.splitItemId) {
-              onSelectItem(hit.dataset.splitItemId);
-              return;
-            }
-          }
-          onSelect();
-        }}
+        onClick={(e) => { e.stopPropagation(); onSelect(); }}
         className={cn(
           'relative transition-shadow touch-none select-none',
           isPinned ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
@@ -2976,7 +2958,23 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
             onDuplicateChild={onDuplicateChild}
           />
         ) : (
-          <div dangerouslySetInnerHTML={{ __html: renderEmailBlockHtml(eff, brand, device) }} />
+          <div
+            className="relative z-10"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              if (block.type === 'split' && onSelectItem) {
+                const t = e.target as HTMLElement | null;
+                const hit = t?.closest('[data-split-item-id]') as HTMLElement | null;
+                if (hit && hit.dataset.splitItemId) {
+                  onSelectItem(hit.dataset.splitItemId);
+                  return;
+                }
+              }
+              onSelect();
+            }}
+            dangerouslySetInnerHTML={{ __html: renderEmailBlockHtml(eff, brand, device) }}
+          />
         )}
         <div className={cn(
           'absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink/95 border border-evari-edge/40 shadow-lg backdrop-blur-sm transition-opacity',
