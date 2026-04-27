@@ -2855,10 +2855,24 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
               <GripVertical className="h-3.5 w-3.5" />
             </span>
           )}
-          <button type="button" onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-1.5 text-evari-dim hover:text-evari-text" title="Duplicate block" aria-label="Duplicate block">
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+            className="p-1.5 text-evari-dim hover:text-evari-text"
+            title="Duplicate block"
+            aria-label="Duplicate block"
+          >
             <Copy className="h-3.5 w-3.5" />
           </button>
-          <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }} className="p-1.5 text-evari-dim hover:text-evari-danger" title="Delete block" aria-label="Delete block">
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="p-1.5 text-evari-dim hover:text-evari-danger"
+            title="Delete block"
+            aria-label="Delete block"
+          >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
