@@ -274,17 +274,27 @@ function BrandKitPreview({ brand }: { brand: MarketingBrand }) {
  * end of the canvas with that preset applied. Lets the user reach for
  * 'Hero headline' or 'Primary CTA' without rebuilding from sliders.
  */
-function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onApplyButtonPreset, onEditTypoPreset, onEditButtonPreset }: {
+function PresetsPanel({ brand, selectedBlock, liveEdit, onAddBlock, onApplyTypoPreset, onApplyButtonPreset, onEditTypoPreset, onEditButtonPreset }: {
   brand: MarketingBrand;
   selectedBlock: EmailBlock | null;
+  /** When the user is editing a preset in the right-rail editor, the
+   *  draft is mirrored here so the matching card on the left updates
+   *  instantly instead of waiting for the debounced server save. */
+  liveEdit?: { kind: 'typo'; preset: TypographyPreset } | { kind: 'button'; preset: ButtonPreset } | null;
   onAddBlock: (b: EmailBlock) => void;
   onApplyTypoPreset: (p: TypographyPreset) => void;
   onApplyButtonPreset: (p: ButtonPreset) => void;
   onEditTypoPreset: (p: TypographyPreset) => void;
   onEditButtonPreset: (p: ButtonPreset) => void;
 }) {
-  const typo = brand.fonts.presets ?? [];
-  const buttons = brand.fonts.buttonPresets ?? [];
+  // Overlay the live draft over the matching card so the left side
+  // tracks the right-rail editor in real time.
+  const typo = (brand.fonts.presets ?? []).map((p) =>
+    liveEdit && liveEdit.kind === 'typo' && liveEdit.preset.id === p.id ? liveEdit.preset : p,
+  );
+  const buttons = (brand.fonts.buttonPresets ?? []).map((p) =>
+    liveEdit && liveEdit.kind === 'button' && liveEdit.preset.id === p.id ? liveEdit.preset : p,
+  );
   // Persist a typography preset edit (name + style) back to the brand kit.
   async function saveTypoPreset(updated: TypographyPreset) {
     const next = (brand.fonts.presets ?? []).map((tp) => tp.id === updated.id ? updated : tp);
@@ -574,29 +584,6 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
  * component switched on entry.kind. Fields update local state instantly
  * AND schedule a PATCH 400ms after the last change.
  */
-function ButtonPresetPreview({ preset }: { preset: ButtonPreset }) {
-  const tt = preset.textTransform && preset.textTransform !== 'none' ? `text-transform:${preset.textTransform};` : '';
-  const tracking = typeof preset.letterSpacingEm === 'number' ? `letter-spacing:${preset.letterSpacingEm}em;` : '';
-  const family = preset.fontFamily ? `'${preset.fontFamily}',` : '';
-  return (
-    <div className="rounded-md border border-evari-edge/20 bg-zinc-200 p-4 flex items-center justify-center">
-      <span
-        style={{
-          display: 'inline-block',
-          background: preset.backgroundColor,
-          color: preset.textColor,
-          padding: `${preset.paddingYPx}px ${preset.paddingXPx}px`,
-          borderRadius: `${preset.borderRadiusPx}px`,
-          font: `${preset.fontWeight ?? 700} ${preset.fontSizePx ?? 14}px ${family}Arial,sans-serif`,
-          textDecoration: 'none',
-        }}
-        // Casting via dangerouslySetInnerHTML lets us inject text-transform
-        // and letter-spacing without React stripping the kebab CSS keys.
-        dangerouslySetInnerHTML={{ __html: `<span style="${tt}${tracking}display:inline-block;">${(preset.label || 'Click me').replace(/[<>]/g, '')}</span>` }}
-      />
-    </div>
-  );
-}
 
 function InlinePresetEditor({ brand, entry, onChange, onClose }: {
   brand: MarketingBrand;
@@ -676,10 +663,6 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
           </>
         ) : (
           <>
-            {/* Live preview, updates instantly as the draft mutates so the
-                user sees colour, weight, padding and tracking changes in
-                real time without waiting on the debounced save. */}
-            <ButtonPresetPreview preset={draft as ButtonPreset} />
             <label className="block">
               <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Default label</span>
               <input type="text" value={(draft as ButtonPreset).label ?? ''} onChange={(e) => setDraft({ ...(draft as ButtonPreset), label: e.target.value } as ButtonPreset)} className={inputCls} placeholder="e.g. Click me" />
@@ -1436,7 +1419,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           <div className="grid grid-cols-3 gap-1 p-1 rounded-md bg-evari-ink/40 border border-evari-edge/30 mb-2 shrink-0" role="tablist" aria-label="Palette / layers / presets">
             {(['blocks', 'rows', 'presets'] as const).map((t) => {
               const active = paletteTab === t;
-              const label = t === 'blocks' ? 'Blocks' : t === 'rows' ? 'Rows' : 'Presets';
+              const label = t === 'blocks' ? 'Blocks' : t === 'rows' ? 'Stack' : 'Presets';
               return (
                 <button
                   key={t}
@@ -1461,6 +1444,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
               <PresetsPanel
                 brand={initialBrand}
                 selectedBlock={selectedId ? findBlockById(design.blocks, selectedId) : null}
+                liveEdit={editingPreset}
                 onEditTypoPreset={(p) => { setSelectedId(null); setPendingTile(null); setEditingPreset({ kind: 'typo', preset: p }); }}
                 onEditButtonPreset={(p) => { setSelectedId(null); setPendingTile(null); setEditingPreset({ kind: 'button', preset: p }); }}
                 onApplyTypoPreset={(p) => {
