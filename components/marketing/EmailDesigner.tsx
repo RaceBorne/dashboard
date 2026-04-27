@@ -1803,13 +1803,11 @@ function ImageFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
           }}
         />
       ) : null}
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
-          <input type="text" value={block.alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
-        </label>
-        <NumField label="Max width (px)" value={block.maxWidthPx} min={40} max={1200} onChange={(v) => onChange({ maxWidthPx: v })} />
-      </div>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
+        <input type="text" value={block.alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
+      </label>
+      <SliderField label="Width" value={block.maxWidthPx} min={40} max={1200} suffix="px" onChange={(v) => onChange({ maxWidthPx: v })} />
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
         <input type="url" value={block.linkUrl ?? ''} onChange={(e) => onChange({ linkUrl: e.target.value || undefined })} placeholder="https://…" className={cn(inputCls, 'font-mono text-[12px]')} />
