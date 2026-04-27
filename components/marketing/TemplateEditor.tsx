@@ -342,9 +342,13 @@ function PreviewModal({ design, brand, onClose }: { design: EmailDesign; brand: 
     if (!testEmail.trim()) return;
     setSending(true); setError(null); setSent(null);
     try {
+      // Sender appends the brand footer at send time; render a separate
+      // footer-less HTML for the send so the email doesn't contain two
+      // copies of the footer.
+      const sendHtml = renderEmailDesign(design, brand, { device, includeFooter: false });
       const res = await fetch('/api/marketing/templates/preview-send', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: testEmail.trim(), html, subject: '[Test] Template preview' }),
+        body: JSON.stringify({ to: testEmail.trim(), html: sendHtml, subject: '[Test] Template preview' }),
       });
       const data = await res.json().catch(() => ({}));
       if (!data.ok) throw new Error(data.error ?? 'Send failed');

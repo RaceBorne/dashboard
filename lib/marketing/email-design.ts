@@ -425,6 +425,59 @@ export function brandStyleBlock(brand: MarketingBrand): string {
     `</style>`;
 }
 
+
+/**
+ * Walk the design tree and emit CSS overrides for any block with a
+ * `mobile` partial. Wrapped in a media query so the overrides only
+ * apply on small screens — matches what the editor canvas shows in
+ * mobile preview mode. Without this, mobile-only padding / sizes /
+ * widths set in the editor never reach the inboxed email.
+ */
+export function mobileOverridesCss(blocks: EmailBlock[]): string {
+  const rules: string[] = [];
+  function walk(b: EmailBlock) {
+    const m = b.mobile as Record<string, unknown> | undefined;
+    if (m) {
+      const decls: string[] = [];
+      // Outer wrapper padding
+      if (typeof m.paddingTopPx    === 'number') decls.push(`padding-top:${m.paddingTopPx}px !important`);
+      if (typeof m.paddingBottomPx === 'number') decls.push(`padding-bottom:${m.paddingBottomPx}px !important`);
+      if (typeof m.paddingLeftPx   === 'number') decls.push(`padding-left:${m.paddingLeftPx}px !important`);
+      if (typeof m.paddingRightPx  === 'number') decls.push(`padding-right:${m.paddingRightPx}px !important`);
+      if (decls.length) rules.push(`[data-block-id="${b.id}"]{${decls.join(';')}}`);
+
+      // Section-specific overrides apply to the section's own bg-coloured
+      // inner div (the first child of the wrapper div).
+      if (b.type === 'section') {
+        const sd: string[] = [];
+        if (typeof m.minHeightPx === 'number') sd.push(`min-height:${m.minHeightPx}px !important`);
+        if (typeof m.paddingPx   === 'number') sd.push(`padding:${m.paddingPx}px !important`);
+        if (typeof m.backgroundColor === 'string') sd.push(`background-color:${m.backgroundColor} !important`);
+        if (sd.length) rules.push(`[data-block-id="${b.id}"] > div{${sd.join(';')}}`);
+      }
+
+      // Image / brandLogo width override → target the inner img
+      if ((b.type === 'image' || b.type === 'brandLogo') && (typeof m.widthPx === 'number' || typeof m.maxWidthPx === 'number')) {
+        const w = (m.widthPx ?? m.maxWidthPx) as number;
+        rules.push(`[data-block-id="${b.id}"] img{width:${w}px !important;max-width:100% !important}`);
+      }
+
+      // Heading / text font-size override
+      if ((b.type === 'heading' || b.type === 'text') && typeof m.fontSizePx === 'number') {
+        rules.push(`[data-block-id="${b.id}"] > div{font-size:${m.fontSizePx}px !important}`);
+      }
+    }
+    if (b.type === 'section') {
+      const sec = b as Extract<EmailBlock, { type: 'section' }>;
+      (sec.blocks ?? []).forEach(walk);
+    }
+  }
+  blocks.forEach(walk);
+  if (rules.length === 0) return '';
+  return `<style type="text/css">@media only screen and (max-width:480px){${rules.join('')}}</style>`;
+}
+
+
 export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand, opts?: { includeFooter?: boolean; unsubscribeUrl?: string; device?: 'desktop' | 'mobile' }): string {
   const device = opts?.device ?? 'desktop';
   const inner = design.blocks.map((b) => renderBlock(b, brand, device)).filter(Boolean).join('\n');
@@ -443,6 +496,7 @@ export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand, op
       footerHtml = renderFooter({ brand, unsubscribeUrl: opts?.unsubscribeUrl ?? '{{unsubscribeUrl}}' });
     } catch { /* footer optional */ }
   }
+  const mobileCss = mobileOverridesCss(design.blocks);
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -450,6 +504,7 @@ export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand, op
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title></title>
   ${styles}
+  ${mobileCss}
 </head>
 <body style="margin:0;padding:0;background:${design.background};">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${design.background};">
