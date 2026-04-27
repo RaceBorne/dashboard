@@ -46,6 +46,21 @@ function safeHtml(html: string): string {
   return html.replace(/&(?!(amp|lt|gt|quot|apos|nbsp|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
 }
 
+/**
+ * Preserve paragraph + line breaks the user typed into a multi-line
+ * content textarea. Blank lines (one or more consecutive \n\n) become
+ * a paragraph-style br pair (creates real visible vertical space).
+ * Lone newlines become a single br. Run AFTER safeHtml so '<' inside
+ * inline HTML the user typed (e.g. <strong>) survives.
+ */
+function preserveLineBreaks(html: string): string {
+  return html
+    .replace(/\r\n?/g, '\n')
+    .replace(/\n{2,}/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
+
+
 function fontFor(brand: MarketingBrand, family: string): string {
   if (family) return `'${family}',`;
   if (brand.fonts.body) return `'${brand.fonts.body}',`;
@@ -58,14 +73,14 @@ function renderHeading(b: Extract<EmailBlock, { type: 'heading' }>, brand: Marke
   const weight = b.fontWeight ?? 700;
   const tracking = typeof b.letterSpacingEm === 'number' ? `letter-spacing:${b.letterSpacingEm}em;` : '';
   const tt = b.textTransform && b.textTransform !== 'none' ? `text-transform:${b.textTransform};` : '';
-  return `<div style="${alignStyle(b.alignment)}font:${weight} ${size}px/1.25 ${fontFor(brand, b.fontFamily)}Arial,sans-serif;color:${b.color};${tracking}${tt}">${safeHtml(b.html)}</div>`;
+  return `<div style="${alignStyle(b.alignment)}font:${weight} ${size}px/1.25 ${fontFor(brand, b.fontFamily)}Arial,sans-serif;color:${b.color};${tracking}${tt}">${preserveLineBreaks(safeHtml(b.html))}</div>`;
 }
 
 function renderText(b: Extract<EmailBlock, { type: 'text' }>, brand: MarketingBrand): string {
   const weight = b.fontWeight ?? 400;
   const tracking = typeof b.letterSpacingEm === 'number' ? `letter-spacing:${b.letterSpacingEm}em;` : '';
   const tt = b.textTransform && b.textTransform !== 'none' ? `text-transform:${b.textTransform};` : '';
-  return `<div style="${alignStyle(b.alignment)}font:${weight} ${b.fontSizePx}px/${b.lineHeight} ${fontFor(brand, b.fontFamily)}Arial,sans-serif;color:${b.color};${tracking}${tt}">${safeHtml(b.html)}</div>`;
+  return `<div style="${alignStyle(b.alignment)}font:${weight} ${b.fontSizePx}px/${b.lineHeight} ${fontFor(brand, b.fontFamily)}Arial,sans-serif;color:${b.color};${tracking}${tt}">${preserveLineBreaks(safeHtml(b.html))}</div>`;
 }
 
 function renderImage(b: Extract<EmailBlock, { type: 'image' }>): string {
