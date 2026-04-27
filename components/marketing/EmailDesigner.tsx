@@ -2952,7 +2952,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
           isPinned ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
           isPresetOver ? 'ring-2 ring-evari-gold ring-offset-2 ring-offset-white'
             : selected ? 'ring-2 ring-evari-gold'
-            : editing ? 'hover:ring-1 hover:ring-evari-gold/40' : '',
+            : 'outline outline-dashed outline-1 outline-evari-edge/35 outline-offset-[-1px] hover:outline-evari-gold/60',
         )}
       >
         {isSection ? (
