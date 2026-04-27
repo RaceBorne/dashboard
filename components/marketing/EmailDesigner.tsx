@@ -2072,8 +2072,9 @@ function PaddingFields({ block, onChange }: { block: PaddingPatch; onChange: (p:
     <div className="space-y-2 pt-1 border-t border-evari-edge/10">
       {/* Vertical pair — top + bottom */}
       <PairedPadding
-        labelA="Padding top"    valueA={top}
-        labelB="Padding bottom" valueB={bot}
+        groupLabel="Vertical padding"
+        labelA="Top"    valueA={top}
+        labelB="Bottom" valueB={bot}
         locked={lockY}
         onToggleLock={() => setLockY((v) => !v)}
         onChangeA={(v) => onChange(lockY ? { paddingTopPx: v, paddingBottomPx: v } : { paddingTopPx: v })}
@@ -2081,8 +2082,9 @@ function PaddingFields({ block, onChange }: { block: PaddingPatch; onChange: (p:
       />
       {/* Horizontal pair — left + right */}
       <PairedPadding
-        labelA="Padding left"  valueA={left}
-        labelB="Padding right" valueB={right}
+        groupLabel="Horizontal padding"
+        labelA="Left"  valueA={left}
+        labelB="Right" valueB={right}
         locked={lockX}
         onToggleLock={() => setLockX((v) => !v)}
         onChangeA={(v) => onChange(lockX ? { paddingLeftPx: v, paddingRightPx: v } : { paddingLeftPx: v })}
@@ -2093,11 +2095,14 @@ function PaddingFields({ block, onChange }: { block: PaddingPatch; onChange: (p:
 }
 
 /**
- * Two padding sliders (with number inputs) sitting either side of a
- * lock toggle. When locked, both sliders move in lockstep — adjust
- * either, both update. Click the lock to unlock.
+ * Vertically-stacked pair of padding sliders inside a bordered group.
+ * A small Link / Unlink toggle in the group header binds both values:
+ * when linked, dragging or typing into either side updates both.
+ * Stacking avoids the narrow-column squash from the previous side-by-
+ * side layout and gives each slider + number input full width.
  */
-function PairedPadding({ labelA, valueA, labelB, valueB, locked, onToggleLock, onChangeA, onChangeB }: {
+function PairedPadding({ groupLabel, labelA, valueA, labelB, valueB, locked, onToggleLock, onChangeA, onChangeB }: {
+  groupLabel: string;
   labelA: string; valueA: number;
   labelB: string; valueB: number;
   locked: boolean;
@@ -2106,25 +2111,28 @@ function PairedPadding({ labelA, valueA, labelB, valueB, locked, onToggleLock, o
   onChangeB: (v: number) => void;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+    <section className="rounded-md border border-evari-edge/20 px-2 py-1.5 space-y-1.5">
+      <header className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{groupLabel}</span>
+        <button
+          type="button"
+          onClick={onToggleLock}
+          className={cn(
+            'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors',
+            locked
+              ? 'text-evari-gold bg-evari-gold/10 hover:bg-evari-gold/20'
+              : 'text-evari-dim hover:text-evari-text hover:bg-evari-edge/30',
+          )}
+          title={locked ? 'Linked — both sides change together. Click to unlink.' : 'Unlinked. Click to link both sides.'}
+          aria-pressed={locked}
+        >
+          {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+          {locked ? 'Linked' : 'Link'}
+        </button>
+      </header>
       <SliderField label={labelA} value={valueA} min={0} max={120} suffix="px" onChange={onChangeA} />
-      <button
-        type="button"
-        onClick={onToggleLock}
-        className={cn(
-          'mb-1 self-end inline-flex items-center justify-center h-7 w-7 rounded-md border transition-colors',
-          locked
-            ? 'border-evari-gold/60 bg-evari-gold/15 text-evari-gold'
-            : 'border-evari-edge/30 text-evari-dim hover:text-evari-text hover:border-evari-edge/60',
-        )}
-        title={locked ? 'Linked — both sides change together. Click to unlink.' : 'Unlinked. Click to link both sides.'}
-        aria-pressed={locked}
-        aria-label={locked ? 'Unlink padding' : 'Link padding'}
-      >
-        {locked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-      </button>
       <SliderField label={labelB} value={valueB} min={0} max={120} suffix="px" onChange={onChangeB} />
-    </div>
+    </section>
   );
 }
 
