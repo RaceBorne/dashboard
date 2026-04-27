@@ -1202,3 +1202,26 @@ main > div > div.flex-1.overflow-y-auto > section > div:not(.rounded-lg) {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
   gap: 1.5rem !important;
 }
+
+/* --------------------------------------------------------------------------
+   Number input spinner buttons. Browser defaults render the up/down spinners
+   at ~12-14px on Chrome / Safari which are nearly impossible to hit on a
+   dense form. Make them visibly bigger globally and always visible (Chrome
+   only shows on hover by default). Firefox doesn't render spinners at all,
+   so this is a no-op there — fields fall back to keyboard arrow keys.
+   -------------------------------------------------------------------------- */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  height: 30px;
+  min-width: 24px;
+  cursor: pointer;
+  margin: 0;
+  -webkit-appearance: inner-spin-button;
+}
+
+/* Give the spinner area a bit of left padding so the digits don't crash into
+   it on narrow inputs. */
+input[type="number"] {
+  padding-right: 4px;
+}
