@@ -196,7 +196,11 @@ function nidSplit(): string { return Math.random().toString(36).slice(2, 10); }
  * carry kind+fields and get translated here on every render.
  */
 export function getSplitCellItems(c: SplitCell): SplitItem[] {
-  if (c.items && c.items.length > 0) return c.items;
+  // Phase 2+: presence of an array field, even an empty one, means
+  // the cell has been edited under the new shape. An empty array is
+  // a user choice ('I deleted everything') and must not be silently
+  // re-populated from the legacy kind/fields below.
+  if (Array.isArray(c.items)) return c.items;
   const out: SplitItem[] = [];
   if (c.kind === 'image') {
     if (c.src) out.push({ id: nidSplit(), kind: 'image', src: c.src, alt: c.alt ?? '' });
