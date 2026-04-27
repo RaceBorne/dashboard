@@ -303,14 +303,12 @@ function CreateModal({ onClose, onCreate, creating }: { onClose: () => void; onC
 function TemplateThumbnail({ title, html }: { title: string; html: string }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  // Measured container dimensions + iframe content height. We compute
-  // scale = min(containerWidth / 600, containerHeight / contentHeight)
-  // so the entire email fits inside the 4:5 tile with no crop. If the
-  // email is shorter than the tile, it sits centred with letterbox at
-  // top + bottom; if taller, it sits centred with letterbox left/right.
+  // Full-width, top-anchored: scale = containerWidth / 600, iframe pinned
+  // to top-left so the email always fills the tile horizontally with the
+  // header content showing first. If content is taller than the 4:5 tile
+  // the bottom crops; if shorter, the bottom shows the canvas bg.
   const [containerW, setContainerW] = useState(240);
-  const [containerH, setContainerH] = useState(300);
-  const [contentH, setContentH] = useState(800); // generous default until measured
+  const [contentH, setContentH] = useState(800);
   const measureContent = () => {
     try {
       const doc = iframeRef.current?.contentDocument;
@@ -322,25 +320,17 @@ function TemplateThumbnail({ title, html }: { title: string; html: string }) {
   useEffect(() => {
     if (!wrapRef.current) return;
     const el = wrapRef.current;
-    const update = () => {
-      setContainerW(el.clientWidth);
-      setContainerH(el.clientHeight);
-    };
+    const update = () => { setContainerW(el.clientWidth); };
     update();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  // Re-measure if html changes
   useEffect(() => { measureContent(); }, [html]);
-  const scale = Math.min(containerW / 600, containerH / Math.max(contentH, 1));
-  const scaledW = 600 * scale;
-  const scaledH = contentH * scale;
-  const offsetX = Math.max(0, (containerW - scaledW) / 2);
-  const offsetY = Math.max(0, (containerH - scaledH) / 2);
+  const scale = containerW / 600;
   return (
-    <div ref={wrapRef} className="aspect-[4/5] bg-evari-ink overflow-hidden relative pointer-events-none">
+    <div ref={wrapRef} className="aspect-[4/5] bg-white overflow-hidden relative pointer-events-none">
       <iframe
         ref={iframeRef}
         title={title}
@@ -350,7 +340,7 @@ function TemplateThumbnail({ title, html }: { title: string; html: string }) {
         style={{
           width: '600px',
           height: `${contentH}px`,
-          transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+          transform: `scale(${scale})`,
           transformOrigin: 'top left',
           border: 0,
         }}

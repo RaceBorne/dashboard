@@ -450,7 +450,6 @@ function PickerThumbnail({ title, html }: { title: string; html: string }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [containerW, setContainerW] = useState(240);
-  const [containerH, setContainerH] = useState(300);
   const [contentH, setContentH] = useState(800);
   const measureContent = () => {
     try {
@@ -463,7 +462,7 @@ function PickerThumbnail({ title, html }: { title: string; html: string }) {
   useEffect(() => {
     if (!wrapRef.current) return;
     const el = wrapRef.current;
-    const update = () => { setContainerW(el.clientWidth); setContainerH(el.clientHeight); };
+    const update = () => { setContainerW(el.clientWidth); };
     update();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(update);
@@ -471,11 +470,9 @@ function PickerThumbnail({ title, html }: { title: string; html: string }) {
     return () => ro.disconnect();
   }, []);
   useEffect(() => { measureContent(); }, [html]);
-  const scale = Math.min(containerW / 600, containerH / Math.max(contentH, 1));
-  const offsetX = Math.max(0, (containerW - 600 * scale) / 2);
-  const offsetY = Math.max(0, (containerH - contentH * scale) / 2);
+  const scale = containerW / 600;
   return (
-    <div ref={wrapRef} className="aspect-[4/5] bg-evari-ink overflow-hidden relative pointer-events-none">
+    <div ref={wrapRef} className="aspect-[4/5] bg-white overflow-hidden relative pointer-events-none">
       <iframe
         ref={iframeRef}
         title={title}
@@ -485,7 +482,7 @@ function PickerThumbnail({ title, html }: { title: string; html: string }) {
         style={{
           width: '600px',
           height: `${contentH}px`,
-          transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+          transform: `scale(${scale})`,
           transformOrigin: 'top left',
           border: 0,
         }}

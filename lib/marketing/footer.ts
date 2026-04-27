@@ -207,7 +207,7 @@ export function renderFooter(input: RenderInput): string {
     .join('\n');
   if (!inner.trim()) return '';
   const borderTop = design.borderTop ? `border-top:1px solid ${design.borderColor};` : '';
-  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background:${design.background};${borderTop}margin-top:32px;">
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background:${design.background};${borderTop}">
     <tr><td style="padding:${design.paddingPx}px;">${inner}</td></tr>
   </table>`;
 }

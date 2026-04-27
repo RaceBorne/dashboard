@@ -8,6 +8,7 @@ import {
   Bookmark,
   ChevronDown,
   ChevronUp,
+  Copy,
   Code2,
   Columns3,
   FolderOpen,
@@ -103,7 +104,7 @@ interface BlockTile {
 const ADD_BUTTONS: BlockTile[] = [
   // Row 1
   { group: 'blocks', type: 'text',    label: 'Text',    Icon: Type,        make: () => ({ id: nid(), type: 'text', html: 'Write your message here.', alignment: 'left', fontSizePx: 16, lineHeight: 1.55, color: '#333333', fontFamily: '', paddingBottomPx: 16 }) },
-  { group: 'blocks', type: 'text',    label: 'Body copy', Icon: PenLine,    make: () => ({ id: nid(), type: 'text', html: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.', alignment: 'left', fontSizePx: 14, lineHeight: 1.6, color: '#333333', fontFamily: '', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'text',    label: 'Paragraph', Icon: PenLine,    make: () => ({ id: nid(), type: 'text', html: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.', alignment: 'left', fontSizePx: 14, lineHeight: 1.6, color: '#333333', fontFamily: '', paddingBottomPx: 16 }) },
   { group: 'blocks', type: 'image',   label: 'Image',   Icon: ImageIcon,   make: () => ({ id: nid(), type: 'image', src: '', alt: '', maxWidthPx: 600, alignment: 'center', paddingBottomPx: 16 }) },
   { group: 'blocks', type: 'split',   label: 'Split',   Icon: SquareSplitHorizontal, make: () => ({ id: nid(), type: 'split', imageSrc: '', imageAlt: '', imagePosition: 'left', html: 'Side-by-side text.', fontSizePx: 16, lineHeight: 1.55, color: '#333333', paddingBottomPx: 16 }) },
   // Row 2
@@ -796,6 +797,35 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
   function removeBlock(id: string) {
     commit({ ...design, blocks: enforcePins(mapTree(design.blocks, (b) => (b.id === id ? null : b))) });
   }
+  /**
+   * Insert a clone of the block (with a fresh id, recursive) immediately
+   * after the original — at root or inside its parent section.
+   */
+  function duplicateBlock(id: string): void {
+    function cloneBlock(b: EmailBlock): EmailBlock {
+      const fresh = { ...b, id: nid() } as EmailBlock;
+      if (fresh.type === 'section') {
+        const sec = fresh as Extract<EmailBlock, { type: 'section' }>;
+        return { ...sec, blocks: (sec.blocks ?? []).map(cloneBlock) };
+      }
+      return fresh;
+    }
+    const loc = findContainerOf(design.blocks, id);
+    if (!loc) return;
+    const original = (() => {
+      const found = findBlockById(design.blocks, id);
+      return found ?? null;
+    })();
+    if (!original) return;
+    const clone = cloneBlock(original);
+    const nextBlocks = updateChildren(design.blocks, loc.parentId, (kids) => {
+      const next = [...kids];
+      next.splice(loc.index + 1, 0, clone);
+      return next;
+    });
+    commit({ ...design, blocks: enforcePins(nextBlocks) });
+    setSelectedId(clone.id);
+  }
   function addBlock(maker: () => EmailBlock) {
     commit({ ...design, blocks: enforcePins([...design.blocks, maker()]) });
   }
@@ -1068,8 +1098,10 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                         editing={selectedId !== null}
                         onSelect={() => setSelectedId(b.id)}
                         onRemove={() => { setSelectedId(null); removeBlock(b.id); }}
+                        onDuplicate={() => duplicateBlock(b.id)}
                         onSelectChild={(id) => setSelectedId(id)}
                         onRemoveChild={(id) => { if (selectedId === id) setSelectedId(null); removeBlock(id); }}
+                        onDuplicateChild={(id) => duplicateBlock(id)}
                       />
                     ))}
                     <CanvasEndDrop />
@@ -2239,7 +2271,7 @@ function CanvasEndDrop() {
  * as nested CanvasBlocks inside their own SortableContext. Every
  * block is its own React node so click + drag work natively.
  */
-function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSelect, onRemove, onSelectChild, onRemoveChild }: {
+function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSelect, onRemove, onDuplicate, onSelectChild, onRemoveChild, onDuplicateChild }: {
   block: EmailBlock;
   brand: MarketingBrand;
   device: 'desktop' | 'mobile';
@@ -2248,8 +2280,10 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   editing: boolean;
   onSelect: () => void;
   onRemove: () => void;
+  onDuplicate: () => void;
   onSelectChild: (id: string) => void;
   onRemoveChild: (id: string) => void;
+  onDuplicateChild: (id: string) => void;
 }) {
   // Render with the device-effective block so mobile overrides take
   // effect in the canvas.
@@ -2283,6 +2317,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
             editing={editing}
             onSelectChild={onSelectChild}
             onRemoveChild={onRemoveChild}
+            onDuplicateChild={onDuplicateChild}
           />
         ) : (
           <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: renderEmailBlockHtml(eff, brand, device) }} />
@@ -2300,6 +2335,9 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
               <GripVertical className="h-3.5 w-3.5" />
             </button>
           )}
+          <button type="button" onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-1.5 text-evari-dim hover:text-evari-text" title="Duplicate block" aria-label="Duplicate block">
+            <Copy className="h-3.5 w-3.5" />
+          </button>
           <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }} className="p-1.5 text-evari-dim hover:text-evari-danger" title="Delete block" aria-label="Delete block">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -2309,7 +2347,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   );
 }
 
-function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSelectChild, onRemoveChild }: {
+function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSelectChild, onRemoveChild, onDuplicateChild }: {
   block: Extract<EmailBlock, { type: 'section' }>;
   brand: MarketingBrand;
   device: 'desktop' | 'mobile';
@@ -2317,6 +2355,7 @@ function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSel
   editing: boolean;
   onSelectChild: (id: string) => void;
   onRemoveChild: (id: string) => void;
+  onDuplicateChild: (id: string) => void;
 }) {
   const fill = bgFillCss(block.backgroundSize);
   // Announcement-bar sections default to centred V-alignment.
@@ -2354,8 +2393,10 @@ function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSel
                 editing={editing}
                 onSelect={() => onSelectChild(c.id)}
                 onRemove={() => onRemoveChild(c.id)}
+                onDuplicate={() => onDuplicateChild(c.id)}
                 onSelectChild={onSelectChild}
                 onRemoveChild={onRemoveChild}
+                onDuplicateChild={onDuplicateChild}
               />
             ))}
             <SectionEndDrop sectionId={block.id} />

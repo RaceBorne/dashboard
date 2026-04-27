@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
+  Copy,
   GripVertical,
   Image as ImageIcon,
   Minus,
@@ -79,6 +80,17 @@ export function SignatureDesigner({ initialBrand, value, onChange }: Props) {
   }
   function removeBlock(id: string) {
     onChange({ ...design, blocks: design.blocks.filter((b) => b.id !== id) });
+    if (selectedId === id) setSelectedId(null);
+  }
+  function duplicateBlock(id: string) {
+    const idx = design.blocks.findIndex((b) => b.id === id);
+    if (idx < 0) return;
+    const original = design.blocks[idx];
+    const clone = { ...original, id: Math.random().toString(36).slice(2, 10) } as SignatureBlock;
+    const next = [...design.blocks];
+    next.splice(idx + 1, 0, clone);
+    onChange({ ...design, blocks: next });
+    setSelectedId(clone.id);
   }
   function addBlock(maker: () => SignatureBlock) {
     onChange({ ...design, blocks: [...design.blocks, maker()] });
@@ -172,7 +184,7 @@ export function SignatureDesigner({ initialBrand, value, onChange }: Props) {
               }}
             >
               <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
-                <ul className="space-y-1.5">
+                <ul className="space-y-1.5" onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}>
                   {design.blocks.map((b) => (
                     <SortableBlockRow
                       key={b.id}
@@ -181,6 +193,7 @@ export function SignatureDesigner({ initialBrand, value, onChange }: Props) {
                       onSelect={() => setSelectedId(selectedId === b.id ? null : b.id)}
                       onChange={(p) => updateBlock(b.id, p)}
                       onRemove={() => removeBlock(b.id)}
+                      onDuplicate={() => duplicateBlock(b.id)}
                     />
                   ))}
                 </ul>
@@ -209,12 +222,14 @@ function SortableBlockRow({
   onSelect,
   onChange,
   onRemove,
+  onDuplicate,
 }: {
   block: SignatureBlock;
   selected: boolean;
   onSelect: () => void;
   onChange: (patch: Partial<SignatureBlock>) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const style: React.CSSProperties = {
@@ -230,6 +245,7 @@ function SortableBlockRow({
         onSelect={onSelect}
         onChange={onChange}
         onRemove={onRemove}
+        onDuplicate={onDuplicate}
         dragHandleProps={{ ...attributes, ...listeners }}
         isDragging={isDragging}
       />
@@ -243,6 +259,7 @@ interface BlockEditorProps {
   onSelect: () => void;
   onChange: (patch: Partial<SignatureBlock>) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
   dragHandleProps: React.HTMLAttributes<HTMLButtonElement>;
   isDragging: boolean;
 }
@@ -250,7 +267,7 @@ interface BlockEditorProps {
 /** Whole header acts as a single click target — toggles open AND
  * highlights the corresponding block in the live preview. Drag handle
  * + delete button stop propagation so they don't double-fire. */
-function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandleProps, isDragging }: BlockEditorProps) {
+function BlockEditor({ block, selected, onSelect, onChange, onRemove, onDuplicate, dragHandleProps, isDragging }: BlockEditorProps) {
   const meta = ADD_BUTTONS.find((b) => b.type === block.type);
   const Icon = meta?.Icon ?? PenLine;
   const label = meta?.label ?? block.type;
@@ -282,9 +299,19 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
         </span>
         <button
           type="button"
+          onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+          className="text-evari-dim hover:text-evari-text px-1"
+          aria-label="Duplicate"
+          title="Duplicate block"
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           className="text-evari-dim hover:text-evari-danger px-1"
           aria-label="Remove"
+          title="Delete block"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
