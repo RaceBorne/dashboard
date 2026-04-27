@@ -616,16 +616,17 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
 
   return (
     <div className="rounded-md bg-evari-surface border border-evari-gold/40 h-full flex flex-col">
-      <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30 shrink-0">
-        <span className="text-[11px] uppercase tracking-[0.12em] text-evari-gold font-semibold">
-          Edit {entry.kind === 'typo' ? 'typography' : 'button'} style
+      <header className="flex items-center gap-2 px-3.5 py-2.5 border-b border-evari-gold/30 shrink-0">
+        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">
+          <PenLine className="h-3.5 w-3.5" />
         </span>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-evari-dimmer">{savedAt ? `Saved ${savedAt}` : 'Auto-saves as you edit'}</span>
-          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1 rounded" aria-label="Close"><X className="h-4 w-4" /></button>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] text-evari-gold font-semibold truncate">Edit {entry.kind === 'typo' ? 'typography' : 'button'} style</div>
+          <div className="text-[10px] text-evari-dimmer mt-0.5 truncate">{savedAt ? `Saved ${savedAt}` : 'Auto-saves as you edit'}</div>
         </div>
+        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1.5 rounded-md hover:bg-evari-ink/60 transition-colors" aria-label="Close"><X className="h-4 w-4" /></button>
       </header>
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-3">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Name</span>
           <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
@@ -1526,10 +1527,16 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             />
           ) : pendingTile ? (
             <div className="rounded-md bg-evari-surface border border-evari-gold/40 h-full flex flex-col">
-              <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30 shrink-0">
-                <span className="text-[11px] uppercase tracking-[0.12em] text-evari-gold font-semibold">New {pendingTile.tile.label}</span>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => setPendingTile(null)} className="text-[11px] text-evari-dim hover:text-evari-text px-2 py-0.5 rounded">Cancel</button>
+              <header className="flex items-center gap-2 px-3.5 py-2.5 border-b border-evari-gold/30 shrink-0">
+                {(() => { const Icn = pendingTile.tile.Icon; return (
+                  <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold"><Icn className="h-3.5 w-3.5" /></span>
+                ); })()}
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] text-evari-gold font-semibold truncate">New {pendingTile.tile.label}</div>
+                  <div className="text-[10px] text-evari-dimmer mt-0.5 truncate">Configure then click Add to canvas</div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button type="button" onClick={() => setPendingTile(null)} className="text-[11px] text-evari-dim hover:text-evari-text px-2 py-1 rounded-md hover:bg-evari-ink/60 transition-colors">Cancel</button>
                   <button type="button" onClick={() => {
                     const block = pendingTile.draft;
                     const isPinTop = block.type === 'section' && (block as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
@@ -1537,7 +1544,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                     commit({ ...design, blocks: next });
                     setSelectedId(block.id);
                     setPendingTile(null);
-                  }} className="text-[11px] font-medium text-evari-goldInk bg-evari-gold hover:opacity-90 px-2.5 py-0.5 rounded">Add to canvas</button>
+                  }} className="text-[11px] font-medium text-evari-goldInk bg-evari-gold hover:opacity-90 px-3 py-1 rounded-md transition-opacity">Add to canvas</button>
                 </div>
               </header>
               <div className="flex-1 min-h-0 overflow-hidden">
@@ -1702,15 +1709,17 @@ function BlockPropertiesPanel({ block, brand, designWidthPx, device, onChange, o
   const Icon = meta?.Icon ?? PenLine;
   const label = meta?.label ?? block.type;
   return (
-    <aside className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-evari-edge/20">
-        <Icon className="h-3.5 w-3.5 text-evari-dim shrink-0" />
-        <span className="text-sm text-evari-text font-semibold flex-1 truncate">{label}</span>
-        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1 rounded" aria-label="Close">
-          <X className="h-3.5 w-3.5" />
+    <aside className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col h-full">
+      <header className="flex items-center gap-2 px-3.5 py-2.5 border-b border-evari-edge/30 shrink-0">
+        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-ink text-evari-text">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <span className="text-[13px] text-evari-text font-semibold flex-1 truncate">{label}</span>
+        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1.5 rounded-md hover:bg-evari-ink/60 transition-colors" aria-label="Close">
+          <X className="h-4 w-4" />
         </button>
       </header>
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-4">
         {device === 'mobile' ? <DeviceOverrideBanner blockHasMobile={!!block.mobile} onClear={() => onChange({ mobile: undefined } as unknown as Partial<EmailBlock>)} /> : null}
         {view.type === 'heading'   ? <HeadingFields   block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
         {view.type === 'text'      ? <TextFields      block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
@@ -1766,7 +1775,30 @@ function DeviceOverrideBanner({ blockHasMobile, onClear }: { blockHasMobile: boo
 
 // ─── Field helpers ──────────────────────────────────────────────
 
-const inputCls = 'w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none';
+// Single source of truth for form-control look. Keeps every dropdown,
+// text input + number input the same height and same surface rhythm
+// across every detail panel. ~32px tall = comfortable touch target.
+const inputCls = 'w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
+// Standard label style — used everywhere a field needs an above-the-input label.
+const labelCls = 'block text-[10px] font-medium uppercase tracking-[0.1em] text-evari-dimmer mb-1';
+// Compact section header inside the right rail panels.
+const groupHeaderCls = 'text-[10px] font-semibold uppercase tracking-[0.12em] text-evari-text/80 mb-2';
+
+/**
+ * Titled group used to break a per-block properties panel into clearly
+ * labelled sections (Content, Typography, Style, Layout). Same chrome
+ * everywhere so panels feel uniform across block types.
+ */
+function FieldGroup({ title, children, className }: { title?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={cn('space-y-2', className)}>
+      {title ? <h4 className={groupHeaderCls}>{title}</h4> : null}
+      <div className="space-y-2.5">{children}</div>
+    </section>
+  );
+}
+
+
 
 /**
  * Font dropdown that pulls in the brand kit's uploaded custom fonts +
@@ -1782,7 +1814,7 @@ function FontDropdown({ value, onChange, brand, label = 'Font (override)' }: { v
     : [];
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">{label}</span>
+      <span className={labelCls}>{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
         <option value="">— inherit brand body —</option>
         {customFamilies.length > 0 ? (
@@ -1822,17 +1854,16 @@ function ColourField({ label, value, onChange, brand }: { label: string; value: 
       ].filter(Boolean)))
     : [];
 
-  // The native <input type="color"> trigger sits inline — clicking opens
-  // the OS colour picker directly with no popover step in between.
+  // Native <input type="color"> opens the OS picker directly.
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">{label}</span>
-      <div className="flex items-center gap-1">
+      <span className={labelCls}>{label}</span>
+      <div className="flex items-center gap-1.5">
         <input
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-9 rounded border border-evari-edge/30 bg-transparent cursor-pointer p-0"
+          className="h-8 w-10 rounded-md border border-evari-edge/30 bg-transparent cursor-pointer p-0 shrink-0"
           aria-label={`${label} colour picker`}
           title="Click to open the colour picker"
         />
@@ -1840,18 +1871,18 @@ function ColourField({ label, value, onChange, brand }: { label: string; value: 
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 px-2 py-1 rounded bg-evari-ink text-evari-text text-[11px] font-mono border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none uppercase"
+          className={cn(inputCls, 'font-mono uppercase')}
         />
       </div>
       {brandSwatches.length > 0 ? (
-        <div className="flex flex-wrap gap-1 mt-1.5" aria-label="Brand kit swatches">
+        <div className="flex flex-wrap gap-1.5 mt-2" aria-label="Brand kit swatches">
           {brandSwatches.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => onChange(c)}
               className={cn(
-                'h-5 w-5 rounded-sm border border-black/20 transition-transform hover:scale-110',
+                'h-6 w-6 rounded-md border border-black/20 transition-transform hover:scale-110',
                 value.toLowerCase() === c.toLowerCase() && 'ring-2 ring-evari-gold ring-offset-1 ring-offset-evari-surface',
               )}
               style={{ background: c }}
@@ -1868,12 +1899,12 @@ function ColourField({ label, value, onChange, brand }: { label: string; value: 
 function NumField({ label, value, min, max, onChange, step }: { label: string; value: number; min?: number; max?: number; onChange: (v: number) => void; step?: number }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">{label}</span>
+      <span className={labelCls}>{label}</span>
       <input
         type="number" value={value}
         min={min} max={max} step={step ?? 1}
         onChange={(e) => onChange(Number(e.target.value) || 0)}
-        className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm font-mono border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+        className={cn(inputCls, 'font-mono tabular-nums')}
       />
     </label>
   );
@@ -1882,10 +1913,20 @@ function NumField({ label, value, min, max, onChange, step }: { label: string; v
 function AlignmentField({ value, onChange }: { value: EmailAlignment; onChange: (v: EmailAlignment) => void }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Alignment</span>
-      <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5">
+      <span className={labelCls}>Alignment</span>
+      <div className="grid grid-cols-3 gap-1 rounded-md bg-evari-ink border border-evari-edge/30 p-1">
         {(['left', 'center', 'right'] as EmailAlignment[]).map((a) => (
-          <button key={a} type="button" onClick={() => onChange(a)} className={cn('px-3 py-1 rounded text-xs font-medium capitalize transition-colors duration-300', value === a ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}>{a}</button>
+          <button
+            key={a}
+            type="button"
+            onClick={() => onChange(a)}
+            className={cn(
+              'py-1.5 rounded text-[11px] font-medium capitalize transition-colors',
+              value === a ? 'bg-evari-gold text-evari-goldInk shadow-sm' : 'text-evari-dim hover:text-evari-text hover:bg-evari-edge/30',
+            )}
+          >
+            {a}
+          </button>
         ))}
       </div>
     </label>
@@ -1905,7 +1946,7 @@ function SliderField({ label, value, min, max, step, suffix, onChange }: {
   const clamp = (n: number) => Math.min(max, Math.max(min, n));
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">{label}</span>
+      <span className={labelCls}>{label}</span>
       <div className="flex items-center gap-2">
         <input
           type="range"
@@ -1914,9 +1955,9 @@ function SliderField({ label, value, min, max, step, suffix, onChange }: {
           max={max}
           step={step ?? 1}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="flex-1 h-1.5 rounded-full bg-evari-ink accent-evari-gold cursor-pointer"
+          className="flex-1 h-2 rounded-full bg-evari-ink accent-evari-gold cursor-pointer"
         />
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <input
             type="number"
             value={Number(value.toFixed(stepPrecision))}
@@ -1928,9 +1969,9 @@ function SliderField({ label, value, min, max, step, suffix, onChange }: {
               if (!Number.isFinite(v)) return;
               onChange(clamp(stepPrecision > 0 ? Number(v.toFixed(stepPrecision)) : Math.round(v)));
             }}
-            className="w-14 px-1.5 py-0.5 rounded bg-evari-ink text-evari-text text-[11px] font-mono tabular-nums border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none text-right"
+            className="w-16 px-2 py-1 rounded-md bg-evari-ink text-evari-text text-[12px] font-mono tabular-nums border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none text-right"
           />
-          {suffix ? <span className="text-[10px] text-evari-dimmer font-mono">{suffix}</span> : null}
+          {suffix ? <span className="text-[10px] text-evari-dimmer font-mono w-5 text-left shrink-0">{suffix}</span> : null}
         </div>
       </div>
     </label>
@@ -2076,7 +2117,7 @@ function TypographyStyles({
 function CaseField({ value, onChange }: { value: 'none' | 'lowercase' | 'uppercase' | 'capitalize' | undefined; onChange: (v: 'none' | 'lowercase' | 'uppercase' | 'capitalize') => void }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Case</span>
+      <span className={labelCls}>Case</span>
       <select
         value={value ?? 'none'}
         onChange={(e) => onChange(e.target.value as 'none' | 'lowercase' | 'uppercase' | 'capitalize')}
@@ -2111,7 +2152,7 @@ function WeightField({ value, onChange }: { value: number; onChange: (v: number)
   const closest = FONT_WEIGHTS.reduce((acc, w) => Math.abs(w.value - value) < Math.abs(acc - value) ? w.value : acc, FONT_WEIGHTS[0].value);
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Weight</span>
+      <span className={labelCls}>Weight</span>
       <select
         value={closest}
         onChange={(e) => onChange(Number(e.target.value))}
@@ -2133,39 +2174,41 @@ function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, 
   const tracking = block.letterSpacingEm ?? 0;
   const weight = block.fontWeight ?? 700;
   return (
-    <div className="space-y-2">
-      <label className="block">
-        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
-          <span>Heading text (HTML allowed)</span>
-          <VariableMenu onPick={(token) => onChange({ html: block.html + token })} />
-        </span>
-        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[60px] font-mono text-[12px]')} />
-      </label>
-      <TypographyStyles
-        brand={brand}
-        current={{ fontFamily: block.fontFamily, fontSizePx: size, fontWeight: weight, letterSpacingEm: tracking, lineHeight: 1.25, color: block.color, textTransform: block.textTransform }}
-        onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, color: p.color, textTransform: p.textTransform ?? 'none' })}
-      />
-      <div className="grid grid-cols-2 gap-2">
+    <>
+      <FieldGroup title="Content">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Level</span>
-          <select value={block.level} onChange={(e) => onChange({ level: Number(e.target.value) as 1 | 2 | 3 })} className={inputCls}>
-            <option value={1}>H1</option>
-            <option value={2}>H2</option>
-            <option value={3}>H3</option>
-          </select>
+          <span className="flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.1em] text-evari-dimmer mb-1">
+            <span>Heading text</span>
+            <VariableMenu onPick={(token) => onChange({ html: block.html + token })} />
+          </span>
+          <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[64px] font-mono')} />
         </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className={labelCls}>Level</span>
+            <select value={block.level} onChange={(e) => onChange({ level: Number(e.target.value) as 1 | 2 | 3 })} className={inputCls}>
+              <option value={1}>H1</option>
+              <option value={2}>H2</option>
+              <option value={3}>H3</option>
+            </select>
+          </label>
+          <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
+        </div>
+      </FieldGroup>
+      <FieldGroup title="Typography">
+        <TypographyStyles
+          brand={brand}
+          current={{ fontFamily: block.fontFamily, fontSizePx: size, fontWeight: weight, letterSpacingEm: tracking, lineHeight: 1.25, color: block.color, textTransform: block.textTransform }}
+          onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, color: p.color, textTransform: p.textTransform ?? 'none' })}
+        />
         <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
-      </div>
-      <SliderField label="Size" value={size} min={10} max={96} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
-      <SliderField label="Tracking" value={tracking} min={-0.1} max={0.4} step={0.005} suffix="em" onChange={(v) => onChange({ letterSpacingEm: Number(v.toFixed(3)) })} />
-      <WeightField value={weight} onChange={(v) => onChange({ fontWeight: v })} />
-      <div className="grid grid-cols-2 gap-2">
+        <SliderField label="Size" value={size} min={10} max={96} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
+        <WeightField value={weight} onChange={(v) => onChange({ fontWeight: v })} />
+        <SliderField label="Tracking" value={tracking} min={-0.1} max={0.4} step={0.005} suffix="em" onChange={(v) => onChange({ letterSpacingEm: Number(v.toFixed(3)) })} />
+        <CaseField value={block.textTransform} onChange={(v) => onChange({ textTransform: v })} />
         <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} brand={brand} />
-        <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
-      </div>
-      <CaseField value={block.textTransform} onChange={(v) => onChange({ textTransform: v })} />
-    </div>
+      </FieldGroup>
+    </>
   );
 }
 
@@ -2173,30 +2216,32 @@ function TextFields({ block, brand, onChange }: { block: Extract<EmailBlock, { t
   const tracking = block.letterSpacingEm ?? 0;
   const weight = block.fontWeight ?? 400;
   return (
-    <div className="space-y-2">
-      <label className="block">
-        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
-          <span>Content (HTML allowed)</span>
-          <VariableMenu onPick={(token) => onChange({ html: block.html + token })} />
-        </span>
-        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[100px] font-mono text-[12px]')} />
-      </label>
-      <TypographyStyles
-        brand={brand}
-        current={{ fontFamily: block.fontFamily, fontSizePx: block.fontSizePx, fontWeight: weight, letterSpacingEm: tracking, lineHeight: block.lineHeight, color: block.color, textTransform: block.textTransform }}
-        onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, lineHeight: p.lineHeight, color: p.color, textTransform: p.textTransform ?? 'none' })}
-      />
-      <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
-      <SliderField label="Size" value={block.fontSizePx} min={10} max={48} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
-      <SliderField label="Line height" value={block.lineHeight} min={1} max={3} step={0.05} onChange={(v) => onChange({ lineHeight: Number(v.toFixed(2)) })} />
-      <SliderField label="Tracking" value={tracking} min={-0.05} max={0.3} step={0.005} suffix="em" onChange={(v) => onChange({ letterSpacingEm: Number(v.toFixed(3)) })} />
-      <WeightField value={weight} onChange={(v) => onChange({ fontWeight: v })} />
-      <div className="grid grid-cols-2 gap-2">
-        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} brand={brand} />
+    <>
+      <FieldGroup title="Content">
+        <label className="block">
+          <span className="flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.1em] text-evari-dimmer mb-1">
+            <span>Body</span>
+            <VariableMenu onPick={(token) => onChange({ html: block.html + token })} />
+          </span>
+          <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[120px] font-mono')} />
+        </label>
         <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
-      </div>
-      <CaseField value={block.textTransform} onChange={(v) => onChange({ textTransform: v })} />
-    </div>
+      </FieldGroup>
+      <FieldGroup title="Typography">
+        <TypographyStyles
+          brand={brand}
+          current={{ fontFamily: block.fontFamily, fontSizePx: block.fontSizePx, fontWeight: weight, letterSpacingEm: tracking, lineHeight: block.lineHeight, color: block.color, textTransform: block.textTransform }}
+          onApply={(p) => onChange({ fontFamily: p.fontFamily, fontSizePx: p.fontSizePx, fontWeight: p.fontWeight, letterSpacingEm: p.letterSpacingEm, lineHeight: p.lineHeight, color: p.color, textTransform: p.textTransform ?? 'none' })}
+        />
+        <FontDropdown value={block.fontFamily} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
+        <SliderField label="Size" value={block.fontSizePx} min={10} max={48} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />
+        <WeightField value={weight} onChange={(v) => onChange({ fontWeight: v })} />
+        <SliderField label="Line height" value={block.lineHeight} min={1} max={3} step={0.05} onChange={(v) => onChange({ lineHeight: Number(v.toFixed(2)) })} />
+        <SliderField label="Tracking" value={tracking} min={-0.05} max={0.3} step={0.005} suffix="em" onChange={(v) => onChange({ letterSpacingEm: Number(v.toFixed(3)) })} />
+        <CaseField value={block.textTransform} onChange={(v) => onChange({ textTransform: v })} />
+        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} brand={brand} />
+      </FieldGroup>
+    </>
   );
 }
 
