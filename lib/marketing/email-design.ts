@@ -332,7 +332,11 @@ function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: Marketing
   const cells = getSplitCells(b);
   const left = renderSplitCell(cells.left, brand);
   const right = renderSplitCell(cells.right, brand);
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td valign="top" width="50%" style="padding-right:12px;">${left}</td><td valign="top" width="50%">${right}</td></tr></table>`;
+  // valign='middle' so when one side is taller (e.g. a full image) the
+  // shorter side's items sit centred vertically next to it instead of
+  // anchoring to the top. height:100% on the row + cells lets the cells
+  // share the row's height for proper centring across email clients.
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;"><tr style="height:100%;"><td valign="middle" width="50%" style="padding-right:12px;height:100%;">${left}</td><td valign="middle" width="50%" style="height:100%;">${right}</td></tr></table>`;
 }
 
 
