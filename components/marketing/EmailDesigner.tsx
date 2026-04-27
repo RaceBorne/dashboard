@@ -120,7 +120,31 @@ const ADD_BUTTONS: BlockTile[] = [
   { group: 'blocks', type: 'text',    label: 'Text',    Icon: Type,        make: () => ({ id: nid(), type: 'text', html: 'Write your message here.', alignment: 'left', fontSizePx: 16, lineHeight: 1.55, color: '#333333', fontFamily: '', paddingBottomPx: 16 }) },
   { group: 'blocks', type: 'text',    label: 'Paragraph', Icon: PenLine,    make: () => ({ id: nid(), type: 'text', html: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.', alignment: 'left', fontSizePx: 14, lineHeight: 1.6, color: '#333333', fontFamily: '', paddingBottomPx: 16 }) },
   { group: 'blocks', type: 'image',   label: 'Image',   Icon: ImageIcon,   make: () => ({ id: nid(), type: 'image', src: '', alt: '', maxWidthPx: 600, alignment: 'center', paddingBottomPx: 16 }) },
-  { group: 'blocks', type: 'split',   label: 'Split Items', Icon: SquareSplitHorizontal, make: () => ({ id: nid(), type: 'split', imageSrc: '', imageAlt: '', imagePosition: 'left', html: 'Side-by-side text.', fontSizePx: 16, lineHeight: 1.55, color: '#333333', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'split',   label: 'Split Items', Icon: SquareSplitHorizontal, make: () => {
+    const lorem = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.';
+    const sid = () => Math.random().toString(36).slice(2, 10);
+    return {
+      id: nid(),
+      type: 'split',
+      imageSrc: '', imageAlt: '', imagePosition: 'left',
+      html: lorem, fontSizePx: 16, lineHeight: 1.55, color: '#333333',
+      paddingBottomPx: 16,
+      cells: {
+        left: {
+          horizontalAlignment: 'center',
+          items: [
+            { id: sid(), kind: 'text', html: lorem, fontSizePx: 14, lineHeight: 1.55, color: '#333333', fontFamily: '', fontWeight: 400, alignment: 'center' },
+          ],
+        },
+        right: {
+          horizontalAlignment: 'center',
+          items: [
+            { id: sid(), kind: 'image', src: '', alt: '', shadow: 'none' },
+          ],
+        },
+      },
+    };
+  } },
   // Row 2
   { group: 'blocks', type: 'button',  label: 'Button',  Icon: MousePointerClick,  make: () => ({ id: nid(), type: 'button', label: 'Click me', url: 'https://evari.cc', alignment: 'center', backgroundColor: '#1a1a1a', textColor: '#ffffff', borderRadiusPx: 4, paddingXPx: 24, paddingYPx: 12, paddingBottomPx: 24 }) },
   { group: 'blocks', type: 'headerBar', label: 'Header bar', Icon: Heading1, make: () => ({ id: nid(), type: 'headerBar', logoUrl: '', tagline: '', linkUrl: '', backgroundColor: '#ffffff', textColor: '#666666', paddingBottomPx: 8 }) },

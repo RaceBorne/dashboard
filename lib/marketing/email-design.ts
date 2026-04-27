@@ -268,7 +268,7 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
     const shadow = it.shadow && it.shadow !== 'none' ? splitImageShadowCss(it.shadow, it.shadowColor) : '';
     const shadowStyle = shadow ? `box-shadow:${shadow};border-radius:4px;` : '';
     if (!it.src) {
-      return `<div ${idAttr} style="margin-bottom:8px;"><div style="display:inline-block;width:100%;max-width:280px;height:160px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/160px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
+      return `<div ${idAttr} style="margin-bottom:8px;"><div style="display:inline-block;width:100%;max-width:300px;height:300px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/300px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
     }
     const widthCss = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct <= 100
       ? `width:${it.widthPct}%;height:auto;`
