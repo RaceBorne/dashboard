@@ -350,16 +350,25 @@ function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: Marketing
   const right = renderSplitCell(cells.right, brand);
   const lh = cells.left.horizontalAlignment ?? 'center';
   const rh = cells.right.horizontalAlignment ?? 'center';
-  // valign='middle' so when one side is taller (e.g. a full image) the
-  // shorter side's items sit centred vertically next to it. align='${'${'}halign}'
-  // + matching text-align in the td style centres inline content in
-  // every email client; the cell renderer also wraps the stack in an
-  // inline-block centring container so block-level items follow.
-  // table-layout:fixed locks each td at width:50% regardless of content
-  // so a 'fill' image cannot push the cell wider than half the email.
-  // overflow:hidden on each td means object-fit:cover never spills over
-  // the cell boundary.
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;table-layout:fixed;"><tr style="height:100%;"><td valign="middle" align="${lh}" width="50%" style="padding-right:12px;height:100%;text-align:${lh};vertical-align:middle;overflow:hidden;">${left}</td><td valign="middle" align="${rh}" width="50%" style="height:100%;text-align:${rh};vertical-align:middle;overflow:hidden;">${right}</td></tr></table>`;
+  // CRITICAL: the two halves MUST be perfectly symmetric so each side's
+  // content axis sits exactly equidistant from the newsletter centre
+  // line. Asymmetric padding (e.g. padding-right on one side only) used
+  // to shift the visual centre by the padding amount, so it has been
+  // removed entirely.
+  //
+  //   * table-layout:fixed locks the column model so width:50% is
+  //     enforced regardless of inner content size.
+  //   * Each td gets width="50%" attribute AND inline width:50%, AND
+  //     identical zero padding, so both columns have IDENTICAL inner
+  //     widths.
+  //   * For a visual gap between the halves, use the per-cell
+  //     paddingPx (which renders equal padding on all four sides of
+  //     EACH cell), so the symmetry is preserved.
+  //   * overflow:hidden + object-fit:cover means a Fill-mode image
+  //     can never escape its half.
+  //   * valign='middle' centres the shorter side vertically against
+  //     the taller side (e.g. text against a full-height image).
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout:fixed;border-collapse:collapse;width:100%;margin:0 auto;"><tr><td valign="middle" align="${lh}" width="50%" style="width:50%;padding:0;margin:0;text-align:${lh};vertical-align:middle;overflow:hidden;">${left}</td><td valign="middle" align="${rh}" width="50%" style="width:50%;padding:0;margin:0;text-align:${rh};vertical-align:middle;overflow:hidden;">${right}</td></tr></table>`;
 }
 
 
