@@ -569,6 +569,30 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
  * component switched on entry.kind. Fields update local state instantly
  * AND schedule a PATCH 400ms after the last change.
  */
+function ButtonPresetPreview({ preset }: { preset: ButtonPreset }) {
+  const tt = preset.textTransform && preset.textTransform !== 'none' ? `text-transform:${preset.textTransform};` : '';
+  const tracking = typeof preset.letterSpacingEm === 'number' ? `letter-spacing:${preset.letterSpacingEm}em;` : '';
+  const family = preset.fontFamily ? `'${preset.fontFamily}',` : '';
+  return (
+    <div className="rounded-md border border-evari-edge/20 bg-zinc-200 p-4 flex items-center justify-center">
+      <span
+        style={{
+          display: 'inline-block',
+          background: preset.backgroundColor,
+          color: preset.textColor,
+          padding: `${preset.paddingYPx}px ${preset.paddingXPx}px`,
+          borderRadius: `${preset.borderRadiusPx}px`,
+          font: `${preset.fontWeight ?? 700} ${preset.fontSizePx ?? 14}px ${family}Arial,sans-serif`,
+          textDecoration: 'none',
+        }}
+        // Casting via dangerouslySetInnerHTML lets us inject text-transform
+        // and letter-spacing without React stripping the kebab CSS keys.
+        dangerouslySetInnerHTML={{ __html: `<span style="${tt}${tracking}display:inline-block;">${(preset.label || 'Click me').replace(/[<>]/g, '')}</span>` }}
+      />
+    </div>
+  );
+}
+
 function InlinePresetEditor({ brand, entry, onChange, onClose }: {
   brand: MarketingBrand;
   entry: { kind: 'typo'; preset: TypographyPreset } | { kind: 'button'; preset: ButtonPreset };
@@ -637,10 +661,7 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
         </label>
         {entry.kind === 'typo' ? (
           <>
-            <label className="block">
-              <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
-              <input type="text" value={(draft as TypographyPreset).fontFamily} onChange={(e) => setDraft({ ...(draft as TypographyPreset), fontFamily: e.target.value } as TypographyPreset)} className={inputCls} placeholder="e.g. Katerina" />
-            </label>
+            <FontDropdown brand={brand} label="Font family" value={(draft as TypographyPreset).fontFamily} onChange={(v) => setDraft({ ...(draft as TypographyPreset), fontFamily: v } as TypographyPreset)} />
             <SliderField label="Size" value={(draft as TypographyPreset).fontSizePx} min={10} max={120} suffix="px" onChange={(v) => setDraft({ ...(draft as TypographyPreset), fontSizePx: v } as TypographyPreset)} />
             <WeightField value={(draft as TypographyPreset).fontWeight} onChange={(v) => setDraft({ ...(draft as TypographyPreset), fontWeight: v } as TypographyPreset)} />
             <SliderField label="Tracking" value={(draft as TypographyPreset).letterSpacingEm} min={-0.1} max={0.4} step={0.005} suffix="em" onChange={(v) => setDraft({ ...(draft as TypographyPreset), letterSpacingEm: Number(v.toFixed(3)) } as TypographyPreset)} />
@@ -650,23 +671,20 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
           </>
         ) : (
           <>
+            {/* Live preview, updates instantly as the draft mutates so the
+                user sees colour, weight, padding and tracking changes in
+                real time without waiting on the debounced save. */}
+            <ButtonPresetPreview preset={draft as ButtonPreset} />
             <label className="block">
               <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Default label</span>
               <input type="text" value={(draft as ButtonPreset).label ?? ''} onChange={(e) => setDraft({ ...(draft as ButtonPreset), label: e.target.value } as ButtonPreset)} className={inputCls} placeholder="e.g. Click me" />
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <ColourField label="Background" value={(draft as ButtonPreset).backgroundColor} onChange={(v) => setDraft({ ...(draft as ButtonPreset), backgroundColor: v } as ButtonPreset)} brand={brand} />
-              <ColourField label="Text" value={(draft as ButtonPreset).textColor} onChange={(v) => setDraft({ ...(draft as ButtonPreset), textColor: v } as ButtonPreset)} brand={brand} />
-            </div>
+            <ColourField label="Background" value={(draft as ButtonPreset).backgroundColor} onChange={(v) => setDraft({ ...(draft as ButtonPreset), backgroundColor: v } as ButtonPreset)} brand={brand} />
+            <ColourField label="Text colour" value={(draft as ButtonPreset).textColor} onChange={(v) => setDraft({ ...(draft as ButtonPreset), textColor: v } as ButtonPreset)} brand={brand} />
             <SliderField label="Corner radius" value={(draft as ButtonPreset).borderRadiusPx} min={0} max={40} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), borderRadiusPx: v } as ButtonPreset)} />
-            <div className="grid grid-cols-2 gap-2">
-              <SliderField label="Padding X" value={(draft as ButtonPreset).paddingXPx} min={4} max={64} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), paddingXPx: v } as ButtonPreset)} />
-              <SliderField label="Padding Y" value={(draft as ButtonPreset).paddingYPx} min={4} max={48} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), paddingYPx: v } as ButtonPreset)} />
-            </div>
-            <label className="block">
-              <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
-              <input type="text" value={(draft as ButtonPreset).fontFamily ?? ''} onChange={(e) => setDraft({ ...(draft as ButtonPreset), fontFamily: e.target.value } as ButtonPreset)} className={inputCls} />
-            </label>
+            <SliderField label="Padding X" value={(draft as ButtonPreset).paddingXPx} min={4} max={64} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), paddingXPx: v } as ButtonPreset)} />
+            <SliderField label="Padding Y" value={(draft as ButtonPreset).paddingYPx} min={4} max={48} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), paddingYPx: v } as ButtonPreset)} />
+            <FontDropdown brand={brand} label="Font family" value={(draft as ButtonPreset).fontFamily ?? ''} onChange={(v) => setDraft({ ...(draft as ButtonPreset), fontFamily: v } as ButtonPreset)} />
             <SliderField label="Size" value={(draft as ButtonPreset).fontSizePx ?? 14} min={10} max={32} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), fontSizePx: v } as ButtonPreset)} />
             <WeightField value={(draft as ButtonPreset).fontWeight ?? 700} onChange={(v) => setDraft({ ...(draft as ButtonPreset), fontWeight: v } as ButtonPreset)} />
             <SliderField label="Tracking" value={(draft as ButtonPreset).letterSpacingEm ?? 0} min={-0.05} max={0.4} step={0.005} suffix="em" onChange={(v) => setDraft({ ...(draft as ButtonPreset), letterSpacingEm: Number(v.toFixed(3)) } as ButtonPreset)} />
@@ -1822,7 +1840,7 @@ function DeviceOverrideBanner({ blockHasMobile, onClear }: { blockHasMobile: boo
 const inputCls = 'w-full h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
 const textareaCls = 'w-full px-2.5 py-2 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
 // Standard label style — used everywhere a field needs an above-the-input label.
-const labelCls = 'block text-[10px] font-medium uppercase tracking-[0.1em] text-evari-dimmer mb-1';
+const labelCls = 'block text-[11px] font-medium text-evari-dimmer mb-1';
 // Compact section header inside the right rail panels.
 const groupHeaderCls = 'text-[10px] font-semibold uppercase tracking-[0.12em] text-evari-text/80 mb-2';
 
