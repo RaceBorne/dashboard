@@ -97,7 +97,7 @@ function renderAddress(b: Extract<FooterBlock, { type: 'address' }>, brand: Mark
   </div>`;
 }
 
-function renderSocial(b: Extract<FooterBlock, { type: 'social' }>, brand: MarketingBrand): string {
+export function renderSocial(b: Extract<FooterBlock, { type: 'social' }>, brand: MarketingBrand): string {
   // Render icons via Simple Icons CDN — accepts a hex colour parameter so
   // we can match the brand-set colour exactly. Falls back to text label
   // via alt text in clients that block images.

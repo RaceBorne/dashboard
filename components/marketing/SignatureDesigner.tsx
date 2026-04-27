@@ -7,6 +7,7 @@ import {
   Copy,
   GripVertical,
   Image as ImageIcon,
+  Link2,
   Minus,
   Move,
   PenLine,
@@ -58,6 +59,7 @@ const ADD_BUTTONS: Array<{ type: SignatureBlock['type']; label: string; Icon: ty
   { type: 'logo',    label: 'Branded logo', Icon: ImageIcon, make: () => ({ id: nid(), type: 'logo',    alignment: 'left', maxWidthPx: 120 }) },
   { type: 'spacer',  label: 'Spacer',       Icon: Move,      make: () => ({ id: nid(), type: 'spacer',  heightPx: 16 }) },
   { type: 'divider', label: 'Line',         Icon: Minus,     make: () => ({ id: nid(), type: 'divider', color: '#cccccc', thicknessPx: 1, marginYPx: 0 }) },
+  { type: 'social',  label: 'Social',       Icon: Link2,     make: () => ({ id: nid(), type: 'social',  alignment: 'left', color: '#111111', social: {}, iconSizePx: 20, gapPx: 10 }) },
 ];
 
 /**
@@ -339,6 +341,7 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, onDuplicat
           {block.type === 'logo'    ? <LogoFields    block={block} onChange={onChange} /> : null}
           {block.type === 'spacer'  ? <SpacerFields  block={block} onChange={onChange} /> : null}
           {block.type === 'divider' ? <DividerFields block={block} onChange={onChange} /> : null}
+          {block.type === 'social'  ? <SocialFields  block={block} onChange={onChange} /> : null}
           <PaddingFields block={block} onChange={onChange as (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void} />
         </div>
       ) : null}
@@ -352,6 +355,7 @@ function blockSummary(b: SignatureBlock): string {
     case 'logo':    return `${b.maxWidthPx}px · ${b.alignment}`;
     case 'spacer':  return `${b.heightPx}px`;
     case 'divider': return `${b.thicknessPx}px line`;
+    case 'social':  return `${Object.values(b.social).filter(Boolean).length} link(s) · ${b.alignment}`;
     default:        return '';
   }
 }
@@ -495,6 +499,48 @@ function PaddingFields({ block, onChange }: { block: { paddingTopPx?: number; pa
         <input type="range" min={0} max={120} value={bot} onChange={(e) => onChange({ paddingBottomPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
         <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{bot}px</span>
       </label>
+    </div>
+  );
+}
+
+/**
+ * Social block fields, mirror of the FooterDesigner version. Reads
+ * URLs from brand.socials at render time so the user only fills them
+ * in once on the Brand setup page. Block-level overrides supported
+ * via the renderer's merge but exposed here as a hint, not editable
+ * fields, to keep the signature editor uncluttered.
+ */
+function SocialFields({ block, onChange }: { block: Extract<SignatureBlock, { type: 'social' }>; onChange: (p: Partial<Extract<SignatureBlock, { type: 'social' }>>) => void }) {
+  const size = block.iconSizePx ?? 20;
+  const gap  = block.gapPx ?? 10;
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <ColourField label="Icon colour" value={block.color} onChange={(v) => onChange({ color: v })} />
+        <AlignmentField block={block} onChange={onChange as never} />
+      </div>
+      <label className="block">
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Icon size</span>
+          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{size}px</span>
+        </span>
+        <div className="px-2.5">
+          <input type="range" min={12} max={48} value={size} onChange={(e) => onChange({ iconSizePx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+        </div>
+      </label>
+      <label className="block">
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Spacing</span>
+          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{gap}px</span>
+        </span>
+        <div className="px-2.5">
+          <input type="range" min={0} max={32} value={gap} onChange={(e) => onChange({ gapPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+        </div>
+      </label>
+      <div className="mt-2 rounded-md border border-evari-edge/30 bg-evari-ink/40 px-2.5 py-2 text-[11px] text-evari-dim leading-snug">
+        URLs come from the <a href="/email/brand" className="text-evari-gold hover:underline">Brand setup, Social media</a> panel. Set them once there and every email signature, footer and thumbnail uses the same handles.
+      </div>
+      <p className="text-[10px] text-evari-dimmer leading-snug">Icons render via Iconify (Material Design) and recolour to match the chosen colour exactly. Falls back to the platform name as alt text in clients that block images.</p>
     </div>
   );
 }

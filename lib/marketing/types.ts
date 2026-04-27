@@ -512,12 +512,13 @@ export const DEFAULT_FOOTER_DESIGN: FooterDesign = {
 
 // ─── Signature designer (block-based subset) ─────────────────────
 //
-// Signatures are a smaller block list — text / logo / spacer / line.
-// Address / social / unsubscribe make sense in the FOOTER, not in
-// a signature, so the signature builder restricts itself.
+// Signatures are a smaller block list: text, logo, spacer, line, and
+// social. Address and unsubscribe still belong in the FOOTER only.
+// Social is shared so a sender's signature can carry the same set of
+// links as the branded footer (read from brand.socials).
 
 export type SignatureBlock = Extract<FooterBlock,
-  { type: 'text' | 'logo' | 'spacer' | 'divider' }
+  { type: 'text' | 'logo' | 'spacer' | 'divider' | 'social' }
 >;
 
 export interface SignatureDesign {

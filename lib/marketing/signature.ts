@@ -15,6 +15,7 @@ import type {
   SignatureDesign,
 } from './types';
 import { DEFAULT_SIGNATURE_DESIGN } from './types';
+import { renderSocial } from './footer';
 
 function escape(s: string): string {
   return s
@@ -48,6 +49,8 @@ function renderBlockInner(b: SignatureBlock, brand: MarketingBrand): string {
       return `<div style="height:${b.heightPx}px;line-height:${b.heightPx}px;font-size:0;">&nbsp;</div>`;
     case 'divider':
       return `<div style="margin:${b.marginYPx}px 0;height:${b.thicknessPx}px;line-height:0;font-size:0;background:${b.color};">&nbsp;</div>`;
+    case 'social':
+      return renderSocial(b, brand);
     default:
       return '';
   }
