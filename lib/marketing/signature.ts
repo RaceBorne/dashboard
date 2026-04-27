@@ -15,7 +15,7 @@ import type {
   SignatureDesign,
 } from './types';
 import { DEFAULT_SIGNATURE_DESIGN } from './types';
-import { renderSocial } from './footer';
+import { renderSocial, renderAddress, renderUnsubscribe } from './footer';
 
 function escape(s: string): string {
   return s
@@ -51,6 +51,14 @@ function renderBlockInner(b: SignatureBlock, brand: MarketingBrand): string {
       return `<div style="margin:${b.marginYPx}px 0;height:${b.thicknessPx}px;line-height:0;font-size:0;background:${b.color};">&nbsp;</div>`;
     case 'social':
       return renderSocial(b, brand);
+    case 'address':
+      return renderAddress(b, brand);
+    case 'unsubscribe':
+      // The {{unsubscribeUrl}} token is substituted at send time when
+      // a signature carrying this block lands inside a marketing email.
+      // For preview / transactional contexts the placeholder simply
+      // renders verbatim, which is the same behaviour as the footer.
+      return renderUnsubscribe(b, brand, undefined);
     default:
       return '';
   }

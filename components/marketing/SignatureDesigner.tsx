@@ -8,6 +8,8 @@ import {
   GripVertical,
   Image as ImageIcon,
   Link2,
+  Mail,
+  MapPin,
   Minus,
   Move,
   PenLine,
@@ -59,7 +61,9 @@ const ADD_BUTTONS: Array<{ type: SignatureBlock['type']; label: string; Icon: ty
   { type: 'logo',    label: 'Branded logo', Icon: ImageIcon, make: () => ({ id: nid(), type: 'logo',    alignment: 'left', maxWidthPx: 120 }) },
   { type: 'spacer',  label: 'Spacer',       Icon: Move,      make: () => ({ id: nid(), type: 'spacer',  heightPx: 16 }) },
   { type: 'divider', label: 'Line',         Icon: Minus,     make: () => ({ id: nid(), type: 'divider', color: '#cccccc', thicknessPx: 1, marginYPx: 0 }) },
-  { type: 'social',  label: 'Social',       Icon: Link2,     make: () => ({ id: nid(), type: 'social',  alignment: 'left', color: '#111111', social: {}, iconSizePx: 20, gapPx: 10 }) },
+  { type: 'social',      label: 'Social',       Icon: Link2,     make: () => ({ id: nid(), type: 'social',      alignment: 'left',   color: '#111111', social: {}, iconSizePx: 20, gapPx: 10 }) },
+  { type: 'address',     label: 'Address',      Icon: MapPin,    make: () => ({ id: nid(), type: 'address',     alignment: 'left',   color: '#6b6b6b' }) },
+  { type: 'unsubscribe', label: 'Unsubscribe',  Icon: Mail,      make: () => ({ id: nid(), type: 'unsubscribe', alignment: 'left',   label: 'Unsubscribe from these emails', color: '#6b6b6b' }) },
 ];
 
 /**
@@ -341,7 +345,9 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, onDuplicat
           {block.type === 'logo'    ? <LogoFields    block={block} onChange={onChange} /> : null}
           {block.type === 'spacer'  ? <SpacerFields  block={block} onChange={onChange} /> : null}
           {block.type === 'divider' ? <DividerFields block={block} onChange={onChange} /> : null}
-          {block.type === 'social'  ? <SocialFields  block={block} onChange={onChange} /> : null}
+          {block.type === 'social'      ? <SocialFields      block={block} onChange={onChange} /> : null}
+          {block.type === 'address'     ? <AddressFields     block={block} onChange={onChange} /> : null}
+          {block.type === 'unsubscribe' ? <UnsubscribeFields block={block} onChange={onChange} /> : null}
           <PaddingFields block={block} onChange={onChange as (p: { paddingTopPx?: number; paddingBottomPx?: number }) => void} />
         </div>
       ) : null}
@@ -355,8 +361,10 @@ function blockSummary(b: SignatureBlock): string {
     case 'logo':    return `${b.maxWidthPx}px · ${b.alignment}`;
     case 'spacer':  return `${b.heightPx}px`;
     case 'divider': return `${b.thicknessPx}px line`;
-    case 'social':  return `${Object.values(b.social).filter(Boolean).length} link(s) · ${b.alignment}`;
-    default:        return '';
+    case 'social':      return `${Object.values(b.social).filter(Boolean).length} link(s) · ${b.alignment}`;
+    case 'address':     return b.alignment;
+    case 'unsubscribe': return b.alignment;
+    default:            return '';
   }
 }
 
@@ -541,6 +549,47 @@ function SocialFields({ block, onChange }: { block: Extract<SignatureBlock, { ty
         URLs come from the <a href="/email/brand" className="text-evari-gold hover:underline">Brand setup, Social media</a> panel. Set them once there and every email signature, footer and thumbnail uses the same handles.
       </div>
       <p className="text-[10px] text-evari-dimmer leading-snug">Icons render via Iconify (Material Design) and recolour to match the chosen colour exactly. Falls back to the platform name as alt text in clients that block images.</p>
+    </div>
+  );
+}
+
+/**
+ * Address fields, mirror of the FooterDesigner version. Pulls the
+ * company name + postal address from the brand kit Identity panel,
+ * so updating the brand updates every signature using this block.
+ */
+function AddressFields({ block, onChange }: { block: Extract<SignatureBlock, { type: 'address' }>; onChange: (p: Partial<Extract<SignatureBlock, { type: 'address' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] text-evari-dimmer">Pulls company name + postal address from the brand kit Identity panel.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />
+        <AlignmentField block={block} onChange={onChange as never} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Unsubscribe fields, mirror of the FooterDesigner version. The
+ * {{unsubscribeUrl}} token is substituted at send time when a signature
+ * carrying this block lands inside a marketing email; in transactional
+ * or preview contexts the placeholder renders verbatim. Most senders
+ * keep this in the FOOTER, but it is here for parity if you want to
+ * compose an all-in-one signature.
+ */
+function UnsubscribeFields({ block, onChange }: { block: Extract<SignatureBlock, { type: 'unsubscribe' }>; onChange: (p: Partial<Extract<SignatureBlock, { type: 'unsubscribe' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Link label</span>
+        <input type="text" value={block.label} onChange={(e) => onChange({ label: e.target.value })} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />
+        <AlignmentField block={block} onChange={onChange as never} />
+      </div>
+      <p className="text-[10px] text-evari-dimmer italic leading-snug">Required by law for marketing email. Most senders keep this in the FOOTER, here for parity.</p>
     </div>
   );
 }

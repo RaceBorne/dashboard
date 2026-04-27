@@ -89,7 +89,7 @@ function renderDivider(b: Extract<FooterBlock, { type: 'divider' }>): string {
   return `<div style="margin:${b.marginYPx}px 0;text-align:center;font-size:0;line-height:0;"><div style="display:inline-block;width:${w}%;height:${b.thicknessPx}px;background:${b.color};">&nbsp;</div></div>`;
 }
 
-function renderAddress(b: Extract<FooterBlock, { type: 'address' }>, brand: MarketingBrand): string {
+export function renderAddress(b: Extract<FooterBlock, { type: 'address' }>, brand: MarketingBrand): string {
   if (!brand.companyName && !brand.companyAddress) return '';
   return `<div style="${alignStyle(b.alignment)}font:11px/1.5 ${escape(brand.fonts.body || 'Arial')},sans-serif;color:${b.color};">
     ${brand.companyName ? `<strong>${escape(brand.companyName)}</strong><br/>` : ''}
@@ -123,7 +123,7 @@ export function renderSocial(b: Extract<FooterBlock, { type: 'social' }>, brand:
   return `<div style="${alignStyle(b.alignment)}font:12px/1.5 ${escape(brand.fonts.body || 'Arial')},sans-serif;">${links}</div>`;
 }
 
-function renderUnsubscribe(
+export function renderUnsubscribe(
   b: Extract<FooterBlock, { type: 'unsubscribe' }>,
   brand: MarketingBrand,
   unsubscribeUrl: string | undefined,
