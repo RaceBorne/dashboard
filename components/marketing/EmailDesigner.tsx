@@ -1175,7 +1175,9 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     setSelectedId(clone.id);
   }
   function addBlock(maker: () => EmailBlock) {
-    commit({ ...design, blocks: enforcePins([...design.blocks, maker()]) });
+    const block = maker();
+    commit({ ...design, blocks: enforcePins([...design.blocks, block]) });
+    setSelectedId(block.id);
   }
   function insertBlock(parentId: string | null, beforeIndex: number, newBlock: EmailBlock) {
     commit({
@@ -1187,6 +1189,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
         return next;
       }),
     });
+    setSelectedId(newBlock.id);
   }
   function moveBlocks(activeId: string, overId: string) {
     const a = findContainerOf(design.blocks, activeId);
@@ -1306,10 +1309,12 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
         );
         if (alreadyHas) return;
         commit({ ...design, blocks: enforcePins([newBlock, ...design.blocks]) });
+        setSelectedId(newBlock.id);
         return;
       }
       if (overId === 'end-of-list') {
         commit({ ...design, blocks: enforcePins([...design.blocks, newBlock]) });
+        setSelectedId(newBlock.id);
         return;
       }
       if (overId.startsWith('section-end:')) {
@@ -1318,6 +1323,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           ...design,
           blocks: updateChildren(design.blocks, sectionId, (kids) => [...kids, newBlock]),
         });
+        setSelectedId(newBlock.id);
         return;
       }
       if (overId.startsWith('section-body:')) {
@@ -1326,11 +1332,13 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           ...design,
           blocks: updateChildren(design.blocks, sectionId, (kids) => [...kids, newBlock]),
         });
+        setSelectedId(newBlock.id);
         return;
       }
       const loc = findContainerOf(design.blocks, overId);
       if (!loc) {
         commit({ ...design, blocks: enforcePins([...design.blocks, newBlock]) });
+        setSelectedId(newBlock.id);
         return;
       }
       // Inserting at root: don't let the new block jump above a pinned-top
@@ -1348,6 +1356,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             return next;
           })),
         });
+        setSelectedId(newBlock.id);
         return;
       }
       insertBlock(loc.parentId, loc.index, newBlock);
