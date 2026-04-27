@@ -1494,8 +1494,8 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-    <section className="flex flex-col flex-1 min-h-0 w-full" style={{ background: design.background }}>
-      <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20 bg-evari-surface">
+    <section className="rounded-md border border-evari-edge/30 flex flex-col flex-1 min-h-0 w-full" style={{ background: design.background }}>
+      <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20 bg-evari-surface rounded-t-md">
         <h2 className="text-sm font-semibold text-evari-text">Visual editor</h2>
         <div className="flex items-center gap-2">
           <button
@@ -1720,7 +1720,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             DRAFT block when a tile was clicked from the palette, or a
             placeholder when nothing's happening. Flat embedded panel,
             no floating-card outline. */}
-        <div className={cn('min-w-0 min-h-0 overflow-y-auto rounded-md', previewMode && 'hidden')} data-keep-edit style={{ background: design.background }}>
+        <div className={cn('min-w-0 min-h-0 overflow-y-auto bg-evari-surface/50 rounded-md', previewMode && 'hidden')} data-keep-edit>
           {editingPreset ? (
             <InlinePresetEditor
               brand={initialBrand}

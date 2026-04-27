@@ -305,7 +305,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
                     onChange={setEmailDesign}
                   />
                 </div>
-                <p className="text-[10px] text-evari-dimmer px-3 py-1.5 border-t border-evari-edge/20 bg-evari-surface">
+                <p className="text-[10px] text-evari-dimmer px-3 py-1.5 border-t border-evari-edge/20">
                   Visual mode supersedes the raw HTML body at send time. Switch to HTML to override.
                 </p>
               </div>
