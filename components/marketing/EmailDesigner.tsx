@@ -47,7 +47,6 @@ import {
 import {
   DndContext,
   DragOverlay,
-  useDndContext,
   PointerSensor,
   closestCenter,
   useDraggable,
@@ -2459,12 +2458,17 @@ function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSel
     justifyContent: ay === 'middle' ? 'center' : ay === 'bottom' ? 'flex-end' : undefined,
   };
   const childIds = (block.blocks ?? []).map((c) => c.id);
-  // Section-as-droptarget: dragging a palette tile and dropping ANYWHERE
-  // on this section appends the new block to the section's children.
-  // The id is decoded by handleDragEnd's `section-body:` branch.
-  const { isOver: isOverBody, setNodeRef: setBodyDroppableRef } = useDroppable({ id: `section-body:${block.id}` });
+  const isEmpty = (block.blocks ?? []).length === 0;
+  // Section-as-droptarget: ONLY register on empty sections so dragging
+  // over a non-empty section uses the per-child insertion zones (which
+  // are precise) and avoids the flicker of two competing droppables.
+  // disabled:true keeps the hook stable so React doesn't unmount/remount.
+  const { isOver: isOverBody, setNodeRef: setBodyDroppableRef } = useDroppable({
+    id: `section-body:${block.id}`,
+    disabled: !isEmpty,
+  });
   return (
-    <div ref={setBodyDroppableRef} style={wrapperStyle} className={cn('relative transition-shadow', isOverBody && 'ring-2 ring-evari-gold ring-inset')}>
+    <div ref={setBodyDroppableRef} style={wrapperStyle} className={cn('relative transition-shadow', isEmpty && isOverBody && 'ring-2 ring-evari-gold ring-inset')}>
       <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
         {(block.blocks ?? []).length === 0 ? (
           <SectionEmptyDrop sectionId={block.id} editing={editing} />
@@ -2527,21 +2531,16 @@ function SectionEndDrop({ sectionId }: { sectionId: string }) {
 
 function CanvasInsertionZone({ overId }: { overId: string }) {
   const { isOver, setNodeRef } = useDroppable({ id: overId });
-  // While any drag is active, expand the hit area + show a faint hint;
-  // when the cursor is actually over this seam, brighten into an
-  // explicit gold insertion bar so the user knows where it'll land.
-  const dnd = useDndContext();
-  const dragActive = !!dnd.active;
+  // Idle: 0 visible height. On hover: gold insertion bar. Avoids the
+  // layout flicker that came from inflating every seam during a drag.
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'rounded transition-all',
+        'rounded transition-colors',
         isOver
           ? 'h-3 my-1 bg-evari-gold/15 border-y-2 border-dashed border-evari-gold/70'
-          : dragActive
-            ? 'h-2 my-px bg-evari-gold/5 border-y border-dashed border-evari-gold/30'
-            : 'h-0',
+          : 'h-0',
       )}
     />
   );
