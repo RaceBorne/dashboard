@@ -85,20 +85,24 @@ function renderText(b: Extract<EmailBlock, { type: 'text' }>, brand: MarketingBr
 
 function renderImage(b: Extract<EmailBlock, { type: 'image' }>): string {
   if (!b.src) return '';
-  // The img is display:block so text-align won't centre it; use auto margins
-  // on the wrapping anchor / img to actually align it within its parent.
-  const align = b.alignment === 'center'
-    ? 'margin:0 auto;'
+  // Three layers of alignment for maximum reliability across email clients
+  // AND inside the canvas's flex-column section wrappers:
+  //   1. text-align on the outer div (handles inline + inline-block children)
+  //   2. margin auto on the img/anchor (handles display:block + display:flex
+  //      contexts where text-align doesn't propagate)
+  //   3. align="center" attribute on the wrapping table-less inline-block
+  // Image is display:inline-block so the parent's text-align takes effect
+  // (block elements are NOT centred by text-align).
+  const margin = b.alignment === 'center'
+    ? 'margin-left:auto;margin-right:auto;'
     : b.alignment === 'right'
       ? 'margin-left:auto;margin-right:0;'
       : 'margin-left:0;margin-right:auto;';
-  const img = `<img src="${escape(b.src)}" alt="${escape(b.alt)}" style="display:block;max-width:100%;width:${b.maxWidthPx}px;height:auto;border:0;outline:none;text-decoration:none;${align}" />`;
+  const img = `<img src="${escape(b.src)}" alt="${escape(b.alt)}" style="display:inline-block;max-width:100%;width:${b.maxWidthPx}px;height:auto;border:0;outline:none;text-decoration:none;${margin}" />`;
   const wrapped = b.linkUrl
-    ? `<a href="${escape(b.linkUrl)}" target="_blank" rel="noopener" style="text-decoration:none;display:block;${align}width:${b.maxWidthPx}px;max-width:100%;">${img.replace(align, '')}</a>`
+    ? `<a href="${escape(b.linkUrl)}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;${margin}">${img}</a>`
     : img;
-  // Outer div retains text-align as a fallback for older email clients that
-  // don't honour auto margins on display:block images.
-  return `<div style="${alignStyle(b.alignment)}">${wrapped}</div>`;
+  return `<div style="${alignStyle(b.alignment)}font-size:0;line-height:0;">${wrapped}</div>`;
 }
 
 function renderButton(b: Extract<EmailBlock, { type: 'button' }>, brand: MarketingBrand): string {
