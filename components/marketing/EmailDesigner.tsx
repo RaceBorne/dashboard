@@ -3599,6 +3599,7 @@ function SplitItemTextFields({ item, brand, onChange }: { item: Extract<SplitIte
       <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
       <SplitWeightField value={item.fontWeight ?? 400} onChange={(v) => onChange({ fontWeight: v })} />
       <SplitAlignmentField value={item.alignment ?? 'left'} onChange={(v) => onChange({ alignment: v })} />
+      <SplitCaseField value={item.textTransform ?? 'none'} onChange={(v) => onChange({ textTransform: v })} />
       <label className="block">
         <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Size (px)</span>
         <input type="number" min={8} max={64} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(8, Math.min(64, Number(e.target.value) || 14)) })} className={cn(inputCls, 'font-mono')} />
@@ -3708,6 +3709,20 @@ function SplitItemDividerFields({ item, onChange }: { item: Extract<SplitItem, {
         </div>
       </label>
     </div>
+  );
+}
+
+function SplitCaseField({ value, onChange }: { value: 'none' | 'lowercase' | 'uppercase' | 'capitalize'; onChange: (v: 'none' | 'lowercase' | 'uppercase' | 'capitalize') => void }) {
+  return (
+    <label className="block">
+      <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Case</span>
+      <select value={value} onChange={(e) => onChange(e.target.value as 'none' | 'lowercase' | 'uppercase' | 'capitalize')} className={inputCls}>
+        <option value="none">As typed</option>
+        <option value="uppercase">UPPERCASE</option>
+        <option value="lowercase">lowercase</option>
+        <option value="capitalize">Capitalize Each Word</option>
+      </select>
+    </label>
   );
 }
 

@@ -279,7 +279,8 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
     const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : fontFor(brand, '');
     const weight = it.fontWeight ?? 400;
     const align = it.alignment ?? 'left';
-    return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};font:${weight} ${it.fontSizePx}px/${it.lineHeight} ${family}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
+    const tt = it.textTransform && it.textTransform !== 'none' ? `text-transform:${it.textTransform};` : '';
+    return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};${tt}font:${weight} ${it.fontSizePx}px/${it.lineHeight} ${family}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
   }
   if (it.kind === 'divider') {
     const w = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct < 100 ? it.widthPct : 100;

@@ -621,6 +621,8 @@ export type SplitItem =
       fontWeight?: number;
       /** Horizontal alignment. Default 'left'. */
       alignment?: 'left' | 'center' | 'right';
+      /** CSS text-transform: 'none' (default), 'uppercase', 'lowercase', 'capitalize'. */
+      textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize';
     })
   | (SplitItemBase & {
       kind: 'button';
