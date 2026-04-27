@@ -51,6 +51,7 @@ import {
   Unlock,
   Wand2,
   X,
+  Youtube,
 } from 'lucide-react';
 import {
   DndContext,
@@ -161,6 +162,7 @@ const ADD_BUTTONS: BlockTile[] = [
   // Row 5
   { group: 'blocks', type: 'review',  label: 'Review quote', Icon: Quote,  make: () => ({ id: nid(), type: 'review', quote: 'A genuinely brilliant ride — exactly what I needed.', author: 'Jane Doe', role: 'Customer', rating: 5, backgroundColor: '#f8f8f8', paddingBottomPx: 16 }) },
   { group: 'blocks', type: 'video',   label: 'Video',   Icon: PlaySquare,  make: () => ({ id: nid(), type: 'video', thumbnailSrc: '', videoUrl: '', alt: '', maxWidthPx: 600, alignment: 'center', paddingBottomPx: 16 }) },
+  { group: 'blocks', type: 'youtube', label: 'YouTube', Icon: Youtube,     make: () => ({ id: nid(), type: 'youtube', videoId: '', sourceUrl: '', alt: '', maxWidthPx: 600, alignment: 'center', paddingBottomPx: 16, thumbnailQuality: 'maxresdefault', hideRelated: true, modestBranding: true, autoplay: true, loop: false, captionsOn: false, muted: false }) },
   { group: 'blocks', type: 'html',    label: 'HTML',    Icon: Code2,       make: () => ({ id: nid(), type: 'html', html: '<p>Custom HTML here.</p>', paddingBottomPx: 16 }) },
   // Layout group
   // Announcement bar is a section under the hood — pinned to the top,
@@ -787,6 +789,7 @@ function snippetForBlock(b: EmailBlock): string {
     case 'table':           return `${b.rows.length} row${b.rows.length === 1 ? '' : 's'}`;
     case 'review':          return b.author || 'Review';
     case 'video':           return b.alt || 'Video';
+    case 'youtube':         return b.alt || (b.videoId ? `YouTube · ${b.videoId}` : 'YouTube');
     case 'product':         return b.title || 'Product';
     case 'section': {
       const isAnnounce = b.kind === 'announcementBar';
@@ -1943,6 +1946,7 @@ function BlockPropertiesPanel({ block, brand, designWidthPx, device, onChange, o
         {view.type === 'table'     ? <TableFields     block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'table' }>>) => void} /> : null}
         {view.type === 'review'    ? <ReviewFields    block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'review' }>>) => void} /> : null}
         {view.type === 'video'     ? <VideoFields     block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'video' }>>) => void} /> : null}
+        {view.type === 'youtube'   ? <YouTubeFields   block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'youtube' }>>) => void} /> : null}
         {view.type === 'product'   ? <ProductFields   block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'product' }>>) => void} /> : null}
         {view.type === 'section'   ? <SectionFields   block={view} brand={brand} designWidthPx={designWidthPx} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void} /> : null}
         <PaddingFields block={view} onChange={routedOnChange as (p: PaddingPatch) => void} />
@@ -4306,6 +4310,110 @@ function VideoFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
       </div>
       <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
     </div>
+  );
+}
+
+/**
+ * YouTube block editor — paste a URL, the helper extracts the 11-char
+ * ID, the renderer auto-pulls the thumbnail and builds a click-out
+ * URL on youtube-nocookie.com/embed with all the chrome flags applied
+ * (rel=0, modestbranding=1, autoplay=1, etc) so the recipient lands
+ * on a clean player.
+ */
+function YouTubeFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'youtube' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'youtube' }>>) => void }) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { extractYouTubeId, youtubeThumbnailUrl } = require('@/lib/marketing/youtube') as typeof import('@/lib/marketing/youtube');
+  function handleUrlChange(value: string) {
+    const id = extractYouTubeId(value);
+    onChange({ sourceUrl: value, videoId: id ?? '' });
+  }
+  const previewSrc = block.customThumbnailSrc
+    || (block.videoId ? youtubeThumbnailUrl(block.videoId, block.thumbnailQuality ?? 'maxresdefault') : '');
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">YouTube URL</span>
+        <input
+          type="url"
+          value={block.sourceUrl}
+          onChange={(e) => handleUrlChange(e.target.value)}
+          placeholder="https://youtube.com/watch?v=..."
+          className={cn(inputCls, 'font-mono text-[12px]')}
+        />
+      </label>
+      {block.videoId ? (
+        <p className="text-[10px] text-evari-dim font-mono px-0.5">ID: {block.videoId}</p>
+      ) : (
+        <p className="text-[10px] text-evari-warn px-0.5">Paste a YouTube URL to populate the thumbnail and click-out link.</p>
+      )}
+      {previewSrc ? (
+        <div className="rounded-md overflow-hidden border border-evari-edge/30 bg-zinc-900">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={previewSrc} alt={block.alt || 'Poster preview'} className="block w-full h-auto" />
+        </div>
+      ) : null}
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Thumbnail quality</span>
+        <select
+          value={block.thumbnailQuality ?? 'maxresdefault'}
+          onChange={(e) => onChange({ thumbnailQuality: e.target.value as Extract<EmailBlock, { type: 'youtube' }>['thumbnailQuality'] })}
+          className={inputCls}
+        >
+          <option value="maxresdefault">Max (1280x720)</option>
+          <option value="sddefault">SD (640x480)</option>
+          <option value="hqdefault">HQ (480x360)</option>
+          <option value="mqdefault">Medium (320x180)</option>
+          <option value="default">Default (120x90)</option>
+        </select>
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Custom poster URL (overrides YT)</span>
+        <input
+          type="url"
+          value={block.customThumbnailSrc ?? ''}
+          onChange={(e) => onChange({ customThumbnailSrc: e.target.value || undefined })}
+          placeholder="Optional: paste your own poster image URL"
+          className={cn(inputCls, 'font-mono text-[12px]')}
+        />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Alt text</span>
+        <input type="text" value={block.alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} placeholder="Watch the launch film" />
+      </label>
+      <NumField label="Max width (px)" value={block.maxWidthPx} min={120} max={1200} onChange={(v) => onChange({ maxWidthPx: v })} />
+      <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
+      <div className="rounded-md border border-evari-edge/20 bg-evari-ink/30 p-2.5 space-y-1.5">
+        <span className="block text-[11px] font-medium text-evari-text mb-0.5">Strip YouTube chrome</span>
+        <YouTubeToggle label="Hide related videos"      value={block.hideRelated      ?? true}  onChange={(v) => onChange({ hideRelated:    v })} />
+        <YouTubeToggle label="Minimal branding"          value={block.modestBranding   ?? true}  onChange={(v) => onChange({ modestBranding: v })} />
+        <YouTubeToggle label="Autoplay on landing"       value={block.autoplay         ?? true}  onChange={(v) => onChange({ autoplay:       v })} />
+        <YouTubeToggle label="Mute (lets autoplay actually start)" value={block.muted ?? false} onChange={(v) => onChange({ muted:          v })} />
+        <YouTubeToggle label="Loop"                       value={block.loop             ?? false} onChange={(v) => onChange({ loop:           v })} />
+        <YouTubeToggle label="Captions on"                value={block.captionsOn       ?? false} onChange={(v) => onChange({ captionsOn:     v })} />
+        <label className="block pt-1">
+          <span className="block text-[10px] font-medium text-evari-dimmer mb-0.5">Start at (seconds, optional)</span>
+          <input
+            type="number"
+            min={0}
+            value={block.startSeconds ?? 0}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              onChange({ startSeconds: Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined });
+            }}
+            className={cn(inputCls, 'font-mono')}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function YouTubeToggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer text-[11px] text-evari-text">
+      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} className="accent-evari-gold" />
+      <span className="flex-1">{label}</span>
+    </label>
   );
 }
 

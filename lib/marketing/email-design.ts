@@ -8,6 +8,7 @@
  */
 
 import type { EmailAlignment, EmailBlock, EmailDesign, MarketingBrand, SplitCell, SplitCells, SplitItem } from './types';
+import { youtubeEmbedUrl, youtubeThumbnailUrl } from './youtube';
 
 function escape(s: string): string {
   return s
@@ -494,6 +495,37 @@ function renderVideo(b: Extract<EmailBlock, { type: 'video' }>): string {
   </div>`;
 }
 
+function renderYouTube(b: Extract<EmailBlock, { type: 'youtube' }>): string {
+  if (!b.videoId) return '';
+  // Pick the poster — designer override (uploaded asset) wins, otherwise
+  // pull the configured i.ytimg.com variant (default maxresdefault).
+  const quality = b.thumbnailQuality ?? 'maxresdefault';
+  const poster = b.customThumbnailSrc || youtubeThumbnailUrl(b.videoId, quality);
+  // Build the click-out URL. Defaults strip the chrome the user wants
+  // gone (related videos, big YT branding, suggestion overlays). The
+  // helper always uses youtube-nocookie.com/embed.
+  const linkUrl = youtubeEmbedUrl(b.videoId, {
+    hideRelated: b.hideRelated,
+    modestBranding: b.modestBranding,
+    autoplay: b.autoplay,
+    loop: b.loop,
+    captionsOn: b.captionsOn,
+    muted: b.muted,
+    startSeconds: b.startSeconds,
+  });
+  // Same play overlay as renderVideo — same SVG pattern, served as a
+  // data URL so the iframe doesn't have to fetch it.
+  const playOverlay = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="rgba(0,0,0,0.55)"/><polygon points="26,20 26,44 46,32" fill="white"/></svg>`;
+  const playDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(playOverlay)}`;
+  const altText = b.alt || 'Watch video';
+  return `<div style="${alignStyle(b.alignment)}">
+    <a href="${escape(linkUrl)}" target="_blank" rel="noopener" style="display:inline-block;position:relative;text-decoration:none;">
+      <img src="${escape(poster)}" alt="${escape(altText)}" style="display:block;max-width:100%;width:${b.maxWidthPx}px;height:auto;border:0;" />
+      <img src="${playDataUrl}" alt="" style="position:absolute;top:50%;left:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border:0;" />
+    </a>
+  </div>`;
+}
+
 function renderProduct(b: Extract<EmailBlock, { type: 'product' }>, brand: MarketingBrand): string {
   const img = b.imageSrc ? `<img src="${escape(b.imageSrc)}" alt="${escape(b.imageAlt)}" style="display:block;width:100%;max-width:100%;height:auto;border:0;" />` : '';
   const button = b.buttonLabel && b.buttonUrl
@@ -578,6 +610,7 @@ function renderInner(b: EmailBlock, brand: MarketingBrand, device: 'desktop' | '
     case 'table':     return renderTable(b);
     case 'review':    return renderReview(b);
     case 'video':     return renderVideo(b);
+    case 'youtube':   return renderYouTube(b);
     case 'product':   return renderProduct(b, brand);
     case 'section':   return renderSection(b, brand, device);
     default:          return '';

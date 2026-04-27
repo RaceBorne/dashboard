@@ -923,6 +923,39 @@ export type EmailBlock =
       alignment: EmailAlignment;
     })
   | (EmailBlockBase & {
+      // YouTube-specific block. Email clients drop <iframe>, so the
+      // in-email render is a poster image with a play overlay; clicking
+      // the poster opens a youtube-nocookie.com/embed/<id> URL with
+      // chrome flags applied (rel=0, modestbranding=1, autoplay=1, etc),
+      // landing the recipient on a clean player.
+      type: 'youtube';
+      /** The 11-char YouTube video ID. Required. */
+      videoId: string;
+      /** The original URL the user pasted, kept for reference. */
+      sourceUrl: string;
+      alt: string;
+      maxWidthPx: number;
+      alignment: EmailAlignment;
+      /** Which i.ytimg.com thumbnail variant to use as the poster. */
+      thumbnailQuality?: 'maxresdefault' | 'sddefault' | 'hqdefault' | 'mqdefault' | 'default';
+      /** Optional override — uploaded asset URL used instead of the YouTube poster. */
+      customThumbnailSrc?: string;
+      /** Hide related videos. Default true. */
+      hideRelated?: boolean;
+      /** Use the minimal-branding YT player. Default true. */
+      modestBranding?: boolean;
+      /** Autoplay when the click-out lands. Default true. */
+      autoplay?: boolean;
+      /** Loop the video. */
+      loop?: boolean;
+      /** Show captions on by default. */
+      captionsOn?: boolean;
+      /** Mute on autoplay (lets some browsers actually start playback). */
+      muted?: boolean;
+      /** Optional start offset in seconds. */
+      startSeconds?: number;
+    })
+  | (EmailBlockBase & {
       type: 'product';
       imageSrc: string;
       imageAlt: string;
