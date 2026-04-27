@@ -2458,17 +2458,14 @@ function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSel
     justifyContent: ay === 'middle' ? 'center' : ay === 'bottom' ? 'flex-end' : undefined,
   };
   const childIds = (block.blocks ?? []).map((c) => c.id);
-  const isEmpty = (block.blocks ?? []).length === 0;
-  // Section-as-droptarget: ONLY register on empty sections so dragging
-  // over a non-empty section uses the per-child insertion zones (which
-  // are precise) and avoids the flicker of two competing droppables.
-  // disabled:true keeps the hook stable so React doesn't unmount/remount.
-  const { isOver: isOverBody, setNodeRef: setBodyDroppableRef } = useDroppable({
-    id: `section-body:${block.id}`,
-    disabled: !isEmpty,
-  });
+  // Section-as-droptarget: ALWAYS register so palette tiles can be dropped
+  // into both empty and non-empty sections. closestCenter collision
+  // detection picks just ONE winner per cursor position, so isOverBody is
+  // only true when this section IS the closest target — no competing
+  // ring/seam highlights, no flicker between targets.
+  const { isOver: isOverBody, setNodeRef: setBodyDroppableRef } = useDroppable({ id: `section-body:${block.id}` });
   return (
-    <div ref={setBodyDroppableRef} style={wrapperStyle} className={cn('relative transition-shadow', isEmpty && isOverBody && 'ring-2 ring-evari-gold ring-inset')}>
+    <div ref={setBodyDroppableRef} style={wrapperStyle} className={cn('relative transition-shadow', isOverBody && 'ring-2 ring-evari-gold ring-inset')}>
       <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
         {(block.blocks ?? []).length === 0 ? (
           <SectionEmptyDrop sectionId={block.id} editing={editing} />
