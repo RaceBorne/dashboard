@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -224,21 +224,8 @@ function TemplateCard({ template, busy, onDuplicate, onDelete }: { template: Ema
   return (
     <li className="group relative rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden hover:border-evari-gold/40 transition-colors">
       <Link href={`/email/templates/${template.id}/edit`} className="block">
-        {/* Thumbnail — iframe scaled down */}
-        <div className="aspect-[5/3] bg-zinc-100 overflow-hidden relative pointer-events-none">
-          <iframe
-            title={`Preview of ${template.name}`}
-            srcDoc={previewHtml}
-            className="absolute inset-0 origin-top-left bg-white"
-            style={{
-              width: '600px',
-              height: '800px',
-              transform: 'scale(0.4)',
-              transformOrigin: 'top left',
-              border: 0,
-            }}
-          />
-        </div>
+        {/* Thumbnail — 9:16 portrait that the iframe fills via measured scale */}
+        <TemplateThumbnail title={`Preview of ${template.name}`} html={previewHtml} />
         <div className="p-2">
           <div className="text-sm text-evari-text font-medium truncate">{template.name}</div>
           <div className="text-[10px] text-evari-dimmer font-mono tabular-nums mt-0.5">
@@ -305,3 +292,48 @@ function CreateModal({ onClose, onCreate, creating }: { onClose: () => void; onC
     </div>
   );
 }
+
+/**
+ * Portrait (9:16) email-template preview tile that scales an iframe of the
+ * full email design to fill the container. Uses ResizeObserver to recompute
+ * scale on layout change. The iframe content is rendered at its email-native
+ * 600px width and the visual is downscaled with CSS transform — readable +
+ * crisp at any column width.
+ */
+function TemplateThumbnail({ title, html }: { title: string; html: string }) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(0.32);
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const el = wrapRef.current;
+    const update = () => {
+      const w = el.clientWidth;
+      if (w > 0) setScale(w / 600);
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // Inner iframe is sized so width=600 and height matches a 9:16 crop of
+  // that width (600 × 16 / 9 ≈ 1067). The container's aspect-ratio also
+  // 9:16, so the scaled iframe exactly fills it.
+  return (
+    <div ref={wrapRef} className="aspect-[9/16] bg-zinc-100 overflow-hidden relative pointer-events-none">
+      <iframe
+        title={title}
+        srcDoc={html}
+        className="absolute top-0 left-0 bg-white"
+        style={{
+          width: '600px',
+          height: `${Math.round(600 * 16 / 9)}px`,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          border: 0,
+        }}
+      />
+    </div>
+  );
+}
+

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, LayoutGrid, Loader2, Send, Trash2, X } from 'lucide-react';
@@ -423,14 +423,7 @@ function TemplatePickerModal({ templates, onClose, onPick }: { templates: EmailT
                     onClick={() => onPick(t)}
                     className="block w-full text-left rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden hover:border-evari-gold/60 transition-colors"
                   >
-                    <div className="aspect-[5/3] bg-zinc-100 overflow-hidden relative pointer-events-none">
-                      <iframe
-                        title={`Preview of ${t.name}`}
-                        srcDoc={renderEmailDesignWithStub(t.design)}
-                        className="absolute inset-0 origin-top-left bg-white"
-                        style={{ width: '600px', height: '800px', transform: 'scale(0.4)', transformOrigin: 'top left', border: 0 }}
-                      />
-                    </div>
+                    <PickerThumbnail title={`Preview of ${t.name}`} html={renderEmailDesignWithStub(t.design)} />
                     <div className="p-2">
                       <div className="text-sm text-evari-text font-medium truncate">{t.name}</div>
                       <div className="text-[10px] text-evari-dimmer font-mono tabular-nums mt-0.5">
@@ -447,3 +440,43 @@ function TemplatePickerModal({ templates, onClose, onPick }: { templates: EmailT
     </div>
   );
 }
+
+/**
+ * 9:16 portrait template preview tile that scales an iframe to fill the
+ * column width. Same approach as TemplatesClient — measured scale via
+ * ResizeObserver, iframe rendered at email-native 600px width.
+ */
+function PickerThumbnail({ title, html }: { title: string; html: string }) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(0.32);
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const el = wrapRef.current;
+    const update = () => {
+      const w = el.clientWidth;
+      if (w > 0) setScale(w / 600);
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={wrapRef} className="aspect-[9/16] bg-zinc-100 overflow-hidden relative pointer-events-none">
+      <iframe
+        title={title}
+        srcDoc={html}
+        className="absolute top-0 left-0 bg-white"
+        style={{
+          width: '600px',
+          height: `${Math.round(600 * 16 / 9)}px`,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          border: 0,
+        }}
+      />
+    </div>
+  );
+}
+
