@@ -268,17 +268,31 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
     const shadow = it.shadow && it.shadow !== 'none' ? splitImageShadowCss(it.shadow, it.shadowColor) : '';
     const shadowStyle = shadow ? `box-shadow:${shadow};border-radius:4px;` : '';
     const align = it.alignment ?? 'center';
+    const fill = it.fillMode ?? 'cover';
+    const isPartial = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct < 100;
     // Translate alignment to a margin pattern on partial-width images
-    // so they actually shift to the chosen edge. Full-width images
-    // (widthPct undefined or 100) always fill so alignment is moot.
+    // so they actually shift to the chosen edge.
     const marginForPartial = align === 'left' ? 'margin-right:auto;' : align === 'right' ? 'margin-left:auto;' : 'margin:0 auto;';
     if (!it.src) {
       return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};"><div style="display:inline-block;width:100%;max-width:300px;height:300px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/300px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
     }
-    const widthCss = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct < 100
-      ? `width:${it.widthPct}%;height:auto;${marginForPartial}`
-      : `width:100%;height:auto;`;
-    return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
+    let widthCss: string;
+    let extraWrapStyle = '';
+    if (isPartial) {
+      widthCss = `width:${it.widthPct!}%;height:auto;${marginForPartial}`;
+    } else if (fill === 'cover') {
+      // Stretch the image to fill the cell (height included). object-fit
+      // covers the cell and crops to its aspect; the wrapper's
+      // height:100% is what gives the img a vertical extent to fill.
+      // Outlook desktop ignores object-fit and falls back to height:auto,
+      // which is the existing behaviour (image at natural aspect, top
+      // of cell).
+      widthCss = `width:100%;height:100%;object-fit:cover;`;
+      extraWrapStyle = 'height:100%;';
+    } else {
+      widthCss = `width:100%;height:auto;`;
+    }
+    return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};${extraWrapStyle}"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
   }
   if (it.kind === 'text') {
     const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : fontFor(brand, '');

@@ -3669,6 +3669,20 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
         </div>
       </label>
       <SplitAlignmentField value={item.alignment ?? 'center'} onChange={(v) => onChange({ alignment: v })} />
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Fill mode</span>
+        <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5 w-full">
+          {(['fit', 'cover'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onChange({ fillMode: m })}
+              title={m === 'fit' ? 'Preserve aspect ratio (may leave whitespace)' : 'Fill the cell completely (crops image)'}
+              className={cn('flex-1 px-2 py-1 rounded text-[11px] font-medium capitalize transition-colors', (item.fillMode ?? 'cover') === m ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}
+            >{m === 'fit' ? 'Fit' : 'Cover'}</button>
+          ))}
+        </div>
+      </label>
       <fieldset className="pt-2 border-t border-evari-edge/10">
         <legend className="text-[11px] font-medium text-evari-dimmer mb-1">Drop shadow</legend>
         <div className="space-y-2">

@@ -602,6 +602,14 @@ export type SplitItem =
       /** Horizontal alignment within the cell. Default 'center'. */
       alignment?: 'left' | 'center' | 'right';
       /**
+       * Fit (preserve aspect, may leave whitespace) or Cover (fill the
+       * cell completely, crop to the cell's aspect ratio). Default
+       * 'cover' so a fresh image fills its cell out of the box.
+       * Outlook desktop strips object-fit cleanly and falls back to
+       * width:100% so this is safe to default-on.
+       */
+      fillMode?: 'fit' | 'cover';
+      /**
        * Optional drop shadow. 'none' (default) renders no shadow; the
        * named presets map to multi-stop CSS box-shadow values that
        * read as soft and realistic (the ray-traced look). shadowColor
