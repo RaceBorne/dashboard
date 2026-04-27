@@ -636,6 +636,8 @@ export type SplitItem =
       fontFamily?: string;
       /** 100-900 numeric weight. Default 600 (was hardcoded bold = 700). */
       fontWeight?: number;
+      /** Horizontal alignment within the cell. Default 'left'. */
+      alignment?: 'left' | 'center' | 'right';
     })
   | (SplitItemBase & {
       kind: 'divider';

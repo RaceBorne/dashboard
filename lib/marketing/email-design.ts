@@ -291,7 +291,8 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
   // button
   const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : '';
   const weight = it.fontWeight ?? 600;
-  return `<div ${idAttr} style="margin-bottom:8px;"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:${weight} ${it.fontSizePx}px ${family}Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
+  const align = it.alignment ?? 'left';
+  return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:${weight} ${it.fontSizePx}px ${family}Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
 }
 
 function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
