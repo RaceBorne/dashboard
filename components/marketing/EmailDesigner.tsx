@@ -1775,10 +1775,11 @@ function DeviceOverrideBanner({ blockHasMobile, onClear }: { blockHasMobile: boo
 
 // ─── Field helpers ──────────────────────────────────────────────
 
-// Single source of truth for form-control look. Keeps every dropdown,
-// text input + number input the same height and same surface rhythm
-// across every detail panel. ~32px tall = comfortable touch target.
-const inputCls = 'w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
+// Single source of truth for form-control look. Hard rule: every
+// single-line text input + dropdown in the designer is exactly 34px
+// tall. Multi-line textareas use textareaCls instead.
+const inputCls = 'w-full h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
+const textareaCls = 'w-full px-2.5 py-2 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
 // Standard label style — used everywhere a field needs an above-the-input label.
 const labelCls = 'block text-[10px] font-medium uppercase tracking-[0.1em] text-evari-dimmer mb-1';
 // Compact section header inside the right rail panels.
@@ -1863,7 +1864,7 @@ function ColourField({ label, value, onChange, brand }: { label: string; value: 
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 w-10 rounded-md border border-evari-edge/30 bg-transparent cursor-pointer p-0 shrink-0"
+          className="h-[34px] w-10 rounded-md border border-evari-edge/30 bg-transparent cursor-pointer p-0 shrink-0"
           aria-label={`${label} colour picker`}
           title="Click to open the colour picker"
         />
@@ -1969,7 +1970,7 @@ function SliderField({ label, value, min, max, step, suffix, onChange }: {
               if (!Number.isFinite(v)) return;
               onChange(clamp(stepPrecision > 0 ? Number(v.toFixed(stepPrecision)) : Math.round(v)));
             }}
-            className="w-16 px-2 py-1 rounded-md bg-evari-ink text-evari-text text-[12px] font-mono tabular-nums border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none text-right"
+            className="w-16 h-[34px] px-2 rounded-md bg-evari-ink text-evari-text text-[12px] font-mono tabular-nums border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none text-right"
           />
           {suffix ? <span className="text-[10px] text-evari-dimmer font-mono w-5 text-left shrink-0">{suffix}</span> : null}
         </div>
@@ -2181,7 +2182,7 @@ function HeadingFields({ block, brand, onChange }: { block: Extract<EmailBlock, 
             <span>Heading text</span>
             <VariableMenu onPick={(token) => onChange({ html: block.html + token })} />
           </span>
-          <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[64px] font-mono')} />
+          <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[64px] font-mono')} />
         </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
@@ -2223,7 +2224,7 @@ function TextFields({ block, brand, onChange }: { block: Extract<EmailBlock, { t
             <span>Body</span>
             <VariableMenu onPick={(token) => onChange({ html: block.html + token })} />
           </span>
-          <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[120px] font-mono')} />
+          <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[120px] font-mono')} />
         </label>
         <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
       </FieldGroup>
@@ -3065,7 +3066,7 @@ function HtmlFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'h
   return (
     <label className="block">
       <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Custom HTML (escape hatch)</span>
-      <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[140px] font-mono text-[12px]')} />
+      <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[140px] font-mono')} />
     </label>
   );
 }
@@ -3090,7 +3091,7 @@ function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { 
       </div>
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text (HTML)</span>
-        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[80px] font-mono text-[12px]')} />
+        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[80px] font-mono')} />
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
@@ -3278,7 +3279,7 @@ function CardFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'c
     <div className="space-y-2">
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Card content (HTML)</span>
-        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(inputCls, 'min-h-[100px] font-mono text-[12px]')} />
+        <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[100px] font-mono')} />
       </label>
       <div className="grid grid-cols-3 gap-2">
         <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
@@ -3410,7 +3411,7 @@ function ReviewFields({ block, onChange }: { block: Extract<EmailBlock, { type: 
     <div className="space-y-2">
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Quote</span>
-        <textarea value={block.quote} onChange={(e) => onChange({ quote: e.target.value })} className={cn(inputCls, 'min-h-[80px] italic')} />
+        <textarea value={block.quote} onChange={(e) => onChange({ quote: e.target.value })} className={cn(textareaCls, 'min-h-[80px] italic')} />
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
@@ -3477,7 +3478,7 @@ function ProductFields({ block, onChange }: { block: Extract<EmailBlock, { type:
       </div>
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Description (HTML)</span>
-        <textarea value={block.description} onChange={(e) => onChange({ description: e.target.value })} className={cn(inputCls, 'min-h-[60px] font-mono text-[12px]')} />
+        <textarea value={block.description} onChange={(e) => onChange({ description: e.target.value })} className={cn(textareaCls, 'min-h-[60px] font-mono')} />
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
