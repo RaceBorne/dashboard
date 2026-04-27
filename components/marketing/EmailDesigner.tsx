@@ -1558,6 +1558,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                         editing={selectedId !== null}
                         onSelect={() => setSelectedId(b.id)}
                         onSelectItem={(itemId) => { setSelectedId(b.id); setOpenItemId(itemId); }}
+                        onSelectItemChild={(blockId, itemId) => { setSelectedId(blockId); setOpenItemId(itemId); }}
                         onRemove={() => { setSelectedId(null); removeBlock(b.id); }}
                         onDuplicate={() => duplicateBlock(b.id)}
                         onSelectChild={(id) => setSelectedId(id)}
@@ -2875,7 +2876,7 @@ function CanvasEndDrop() {
  * as nested CanvasBlocks inside their own SortableContext. Every
  * block is its own React node so click + drag work natively.
  */
-function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSelect, onSelectItem, onRemove, onDuplicate, onSelectChild, onRemoveChild, onDuplicateChild }: {
+function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSelect, onSelectItem, onRemove, onDuplicate, onSelectChild, onSelectItemChild, onRemoveChild, onDuplicateChild }: {
   block: EmailBlock;
   brand: MarketingBrand;
   device: 'desktop' | 'mobile';
@@ -2890,6 +2891,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   onRemove: () => void;
   onDuplicate: () => void;
   onSelectChild: (id: string) => void;
+  onSelectItemChild?: (blockId: string, itemId: string) => void;
   onRemoveChild: (id: string) => void;
   onDuplicateChild: (id: string) => void;
 }) {
@@ -2943,6 +2945,11 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
           // and for clicks that miss every item (cell padding, overlay bg).
           if (block.type === 'split' && onSelectItem) {
             const els = document.elementsFromPoint(e.clientX, e.clientY);
+            // TEMP DEBUG: log so we can confirm the handler runs and
+            // see what elementsFromPoint actually finds. Remove after
+            // confirming.
+            // eslint-disable-next-line no-console
+            console.log('[split-click]', { x: e.clientX, y: e.clientY, count: els.length, ids: els.map((el) => (el as HTMLElement).dataset?.splitItemId).filter(Boolean), blockType: block.type });
             for (const el of els) {
               if (el instanceof HTMLElement && el.dataset.splitItemId) {
                 onSelectItem(el.dataset.splitItemId);
@@ -2968,6 +2975,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
             selectedId={selectedId}
             editing={editing}
             onSelectChild={onSelectChild}
+            onSelectItemChild={onSelectItemChild}
             onRemoveChild={onRemoveChild}
             onDuplicateChild={onDuplicateChild}
           />
@@ -3013,13 +3021,14 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   );
 }
 
-function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSelectChild, onRemoveChild, onDuplicateChild }: {
+function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSelectChild, onSelectItemChild, onRemoveChild, onDuplicateChild }: {
   block: Extract<EmailBlock, { type: 'section' }>;
   brand: MarketingBrand;
   device: 'desktop' | 'mobile';
   selectedId: string | null;
   editing: boolean;
   onSelectChild: (id: string) => void;
+  onSelectItemChild?: (blockId: string, itemId: string) => void;
   onRemoveChild: (id: string) => void;
   onDuplicateChild: (id: string) => void;
 }) {
@@ -3077,9 +3086,11 @@ function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSel
                 selectedId={selectedId}
                 editing={editing}
                 onSelect={() => onSelectChild(c.id)}
+                onSelectItem={(itemId) => onSelectItemChild?.(c.id, itemId)}
                 onRemove={() => onRemoveChild(c.id)}
                 onDuplicate={() => onDuplicateChild(c.id)}
                 onSelectChild={onSelectChild}
+                onSelectItemChild={onSelectItemChild}
                 onRemoveChild={onRemoveChild}
                 onDuplicateChild={onDuplicateChild}
               />
