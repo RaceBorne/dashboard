@@ -47,6 +47,7 @@ import {
 import {
   DndContext,
   DragOverlay,
+  useDndContext,
   PointerSensor,
   closestCenter,
   useDraggable,
@@ -2358,13 +2359,21 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   // Sections render as a real DOM wrapper so children can layer on top.
   // Everything else uses the renderer's email-safe HTML directly.
   const isSection = eff.type === 'section';
+  const isPinned = isSection && (eff as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+  // Spread sortable attrs/listeners on the WHOLE block wrapper so the user
+  // can grab anywhere. PointerSensor's 4px activationConstraint distinguishes
+  // a click (selects) from a drag (reorders). Pinned blocks (announcement
+  // bar) skip the listeners entirely since they can't move.
+  const dragProps = isPinned ? {} : { ...attributes, ...listeners };
   return (
     <div ref={setNodeRef} style={style} className="relative group">
       <CanvasInsertionZone overId={block.id} />
       <div
+        {...dragProps}
         onClick={(e) => { e.stopPropagation(); onSelect(); }}
         className={cn(
-          'relative cursor-pointer transition-shadow',
+          'relative transition-shadow touch-none select-none',
+          isPinned ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
           selected ? 'ring-2 ring-evari-gold' : editing ? 'hover:ring-1 hover:ring-evari-gold/40' : '',
         )}
       >
@@ -2386,14 +2395,14 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
           'absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink/95 border border-evari-edge/40 shadow-lg backdrop-blur-sm transition-opacity',
           selected ? 'opacity-100' : editing ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 pointer-events-none',
         )}>
-          {eff.type === 'section' && (eff as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top' ? (
+          {isPinned ? (
             <span className="p-1.5 text-evari-gold" title="Pinned to top — can't be reordered" aria-label="Pinned to top">
               <Pin className="h-3.5 w-3.5" />
             </span>
           ) : (
-            <button type="button" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="p-1.5 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing" title="Drag to reorder" aria-label="Drag to reorder">
+            <span className="p-1.5 text-evari-dim" title="Click and drag the block to reorder" aria-label="Drag affordance">
               <GripVertical className="h-3.5 w-3.5" />
-            </button>
+            </span>
           )}
           <button type="button" onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-1.5 text-evari-dim hover:text-evari-text" title="Duplicate block" aria-label="Duplicate block">
             <Copy className="h-3.5 w-3.5" />
@@ -2508,10 +2517,11 @@ function SectionEndDrop({ sectionId }: { sectionId: string }) {
 
 function CanvasInsertionZone({ overId }: { overId: string }) {
   const { isOver, setNodeRef } = useDroppable({ id: overId });
-  // Idle: 0 visible height — no canvas-background line bleeds between
-  // adjacent blocks. The droppable hit area lives just at the seam,
-  // and only inflates into a visible insertion bar while the cursor
-  // is over it during a drag.
+  // While any drag is active, expand the hit area + show a faint hint;
+  // when the cursor is actually over this seam, brighten into an
+  // explicit gold insertion bar so the user knows where it'll land.
+  const dnd = useDndContext();
+  const dragActive = !!dnd.active;
   return (
     <div
       ref={setNodeRef}
@@ -2519,7 +2529,9 @@ function CanvasInsertionZone({ overId }: { overId: string }) {
         'rounded transition-all',
         isOver
           ? 'h-3 my-1 bg-evari-gold/15 border-y-2 border-dashed border-evari-gold/70'
-          : 'h-0',
+          : dragActive
+            ? 'h-2 my-px bg-evari-gold/5 border-y border-dashed border-evari-gold/30'
+            : 'h-0',
       )}
     />
   );
