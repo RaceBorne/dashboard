@@ -924,6 +924,9 @@ function labelForBlock(b: EmailBlock): string {
 export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previewDevice = "desktop", onRefreshBrand, refreshingBrand }: Props) {
   const design = normaliseEmailDesign(value) ?? DEFAULT_EMAIL_DESIGN;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // openItemId is shared across canvas + right-rail. Click an item area
+  // in the canvas (split) → setOpenItemId so the matching editor expands.
+  const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [dragOverlay, setDragOverlay] = useState<string | null>(null);
   const [paletteTab, setPaletteTab] = useState<'blocks' | 'rows' | 'presets'>('blocks');
   // Pre-configure a palette tile before adding: clicking a tile builds
@@ -1554,6 +1557,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                         selectedId={selectedId}
                         editing={selectedId !== null}
                         onSelect={() => setSelectedId(b.id)}
+                        onSelectItem={(itemId) => { setSelectedId(b.id); setOpenItemId(itemId); }}
                         onRemove={() => { setSelectedId(null); removeBlock(b.id); }}
                         onDuplicate={() => duplicateBlock(b.id)}
                         onSelectChild={(id) => setSelectedId(id)}
@@ -1629,6 +1633,8 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                   device={previewDevice}
                   onChange={(patch) => updateBlock(sel.id, patch as Partial<EmailBlock>)}
                   onClose={() => setSelectedId(null)}
+                  openItemId={openItemId}
+                  setOpenItemId={setOpenItemId}
                 />
               );
             })()
@@ -1750,7 +1756,7 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
  * row when a block is selected. Renders to the right of the palette +
  * block list column so the thumbnails stay visible at the top.
  */
-function BlockPropertiesPanel({ block, brand, designWidthPx, device, onChange, onClose }: { block: EmailBlock; brand: MarketingBrand; designWidthPx: number; device: 'desktop' | 'mobile'; onChange: (patch: Partial<EmailBlock>) => void; onClose: () => void }) {
+function BlockPropertiesPanel({ block, brand, designWidthPx, device, onChange, onClose, openItemId, setOpenItemId }: { block: EmailBlock; brand: MarketingBrand; designWidthPx: number; device: 'desktop' | 'mobile'; onChange: (patch: Partial<EmailBlock>) => void; onClose: () => void; openItemId?: string | null; setOpenItemId?: (id: string | null) => void }) {
   // Display the effective (merged) block so the field editors show the
   // values that will actually render for the current device.
   const view = effectiveBlock(block, device);
@@ -1787,7 +1793,7 @@ function BlockPropertiesPanel({ block, brand, designWidthPx, device, onChange, o
         {view.type === 'divider'   ? <DividerFields   block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'divider' }>>) => void} /> : null}
         {view.type === 'spacer'    ? <SpacerFields    block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void} /> : null}
         {view.type === 'html'      ? <HtmlFields      block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void} /> : null}
-        {view.type === 'split'     ? <SplitFields     block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
+        {view.type === 'split'     ? <SplitFields     block={view} brand={brand} openItemId={openItemId ?? null} setOpenItemId={setOpenItemId ?? (() => {})} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
         {view.type === 'headerBar' ? <HeaderBarFields block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
         {view.type === 'brandLogo' ? <BrandLogoFields block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'brandLogo' }>>) => void} /> : null}
         {view.type === 'card'      ? <CardFields      block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void} /> : null}
@@ -2869,7 +2875,7 @@ function CanvasEndDrop() {
  * as nested CanvasBlocks inside their own SortableContext. Every
  * block is its own React node so click + drag work natively.
  */
-function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSelect, onRemove, onDuplicate, onSelectChild, onRemoveChild, onDuplicateChild }: {
+function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSelect, onSelectItem, onRemove, onDuplicate, onSelectChild, onRemoveChild, onDuplicateChild }: {
   block: EmailBlock;
   brand: MarketingBrand;
   device: 'desktop' | 'mobile';
@@ -2877,6 +2883,10 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   selectedId: string | null;
   editing: boolean;
   onSelect: () => void;
+  /** Optional fine-grained selection: when the user clicks inside a
+   *  split block, resolve the inner item id (data-split-item-id) and
+   *  pass it here so the right rail can auto-open that item's editor. */
+  onSelectItem?: (itemId: string) => void;
   onRemove: () => void;
   onDuplicate: () => void;
   onSelectChild: (id: string) => void;
@@ -2924,7 +2934,24 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
       <CanvasInsertionZone overId={block.id} />
       <div
         {...dragProps}
-        onClick={(e) => { e.stopPropagation(); onSelect(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          // Phase 5: split-block click-to-edit. Walk the visual stack at the
+          // click point looking for a data-split-item-id; if found, route
+          // through onSelectItem so the right-rail accordion auto-expands
+          // that item. Falls through to plain onSelect for non-split blocks
+          // and for clicks that miss every item (cell padding, overlay bg).
+          if (block.type === 'split' && onSelectItem) {
+            const els = document.elementsFromPoint(e.clientX, e.clientY);
+            for (const el of els) {
+              if (el instanceof HTMLElement && el.dataset.splitItemId) {
+                onSelectItem(el.dataset.splitItemId);
+                return;
+              }
+            }
+          }
+          onSelect();
+        }}
         className={cn(
           'relative transition-shadow touch-none select-none',
           isPinned ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
@@ -3130,12 +3157,11 @@ function HtmlFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'h
   );
 }
 
-function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'split' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void }) {
+function SplitFields({ block, brand, onChange, openItemId, setOpenItemId }: { block: Extract<EmailBlock, { type: 'split' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void; openItemId: string | null; setOpenItemId: (id: string | null) => void }) {
   const cells: SplitCells = getSplitCells(block);
-  // Single open-item id shared across both cells, accordion-style: only
-  // one item editor visible at a time, clicking another item (either cell)
-  // collapses the previously open one.
-  const [openItemId, setOpenItemId] = useState<string | null>(null);
+  // openItemId is owned by the EmailDesigner top level so a click on a
+  // split item in the live canvas (data-split-item-id) can drive the
+  // right-rail accordion. Single open id across both cells.
 
   function setItems(side: 'left' | 'right', items: SplitItem[]) {
     const updated: SplitCell = { ...cells[side], items };

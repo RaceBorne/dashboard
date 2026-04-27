@@ -260,36 +260,37 @@ function splitImageShadowCss(preset: 'sm' | 'md' | 'lg', tintHex?: string): stri
 }
 
 function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
+  // data-split-item-id on the outer div lets the canvas click handler
+  // resolve which item the user pressed (via elementsFromPoint) and
+  // auto-open that item's editor in the right rail.
+  const idAttr = `data-split-item-id="${it.id}"`;
   if (it.kind === 'image') {
     const shadow = it.shadow && it.shadow !== 'none' ? splitImageShadowCss(it.shadow, it.shadowColor) : '';
     const shadowStyle = shadow ? `box-shadow:${shadow};border-radius:4px;` : '';
     if (!it.src) {
-      // Phase 4: dashed placeholder card so the user can see the cell
-      // is reserving space for an image they have not picked yet. Mirrors
-      // the empty-image pattern used in the top-level renderImage block.
-      return `<div style="margin-bottom:8px;"><div style="display:inline-block;width:100%;max-width:280px;height:160px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/160px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
+      return `<div ${idAttr} style="margin-bottom:8px;"><div style="display:inline-block;width:100%;max-width:280px;height:160px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/160px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
     }
     const widthCss = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct <= 100
       ? `width:${it.widthPct}%;height:auto;`
       : `width:100%;max-width:280px;height:auto;`;
-    return `<div style="margin-bottom:8px;"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
+    return `<div ${idAttr} style="margin-bottom:8px;"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
   }
   if (it.kind === 'text') {
     const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : fontFor(brand, '');
     const weight = it.fontWeight ?? 400;
-    return `<div style="margin-bottom:8px;font:${weight} ${it.fontSizePx}px/${it.lineHeight} ${family}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
+    return `<div ${idAttr} style="margin-bottom:8px;font:${weight} ${it.fontSizePx}px/${it.lineHeight} ${family}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
   }
   if (it.kind === 'divider') {
     const w = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct < 100 ? it.widthPct : 100;
     if (w >= 100) {
-      return `<div style="margin:${it.marginYPx}px 0;height:${it.thicknessPx}px;line-height:0;font-size:0;background:${it.color};">&nbsp;</div>`;
+      return `<div ${idAttr} style="margin:${it.marginYPx}px 0;height:${it.thicknessPx}px;line-height:0;font-size:0;background:${it.color};">&nbsp;</div>`;
     }
-    return `<div style="margin:${it.marginYPx}px 0;text-align:center;font-size:0;line-height:0;"><div style="display:inline-block;width:${w}%;height:${it.thicknessPx}px;background:${it.color};">&nbsp;</div></div>`;
+    return `<div ${idAttr} style="margin:${it.marginYPx}px 0;text-align:center;font-size:0;line-height:0;"><div style="display:inline-block;width:${w}%;height:${it.thicknessPx}px;background:${it.color};">&nbsp;</div></div>`;
   }
   // button
   const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : '';
   const weight = it.fontWeight ?? 600;
-  return `<div style="margin-bottom:8px;"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:${weight} ${it.fontSizePx}px ${family}Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
+  return `<div ${idAttr} style="margin-bottom:8px;"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:${weight} ${it.fontSizePx}px ${family}Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
 }
 
 function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
