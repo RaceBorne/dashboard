@@ -585,11 +585,17 @@ function PresetsPanel({ brand, selectedBlock, liveEdit, onAddBlock, onApplyTypoP
  * AND schedule a PATCH 400ms after the last change.
  */
 
-function InlinePresetEditor({ brand, entry, onChange, onClose }: {
+function InlinePresetEditor({ brand, entry, onChange, onClose, onRefreshBrand }: {
   brand: MarketingBrand;
   entry: { kind: 'typo'; preset: TypographyPreset } | { kind: 'button'; preset: ButtonPreset };
   onChange: (next: { kind: 'typo'; preset: TypographyPreset } | { kind: 'button'; preset: ButtonPreset }) => void;
   onClose: () => void;
+  /** Called after each successful PATCH so the parent re-fetches brand
+   *  state. Without this the local `brand` (a prop from up the tree)
+   *  stays at whatever it was when the editor opened, so closing the
+   *  editor drops the liveEdit overlay and the card reverts visually
+   *  to the pre-save state. */
+  onRefreshBrand?: () => void;
 }) {
   const [draft, setDraft] = useState(entry.preset);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -608,6 +614,10 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
           await fetch('/api/marketing/brand', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fonts: { ...brand.fonts, buttonPresets: next } }) });
         }
         setSavedAt(new Date().toLocaleTimeString());
+        // Pull the fresh brand back so the cards in the left rail (and
+        // anywhere else) show the saved state once the user closes the
+        // editor and the liveEdit overlay drops away.
+        onRefreshBrand?.();
       } catch { /* swallow */ }
     }, 400);
     return () => clearTimeout(handle);
@@ -630,6 +640,7 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
         const next = (brand.fonts.buttonPresets ?? []).filter((bp) => bp.id !== draft.id);
         await fetch('/api/marketing/brand', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fonts: { ...brand.fonts, buttonPresets: next } }) });
       }
+      onRefreshBrand?.();
     } catch { /* swallow */ }
     onClose();
   }
@@ -1604,6 +1615,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
               entry={editingPreset}
               onChange={(next) => setEditingPreset(next)}
               onClose={() => setEditingPreset(null)}
+              onRefreshBrand={onRefreshBrand}
             />
           ) : pendingTile ? (
             <div className="h-full flex flex-col">
