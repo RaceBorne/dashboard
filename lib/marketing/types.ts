@@ -626,6 +626,21 @@ export interface SplitCell {
    */
   items?: SplitItem[];
 
+  /**
+   * Phase 3: overlay mode lets the user composite text and button items
+   * on top of a base image. When mode === 'overlay' and backgroundImage
+   * has a src, the renderer paints the bg image across the cell and
+   * renders the items inside aligned per the overlay* fields below. In
+   * stack mode (the default) backgroundImage and overlay fields are
+   * ignored.
+   */
+  mode?: 'stack' | 'overlay';
+  backgroundImage?: { src: string; alt: string };
+  overlayMinHeightPx?: number;
+  overlayVerticalAlignment?: 'top' | 'middle' | 'bottom';
+  overlayHorizontalAlignment?: 'left' | 'center' | 'right';
+  overlayPaddingPx?: number;
+
   // ─── Phase 1 (legacy) ────────────────────────────────────────
   kind?: 'image' | 'text';
   // image cell:

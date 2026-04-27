@@ -246,6 +246,27 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
 
 function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
   const items = getSplitCellItems(c);
+
+  // Overlay mode: bg image fills the cell, items composite on top.
+  if (c.mode === 'overlay' && c.backgroundImage?.src) {
+    const bg = c.backgroundImage.src;
+    const minH = c.overlayMinHeightPx ?? 240;
+    const v = c.overlayVerticalAlignment ?? 'middle';
+    const h = c.overlayHorizontalAlignment ?? 'center';
+    const pad = c.overlayPaddingPx ?? 16;
+    const inner = items.length > 0
+      ? items.map((it) => renderSplitItem(it, brand)).join('')
+      : '';
+    // td-with-background-image pattern. Works in Gmail / Apple Mail /
+    // Outlook.com / Yahoo / iOS / Android. Outlook desktop (Office)
+    // shows the foreground content over the configured solid bg colour.
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="min-height:${minH}px;">
+      <tr>
+        <td valign="${v}" align="${h}" background="${escape(bg)}" style="background:#1a1a1a url('${escape(bg)}') center/cover no-repeat;min-height:${minH}px;height:${minH}px;padding:${pad}px;">${inner}</td>
+      </tr>
+    </table>`;
+  }
+
   if (items.length === 0) return '';
   return items.map((it) => renderSplitItem(it, brand)).join('');
 }

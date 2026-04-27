@@ -3137,8 +3137,8 @@ function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { 
           Swap
         </button>
       </div>
-      <SplitCellEditor side="left"  cell={cells.left}  brand={brand} onItemsChange={(items) => setItems('left',  items)} />
-      <SplitCellEditor side="right" cell={cells.right} brand={brand} onItemsChange={(items) => setItems('right', items)} />
+      <SplitCellEditor side="left"  cell={cells.left}  brand={brand} onItemsChange={(items) => setItems('left',  items)} onCellChange={(patch) => onChange({ cells: { ...cells, left:  { ...cells.left,  ...patch } } })} />
+      <SplitCellEditor side="right" cell={cells.right} brand={brand} onItemsChange={(items) => setItems('right', items)} onCellChange={(patch) => onChange({ cells: { ...cells, right: { ...cells.right, ...patch } } })} />
     </div>
   );
 }
@@ -3161,10 +3161,12 @@ function makeSplitItem(kind: SplitItem['kind']): SplitItem {
  * drag, expand to edit inline, duplicate, or remove. Add buttons at
  * the bottom append a new item of the chosen kind.
  */
-function SplitCellEditor({ side, cell, brand, onItemsChange }: { side: 'left' | 'right'; cell: SplitCell; brand: MarketingBrand; onItemsChange: (items: SplitItem[]) => void }) {
+function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { side: 'left' | 'right'; cell: SplitCell; brand: MarketingBrand; onItemsChange: (items: SplitItem[]) => void; onCellChange: (patch: Partial<SplitCell>) => void }) {
   void brand;
   const items: SplitItem[] = useMemo(() => getSplitCellItems(cell), [cell]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [bgPickerOpen, setBgPickerOpen] = useState(false);
+  const mode: 'stack' | 'overlay' = cell.mode === 'overlay' ? 'overlay' : 'stack';
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const ids = items.map((i) => i.id);
@@ -3198,10 +3200,99 @@ function SplitCellEditor({ side, cell, brand, onItemsChange }: { side: 'left' | 
     onItemsChange(arrayMove(items, from, to));
   }
 
+  const bgSrc = cell.backgroundImage?.src ?? '';
+  const minH = cell.overlayMinHeightPx ?? 240;
+  const vAlign = cell.overlayVerticalAlignment ?? 'middle';
+  const hAlign = cell.overlayHorizontalAlignment ?? 'center';
+  const pad = cell.overlayPaddingPx ?? 16;
+
   return (
     <div className="rounded-md border border-evari-edge/20 bg-evari-ink/30 p-2.5 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{side === 'left' ? 'Left cell' : 'Right cell'}</span>
+        <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5">
+          {(['stack', 'overlay'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onCellChange({ mode: m })}
+              className={cn('px-2 py-0.5 rounded text-[11px] font-medium capitalize transition-colors', mode === m ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}
+              title={m === 'stack' ? 'Items stacked vertically' : 'Items composited over a background image'}
+            >{m}</button>
+          ))}
+        </div>
+      </div>
+
+      {mode === 'overlay' ? (
+        <div className="rounded-md border border-evari-edge/20 bg-evari-ink/40 p-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Background image</span>
+            <span className="text-[10px] text-evari-dimmer">items composite on top</span>
+          </div>
+          <div className="rounded-md overflow-hidden border border-evari-edge/30 bg-evari-ink">
+            <div className="aspect-[5/3] flex items-center justify-center bg-zinc-100" style={bgSrc ? { backgroundImage: `url('${bgSrc}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+              {!bgSrc ? <span className="text-[10px] text-evari-dim">No background picked</span> : null}
+            </div>
+            <div className="flex items-center gap-2 px-2 py-1.5">
+              <button type="button" onClick={() => setBgPickerOpen(true)} className="text-[11px] text-evari-gold hover:underline">
+                {bgSrc ? 'Replace from library' : 'Choose from library'}
+              </button>
+              {bgSrc ? (
+                <button type="button" onClick={() => onCellChange({ backgroundImage: { src: '', alt: '' } })} className="text-[11px] text-evari-dim hover:text-evari-text ml-auto">
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+                <span>Min height</span>
+                <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{minH}px</span>
+              </span>
+              <div className="px-2.5">
+                <input type="range" min={80} max={600} step={10} value={minH} onChange={(e) => onCellChange({ overlayMinHeightPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+              </div>
+            </label>
+            <label className="block">
+              <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+                <span>Padding</span>
+                <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{pad}px</span>
+              </span>
+              <div className="px-2.5">
+                <input type="range" min={0} max={64} value={pad} onChange={(e) => onCellChange({ overlayPaddingPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+              </div>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Vertical</span>
+              <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5 w-full">
+                {(['top', 'middle', 'bottom'] as const).map((v) => (
+                  <button key={v} type="button" onClick={() => onCellChange({ overlayVerticalAlignment: v })} className={cn('flex-1 px-1.5 py-0.5 rounded text-[11px] font-medium capitalize transition-colors', vAlign === v ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}>{v}</button>
+                ))}
+              </div>
+            </label>
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Horizontal</span>
+              <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5 w-full">
+                {(['left', 'center', 'right'] as const).map((h) => (
+                  <button key={h} type="button" onClick={() => onCellChange({ overlayHorizontalAlignment: h })} className={cn('flex-1 px-1.5 py-0.5 rounded text-[11px] font-medium capitalize transition-colors', hAlign === h ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}>{h}</button>
+                ))}
+              </div>
+            </label>
+          </div>
+          {bgPickerOpen ? (
+            <AssetPickerModal
+              onClose={() => setBgPickerOpen(false)}
+              onPick={(url, alt) => { onCellChange({ backgroundImage: { src: url, alt } }); setBgPickerOpen(false); }}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{mode === 'overlay' ? 'Overlay items' : 'Items'}</span>
         <span className="text-[10px] text-evari-dimmer">{items.length} item{items.length === 1 ? '' : 's'}</span>
       </div>
 
