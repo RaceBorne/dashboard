@@ -45,6 +45,8 @@ import {
   Tag,
   Trash2,
   Type,
+  Eye,
+  EyeOff,
   Undo2,
   Unlock,
   Wand2,
@@ -930,6 +932,10 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
   // openItemId is shared across canvas + right-rail. Click an item area
   // in the canvas (split) → setOpenItemId so the matching editor expands.
   const [openItemId, setOpenItemId] = useState<string | null>(null);
+  // Preview mode: hides every editing affordance (dashed outlines, hover
+  // rings, the toolbar) so the canvas reads exactly like the sent email.
+  // Selection / right-rail are also closed while preview is on.
+  const [previewMode, setPreviewMode] = useState<boolean>(false);
   const [dragOverlay, setDragOverlay] = useState<string | null>(null);
   const [paletteTab, setPaletteTab] = useState<'blocks' | 'rows' | 'presets'>('blocks');
   // Pre-configure a palette tile before adding: clicking a tile builds
@@ -1396,6 +1402,19 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             <Undo2 className="h-3 w-3" /> Undo
             {historyRef.current.length > 0 ? <span className="text-evari-dim font-mono tabular-nums text-[10px]">({historyRef.current.length})</span> : null}
           </button>
+          <button
+            type="button"
+            onClick={() => { const next = !previewMode; setPreviewMode(next); if (next) { setSelectedId(null); setOpenItemId(null); setPendingTile(null); setEditingPreset(null); } }}
+            title={previewMode ? 'Preview is on — click to return to editing' : 'Hide editing chrome and view the email as the recipient will see it'}
+            className={cn(
+              'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors',
+              previewMode
+                ? 'bg-evari-gold text-evari-goldInk border-evari-gold hover:opacity-90'
+                : 'border-evari-edge/30 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold',
+            )}
+          >
+            {previewMode ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />} Preview
+          </button>
           {/* keep historyVersion in this scope so the disabled state reacts */}
           <span className="hidden">{historyVersion}</span>
           {onAIDraft ? (
@@ -1568,6 +1587,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                         selected={selectedId === b.id}
                         selectedId={selectedId}
                         editing={selectedId !== null}
+                        previewMode={previewMode}
                         onSelect={() => setSelectedId(b.id)}
                         onSelectItem={(itemId) => { setSelectedId(b.id); setOpenItemId(itemId); }}
                         onSelectItemChild={(blockId, itemId) => { setSelectedId(blockId); setOpenItemId(itemId); }}
@@ -2895,13 +2915,16 @@ function CanvasEndDrop() {
  * as nested CanvasBlocks inside their own SortableContext. Every
  * block is its own React node so click + drag work natively.
  */
-function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSelect, onSelectItem, onRemove, onDuplicate, onSelectChild, onSelectItemChild, onRemoveChild, onDuplicateChild }: {
+function CanvasBlock({ block, brand, device, selected, selectedId, editing, previewMode, onSelect, onSelectItem, onRemove, onDuplicate, onSelectChild, onSelectItemChild, onRemoveChild, onDuplicateChild }: {
   block: EmailBlock;
   brand: MarketingBrand;
   device: 'desktop' | 'mobile';
   selected: boolean;
   selectedId: string | null;
   editing: boolean;
+  /** When true, every editing affordance is hidden so the canvas reads
+   *  exactly like the sent email. Click handlers are also suppressed. */
+  previewMode?: boolean;
   onSelect: () => void;
   /** Optional fine-grained selection: when the user clicks inside a
    *  split block, resolve the inner item id (data-split-item-id) and
@@ -2955,11 +2978,13 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
       <CanvasInsertionZone overId={block.id} />
       <div
         {...dragProps}
-        onClick={(e) => { e.stopPropagation(); onSelect(); }}
+        onClick={(e) => { if (previewMode) return; e.stopPropagation(); onSelect(); }}
         className={cn(
           'relative transition-shadow touch-none select-none',
-          isPinned ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
-          isPresetOver ? 'ring-2 ring-evari-gold ring-offset-2 ring-offset-white'
+          previewMode ? 'cursor-default' : (isPinned ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'),
+          previewMode
+            ? ''
+            : isPresetOver ? 'ring-2 ring-evari-gold ring-offset-2 ring-offset-white'
             : selected ? 'ring-2 ring-evari-gold'
             : 'outline outline-dashed outline-1 outline-evari-edge/35 outline-offset-[-1px] hover:outline-evari-gold/60',
         )}
@@ -2971,6 +2996,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
             device={device}
             selectedId={selectedId}
             editing={editing}
+            previewMode={previewMode}
             onSelectChild={onSelectChild}
             onSelectItemChild={onSelectItemChild}
             onRemoveChild={onRemoveChild}
@@ -2980,6 +3006,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
           <div
             className="relative z-10"
             onClick={(e) => {
+              if (previewMode) return;
               e.stopPropagation();
               e.preventDefault();
               if (block.type === 'split' && onSelectItem) {
@@ -2997,7 +3024,10 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
         )}
         <div className={cn(
           'absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink/95 border border-evari-edge/40 shadow-lg backdrop-blur-sm transition-opacity',
-          selected ? 'opacity-100' : editing ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 pointer-events-none',
+          previewMode ? 'opacity-0 pointer-events-none'
+            : selected ? 'opacity-100'
+            : editing ? 'opacity-0 group-hover:opacity-100'
+            : 'opacity-0 pointer-events-none',
         )}>
           {isPinned ? (
             <span className="p-1.5 text-evari-gold" title="Pinned to top — can't be reordered" aria-label="Pinned to top">
@@ -3034,12 +3064,13 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   );
 }
 
-function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSelectChild, onSelectItemChild, onRemoveChild, onDuplicateChild }: {
+function SectionCanvasWrapper({ block, brand, device, selectedId, editing, previewMode, onSelectChild, onSelectItemChild, onRemoveChild, onDuplicateChild }: {
   block: Extract<EmailBlock, { type: 'section' }>;
   brand: MarketingBrand;
   device: 'desktop' | 'mobile';
   selectedId: string | null;
   editing: boolean;
+  previewMode?: boolean;
   onSelectChild: (id: string) => void;
   onSelectItemChild?: (blockId: string, itemId: string) => void;
   onRemoveChild: (id: string) => void;
@@ -3098,6 +3129,7 @@ function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSel
                 selected={selectedId === c.id}
                 selectedId={selectedId}
                 editing={editing}
+                previewMode={previewMode}
                 onSelect={() => onSelectChild(c.id)}
                 onSelectItem={(itemId) => onSelectItemChild?.(c.id, itemId)}
                 onRemove={() => onRemoveChild(c.id)}
