@@ -280,19 +280,15 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
     let extraWrapStyle = '';
     if (isPartial) {
       widthCss = `width:${it.widthPct!}%;height:auto;${marginForPartial}`;
-    } else if (fill === 'cover') {
+    } else if (fill === 'fill' || fill === 'cover') {
+      // Fill: image expands to fill the entire cell without
+      // distortion — object-fit:cover preserves aspect by cropping
+      // whatever doesn't fit. Same behaviour for the legacy 'cover'
+      // alias so already-saved items keep rendering identically.
       widthCss = `width:100%;height:100%;object-fit:cover;`;
       extraWrapStyle = 'height:100%;';
-    } else if (fill === 'fill') {
-      // Stretch to fill the cell exactly, distorts aspect if cell shape
-      // doesn't match the image. object-fit:fill is what makes the
-      // stretching happen; Outlook desktop ignores it and falls back
-      // to natural aspect at width:100%.
-      widthCss = `width:100%;height:100%;object-fit:fill;`;
-      extraWrapStyle = 'height:100%;';
     } else {
-      // 'fit' — preserve aspect, may leave whitespace. Default for
-      // partial-width images too.
+      // 'fit' — preserve aspect, may leave whitespace.
       widthCss = `width:100%;height:auto;`;
     }
     return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};${extraWrapStyle}"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
@@ -359,7 +355,11 @@ function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: Marketing
   // + matching text-align in the td style centres inline content in
   // every email client; the cell renderer also wraps the stack in an
   // inline-block centring container so block-level items follow.
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;"><tr style="height:100%;"><td valign="middle" align="${lh}" width="50%" style="padding-right:12px;height:100%;text-align:${lh};vertical-align:middle;">${left}</td><td valign="middle" align="${rh}" width="50%" style="height:100%;text-align:${rh};vertical-align:middle;">${right}</td></tr></table>`;
+  // table-layout:fixed locks each td at width:50% regardless of content
+  // so a 'fill' image cannot push the cell wider than half the email.
+  // overflow:hidden on each td means object-fit:cover never spills over
+  // the cell boundary.
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;table-layout:fixed;"><tr style="height:100%;"><td valign="middle" align="${lh}" width="50%" style="padding-right:12px;height:100%;text-align:${lh};vertical-align:middle;overflow:hidden;">${left}</td><td valign="middle" align="${rh}" width="50%" style="height:100%;text-align:${rh};vertical-align:middle;overflow:hidden;">${right}</td></tr></table>`;
 }
 
 

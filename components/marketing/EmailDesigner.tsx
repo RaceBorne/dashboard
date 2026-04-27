@@ -3683,18 +3683,22 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
         <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Fill mode</span>
         <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5 w-full">
           {([
-            { v: 'fit',   l: 'Fit',   t: 'Preserve aspect ratio, may leave whitespace' },
-            { v: 'cover', l: 'Cover', t: 'Fill the cell, crops to aspect ratio' },
-            { v: 'fill',  l: 'Fill',  t: 'Stretch to fill the cell exactly, may distort the image' },
-          ] as const).map(({ v, l, t }) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => onChange({ fillMode: v })}
-              title={t}
-              className={cn('flex-1 px-2 py-1 rounded text-[11px] font-medium capitalize transition-colors', (item.fillMode ?? 'cover') === v ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}
-            >{l}</button>
-          ))}
+            { v: 'fit',  l: 'Fit',  t: 'Preserve aspect ratio, may leave whitespace' },
+            { v: 'fill', l: 'Fill', t: 'Fill the cell completely, preserves aspect by cropping (no stretch)' },
+          ] as const).map(({ v, l, t }) => {
+            // Treat the legacy 'cover' value as fill so old saved items
+            // light up the right pill.
+            const current = (item.fillMode === 'cover' ? 'fill' : (item.fillMode ?? 'fill'));
+            return (
+              <button
+                key={v}
+                type="button"
+                onClick={() => onChange({ fillMode: v })}
+                title={t}
+                className={cn('flex-1 px-2 py-1 rounded text-[11px] font-medium capitalize transition-colors', current === v ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}
+              >{l}</button>
+            );
+          })}
         </div>
       </label>
       <fieldset className="pt-2 border-t border-evari-edge/10">

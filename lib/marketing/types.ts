@@ -603,15 +603,15 @@ export type SplitItem =
       alignment?: 'left' | 'center' | 'right';
       /**
        * How the image sizes to its cell:
-       *  - 'fit'   preserve aspect, may leave whitespace (object-fit: contain)
-       *  - 'cover' fill the cell, crop to the cell's aspect ratio
-       *            (object-fit: cover) — default
-       *  - 'fill'  stretch to fill the cell exactly, may distort the
-       *            image (object-fit: fill)
+       *  - 'fit'  preserve aspect, may leave whitespace (object-fit: contain)
+       *  - 'fill' fill the cell completely, preserve aspect by cropping
+       *           the image to the cell's aspect ratio (object-fit: cover)
+       *  - 'cover' is the legacy alias for 'fill', kept on the union so
+       *           cells saved before the rename still render correctly.
        * Outlook desktop strips object-fit cleanly and falls back to
-       * width:100% so any of these are safe to default-on.
+       * width:100% so this is safe to default-on.
        */
-      fillMode?: 'fit' | 'cover' | 'fill';
+      fillMode?: 'fit' | 'fill' | 'cover';
       /**
        * Optional drop shadow. 'none' (default) renders no shadow; the
        * named presets map to multi-stop CSS box-shadow values that
