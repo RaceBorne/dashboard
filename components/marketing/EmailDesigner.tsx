@@ -762,44 +762,49 @@ function LayerRow({ block, depth, selectedId, onSelect, onRemove }: {
   const snippet = snippetForBlock(block);
   const isSection = block.type === 'section';
   const isPinned = isSection && (block as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
-  // Each nested level lifts the surface ~3% brighter (white tint over the
-  // panel) so depth reads visually without depending on indent alone.
-  // Sections render as a filled rounded rectangle with their children
-  // sitting INSIDE the rectangle (their own brighter cards).
-  const tint = Math.min(0.06 + depth * 0.03, 0.30);
-  const cardBg = selected ? 'rgba(212,166,73,0.18)' : `rgba(255,255,255,${tint.toFixed(3)})`;
   const children = isSection ? (block as Extract<EmailBlock, { type: 'section' }>).blocks : [];
+  // Solid surface tones — no ring borders. Each level lifts the bg one
+  // step lighter so children sit INSIDE the parent rectangle and the
+  // boundary is read by colour alone.
+  const surfaces = ['bg-white/[0.06]', 'bg-white/[0.10]', 'bg-white/[0.14]', 'bg-white/[0.18]'];
+  const baseSurface = surfaces[Math.min(depth, surfaces.length - 1)];
+  const surface = selected
+    ? 'bg-evari-gold/20'
+    : baseSurface;
+  const hoverSurface = selected ? '' : 'hover:bg-white/[0.16]';
   return (
     <li>
       <div
-        className={cn(
-          'group rounded-lg cursor-pointer transition-shadow',
-          selected ? 'ring-2 ring-evari-gold' : 'hover:ring-1 hover:ring-white/15',
-        )}
-        style={{ background: cardBg }}
+        className={cn('group rounded-lg overflow-hidden cursor-pointer transition-colors', surface, hoverSurface)}
         onClick={(e) => { e.stopPropagation(); onSelect(block.id); }}
       >
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <Icon className={cn('h-4 w-4 shrink-0', selected ? 'text-evari-gold' : 'text-evari-dim')} />
+        {/* Row header — same height for every block, regardless of nesting. */}
+        <div className="flex items-center gap-2.5 h-[44px] px-3">
+          <span className={cn('inline-flex items-center justify-center h-6 w-6 rounded-md shrink-0', selected ? 'bg-evari-gold/30 text-evari-gold' : 'bg-white/[0.08] text-evari-dim')}>
+            <Icon className="h-3.5 w-3.5" />
+          </span>
           <div className="min-w-0 flex-1">
-            <div className={cn('text-[12px] font-semibold leading-tight truncate flex items-center gap-1', selected ? 'text-evari-gold' : 'text-evari-text')}>
+            <div className={cn('text-[12px] font-semibold leading-tight truncate flex items-center gap-1.5', selected ? 'text-evari-gold' : 'text-evari-text')}>
               {label}
-              {isPinned ? <Pin className="h-2.5 w-2.5 text-evari-gold/70" aria-label="Pinned to top" /> : null}
+              {isPinned ? <Pin className="h-2.5 w-2.5 text-evari-gold/70 shrink-0" aria-label="Pinned to top" /> : null}
             </div>
-            <div className={cn('text-[10px] leading-tight truncate mt-0.5', selected ? 'text-evari-gold/70' : 'text-evari-dim')}>{snippet}</div>
+            <div className={cn('text-[10px] leading-tight truncate mt-0.5', selected ? 'text-evari-gold/70' : 'text-evari-dimmer')}>{snippet}</div>
           </div>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onRemove(block.id); }}
-            className="opacity-0 group-hover:opacity-100 p-1 text-evari-dim hover:text-evari-danger transition-opacity"
+            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md text-evari-dim hover:text-evari-danger hover:bg-black/20 transition-all"
             title="Delete block"
             aria-label={`Delete ${label}`}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
+        {/* Nested children — sit inside the section's rectangle as their
+            own (lighter) rectangles. Inset slightly so the parent
+            boundary is visible top + sides + bottom. */}
         {isSection && children && children.length > 0 ? (
-          <ul className="space-y-1.5 px-2 pb-2">
+          <ul className="space-y-1.5 px-1.5 pb-1.5">
             {children.map((c) => (
               <LayerRow key={c.id} block={c} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
             ))}
