@@ -84,7 +84,17 @@ function renderText(b: Extract<EmailBlock, { type: 'text' }>, brand: MarketingBr
 }
 
 function renderImage(b: Extract<EmailBlock, { type: 'image' }>): string {
-  if (!b.src) return '';
+  // No src yet → render a 300x200 dashed placeholder card so the user
+  // sees something the moment they drop an Image block. Disappears once
+  // a real src is set in the properties panel.
+  if (!b.src) {
+    const margin = b.alignment === 'center'
+      ? 'margin-left:auto;margin-right:auto;'
+      : b.alignment === 'right'
+        ? 'margin-left:auto;margin-right:0;'
+        : 'margin-left:0;margin-right:auto;';
+    return `<div style="${alignStyle(b.alignment)}"><div style="display:inline-block;width:300px;max-width:100%;height:200px;${margin}background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:13px/200px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;">Image</div></div>`;
+  }
   // Three layers of alignment for maximum reliability across email clients
   // AND inside the canvas's flex-column section wrappers:
   //   1. text-align on the outer div (handles inline + inline-block children)
