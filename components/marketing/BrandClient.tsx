@@ -166,7 +166,7 @@ export function BrandClient({ initialBrand }: Props) {
   // Match the global designer rule: every single-line input + select in
   // the brand setup is exactly 34px tall.
   const inputCls =
-    'h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[9px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors w-full';
+    'h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[10px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors w-full';
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink p-4">

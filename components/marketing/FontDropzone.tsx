@@ -154,7 +154,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
             value={pendingName}
             onChange={(e) => setPendingName(e.target.value)}
             placeholder="(auto-detect from filename)"
-            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[9px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
+            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[10px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
           />
         </label>
         <label className="block">
@@ -162,7 +162,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
           <select
             value={pendingWeight}
             onChange={(e) => setPendingWeight(e.target.value)}
-            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[9px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
+            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[10px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
           >
             <option value="">Auto (from filename)</option>
             {[100,200,300,400,500,600,700,800,900].map((w) => <option key={w} value={w}>{w}</option>)}
@@ -173,7 +173,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
           <select
             value={pendingStyle}
             onChange={(e) => setPendingStyle(e.target.value)}
-            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[9px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
+            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[10px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
           >
             <option value="">Auto (from filename)</option>
             <option value="normal">normal</option>
