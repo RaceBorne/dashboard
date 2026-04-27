@@ -3672,14 +3672,18 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
       <label className="block">
         <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Fill mode</span>
         <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5 w-full">
-          {(['fit', 'cover'] as const).map((m) => (
+          {([
+            { v: 'fit',   l: 'Fit',   t: 'Preserve aspect ratio, may leave whitespace' },
+            { v: 'cover', l: 'Cover', t: 'Fill the cell, crops to aspect ratio' },
+            { v: 'fill',  l: 'Fill',  t: 'Stretch to fill the cell exactly, may distort the image' },
+          ] as const).map(({ v, l, t }) => (
             <button
-              key={m}
+              key={v}
               type="button"
-              onClick={() => onChange({ fillMode: m })}
-              title={m === 'fit' ? 'Preserve aspect ratio (may leave whitespace)' : 'Fill the cell completely (crops image)'}
-              className={cn('flex-1 px-2 py-1 rounded text-[11px] font-medium capitalize transition-colors', (item.fillMode ?? 'cover') === m ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}
-            >{m === 'fit' ? 'Fit' : 'Cover'}</button>
+              onClick={() => onChange({ fillMode: v })}
+              title={t}
+              className={cn('flex-1 px-2 py-1 rounded text-[11px] font-medium capitalize transition-colors', (item.fillMode ?? 'cover') === v ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}
+            >{l}</button>
           ))}
         </div>
       </label>

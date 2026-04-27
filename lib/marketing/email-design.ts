@@ -281,15 +281,18 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
     if (isPartial) {
       widthCss = `width:${it.widthPct!}%;height:auto;${marginForPartial}`;
     } else if (fill === 'cover') {
-      // Stretch the image to fill the cell (height included). object-fit
-      // covers the cell and crops to its aspect; the wrapper's
-      // height:100% is what gives the img a vertical extent to fill.
-      // Outlook desktop ignores object-fit and falls back to height:auto,
-      // which is the existing behaviour (image at natural aspect, top
-      // of cell).
       widthCss = `width:100%;height:100%;object-fit:cover;`;
       extraWrapStyle = 'height:100%;';
+    } else if (fill === 'fill') {
+      // Stretch to fill the cell exactly, distorts aspect if cell shape
+      // doesn't match the image. object-fit:fill is what makes the
+      // stretching happen; Outlook desktop ignores it and falls back
+      // to natural aspect at width:100%.
+      widthCss = `width:100%;height:100%;object-fit:fill;`;
+      extraWrapStyle = 'height:100%;';
     } else {
+      // 'fit' — preserve aspect, may leave whitespace. Default for
+      // partial-width images too.
       widthCss = `width:100%;height:auto;`;
     }
     return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};${extraWrapStyle}"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
