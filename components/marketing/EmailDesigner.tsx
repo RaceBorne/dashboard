@@ -3253,12 +3253,12 @@ function makeSplitItem(kind: SplitItem['kind']): SplitItem {
     return { id: nidSplitItem(), kind: 'image', src: '', alt: '', shadow: 'none' };
   }
   if (kind === 'text') {
-    return { id: nidSplitItem(), kind: 'text', html: 'Side-by-side text.', fontSizePx: 14, lineHeight: 1.55, color: '#333333', fontFamily: '', fontWeight: 400 };
+    return { id: nidSplitItem(), kind: 'text', html: 'Side-by-side text.', fontSizePx: 14, lineHeight: 1.55, color: '#333333', fontFamily: '', fontWeight: 400, alignment: 'center' };
   }
   if (kind === 'divider') {
     return { id: nidSplitItem(), kind: 'divider', color: '#e5e5e5', thicknessPx: 1, marginYPx: 8 };
   }
-  return { id: nidSplitItem(), kind: 'button', label: 'Click me', url: '', backgroundColor: '#1a1a1a', textColor: '#ffffff', fontSizePx: 12, paddingXPx: 14, paddingYPx: 8, borderRadiusPx: 4, fontFamily: '', fontWeight: 600 };
+  return { id: nidSplitItem(), kind: 'button', label: 'Click me', url: '', backgroundColor: '#1a1a1a', textColor: '#ffffff', fontSizePx: 12, paddingXPx: 14, paddingYPx: 8, borderRadiusPx: 4, fontFamily: '', fontWeight: 600, alignment: 'center' };
 }
 
 /**

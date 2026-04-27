@@ -298,14 +298,13 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
 
 function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
   const items = getSplitCellItems(c);
-  const halign = c.horizontalAlignment ?? 'center';
 
   // Overlay mode: bg image fills the cell, items composite on top.
   if (c.mode === 'overlay' && c.backgroundImage?.src) {
     const bg = c.backgroundImage.src;
     const minH = c.overlayMinHeightPx ?? 240;
     const v = c.overlayVerticalAlignment ?? 'middle';
-    const h = c.overlayHorizontalAlignment ?? halign;
+    const h = c.overlayHorizontalAlignment ?? c.horizontalAlignment ?? 'center';
     const pad = typeof c.paddingPx === 'number' ? c.paddingPx : (c.overlayPaddingPx ?? 16);
     const inner = items.length > 0
       ? items.map((it) => renderSplitItem(it, brand)).join('')
@@ -320,14 +319,11 @@ function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
   if (items.length === 0) return '';
   const inner = items.map((it) => renderSplitItem(it, brand)).join('');
   const pad = typeof c.paddingPx === 'number' ? c.paddingPx : 0;
-  // Stack mode: wrap in a centring container so the cell-level
-  // horizontalAlignment actually moves the visible block of content,
-  // not just inline text. inline-block + max-width:100% lets long
-  // text still wrap to the cell width while shorter content shrinks
-  // to its natural size and packs to the chosen side. Per-item
-  // text-align is preserved within each item div.
-  const padStyle = pad > 0 ? `padding:${pad}px;` : '';
-  return `<div style="text-align:${halign};${padStyle}"><div style="display:inline-block;max-width:100%;text-align:left;vertical-align:top;">${inner}</div></div>`;
+  // Stack mode: items render full-width inside the cell. Each item's
+  // own text-align positions its content within the row. The
+  // cell-level horizontalAlignment is honoured via the td's align
+  // attribute (set in renderSplit) which inline content inherits.
+  return pad > 0 ? `<div style="padding:${pad}px;">${inner}</div>` : inner;
 }
 
 function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: MarketingBrand): string {
