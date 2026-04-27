@@ -265,18 +265,17 @@ function BrandKitPreview({ brand }: { brand: MarketingBrand }) {
  * end of the canvas with that preset applied. Lets the user reach for
  * 'Hero headline' or 'Primary CTA' without rebuilding from sliders.
  */
-function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onApplyButtonPreset }: {
+function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onApplyButtonPreset, onEditTypoPreset, onEditButtonPreset }: {
   brand: MarketingBrand;
   selectedBlock: EmailBlock | null;
   onAddBlock: (b: EmailBlock) => void;
   onApplyTypoPreset: (p: TypographyPreset) => void;
   onApplyButtonPreset: (p: ButtonPreset) => void;
+  onEditTypoPreset: (p: TypographyPreset) => void;
+  onEditButtonPreset: (p: ButtonPreset) => void;
 }) {
   const typo = brand.fonts.presets ?? [];
   const buttons = brand.fonts.buttonPresets ?? [];
-  const [editingTypo, setEditingTypo] = useState<TypographyPreset | null>(null);
-  const [editingButton, setEditingButton] = useState<ButtonPreset | null>(null);
-
   // Persist a typography preset edit (name + style) back to the brand kit.
   async function saveTypoPreset(updated: TypographyPreset) {
     const next = (brand.fonts.presets ?? []).map((tp) => tp.id === updated.id ? updated : tp);
@@ -403,7 +402,7 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
               <li className="group rounded-md border border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 transition-colors overflow-hidden relative">
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); setEditingTypo(p); }}
+                  onClick={(e) => { e.stopPropagation(); onEditTypoPreset(p); }}
                   onPointerDown={(e) => e.stopPropagation()}
                   className="absolute top-1 right-1 z-10 p-1 rounded text-evari-dim hover:text-evari-gold hover:bg-evari-ink/70 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Edit preset"
@@ -484,7 +483,7 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
               )}>
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); setEditingButton(p); }}
+                  onClick={(e) => { e.stopPropagation(); onEditButtonPreset(p); }}
                   onPointerDown={(e) => e.stopPropagation()}
                   className="absolute top-1 right-1 z-10 p-1 rounded text-evari-dim hover:text-evari-gold hover:bg-evari-ink/70 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Edit preset"
@@ -554,119 +553,126 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
           </ul>
         </section>
       ) : null}
-      {editingTypo ? (
-        <TypoPresetEditModal
-          preset={editingTypo}
-          onClose={() => setEditingTypo(null)}
-          onSave={async (next) => { await saveTypoPreset(next); setEditingTypo(null); }}
-          onDelete={async () => {
-            const remaining = (brand.fonts.presets ?? []).filter((tp) => tp.id !== editingTypo.id);
-            try {
-              await fetch('/api/marketing/brand', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fonts: { ...brand.fonts, presets: remaining } }) });
-            } catch {}
-            setEditingTypo(null);
-          }}
-        />
-      ) : null}
-      {editingButton ? (
-        <ButtonPresetEditModal
-          preset={editingButton}
-          onClose={() => setEditingButton(null)}
-          onSave={async (next) => { await saveButtonPreset(next); setEditingButton(null); }}
-          onDelete={async () => {
-            const remaining = (brand.fonts.buttonPresets ?? []).filter((bp) => bp.id !== editingButton.id);
-            try {
-              await fetch('/api/marketing/brand', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fonts: { ...brand.fonts, buttonPresets: remaining } }) });
-            } catch {}
-            setEditingButton(null);
-          }}
-        />
-      ) : null}
     </div>
   );
 }
 
-function TypoPresetEditModal({ preset, onClose, onSave, onDelete }: { preset: TypographyPreset; onClose: () => void; onSave: (p: TypographyPreset) => void | Promise<void>; onDelete: () => void | Promise<void> }) {
-  const [draft, setDraft] = useState<TypographyPreset>(preset);
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-[420px] max-w-full rounded-lg bg-evari-surface border border-evari-edge/40 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30">
-          <h4 className="text-sm font-semibold text-evari-text">Edit typography style</h4>
-          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1" aria-label="Close"><X className="h-4 w-4" /></button>
-        </header>
-        <div className="px-3 py-3 space-y-2">
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Name</span>
-            <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
-            <input type="text" value={draft.fontFamily} onChange={(e) => setDraft({ ...draft, fontFamily: e.target.value })} className={inputCls} placeholder="e.g. Katerina" />
-          </label>
-          <SliderField label="Size" value={draft.fontSizePx} min={10} max={120} suffix="px" onChange={(v) => setDraft({ ...draft, fontSizePx: v })} />
-          <WeightField value={draft.fontWeight} onChange={(v) => setDraft({ ...draft, fontWeight: v })} />
-          <SliderField label="Tracking" value={draft.letterSpacingEm} min={-0.1} max={0.4} step={0.005} suffix="em" onChange={(v) => setDraft({ ...draft, letterSpacingEm: Number(v.toFixed(3)) })} />
-          <SliderField label="Line height" value={draft.lineHeight} min={1} max={3} step={0.05} onChange={(v) => setDraft({ ...draft, lineHeight: Number(v.toFixed(2)) })} />
-          <CaseField value={draft.textTransform} onChange={(v) => setDraft({ ...draft, textTransform: v })} />
-          <ColourField label="Colour" value={draft.color} onChange={(v) => setDraft({ ...draft, color: v })} />
-        </div>
-        <footer className="flex items-center justify-between px-3 py-2 border-t border-evari-edge/30 bg-evari-ink/40">
-          <button type="button" onClick={onDelete} className="text-[11px] text-evari-danger hover:underline px-2 py-1 rounded">Delete</button>
-          <div className="flex items-center gap-1">
-            <button type="button" onClick={onClose} className="text-[11px] text-evari-dim hover:text-evari-text px-2 py-1 rounded">Cancel</button>
-            <button type="button" onClick={() => onSave(draft)} className="text-[11px] font-medium text-evari-goldInk bg-evari-gold hover:opacity-90 px-3 py-1 rounded">Save</button>
-          </div>
-        </footer>
-      </div>
-    </div>
-  );
-}
 
-function ButtonPresetEditModal({ preset, onClose, onSave, onDelete }: { preset: ButtonPreset; onClose: () => void; onSave: (p: ButtonPreset) => void | Promise<void>; onDelete: () => void | Promise<void> }) {
-  const [draft, setDraft] = useState<ButtonPreset>(preset);
+
+/**
+ * Right-rail inline preset editor with realtime debounced save back to
+ * the brand kit. Both typography + button presets are handled in one
+ * component switched on entry.kind. Fields update local state instantly
+ * AND schedule a PATCH 400ms after the last change.
+ */
+function InlinePresetEditor({ brand, entry, onChange, onClose }: {
+  brand: MarketingBrand;
+  entry: { kind: 'typo'; preset: TypographyPreset } | { kind: 'button'; preset: ButtonPreset };
+  onChange: (next: { kind: 'typo'; preset: TypographyPreset } | { kind: 'button'; preset: ButtonPreset }) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(entry.preset);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  // Re-sync if the parent swaps which preset is being edited
+  useEffect(() => { setDraft(entry.preset); }, [entry.preset.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounced realtime save
+  useEffect(() => {
+    const handle = setTimeout(async () => {
+      try {
+        if (entry.kind === 'typo') {
+          const next = (brand.fonts.presets ?? []).map((tp) => tp.id === draft.id ? (draft as TypographyPreset) : tp);
+          await fetch('/api/marketing/brand', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fonts: { ...brand.fonts, presets: next } }) });
+        } else {
+          const next = (brand.fonts.buttonPresets ?? []).map((bp) => bp.id === draft.id ? (draft as ButtonPreset) : bp);
+          await fetch('/api/marketing/brand', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fonts: { ...brand.fonts, buttonPresets: next } }) });
+        }
+        setSavedAt(new Date().toLocaleTimeString());
+      } catch { /* swallow */ }
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [draft, brand.fonts, entry.kind]);
+
+  // Mirror local draft to parent so the preset card list reflects edits live
+  useEffect(() => {
+    if (entry.kind === 'typo') onChange({ kind: 'typo', preset: draft as TypographyPreset });
+    else onChange({ kind: 'button', preset: draft as ButtonPreset });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+
+  async function handleDelete() {
+    if (!confirm('Delete this preset?')) return;
+    try {
+      if (entry.kind === 'typo') {
+        const next = (brand.fonts.presets ?? []).filter((tp) => tp.id !== draft.id);
+        await fetch('/api/marketing/brand', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fonts: { ...brand.fonts, presets: next } }) });
+      } else {
+        const next = (brand.fonts.buttonPresets ?? []).filter((bp) => bp.id !== draft.id);
+        await fetch('/api/marketing/brand', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fonts: { ...brand.fonts, buttonPresets: next } }) });
+      }
+    } catch { /* swallow */ }
+    onClose();
+  }
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-[420px] max-w-full rounded-lg bg-evari-surface border border-evari-edge/40 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30">
-          <h4 className="text-sm font-semibold text-evari-text">Edit button style</h4>
-          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1" aria-label="Close"><X className="h-4 w-4" /></button>
-        </header>
-        <div className="px-3 py-3 space-y-2 max-h-[70vh] overflow-y-auto">
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Name</span>
-            <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
-          </label>
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Default label</span>
-            <input type="text" value={draft.label ?? ''} onChange={(e) => setDraft({ ...draft, label: e.target.value })} className={inputCls} placeholder="e.g. Click me" />
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <ColourField label="Background" value={draft.backgroundColor} onChange={(v) => setDraft({ ...draft, backgroundColor: v })} />
-            <ColourField label="Text" value={draft.textColor} onChange={(v) => setDraft({ ...draft, textColor: v })} />
-          </div>
-          <SliderField label="Corner radius" value={draft.borderRadiusPx} min={0} max={40} suffix="px" onChange={(v) => setDraft({ ...draft, borderRadiusPx: v })} />
-          <div className="grid grid-cols-2 gap-2">
-            <SliderField label="Padding X" value={draft.paddingXPx} min={4} max={64} suffix="px" onChange={(v) => setDraft({ ...draft, paddingXPx: v })} />
-            <SliderField label="Padding Y" value={draft.paddingYPx} min={4} max={48} suffix="px" onChange={(v) => setDraft({ ...draft, paddingYPx: v })} />
-          </div>
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
-            <input type="text" value={draft.fontFamily ?? ''} onChange={(e) => setDraft({ ...draft, fontFamily: e.target.value })} className={inputCls} />
-          </label>
-          <SliderField label="Size" value={draft.fontSizePx ?? 14} min={10} max={32} suffix="px" onChange={(v) => setDraft({ ...draft, fontSizePx: v })} />
-          <WeightField value={draft.fontWeight ?? 700} onChange={(v) => setDraft({ ...draft, fontWeight: v })} />
-          <SliderField label="Tracking" value={draft.letterSpacingEm ?? 0} min={-0.05} max={0.4} step={0.005} suffix="em" onChange={(v) => setDraft({ ...draft, letterSpacingEm: Number(v.toFixed(3)) })} />
-          <CaseField value={draft.textTransform} onChange={(v) => setDraft({ ...draft, textTransform: v })} />
+    <div className="rounded-md bg-evari-surface border border-evari-gold/40 h-full flex flex-col">
+      <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30 shrink-0">
+        <span className="text-[11px] uppercase tracking-[0.12em] text-evari-gold font-semibold">
+          Edit {entry.kind === 'typo' ? 'typography' : 'button'} style
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-evari-dimmer">{savedAt ? `Saved ${savedAt}` : 'Auto-saves as you edit'}</span>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1 rounded" aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
-        <footer className="flex items-center justify-between px-3 py-2 border-t border-evari-edge/30 bg-evari-ink/40">
-          <button type="button" onClick={onDelete} className="text-[11px] text-evari-danger hover:underline px-2 py-1 rounded">Delete</button>
-          <div className="flex items-center gap-1">
-            <button type="button" onClick={onClose} className="text-[11px] text-evari-dim hover:text-evari-text px-2 py-1 rounded">Cancel</button>
-            <button type="button" onClick={() => onSave(draft)} className="text-[11px] font-medium text-evari-goldInk bg-evari-gold hover:opacity-90 px-3 py-1 rounded">Save</button>
-          </div>
-        </footer>
+      </header>
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Name</span>
+          <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
+        </label>
+        {entry.kind === 'typo' ? (
+          <>
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
+              <input type="text" value={(draft as TypographyPreset).fontFamily} onChange={(e) => setDraft({ ...(draft as TypographyPreset), fontFamily: e.target.value } as TypographyPreset)} className={inputCls} placeholder="e.g. Katerina" />
+            </label>
+            <SliderField label="Size" value={(draft as TypographyPreset).fontSizePx} min={10} max={120} suffix="px" onChange={(v) => setDraft({ ...(draft as TypographyPreset), fontSizePx: v } as TypographyPreset)} />
+            <WeightField value={(draft as TypographyPreset).fontWeight} onChange={(v) => setDraft({ ...(draft as TypographyPreset), fontWeight: v } as TypographyPreset)} />
+            <SliderField label="Tracking" value={(draft as TypographyPreset).letterSpacingEm} min={-0.1} max={0.4} step={0.005} suffix="em" onChange={(v) => setDraft({ ...(draft as TypographyPreset), letterSpacingEm: Number(v.toFixed(3)) } as TypographyPreset)} />
+            <SliderField label="Line height" value={(draft as TypographyPreset).lineHeight} min={1} max={3} step={0.05} onChange={(v) => setDraft({ ...(draft as TypographyPreset), lineHeight: Number(v.toFixed(2)) } as TypographyPreset)} />
+            <CaseField value={(draft as TypographyPreset).textTransform} onChange={(v) => setDraft({ ...(draft as TypographyPreset), textTransform: v } as TypographyPreset)} />
+            <ColourField label="Colour" value={(draft as TypographyPreset).color} onChange={(v) => setDraft({ ...(draft as TypographyPreset), color: v } as TypographyPreset)} brand={brand} />
+          </>
+        ) : (
+          <>
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Default label</span>
+              <input type="text" value={(draft as ButtonPreset).label ?? ''} onChange={(e) => setDraft({ ...(draft as ButtonPreset), label: e.target.value } as ButtonPreset)} className={inputCls} placeholder="e.g. Click me" />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <ColourField label="Background" value={(draft as ButtonPreset).backgroundColor} onChange={(v) => setDraft({ ...(draft as ButtonPreset), backgroundColor: v } as ButtonPreset)} brand={brand} />
+              <ColourField label="Text" value={(draft as ButtonPreset).textColor} onChange={(v) => setDraft({ ...(draft as ButtonPreset), textColor: v } as ButtonPreset)} brand={brand} />
+            </div>
+            <SliderField label="Corner radius" value={(draft as ButtonPreset).borderRadiusPx} min={0} max={40} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), borderRadiusPx: v } as ButtonPreset)} />
+            <div className="grid grid-cols-2 gap-2">
+              <SliderField label="Padding X" value={(draft as ButtonPreset).paddingXPx} min={4} max={64} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), paddingXPx: v } as ButtonPreset)} />
+              <SliderField label="Padding Y" value={(draft as ButtonPreset).paddingYPx} min={4} max={48} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), paddingYPx: v } as ButtonPreset)} />
+            </div>
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
+              <input type="text" value={(draft as ButtonPreset).fontFamily ?? ''} onChange={(e) => setDraft({ ...(draft as ButtonPreset), fontFamily: e.target.value } as ButtonPreset)} className={inputCls} />
+            </label>
+            <SliderField label="Size" value={(draft as ButtonPreset).fontSizePx ?? 14} min={10} max={32} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), fontSizePx: v } as ButtonPreset)} />
+            <WeightField value={(draft as ButtonPreset).fontWeight ?? 700} onChange={(v) => setDraft({ ...(draft as ButtonPreset), fontWeight: v } as ButtonPreset)} />
+            <SliderField label="Tracking" value={(draft as ButtonPreset).letterSpacingEm ?? 0} min={-0.05} max={0.4} step={0.005} suffix="em" onChange={(v) => setDraft({ ...(draft as ButtonPreset), letterSpacingEm: Number(v.toFixed(3)) } as ButtonPreset)} />
+            <CaseField value={(draft as ButtonPreset).textTransform} onChange={(v) => setDraft({ ...(draft as ButtonPreset), textTransform: v } as ButtonPreset)} />
+          </>
+        )}
       </div>
+      <footer className="flex items-center justify-between px-3 py-2 border-t border-evari-edge/30 bg-evari-ink/40 shrink-0">
+        <button type="button" onClick={handleDelete} className="text-[11px] text-evari-danger hover:underline px-2 py-1 rounded">Delete preset</button>
+        <button type="button" onClick={onClose} className="text-[11px] text-evari-dim hover:text-evari-text px-2 py-1 rounded">Done</button>
+      </footer>
     </div>
   );
 }
@@ -896,6 +902,10 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
   // actions in its header. Distinct from selectedId which is a real
   // committed block.
   const [pendingTile, setPendingTile] = useState<{ tile: BlockTile; draft: EmailBlock } | null>(null);
+  // Preset editing — clicking the pencil on a preset card sets this so
+  // the right rail shows an inline preset editor instead of the
+  // selected-block panel. Saves are realtime (debounced PATCH).
+  const [editingPreset, setEditingPreset] = useState<{ kind: 'typo'; preset: TypographyPreset } | { kind: 'button'; preset: ButtonPreset } | null>(null);
 
   // ─── Undo history ─────────────────────────────────────────────
   // Every designer-initiated mutation goes through commit(), which pushes
@@ -1358,6 +1368,8 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
               <PresetsPanel
                 brand={initialBrand}
                 selectedBlock={selectedId ? findBlockById(design.blocks, selectedId) : null}
+                onEditTypoPreset={(p) => { setSelectedId(null); setPendingTile(null); setEditingPreset({ kind: 'typo', preset: p }); }}
+                onEditButtonPreset={(p) => { setSelectedId(null); setPendingTile(null); setEditingPreset({ kind: 'button', preset: p }); }}
                 onApplyTypoPreset={(p) => {
                   if (!selectedId) return;
                   const sel = findBlockById(design.blocks, selectedId);
@@ -1505,7 +1517,14 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             DRAFT block when a tile was clicked from the palette, or a
             placeholder when nothing's happening. */}
         <div className="min-w-0 min-h-0 overflow-y-auto">
-          {pendingTile ? (
+          {editingPreset ? (
+            <InlinePresetEditor
+              brand={initialBrand}
+              entry={editingPreset}
+              onChange={(next) => setEditingPreset(next)}
+              onClose={() => setEditingPreset(null)}
+            />
+          ) : pendingTile ? (
             <div className="rounded-md bg-evari-surface border border-evari-gold/40 h-full flex flex-col">
               <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30 shrink-0">
                 <span className="text-[11px] uppercase tracking-[0.12em] text-evari-gold font-semibold">New {pendingTile.tile.label}</span>
