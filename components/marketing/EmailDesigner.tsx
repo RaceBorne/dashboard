@@ -453,7 +453,7 @@ function PresetsPanel({ brand, selectedBlock, liveEdit, onAddBlock, onApplyTypoP
                 >
                   <PenLine className="h-3 w-3" />
                 </button>
-                <div className="bg-zinc-200/95 px-3 py-3">
+                <div className="bg-zinc-800 px-3 py-3">
                   <div
                     className="leading-tight truncate"
                     style={{
@@ -536,7 +536,7 @@ function PresetsPanel({ brand, selectedBlock, liveEdit, onAddBlock, onApplyTypoP
                 </button>
                 {/* Full-width button preview with editable label. Click-edits
                     the label and persists back to the brand kit. */}
-                <div className="bg-zinc-200/95 px-3 py-3 flex items-center justify-center">
+                <div className="bg-zinc-800 px-3 py-3 flex items-center justify-center">
                   <div
                     style={{
                       background: p.backgroundColor,
