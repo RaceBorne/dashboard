@@ -803,14 +803,14 @@ function LayerRow({ block, depth, selectedId, onSelect, onRemove }: {
   );
 }
 
-function BlockTileGroup({ title, tiles, brand }: { title: string; tiles: BlockTile[]; brand: MarketingBrand; onAdd?: (make: () => EmailBlock) => void }) {
+function BlockTileGroup({ title, tiles, brand, onTileClick }: { title: string; tiles: BlockTile[]; brand: MarketingBrand; onAdd?: (make: () => EmailBlock) => void; onTileClick?: (tile: BlockTile) => void }) {
   return (
     <section>
       <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">{title}</h3>
       <ul className="grid grid-cols-2 gap-1.5">
         {tiles.map((t, i) => (
           <li key={`${t.group}-${t.type}-${t.label}`}>
-            <PaletteTile tile={t} brand={brand} draggableId={`palette:${t.group}:${i}`} />
+            <PaletteTile tile={t} brand={brand} draggableId={`palette:${t.group}:${i}`} onClick={onTileClick ? () => onTileClick(t) : undefined} />
           </li>
         ))}
       </ul>
@@ -824,7 +824,7 @@ function BlockTileGroup({ title, tiles, brand }: { title: string; tiles: BlockTi
  * DnD context — the parent designer routes the drop into an insertion
  * at the matching block position.
  */
-function PaletteTile({ tile, brand, draggableId }: { tile: BlockTile; brand: MarketingBrand; draggableId: string }) {
+function PaletteTile({ tile, brand, draggableId, onClick }: { tile: BlockTile; brand: MarketingBrand; draggableId: string; onClick?: () => void }) {
   const disabled = !!tile.comingSoon;
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: draggableId,
@@ -843,7 +843,8 @@ function PaletteTile({ tile, brand, draggableId }: { tile: BlockTile; brand: Mar
       {...attributes}
       type="button"
       disabled={disabled}
-      title={disabled ? 'Coming soon' : `Drag onto the canvas to add ${tile.label}`}
+      title={disabled ? 'Coming soon' : `Click to pre-configure or drag onto the canvas to add ${tile.label}`}
+      onClick={() => { if (!disabled && tile.make && onClick) onClick(); }}
       className={cn(
         'relative w-full aspect-[5/3] rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200 cursor-grab active:cursor-grabbing overflow-hidden',
         disabled
@@ -889,6 +890,12 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragOverlay, setDragOverlay] = useState<string | null>(null);
   const [paletteTab, setPaletteTab] = useState<'blocks' | 'rows' | 'presets'>('blocks');
+  // Pre-configure a palette tile before adding: clicking a tile builds
+  // a draft block and parks it in this state. The right rail switches
+  // to a properties panel for the draft, with Add to canvas / Cancel
+  // actions in its header. Distinct from selectedId which is a real
+  // committed block.
+  const [pendingTile, setPendingTile] = useState<{ tile: BlockTile; draft: EmailBlock } | null>(null);
 
   // ─── Undo history ─────────────────────────────────────────────
   // Every designer-initiated mutation goes through commit(), which pushes
@@ -1397,12 +1404,14 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                 tiles={[HEADING_TILE, ...ADD_BUTTONS.filter((t) => t.group === 'blocks')]}
                 brand={initialBrand}
                 onAdd={(make) => addBlock(make)}
+                onTileClick={(tile) => { if (tile.make) { setSelectedId(null); setPendingTile({ tile, draft: tile.make() }); } }}
               />
               <BlockTileGroup
                 title="Layout"
                 tiles={ADD_BUTTONS.filter((t) => t.group === 'layout')}
                 brand={initialBrand}
                 onAdd={(make) => addBlock(make)}
+                onTileClick={(tile) => { if (tile.make) { setSelectedId(null); setPendingTile({ tile, draft: tile.make() }); } }}
               />
               <div className="rounded-md bg-evari-ink/40 border border-evari-edge/20 p-3">
                 <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-2">Canvas settings</h3>
@@ -1492,9 +1501,38 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
           </div>
         </div>
 
-        {/* RIGHT — properties panel (or placeholder when nothing selected) */}
+        {/* RIGHT — properties panel: live block when something is selected,
+            DRAFT block when a tile was clicked from the palette, or a
+            placeholder when nothing's happening. */}
         <div className="min-w-0 min-h-0 overflow-y-auto">
-          {selectedId ? (
+          {pendingTile ? (
+            <div className="rounded-md bg-evari-surface border border-evari-gold/40 h-full flex flex-col">
+              <header className="flex items-center justify-between px-3 py-2 border-b border-evari-edge/30 shrink-0">
+                <span className="text-[11px] uppercase tracking-[0.12em] text-evari-gold font-semibold">New {pendingTile.tile.label}</span>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => setPendingTile(null)} className="text-[11px] text-evari-dim hover:text-evari-text px-2 py-0.5 rounded">Cancel</button>
+                  <button type="button" onClick={() => {
+                    const block = pendingTile.draft;
+                    const isPinTop = block.type === 'section' && (block as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+                    const next = isPinTop ? enforcePins([block, ...design.blocks]) : enforcePins([...design.blocks, block]);
+                    commit({ ...design, blocks: next });
+                    setSelectedId(block.id);
+                    setPendingTile(null);
+                  }} className="text-[11px] font-medium text-evari-goldInk bg-evari-gold hover:opacity-90 px-2.5 py-0.5 rounded">Add to canvas</button>
+                </div>
+              </header>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <BlockPropertiesPanel
+                  block={pendingTile.draft}
+                  brand={initialBrand}
+                  designWidthPx={design.widthPx}
+                  device={previewDevice}
+                  onChange={(patch) => setPendingTile((cur) => cur ? ({ tile: cur.tile, draft: ({ ...cur.draft, ...patch } as EmailBlock) }) : cur)}
+                  onClose={() => setPendingTile(null)}
+                />
+              </div>
+            </div>
+          ) : selectedId ? (
             (() => {
               const sel = findBlockById(design.blocks, selectedId);
               if (!sel) return null;
@@ -1511,7 +1549,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             })()
           ) : (
             <aside className="rounded-md bg-evari-surface border border-evari-edge/30 p-6 text-center text-sm text-evari-dimmer h-full flex items-center justify-center">
-              Click any block in the canvas to edit it, or drag a tile from the left into the canvas.
+              Click any tile to pre-configure, or drag it onto the canvas to add directly.
             </aside>
           )}
         </div>
