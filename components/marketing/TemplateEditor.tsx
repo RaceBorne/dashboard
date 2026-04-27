@@ -213,7 +213,7 @@ export function TemplateEditor({ template, brand }: Props) {
           the canvas iframe inside the designer; the tools palette stays
           its full size on both modes. Outer wrapper is overflow-hidden
           so each EmailDesigner column manages its own scroll. */}
-      <div className="flex-1 min-h-0 overflow-hidden p-3 flex">
+      <div className="flex-1 min-h-0 overflow-hidden p-3 flex" style={{ background: design.background }}>
         <EmailDesigner
           initialBrand={liveBrand}
           onRefreshBrand={refetchBrand}

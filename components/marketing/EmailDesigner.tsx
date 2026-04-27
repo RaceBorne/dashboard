@@ -1494,8 +1494,8 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col flex-1 min-h-0 w-full">
-      <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
+    <section className="rounded-md border border-evari-edge/30 flex flex-col flex-1 min-h-0 w-full" style={{ background: design.background }}>
+      <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20 bg-evari-surface rounded-t-md">
         <h2 className="text-sm font-semibold text-evari-text">Visual editor</h2>
         <div className="flex items-center gap-2">
           <button
@@ -1534,7 +1534,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
 
       {/* Three-column layout: tile palette LEFT, interactive canvas
           CENTRE, properties RIGHT (when something is selected). */}
-      <div className={cn('grid gap-3 p-3 flex-1 min-h-0 overflow-hidden', previewMode ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(280px,340px)]')} style={previewMode ? { background: design.background } : undefined}>
+      <div className={cn('grid gap-3 p-3 flex-1 min-h-0 overflow-hidden', previewMode ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(280px,340px)]')} style={{ background: design.background }}>
 
         {/* LEFT — tab strip + palette / layers (hidden in preview) */}
         <div className={cn('flex flex-col min-w-0 min-h-0 overflow-hidden', previewMode && 'hidden')}>
