@@ -13,7 +13,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => null) as { to?: string; html?: string; subject?: string } | null;
+  const body = await req.json().catch(() => null) as { to?: string; html?: string; subject?: string; skipBrandFooter?: boolean } | null;
   if (!body?.to || !body?.html) {
     return NextResponse.json({ ok: false, error: 'to + html required' }, { status: 400 });
   }
@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     subject: body.subject ?? '[Test] Template preview',
     html: body.html,
     context: 'Template preview',
+    skipBrandFooter: body.skipBrandFooter ?? false,
   });
   if (!res.ok) {
     return NextResponse.json({ ok: false, error: res.error ?? 'send failed' }, { status: 500 });

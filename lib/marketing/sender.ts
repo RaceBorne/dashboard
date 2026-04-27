@@ -147,7 +147,15 @@ export async function sendOne(input: SendOneInput): Promise<SendOneResult> {
       const footerHtml = renderFooter({ brand, unsubscribeUrl: input.unsubscribeUrl });
       const footerText = renderFooterText({ brand, unsubscribeUrl: input.unsubscribeUrl });
       if (footerHtml) {
-        html += footerHtml;
+        // Inject INSIDE the body so email clients render the footer
+        // within the content table — appending after </html> turns
+        // it into a top-level full-width element that escapes the
+        // email's max-width container.
+        if (html.includes('</body>')) {
+          html = html.replace('</body>', `${footerHtml}</body>`);
+        } else {
+          html += footerHtml;
+        }
         text += '\n\n' + footerText;
       }
       // If caller didn't pass a replyTo and brand has one, use it.
