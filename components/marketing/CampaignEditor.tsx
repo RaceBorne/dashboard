@@ -151,7 +151,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className={cn('grid gap-3', editorMode === 'visual' ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2')}>
         {/* Left: Identity + Audience */}
         <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
           <h2 className="text-sm font-semibold text-evari-text">Setup</h2>
@@ -258,8 +258,9 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
           ) : null}
         </section>
 
-        {/* Right: body editor — toggle between visual block builder and raw HTML */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col min-h-[400px]">
+        {/* Right (or full-width when visual): body editor — toggle between
+            visual block builder and raw HTML */}
+        <section className={cn('rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col', editorMode === 'visual' ? 'min-h-[80vh]' : 'min-h-[400px]')}>
           <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
             <h2 className="text-sm font-semibold text-evari-text">Body</h2>
             <div className="flex items-center gap-2">
@@ -296,13 +297,15 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
           </header>
           {editorMode === 'visual' ? (
             brand ? (
-              <div className="p-2">
-                <EmailDesigner
-                  initialBrand={brand}
-                  value={emailDesign}
-                  onChange={setEmailDesign}
-                />
-                <p className="text-[10px] text-evari-dimmer px-2 pt-1.5">
+              <div className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <EmailDesigner
+                    initialBrand={brand}
+                    value={emailDesign}
+                    onChange={setEmailDesign}
+                  />
+                </div>
+                <p className="text-[10px] text-evari-dimmer px-3 py-1.5 border-t border-evari-edge/20">
                   Visual mode supersedes the raw HTML body at send time. Switch to HTML to override.
                 </p>
               </div>
