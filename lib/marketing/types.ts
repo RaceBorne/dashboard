@@ -465,6 +465,10 @@ export type FooterBlock =
       alignment: FooterAlignment;
       color: string;
       social: FooterSocial;
+      /** Pixel size for each social icon (24 default, 16-64 sensible range). */
+      iconSizePx?: number;
+      /** Spacing between icons in px. */
+      gapPx?: number;
     })
   | (FooterBlockBase & {
       type: 'unsubscribe';
@@ -705,6 +709,8 @@ export type EmailBlock =
       items: { platform: 'instagram' | 'twitter' | 'linkedin' | 'facebook' | 'tiktok' | 'youtube' | 'website'; url: string }[];
       alignment: EmailAlignment;
       iconColor: string;
+      iconSizePx?: number;
+      gapPx?: number;
     })
   | (EmailBlockBase & {
       type: 'coupon';

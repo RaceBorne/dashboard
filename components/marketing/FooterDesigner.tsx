@@ -485,12 +485,28 @@ function SocialFields({ block, onChange }: { block: Extract<FooterBlock, { type:
   function setSocial(k: keyof FooterSocial, v: string) {
     onChange({ social: { ...block.social, [k]: v } });
   }
+  const size = block.iconSizePx ?? 24;
+  const gap  = block.gapPx ?? 12;
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
-        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />
+        <ColourField label="Icon colour" value={block.color} onChange={(v) => onChange({ color: v })} />
         <AlignmentField block={block} onChange={onChange as never} />
       </div>
+      <label className="block">
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Icon size</span>
+          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{size}px</span>
+        </span>
+        <input type="range" min={12} max={64} value={size} onChange={(e) => onChange({ iconSizePx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+      </label>
+      <label className="block">
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Spacing</span>
+          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{gap}px</span>
+        </span>
+        <input type="range" min={0} max={48} value={gap} onChange={(e) => onChange({ gapPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+      </label>
       <div className="space-y-1.5 mt-2">
         {SOCIAL_FIELDS.map((f) => (
           <label key={f.key} className="block">
@@ -499,6 +515,7 @@ function SocialFields({ block, onChange }: { block: Extract<FooterBlock, { type:
           </label>
         ))}
       </div>
+      <p className="text-[10px] text-evari-dimmer leading-snug">Icons render via the Simple Icons CDN — colour matches the brand colour exactly and falls back to the platform name as alt text in clients that block images.</p>
     </div>
   );
 }

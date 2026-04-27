@@ -37,6 +37,17 @@ function alignStyle(a: FooterAlignment): string {
   return `text-align:${a};`;
 }
 
+
+const SOCIAL_ICON_SLUGS: Record<keyof FooterSocial, string> = {
+  instagram: 'instagram',
+  twitter:   'x',          // Simple Icons uses 'x' for X / Twitter
+  linkedin:  'linkedin',
+  facebook:  'facebook',
+  tiktok:    'tiktok',
+  youtube:   'youtube',
+  website:   'googlechrome', // generic globe-ish; can swap for icon8 link if desired
+};
+
 const SOCIAL_LABELS: Record<keyof FooterSocial, string> = {
   instagram: 'Instagram',
   twitter:   'X / Twitter',
@@ -81,13 +92,23 @@ function renderAddress(b: Extract<FooterBlock, { type: 'address' }>, brand: Mark
 }
 
 function renderSocial(b: Extract<FooterBlock, { type: 'social' }>, brand: MarketingBrand): string {
+  // Render icons via Simple Icons CDN — accepts a hex colour parameter so
+  // we can match the brand-set colour exactly. Falls back to text label
+  // via alt text in clients that block images.
+  const size = b.iconSizePx ?? 24;
+  const gap = b.gapPx ?? 12;
+  const colourHex = (b.color || '#1a1a1a').replace('#', '');
   const links = (Object.entries(b.social) as Array<[keyof FooterSocial, string | undefined]>)
     .filter(([, url]) => Boolean(url && url.trim()))
     .map(([key, url]) => {
       const label = SOCIAL_LABELS[key] ?? String(key);
-      return `<a href="${escape(url!)}" style="color:${b.color};text-decoration:none;font-weight:500;margin:0 8px;display:inline-block;" target="_blank" rel="noopener">${escape(label)}</a>`;
+      const slug  = SOCIAL_ICON_SLUGS[key] ?? String(key);
+      const iconUrl = `https://cdn.simpleicons.org/${slug}/${colourHex}`;
+      return `<a href="${escape(url!)}" style="text-decoration:none;display:inline-block;margin:0 ${Math.round(gap / 2)}px;" target="_blank" rel="noopener" title="${escape(label)}">` +
+        `<img src="${iconUrl}" alt="${escape(label)}" width="${size}" height="${size}" style="display:inline-block;width:${size}px;height:${size}px;border:0;outline:none;text-decoration:none;" />` +
+        `</a>`;
     })
-    .join(`<span style="color:${b.color};opacity:.5;">·</span>`);
+    .join('');
   if (!links) return '';
   return `<div style="${alignStyle(b.alignment)}font:12px/1.5 ${escape(brand.fonts.body || 'Arial')},sans-serif;">${links}</div>`;
 }

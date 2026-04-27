@@ -538,14 +538,14 @@ function LayerRow({ block, depth, selectedId, onSelect, onRemove }: {
   );
 }
 
-function BlockTileGroup({ title, tiles, brand, onAdd }: { title: string; tiles: BlockTile[]; brand: MarketingBrand; onAdd: (make: () => EmailBlock) => void }) {
+function BlockTileGroup({ title, tiles, brand }: { title: string; tiles: BlockTile[]; brand: MarketingBrand; onAdd?: (make: () => EmailBlock) => void }) {
   return (
     <section>
       <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">{title}</h3>
       <ul className="grid grid-cols-2 gap-1.5">
         {tiles.map((t, i) => (
           <li key={`${t.group}-${t.type}-${t.label}`}>
-            <PaletteTile tile={t} brand={brand} draggableId={`palette:${t.group}:${i}`} onAdd={onAdd} />
+            <PaletteTile tile={t} brand={brand} draggableId={`palette:${t.group}:${i}`} />
           </li>
         ))}
       </ul>
@@ -559,7 +559,7 @@ function BlockTileGroup({ title, tiles, brand, onAdd }: { title: string; tiles: 
  * DnD context — the parent designer routes the drop into an insertion
  * at the matching block position.
  */
-function PaletteTile({ tile, brand, draggableId, onAdd }: { tile: BlockTile; brand: MarketingBrand; draggableId: string; onAdd: (make: () => EmailBlock) => void }) {
+function PaletteTile({ tile, brand, draggableId }: { tile: BlockTile; brand: MarketingBrand; draggableId: string }) {
   const disabled = !!tile.comingSoon;
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: draggableId,
@@ -578,8 +578,7 @@ function PaletteTile({ tile, brand, draggableId, onAdd }: { tile: BlockTile; bra
       {...attributes}
       type="button"
       disabled={disabled}
-      title={disabled ? 'Coming soon' : `Drag or click to add ${tile.label}`}
-      onClick={() => { if (tile.make) onAdd(tile.make); }}
+      title={disabled ? 'Coming soon' : `Drag onto the canvas to add ${tile.label}`}
       className={cn(
         'relative w-full aspect-[5/3] rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200 cursor-grab active:cursor-grabbing overflow-hidden',
         disabled
@@ -921,6 +920,14 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
         });
         return;
       }
+      if (overId.startsWith('section-body:')) {
+        const sectionId = overId.slice('section-body:'.length);
+        commit({
+          ...design,
+          blocks: updateChildren(design.blocks, sectionId, (kids) => [...kids, newBlock]),
+        });
+        return;
+      }
       const loc = findContainerOf(design.blocks, overId);
       if (!loc) {
         commit({ ...design, blocks: enforcePins([...design.blocks, newBlock]) });
@@ -950,7 +957,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     // Sortable in-list reorder. Same-container only — cross-container moves
     // aren't supported yet (delete + re-add covers that case). Pinned-top
     // sections also refuse to be moved (or to be displaced by another move).
-    if (activeId !== overId && overId !== 'end-of-list' && !overId.startsWith('section-end:')) {
+    if (activeId !== overId && overId !== 'end-of-list' && !overId.startsWith('section-end:') && !overId.startsWith('section-body:')) {
       const active = findBlockById(design.blocks, activeId);
       const over   = findBlockById(design.blocks, overId);
       const isPinTop = (b: EmailBlock | null) => !!b && b.type === 'section' && (b as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
@@ -2433,8 +2440,12 @@ function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSel
     justifyContent: ay === 'middle' ? 'center' : ay === 'bottom' ? 'flex-end' : undefined,
   };
   const childIds = (block.blocks ?? []).map((c) => c.id);
+  // Section-as-droptarget: dragging a palette tile and dropping ANYWHERE
+  // on this section appends the new block to the section's children.
+  // The id is decoded by handleDragEnd's `section-body:` branch.
+  const { isOver: isOverBody, setNodeRef: setBodyDroppableRef } = useDroppable({ id: `section-body:${block.id}` });
   return (
-    <div style={wrapperStyle} className="relative">
+    <div ref={setBodyDroppableRef} style={wrapperStyle} className={cn('relative transition-shadow', isOverBody && 'ring-2 ring-evari-gold ring-inset')}>
       <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
         {(block.blocks ?? []).length === 0 ? (
           <SectionEmptyDrop sectionId={block.id} editing={editing} />

@@ -199,11 +199,31 @@ const SOCIAL_LABELS: Record<string, string> = {
   website:   'Website',
 };
 
+const SOCIAL_ICON_SLUGS: Record<string, string> = {
+  instagram: 'instagram',
+  twitter:   'x',
+  linkedin:  'linkedin',
+  facebook:  'facebook',
+  tiktok:    'tiktok',
+  youtube:   'youtube',
+  website:   'googlechrome',
+};
+
 function renderSocial(b: Extract<EmailBlock, { type: 'social' }>): string {
+  const size = b.iconSizePx ?? 24;
+  const gap = b.gapPx ?? 12;
+  const colourHex = (b.iconColor || '#1a1a1a').replace('#', '');
   const links = (b.items ?? [])
     .filter((it) => it.url && it.url.trim())
-    .map((it) => `<a href="${escape(it.url)}" target="_blank" rel="noopener" style="display:inline-block;color:${b.iconColor};text-decoration:none;font:bold 13px Arial,sans-serif;margin:0 8px;">${escape(SOCIAL_LABELS[it.platform] ?? it.platform)}</a>`)
-    .join('<span style="color:' + b.iconColor + ';opacity:0.4;">·</span>');
+    .map((it) => {
+      const label = SOCIAL_LABELS[it.platform] ?? it.platform;
+      const slug  = SOCIAL_ICON_SLUGS[it.platform] ?? it.platform;
+      const iconUrl = `https://cdn.simpleicons.org/${slug}/${colourHex}`;
+      return `<a href="${escape(it.url)}" target="_blank" rel="noopener" title="${escape(label)}" style="text-decoration:none;display:inline-block;margin:0 ${Math.round(gap / 2)}px;">` +
+        `<img src="${iconUrl}" alt="${escape(label)}" width="${size}" height="${size}" style="display:inline-block;width:${size}px;height:${size}px;border:0;outline:none;" />` +
+        `</a>`;
+    })
+    .join('');
   if (!links) return '';
   return `<div style="${alignStyle(b.alignment)}">${links}</div>`;
 }
