@@ -339,7 +339,7 @@ function TemplateThumbnail({ title, html }: { title: string; html: string }) {
         title={title}
         srcDoc={html}
         onLoad={measureContent}
-        className="absolute top-0 left-0 bg-white"
+        className="absolute top-0 left-0 bg-evari-ink"
         style={{
           width: '600px',
           height: `${contentH}px`,
