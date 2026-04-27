@@ -27,6 +27,7 @@ import {
   Pin,
   PlaySquare,
   Quote,
+  RefreshCw,
   Share2,
   Smartphone,
   Sparkles,
@@ -81,6 +82,10 @@ interface Props {
    *  the operator sees how blocks reflow on a phone. The tools palette
    *  is unaffected by this; only the preview narrows. */
   previewDevice?: 'desktop' | 'mobile';
+  /** Manual brand kit refresh — called from the auto-footer affordance
+   *  so users don't have to switch tabs to see footer / logo edits. */
+  onRefreshBrand?: () => void | Promise<void>;
+  refreshingBrand?: boolean;
 }
 
 function nid(): string { return Math.random().toString(36).slice(2, 10); }
@@ -612,7 +617,7 @@ function labelForBlock(b: EmailBlock): string {
   return tile?.label ?? b.type;
 }
 
-export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previewDevice = "desktop" }: Props) {
+export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previewDevice = "desktop", onRefreshBrand, refreshingBrand }: Props) {
   const design = normaliseEmailDesign(value) ?? DEFAULT_EMAIL_DESIGN;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragOverlay, setDragOverlay] = useState<string | null>(null);
@@ -1071,7 +1076,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                   </div>
                 )}
               </SortableContext>
-              <CanvasFooterPreview brand={initialBrand} />
+              <CanvasFooterPreview brand={initialBrand} onRefresh={onRefreshBrand} refreshing={refreshingBrand} />
             </div>
           </div>
         </div>
@@ -2176,7 +2181,7 @@ function EmptyCanvas() {
  * going to ship — minus the interactivity (no select / drag / delete).
  * Edit the footer in the dedicated Footer designer (/footer).
  */
-function CanvasFooterPreview({ brand }: { brand: MarketingBrand }) {
+function CanvasFooterPreview({ brand, onRefresh, refreshing }: { brand: MarketingBrand; onRefresh?: () => void | Promise<void>; refreshing?: boolean }) {
   const html = useMemo(() => {
     try {
       // Inline call avoids a circular dependency since both files are TS.
@@ -2190,11 +2195,24 @@ function CanvasFooterPreview({ brand }: { brand: MarketingBrand }) {
   }, [brand]);
   if (!html.trim()) return null;
   return (
-    <div className="relative pointer-events-none select-none" aria-label="Brand footer (preview)">
-      <div className="absolute -top-2 right-2 z-10 text-[9px] uppercase tracking-[0.12em] text-evari-dim bg-evari-ink/80 px-1.5 py-0.5 rounded">
-        Footer · auto-included
+    <div className="relative select-none" aria-label="Brand footer (preview)">
+      <div className="absolute -top-2 right-2 z-10 flex items-center gap-1 text-[9px] uppercase tracking-[0.12em] text-evari-dim bg-evari-ink/80 px-1.5 py-0.5 rounded">
+        <span>Footer · auto-included</span>
+        {onRefresh ? (
+          <button
+            type="button"
+            onClick={() => { void onRefresh(); }}
+            disabled={refreshing}
+            className="ml-1 inline-flex items-center text-evari-gold hover:text-evari-text disabled:opacity-50"
+            title="Refresh from brand kit"
+            aria-label="Refresh footer from brand kit"
+          >
+            {refreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          </button>
+        ) : null}
+        <a href="/brand" className="ml-1 underline text-evari-gold/80 hover:text-evari-gold normal-case tracking-normal" title="Edit footer in brand kit">Edit</a>
       </div>
-      <div dangerouslySetInnerHTML={{ __html: html }} />
+      <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }

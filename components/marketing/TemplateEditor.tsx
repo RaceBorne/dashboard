@@ -45,7 +45,21 @@ export function TemplateEditor({ template, brand }: Props) {
   // Local copy of brand so changes saved in /brand (footer, logos, fonts,
   // colours, presets) refresh in this editor without a hard reload.
   const [liveBrand, setLiveBrand] = useState<MarketingBrand>(brand);
+  const [refreshingBrand, setRefreshingBrand] = useState(false);
   useEffect(() => { setLiveBrand(brand); }, [brand]);
+  // Stable refetch closure exposed to children via the manual refresh button.
+  const refetchBrand = async () => {
+    setRefreshingBrand(true);
+    try {
+      const res = await fetch('/api/marketing/brand', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json().catch(() => null) as { brand?: MarketingBrand } | null;
+        if (data?.brand) setLiveBrand(data.brand);
+      }
+      router.refresh();
+    } catch { /* swallow */ }
+    finally { setRefreshingBrand(false); }
+  };
   useEffect(() => {
     let cancelled = false;
     async function refetch() {
@@ -58,10 +72,11 @@ export function TemplateEditor({ template, brand }: Props) {
     }
     // Refetch on mount and any time the tab regains focus, so footer /
     // logo / colour / font edits made in /brand show up here without a
-    // hard refresh.
+    // hard refresh. Also tell Next.js to revalidate the server component
+    // so the parent's getBrand() re-runs and the prop genuinely changes.
     void refetch();
-    function onFocus() { void refetch(); }
-    function onVis() { if (document.visibilityState === 'visible') void refetch(); }
+    function onFocus() { void refetch(); router.refresh(); }
+    function onVis() { if (document.visibilityState === 'visible') { void refetch(); router.refresh(); } }
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVis);
     return () => {
@@ -201,6 +216,8 @@ export function TemplateEditor({ template, brand }: Props) {
       <div className="flex-1 min-h-0 overflow-hidden p-3 flex">
         <EmailDesigner
           initialBrand={liveBrand}
+          onRefreshBrand={refetchBrand}
+          refreshingBrand={refreshingBrand}
           value={design}
           onChange={setDesign}
           onAIDraft={() => setDrafting(true)}
