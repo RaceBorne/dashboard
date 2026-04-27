@@ -49,6 +49,7 @@ import {
 import {
   DndContext,
   DragOverlay,
+  useDndContext,
   PointerSensor,
   closestCenter,
   useDraggable,
@@ -1007,7 +1008,8 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       // Find the target block — overId may be a block id, an insertion zone
       // (which has the same id as the block), or a section drop target.
       let targetId: string | null = null;
-      if (overId.startsWith('section-body:')) targetId = overId.slice('section-body:'.length);
+      if (overId.startsWith('preset-target:')) targetId = overId.slice('preset-target:'.length);
+      else if (overId.startsWith('section-body:')) targetId = overId.slice('section-body:'.length);
       else if (overId.startsWith('section-end:')) targetId = overId.slice('section-end:'.length);
       else if (overId !== 'end-of-list') targetId = overId;
       if (!targetId) return;
@@ -2566,6 +2568,21 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   // effect in the canvas.
   const eff = effectiveBlock(block, device);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
+  // Preset drag detection — register a SECOND droppable on the block that
+  // only fires while a preset is being dragged. closestCenter then picks
+  // the closest block (whose center is roughly the block's centre) rather
+  // than the insertion zones (which are now disabled for preset drags).
+  const dndBlock = useDndContext();
+  const activeId = dndBlock.active ? String(dndBlock.active.id) : '';
+  const isPresetDragBlock = activeId.startsWith('preset-typo:') || activeId.startsWith('preset-button:');
+  const presetCompatible = isPresetDragBlock && (
+    (activeId.startsWith('preset-typo:') && (eff.type === 'heading' || eff.type === 'text')) ||
+    (activeId.startsWith('preset-button:') && eff.type === 'button')
+  );
+  const { isOver: isPresetOver, setNodeRef: setPresetTargetRef } = useDroppable({
+    id: `preset-target:${block.id}`,
+    disabled: !presetCompatible,
+  });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -2581,8 +2598,10 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   // a click (selects) from a drag (reorders). Pinned blocks (announcement
   // bar) skip the listeners entirely since they can't move.
   const dragProps = isPinned ? {} : { ...attributes, ...listeners };
+  // Combined ref — sortable node ref AND the preset-target droppable ref.
+  const setCombinedRef = (node: HTMLDivElement | null) => { setNodeRef(node); setPresetTargetRef(node); };
   return (
-    <div ref={setNodeRef} style={style} className="relative group">
+    <div ref={setCombinedRef} style={style} className="relative group">
       <CanvasInsertionZone overId={block.id} />
       <div
         {...dragProps}
@@ -2590,7 +2609,9 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
         className={cn(
           'relative transition-shadow touch-none select-none',
           isPinned ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
-          selected ? 'ring-2 ring-evari-gold' : editing ? 'hover:ring-1 hover:ring-evari-gold/40' : '',
+          isPresetOver ? 'ring-2 ring-evari-gold ring-offset-2 ring-offset-white'
+            : selected ? 'ring-2 ring-evari-gold'
+            : editing ? 'hover:ring-1 hover:ring-evari-gold/40' : '',
         )}
       >
         {isSection ? (
@@ -2670,7 +2691,15 @@ function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSel
   // detection picks just ONE winner per cursor position, so isOverBody is
   // only true when this section IS the closest target — no competing
   // ring/seam highlights, no flicker between targets.
-  const { isOver: isOverBody, setNodeRef: setBodyDroppableRef } = useDroppable({ id: `section-body:${block.id}` });
+  const dndSection = useDndContext();
+  const isPresetDragSection = !!dndSection.active && (
+    String(dndSection.active.id).startsWith('preset-typo:') ||
+    String(dndSection.active.id).startsWith('preset-button:')
+  );
+  const { isOver: isOverBody, setNodeRef: setBodyDroppableRef } = useDroppable({
+    id: `section-body:${block.id}`,
+    disabled: isPresetDragSection,
+  });
   return (
     <div ref={setBodyDroppableRef} style={wrapperStyle} className={cn('relative transition-shadow', isOverBody && 'ring-2 ring-evari-gold ring-inset')}>
       <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
@@ -2734,9 +2763,16 @@ function SectionEndDrop({ sectionId }: { sectionId: string }) {
 }
 
 function CanvasInsertionZone({ overId }: { overId: string }) {
-  const { isOver, setNodeRef } = useDroppable({ id: overId });
-  // Idle: 0 visible height. On hover: gold insertion bar. Avoids the
-  // layout flicker that came from inflating every seam during a drag.
+  // Detect preset drags — when one is active, this insertion zone should
+  // step out of the way so the block droppable beneath wins the
+  // closestCenter race. The user wants the BLOCK to highlight, not the
+  // seam between blocks.
+  const dnd = useDndContext();
+  const isPresetDrag = !!dnd.active && (
+    String(dnd.active.id).startsWith('preset-typo:') ||
+    String(dnd.active.id).startsWith('preset-button:')
+  );
+  const { isOver, setNodeRef } = useDroppable({ id: overId, disabled: isPresetDrag });
   return (
     <div
       ref={setNodeRef}
