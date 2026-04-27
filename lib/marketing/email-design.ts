@@ -330,10 +330,16 @@ function renderBlock(b: EmailBlock, brand: MarketingBrand, device: 'desktop' | '
   const eff = effectiveBlock(b, device);
   const inner = renderInner(eff, brand, device);
   if (!inner) return '';
-  const top = eff.paddingTopPx ?? 0;
-  const bot = eff.paddingBottomPx ?? 0;
-  const left = eff.paddingLeftPx ?? 0;
-  const right = eff.paddingRightPx ?? 0;
+  // Sections have their own background + internal padding (paddingPx) and
+  // are meant to stack flush. Forcing the wrapper's outer padding to 0
+  // means consecutive sections sit edge-to-edge with no email-background
+  // strip showing between them, regardless of any stored paddingTopPx /
+  // paddingBottomPx the user may have inherited from older defaults.
+  const isFlush = eff.type === 'section';
+  const top   = isFlush ? 0 : (eff.paddingTopPx    ?? 0);
+  const bot   = isFlush ? 0 : (eff.paddingBottomPx ?? 0);
+  const left  = isFlush ? 0 : (eff.paddingLeftPx   ?? 0);
+  const right = isFlush ? 0 : (eff.paddingRightPx  ?? 0);
   const padStyle = top || bot || left || right ? `padding:${top}px ${right}px ${bot}px ${left}px;` : '';
   return `<div data-block-id="${eff.id}" style="display:block;${padStyle}">${inner}</div>`;
 }
