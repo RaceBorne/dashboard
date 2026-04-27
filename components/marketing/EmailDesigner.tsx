@@ -3730,6 +3730,7 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
           onPick={(url, alt) => { onChange({ src: url, alt }); setPickerOpen(false); }}
         />
       ) : null}
+      <SliderField label="Opacity" value={item.opacityPct ?? 100} min={0} max={100} suffix="%" onChange={(v) => onChange({ opacityPct: v })} />
     </div>
   );
 }
@@ -3758,6 +3759,7 @@ function SplitItemTextFields({ item, brand, onChange }: { item: Extract<SplitIte
         <input type="color" value={item.color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
       </label>
       <SliderField label="Spacer below" value={item.paddingBottomPx ?? 8} min={0} max={64} suffix="px" onChange={(v) => onChange({ paddingBottomPx: v })} />
+      <SliderField label="Opacity" value={item.opacityPct ?? 100} min={0} max={100} suffix="%" onChange={(v) => onChange({ opacityPct: v })} />
     </div>
   );
 }
@@ -3824,6 +3826,7 @@ function SplitItemButtonFields({ item, brand, onChange }: { item: Extract<SplitI
         <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Radius (px)</span>
         <input type="number" min={0} max={32} value={item.borderRadiusPx} onChange={(e) => onChange({ borderRadiusPx: Math.max(0, Math.min(32, Number(e.target.value) || 4)) })} className={cn(inputCls, 'font-mono')} />
       </label>
+      <SliderField label="Opacity" value={item.opacityPct ?? 100} min={0} max={100} suffix="%" onChange={(v) => onChange({ opacityPct: v })} />
     </div>
   );
 }
@@ -3854,6 +3857,7 @@ function SplitItemDividerFields({ item, onChange }: { item: Extract<SplitItem, {
           <input type="range" min={20} max={100} value={w} onChange={(e) => onChange({ widthPct: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
         </div>
       </label>
+      <SliderField label="Opacity" value={item.opacityPct ?? 100} min={0} max={100} suffix="%" onChange={(v) => onChange({ opacityPct: v })} />
     </div>
   );
 }

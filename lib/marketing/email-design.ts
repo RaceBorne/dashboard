@@ -264,6 +264,10 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
   // resolve which item the user pressed (via elementsFromPoint) and
   // auto-open that item's editor in the right rail.
   const idAttr = `data-split-item-id="${it.id}"`;
+  // Item-level opacity (0-100) applies to the outer wrapper of every
+  // kind (image/text/button/divider). undefined => fully opaque.
+  const opPct = typeof it.opacityPct === 'number' ? Math.max(0, Math.min(100, it.opacityPct)) : 100;
+  const opStyle = opPct < 100 ? `opacity:${(opPct / 100).toFixed(3)};` : '';
   if (it.kind === 'image') {
     const shadow = it.shadow && it.shadow !== 'none' ? splitImageShadowCss(it.shadow, it.shadowColor) : '';
     const shadowStyle = shadow ? `box-shadow:${shadow};border-radius:4px;` : '';
@@ -274,7 +278,7 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
     // so they actually shift to the chosen edge.
     const marginForPartial = align === 'left' ? 'margin-right:auto;' : align === 'right' ? 'margin-left:auto;' : 'margin:0 auto;';
     if (!it.src) {
-      return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};"><div style="display:inline-block;width:100%;max-width:300px;height:300px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/300px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
+      return `<div ${idAttr} style="${opStyle}margin-bottom:8px;text-align:${align};"><div style="display:inline-block;width:100%;max-width:300px;height:300px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/300px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
     }
     let widthCss: string;
     let extraWrapStyle = '';
@@ -291,7 +295,7 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
       // 'fit' — preserve aspect, may leave whitespace.
       widthCss = `width:100%;height:auto;`;
     }
-    return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};${extraWrapStyle}"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
+    return `<div ${idAttr} style="${opStyle}margin-bottom:8px;text-align:${align};${extraWrapStyle}"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
   }
   if (it.kind === 'text') {
     const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : fontFor(brand, '');
@@ -299,20 +303,20 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
     const align = it.alignment ?? 'left';
     const tt = it.textTransform && it.textTransform !== 'none' ? `text-transform:${it.textTransform};` : '';
     const padBot = typeof it.paddingBottomPx === 'number' ? it.paddingBottomPx : 8;
-    return `<div ${idAttr} style="margin-bottom:${padBot}px;text-align:${align};${tt}font:${weight} ${it.fontSizePx}px/${it.lineHeight} ${family}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
+    return `<div ${idAttr} style="${opStyle}margin-bottom:${padBot}px;text-align:${align};${tt}font:${weight} ${it.fontSizePx}px/${it.lineHeight} ${family}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
   }
   if (it.kind === 'divider') {
     const w = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct < 100 ? it.widthPct : 100;
     if (w >= 100) {
-      return `<div ${idAttr} style="margin:${it.marginYPx}px 0;height:${it.thicknessPx}px;line-height:0;font-size:0;background:${it.color};">&nbsp;</div>`;
+      return `<div ${idAttr} style="${opStyle}margin:${it.marginYPx}px 0;height:${it.thicknessPx}px;line-height:0;font-size:0;background:${it.color};">&nbsp;</div>`;
     }
-    return `<div ${idAttr} style="margin:${it.marginYPx}px 0;text-align:center;font-size:0;line-height:0;"><div style="display:inline-block;width:${w}%;height:${it.thicknessPx}px;background:${it.color};">&nbsp;</div></div>`;
+    return `<div ${idAttr} style="${opStyle}margin:${it.marginYPx}px 0;text-align:center;font-size:0;line-height:0;"><div style="display:inline-block;width:${w}%;height:${it.thicknessPx}px;background:${it.color};">&nbsp;</div></div>`;
   }
   // button
   const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : '';
   const weight = it.fontWeight ?? 600;
   const align = it.alignment ?? 'left';
-  return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:${weight} ${it.fontSizePx}px ${family}Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
+  return `<div ${idAttr} style="${opStyle}margin-bottom:8px;text-align:${align};"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:${weight} ${it.fontSizePx}px ${family}Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
 }
 
 function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {

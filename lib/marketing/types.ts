@@ -589,7 +589,15 @@ export type EmailAlignment = 'left' | 'center' | 'right';
  * on the type so cells saved before Phase 2 read correctly: the
  * email-design helper getSplitCellItems migrates them on the fly.
  */
-export interface SplitItemBase { id: string; }
+export interface SplitItemBase {
+  id: string;
+  /**
+   * Opacity 0-100. undefined defaults to 100 (fully opaque). Renders
+   * as `opacity:${n/100}` on the outer wrapper of the item, so any
+   * stacked Split item (image, text, button, divider) can be faded.
+   */
+  opacityPct?: number;
+}
 
 export type SplitItem =
   | (SplitItemBase & {
