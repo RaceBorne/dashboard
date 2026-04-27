@@ -625,6 +625,9 @@ export type EmailBlock =
       maxWidthPx: number;
       alignment: EmailAlignment;
       linkUrl?: string;
+      /** When true, image stretches to 100% of its container — overrides
+       *  the maxWidthPx setting. Useful for full-bleed hero images. */
+      fullWidth?: boolean;
     })
   | (EmailBlockBase & {
       type: 'button';

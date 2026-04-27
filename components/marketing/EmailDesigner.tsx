@@ -1814,7 +1814,18 @@ function ImageFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
         <input type="text" value={block.alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
       </label>
-      <SliderField label="Width" value={block.maxWidthPx} min={40} max={1200} suffix="px" onChange={(v) => onChange({ maxWidthPx: v })} />
+      <label className="flex items-center gap-2 text-[11px] text-evari-text cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={!!block.fullWidth}
+          onChange={(e) => onChange({ fullWidth: e.target.checked })}
+          className="accent-evari-gold"
+        />
+        <span>Full width <span className="text-evari-dimmer">(stretches to 100% — overrides Width)</span></span>
+      </label>
+      {!block.fullWidth ? (
+        <SliderField label="Width" value={block.maxWidthPx} min={40} max={1200} suffix="px" onChange={(v) => onChange({ maxWidthPx: v })} />
+      ) : null}
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
         <input type="url" value={block.linkUrl ?? ''} onChange={(e) => onChange({ linkUrl: e.target.value || undefined })} placeholder="https://…" className={cn(inputCls, 'font-mono text-[12px]')} />

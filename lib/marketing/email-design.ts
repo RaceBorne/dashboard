@@ -108,10 +108,18 @@ function renderImage(b: Extract<EmailBlock, { type: 'image' }>): string {
     : b.alignment === 'right'
       ? 'margin-left:auto;margin-right:0;'
       : 'margin-left:0;margin-right:auto;';
-  const img = `<img src="${escape(b.src)}" alt="${escape(b.alt)}" style="display:inline-block;max-width:100%;width:${b.maxWidthPx}px;height:auto;border:0;outline:none;text-decoration:none;${margin}" />`;
+  // fullWidth → 100% of container, ignore maxWidthPx. Use display:block
+  // so width:100% takes effect; alignment becomes irrelevant when filling
+  // the full width but the margin auto stays harmless.
+  const widthCss = b.fullWidth
+    ? 'display:block;width:100%;height:auto;'
+    : `display:inline-block;max-width:100%;width:${b.maxWidthPx}px;height:auto;`;
+  const img = `<img src="${escape(b.src)}" alt="${escape(b.alt)}" style="${widthCss}border:0;outline:none;text-decoration:none;${margin}" />`;
   const wrapped = b.linkUrl
-    ? `<a href="${escape(b.linkUrl)}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;${margin}">${img}</a>`
+    ? `<a href="${escape(b.linkUrl)}" target="_blank" rel="noopener" style="text-decoration:none;${b.fullWidth ? 'display:block;' : 'display:inline-block;'}${margin}">${img}</a>`
     : img;
+  // Outer text-align fallback for clients that don't honour auto margins
+  // — use 0 line-height to avoid baseline gap with inline-block images.
   return `<div style="${alignStyle(b.alignment)}font-size:0;line-height:0;">${wrapped}</div>`;
 }
 
