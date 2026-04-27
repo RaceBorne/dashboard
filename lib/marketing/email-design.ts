@@ -268,12 +268,18 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
     const shadow = it.shadow && it.shadow !== 'none' ? splitImageShadowCss(it.shadow, it.shadowColor) : '';
     const shadowStyle = shadow ? `box-shadow:${shadow};border-radius:4px;` : '';
     if (!it.src) {
-      return `<div ${idAttr} style="margin-bottom:8px;"><div style="display:inline-block;width:100%;max-width:300px;height:300px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/300px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
+      // 300x300 dashed placeholder card. Wrapper div centres it within
+      // the cell when the cell is wider, and a tiny margin-bottom
+      // separates it from the next stack item if one follows.
+      return `<div ${idAttr} style="margin:0 auto 8px;text-align:center;"><div style="display:inline-block;width:100%;max-width:300px;height:300px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/300px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
     }
-    const widthCss = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct <= 100
-      ? `width:${it.widthPct}%;height:auto;`
-      : `width:100%;max-width:280px;height:auto;`;
-    return `<div ${idAttr} style="margin-bottom:8px;"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
+    // Default: image fills the full cell width. widthPct < 100 shrinks
+    // and centres the image; widthPct undefined means 100% (no
+    // max-width:280px cap any more).
+    const widthCss = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct < 100
+      ? `width:${it.widthPct}%;height:auto;margin:0 auto;`
+      : `width:100%;height:auto;`;
+    return `<div ${idAttr} style="margin-bottom:8px;text-align:center;"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
   }
   if (it.kind === 'text') {
     const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : fontFor(brand, '');
@@ -337,7 +343,7 @@ function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: Marketing
   // + matching text-align in the td style centres inline content in
   // every email client; the cell renderer also wraps the stack in an
   // inline-block centring container so block-level items follow.
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;"><tr style="height:100%;"><td valign="middle" align="${lh}" width="50%" style="padding-right:12px;height:100%;text-align:${lh};">${left}</td><td valign="middle" align="${rh}" width="50%" style="height:100%;text-align:${rh};">${right}</td></tr></table>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;"><tr style="height:100%;"><td valign="middle" align="${lh}" width="50%" style="padding-right:12px;height:100%;text-align:${lh};vertical-align:middle;">${left}</td><td valign="middle" align="${rh}" width="50%" style="height:100%;text-align:${rh};vertical-align:middle;">${right}</td></tr></table>`;
 }
 
 
