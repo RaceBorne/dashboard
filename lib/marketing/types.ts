@@ -596,9 +596,11 @@ export type SplitItem =
       kind: 'image';
       src: string;
       alt: string;
-      // 0-100 percent. undefined means natural max-width:280px (legacy
-      // default). Lets a stacked image align tighter than the cell.
+      // 0-100 percent. undefined defaults to 100 (fills the cell).
+      // Lets a stacked image align tighter than the cell.
       widthPct?: number;
+      /** Horizontal alignment within the cell. Default 'center'. */
+      alignment?: 'left' | 'center' | 'right';
       /**
        * Optional drop shadow. 'none' (default) renders no shadow; the
        * named presets map to multi-stop CSS box-shadow values that

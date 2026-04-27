@@ -3668,6 +3668,7 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
           <input type="range" min={20} max={100} value={w} onChange={(e) => onChange({ widthPct: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
         </div>
       </label>
+      <SplitAlignmentField value={item.alignment ?? 'center'} onChange={(v) => onChange({ alignment: v })} />
       <fieldset className="pt-2 border-t border-evari-edge/10">
         <legend className="text-[11px] font-medium text-evari-dimmer mb-1">Drop shadow</legend>
         <div className="space-y-2">

@@ -267,19 +267,18 @@ function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
   if (it.kind === 'image') {
     const shadow = it.shadow && it.shadow !== 'none' ? splitImageShadowCss(it.shadow, it.shadowColor) : '';
     const shadowStyle = shadow ? `box-shadow:${shadow};border-radius:4px;` : '';
+    const align = it.alignment ?? 'center';
+    // Translate alignment to a margin pattern on partial-width images
+    // so they actually shift to the chosen edge. Full-width images
+    // (widthPct undefined or 100) always fill so alignment is moot.
+    const marginForPartial = align === 'left' ? 'margin-right:auto;' : align === 'right' ? 'margin-left:auto;' : 'margin:0 auto;';
     if (!it.src) {
-      // 300x300 dashed placeholder card. Wrapper div centres it within
-      // the cell when the cell is wider, and a tiny margin-bottom
-      // separates it from the next stack item if one follows.
-      return `<div ${idAttr} style="margin:0 auto 8px;text-align:center;"><div style="display:inline-block;width:100%;max-width:300px;height:300px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/300px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
+      return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};"><div style="display:inline-block;width:100%;max-width:300px;height:300px;background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:4px;color:#999999;font:12px/300px Arial,sans-serif;text-align:center;letter-spacing:0.05em;text-transform:uppercase;${shadowStyle}">Image</div></div>`;
     }
-    // Default: image fills the full cell width. widthPct < 100 shrinks
-    // and centres the image; widthPct undefined means 100% (no
-    // max-width:280px cap any more).
     const widthCss = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct < 100
-      ? `width:${it.widthPct}%;height:auto;margin:0 auto;`
+      ? `width:${it.widthPct}%;height:auto;${marginForPartial}`
       : `width:100%;height:auto;`;
-    return `<div ${idAttr} style="margin-bottom:8px;text-align:center;"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
+    return `<div ${idAttr} style="margin-bottom:8px;text-align:${align};"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;${shadowStyle}" /></div>`;
   }
   if (it.kind === 'text') {
     const family = it.fontFamily ? `'${escape(it.fontFamily)}',` : fontFor(brand, '');
