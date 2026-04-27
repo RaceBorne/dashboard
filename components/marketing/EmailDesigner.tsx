@@ -312,6 +312,8 @@ function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock
       fontWeight: p.fontWeight,
       letterSpacingEm: p.letterSpacingEm,
       textTransform: p.textTransform,
+      widthMode: p.widthMode,
+      widthPx: p.widthPx,
       paddingBottomPx: 24,
     };
     onAddBlock(block);
@@ -428,7 +430,7 @@ function LayersTree({ blocks, selectedId, onSelect, onRemove }: {
     );
   }
   return (
-    <ul className="space-y-0.5">
+    <ul className="space-y-2">
       {blocks.map((b) => (
         <LayerRow key={b.id} block={b} depth={0} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
       ))}
@@ -479,41 +481,50 @@ function LayerRow({ block, depth, selectedId, onSelect, onRemove }: {
   const snippet = snippetForBlock(block);
   const isSection = block.type === 'section';
   const isPinned = isSection && (block as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top';
+  // Each nested level lifts the surface ~3% brighter (white tint over the
+  // panel) so depth reads visually without depending on indent alone.
+  // Sections render as a filled rounded rectangle with their children
+  // sitting INSIDE the rectangle (their own brighter cards).
+  const tint = Math.min(0.06 + depth * 0.03, 0.30);
+  const cardBg = selected ? 'rgba(212,166,73,0.18)' : `rgba(255,255,255,${tint.toFixed(3)})`;
+  const children = isSection ? (block as Extract<EmailBlock, { type: 'section' }>).blocks : [];
   return (
     <li>
       <div
         className={cn(
-          'group flex items-center gap-1.5 px-1.5 py-1 rounded cursor-pointer transition-colors',
-          selected ? 'bg-evari-gold/20 text-evari-gold' : 'text-evari-text hover:bg-evari-edge/30',
+          'group rounded-lg cursor-pointer transition-shadow',
+          selected ? 'ring-2 ring-evari-gold' : 'hover:ring-1 hover:ring-white/15',
         )}
-        style={{ paddingLeft: `${6 + depth * 12}px` }}
+        style={{ background: cardBg }}
         onClick={(e) => { e.stopPropagation(); onSelect(block.id); }}
       >
-        <Icon className={cn('h-3.5 w-3.5 shrink-0', selected ? 'text-evari-gold' : 'text-evari-dim')} />
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-medium leading-tight truncate flex items-center gap-1">
-            {label}
-            {isPinned ? <Pin className="h-2.5 w-2.5 text-evari-gold/70" aria-label="Pinned to top" /> : null}
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <Icon className={cn('h-4 w-4 shrink-0', selected ? 'text-evari-gold' : 'text-evari-dim')} />
+          <div className="min-w-0 flex-1">
+            <div className={cn('text-[12px] font-semibold leading-tight truncate flex items-center gap-1', selected ? 'text-evari-gold' : 'text-evari-text')}>
+              {label}
+              {isPinned ? <Pin className="h-2.5 w-2.5 text-evari-gold/70" aria-label="Pinned to top" /> : null}
+            </div>
+            <div className={cn('text-[10px] leading-tight truncate mt-0.5', selected ? 'text-evari-gold/70' : 'text-evari-dim')}>{snippet}</div>
           </div>
-          <div className="text-[10px] text-evari-dim leading-tight truncate">{snippet}</div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRemove(block.id); }}
+            className="opacity-0 group-hover:opacity-100 p-1 text-evari-dim hover:text-evari-danger transition-opacity"
+            title="Delete block"
+            aria-label={`Delete ${label}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onRemove(block.id); }}
-          className="opacity-0 group-hover:opacity-100 p-0.5 text-evari-dim hover:text-evari-danger transition-opacity"
-          title="Delete block"
-          aria-label={`Delete ${label}`}
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
+        {isSection && children && children.length > 0 ? (
+          <ul className="space-y-1.5 px-2 pb-2">
+            {children.map((c) => (
+              <LayerRow key={c.id} block={c} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
+            ))}
+          </ul>
+        ) : null}
       </div>
-      {isSection && (block as Extract<EmailBlock, { type: 'section' }>).blocks?.length ? (
-        <ul className="space-y-0.5 mt-0.5">
-          {(block as Extract<EmailBlock, { type: 'section' }>).blocks.map((c) => (
-            <LayerRow key={c.id} block={c} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
-          ))}
-        </ul>
-      ) : null}
     </li>
   );
 }
@@ -1704,7 +1715,7 @@ function ButtonStyles({
   onApply,
 }: {
   brand: MarketingBrand;
-  current: { backgroundColor: string; textColor: string; borderRadiusPx: number; paddingXPx: number; paddingYPx: number; fontFamily?: string; fontSizePx?: number; fontWeight?: number; letterSpacingEm?: number; textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize' };
+  current: { backgroundColor: string; textColor: string; borderRadiusPx: number; paddingXPx: number; paddingYPx: number; fontFamily?: string; fontSizePx?: number; fontWeight?: number; letterSpacingEm?: number; textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize'; widthMode?: 'auto' | 'fullWidth' | 'fixed'; widthPx?: number };
   onApply: (preset: ButtonPreset) => void;
 }) {
   const [presets, setPresets] = useState<ButtonPreset[]>(brand.fonts.buttonPresets ?? []);
@@ -1747,6 +1758,8 @@ function ButtonStyles({
       fontWeight: current.fontWeight,
       letterSpacingEm: current.letterSpacingEm,
       textTransform: current.textTransform,
+      widthMode: current.widthMode,
+      widthPx: current.widthPx,
       createdAt: new Date().toISOString(),
     };
     persist([...presets.filter((p) => p.id !== id), preset]);
@@ -1853,6 +1866,8 @@ function ButtonFields({ block, brand, onChange }: { block: Extract<EmailBlock, {
           fontWeight: block.fontWeight,
           letterSpacingEm: block.letterSpacingEm,
           textTransform: block.textTransform,
+          widthMode: block.widthMode,
+          widthPx: block.widthPx,
         }}
         onApply={(p) => onChange({
           backgroundColor: p.backgroundColor,
@@ -1865,11 +1880,40 @@ function ButtonFields({ block, brand, onChange }: { block: Extract<EmailBlock, {
           fontWeight: p.fontWeight,
           letterSpacingEm: p.letterSpacingEm,
           textTransform: p.textTransform,
+          widthMode: p.widthMode,
+          widthPx: p.widthPx,
         })}
       />
       <div className="grid grid-cols-2 gap-2">
         <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} brand={brand} />
         <ColourField label="Text" value={block.textColor} onChange={(v) => onChange({ textColor: v })} brand={brand} />
+      </div>
+      <div className="space-y-1.5">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Width</span>
+        <div className="grid grid-cols-3 gap-1 rounded-md bg-evari-ink p-1 border border-evari-edge/30" role="radiogroup" aria-label="Button width mode">
+          {([
+            { v: 'auto',      l: 'Auto' },
+            { v: 'fullWidth', l: 'Full' },
+            { v: 'fixed',     l: 'Fixed' },
+          ] as const).map((opt) => {
+            const active = (block.widthMode ?? 'auto') === opt.v;
+            return (
+              <button
+                key={opt.v}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => onChange({ widthMode: opt.v })}
+                className={cn('text-[11px] py-1 rounded transition-colors', active ? 'bg-evari-gold/20 text-evari-gold' : 'text-evari-dim hover:text-evari-text')}
+              >
+                {opt.l}
+              </button>
+            );
+          })}
+        </div>
+        {(block.widthMode ?? 'auto') === 'fixed' ? (
+          <SliderField label="Fixed width" value={block.widthPx ?? 240} min={80} max={600} suffix="px" onChange={(v) => onChange({ widthPx: v })} />
+        ) : null}
       </div>
       <FontDropdown value={block.fontFamily ?? ''} brand={brand} onChange={(v) => onChange({ fontFamily: v })} />
       <SliderField label="Size" value={block.fontSizePx ?? 14} min={10} max={32} suffix="px" onChange={(v) => onChange({ fontSizePx: v })} />

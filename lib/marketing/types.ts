@@ -307,6 +307,8 @@ export interface ButtonPreset {
   fontWeight?: number;
   letterSpacingEm?: number;
   textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize';
+  widthMode?: 'auto' | 'fullWidth' | 'fixed';
+  widthPx?: number;
   createdAt: string;
 }
 
@@ -629,6 +631,10 @@ export type EmailBlock =
       fontWeight?: number;
       letterSpacingEm?: number;
       textTransform?: 'none' | 'lowercase' | 'uppercase' | 'capitalize';
+      /** Width mode: 'auto' (fits label, default), 'fullWidth' (100%
+       *  of container), or 'fixed' (widthPx). */
+      widthMode?: 'auto' | 'fullWidth' | 'fixed';
+      widthPx?: number;
     })
   | (EmailBlockBase & {
       type: 'divider';

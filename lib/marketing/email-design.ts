@@ -58,8 +58,20 @@ function renderButton(b: Extract<EmailBlock, { type: 'button' }>, brand: Marketi
   const size = b.fontSizePx ?? 14;
   const tracking = typeof b.letterSpacingEm === 'number' ? `letter-spacing:${b.letterSpacingEm}em;` : '';
   const tt = b.textTransform && b.textTransform !== 'none' ? `text-transform:${b.textTransform};` : '';
+  const mode = b.widthMode ?? 'auto';
+  // Width handling — display:block + text-align:center centres the label
+  // when the anchor stretches; auto falls back to inline-block for native fit.
+  let widthCss = '';
+  let display = 'inline-block';
+  if (mode === 'fullWidth') {
+    widthCss = 'width:100%;box-sizing:border-box;text-align:center;';
+    display = 'block';
+  } else if (mode === 'fixed' && b.widthPx) {
+    widthCss = `width:${b.widthPx}px;box-sizing:border-box;text-align:center;`;
+    display = 'inline-block';
+  }
   return `<div style="${alignStyle(b.alignment)}">
-    <a href="${escape(b.url)}" target="_blank" rel="noopener" style="display:inline-block;background:${b.backgroundColor};color:${b.textColor};padding:${b.paddingYPx}px ${b.paddingXPx}px;border-radius:${b.borderRadiusPx}px;font:${weight} ${size}px/1.2 ${fontFor(brand, b.fontFamily ?? '')}Arial,sans-serif;text-decoration:none;${tracking}${tt}">${escape(b.label)}</a>
+    <a href="${escape(b.url)}" target="_blank" rel="noopener" style="display:${display};${widthCss}background:${b.backgroundColor};color:${b.textColor};padding:${b.paddingYPx}px ${b.paddingXPx}px;border-radius:${b.borderRadiusPx}px;font:${weight} ${size}px/1.2 ${fontFor(brand, b.fontFamily ?? '')}Arial,sans-serif;text-decoration:none;${tracking}${tt}">${escape(b.label)}</a>
   </div>`;
 }
 
