@@ -3585,8 +3585,18 @@ function SortableSplitItem({ item, open, brand, onToggle, onChange, onDuplicate,
   const meta = item.kind === 'image' ? { Icon: ImageIcon, label: 'Image' } : item.kind === 'text' ? { Icon: Type, label: 'Text' } : item.kind === 'divider' ? { Icon: Minus, label: 'Line' } : { Icon: MousePointerClick, label: 'Button' };
   const Icon = meta.Icon;
   const summary = splitItemSummary(item);
+  // Combined ref: dnd-kit's sortable ref + a local ref so we can scroll
+  // this row into view when it becomes the open one (e.g. the user
+  // clicked the matching element in the canvas viewer).
+  const liRef = useRef<HTMLLIElement | null>(null);
+  const setRefs = (node: HTMLLIElement | null) => { setNodeRef(node); liRef.current = node; };
+  useEffect(() => {
+    if (open && liRef.current) {
+      liRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [open]);
   return (
-    <li ref={setNodeRef} style={style}>
+    <li ref={setRefs} style={style}>
       <div className={cn(
         'rounded-md border bg-evari-ink/40 transition-colors',
         isDragging ? 'border-evari-gold/60' : open ? 'border-evari-gold/70 bg-evari-ink/70' : 'border-evari-edge/30',
