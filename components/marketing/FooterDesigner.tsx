@@ -495,14 +495,18 @@ function SocialFields({ block, onChange }: { block: Extract<FooterBlock, { type:
           <span>Icon size</span>
           <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{size}px</span>
         </span>
-        <input type="range" min={12} max={64} value={size} onChange={(e) => onChange({ iconSizePx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        <div className="px-2.5">
+          <input type="range" min={12} max={64} value={size} onChange={(e) => onChange({ iconSizePx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+        </div>
       </label>
       <label className="block">
         <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
           <span>Spacing</span>
           <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{gap}px</span>
         </span>
-        <input type="range" min={0} max={48} value={gap} onChange={(e) => onChange({ gapPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
+        <div className="px-2.5">
+          <input type="range" min={0} max={48} value={gap} onChange={(e) => onChange({ gapPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+        </div>
       </label>
       <div className="mt-2 rounded-md border border-evari-edge/30 bg-evari-ink/40 px-2.5 py-2 text-[11px] text-evari-dim leading-snug">
         URLs come from the <a href="/email/brand" className="text-evari-gold hover:underline">Brand setup → Social media</a> panel. Set them once there and every email + thumbnail uses the same handles.

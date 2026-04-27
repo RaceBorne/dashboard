@@ -1985,7 +1985,7 @@ function SliderField({ label, value, min, max, step, suffix, onChange }: {
   return (
     <label className="block">
       <span className={labelCls}>{label}</span>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 px-2.5">
         <input
           type="range"
           value={value}
