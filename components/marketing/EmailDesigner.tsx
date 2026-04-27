@@ -2291,8 +2291,14 @@ function CanvasFooterPreview({ brand }: { brand: MarketingBrand; onRefresh?: () 
     }
   }, [brand]);
   if (!html.trim()) return null;
+  // overflow-hidden + width:100% wraps any rogue table-layout:auto growth
+  // from the footer's inner table back inside the inner email frame.
   return (
-    <div className="pointer-events-none select-none" dangerouslySetInnerHTML={{ __html: html }} />
+    <div
+      className="pointer-events-none select-none overflow-hidden"
+      style={{ width: '100%', maxWidth: '100%' }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }
 
