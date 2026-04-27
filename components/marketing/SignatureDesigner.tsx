@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -70,16 +70,18 @@ const ADD_BUTTONS: Array<{ type: SignatureBlock['type']; label: string; Icon: ty
 export function SignatureDesigner({ initialBrand, value, onChange }: Props) {
   const design = normaliseSignatureDesign(value) ?? DEFAULT_SIGNATURE_DESIGN;
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const containerRef = useRef<HTMLElement | null>(null);
-  // Click-outside the designer's container drops selection — closes the
-  // open detail window for the row being edited. Same UX as the email
-  // designer.
+  // Click anywhere outside a block row → close the open detail panel.
+  // The row's own onClick already handles 'switch to this row' so we
+  // only need to deselect when the click landed nowhere meaningful.
   useEffect(() => {
     if (!selectedId) return;
     function onMouseDown(e: MouseEvent) {
       const t = e.target as HTMLElement | null;
-      if (!t || !containerRef.current) return;
-      if (containerRef.current.contains(t)) return;
+      if (!t) return;
+      if (t.closest('[data-sig-row]')) return;
+      // Also keep when interacting with a portal modal / native browser
+      // dropdown overlay — those land outside the row but mustn't close.
+      if (t.closest('[role="dialog"]')) return;
       setSelectedId(null);
     }
     document.addEventListener('mousedown', onMouseDown);
@@ -127,7 +129,7 @@ export function SignatureDesigner({ initialBrand, value, onChange }: Props) {
   );
 
   return (
-    <section ref={containerRef} className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
+    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-evari-text">Email signature</h2>
         <span className="text-[10px] text-evari-dimmer">Drag blocks to reorder · same renderer as the mailbox preview</span>
@@ -253,7 +255,7 @@ function SortableBlockRow({
     opacity: isDragging ? 0.7 : 1,
   };
   return (
-    <li ref={setNodeRef} style={style}>
+    <li ref={setNodeRef} style={style} data-sig-row>
       <BlockEditor
         block={block}
         selected={selected}
