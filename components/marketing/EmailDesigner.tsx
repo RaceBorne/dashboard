@@ -28,6 +28,7 @@ import {
   PenLine,
   Pin,
   PlaySquare,
+  Plus,
   Quote,
   RefreshCw,
   Share2,
@@ -337,19 +338,19 @@ function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {typo.length > 0 ? (
         <section>
-          <h3 className="text-[10px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Typography</h3>
-          <ul className="space-y-1">
+          <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-2">Typography</h3>
+          <ul className="space-y-1.5">
             {typo.map((p) => (
-              <li key={p.id} className="rounded-md border border-evari-edge/30 bg-evari-ink/40 hover:border-evari-gold/50 transition-colors">
-                <div className="px-2 pt-1.5 pb-0.5">
-                  <span
-                    className="block text-evari-text leading-tight truncate"
+              <li key={p.id} className="group rounded-md border border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-ink/50 transition-colors overflow-hidden">
+                <div className="px-2.5 py-2">
+                  <div
+                    className="text-evari-text leading-tight truncate"
                     style={{
                       fontFamily: p.fontFamily ? `'${p.fontFamily}', sans-serif` : undefined,
-                      fontSize: `${Math.min(p.fontSizePx, 22)}px`,
+                      fontSize: `${Math.min(p.fontSizePx, 18)}px`,
                       fontWeight: p.fontWeight,
                       letterSpacing: `${p.letterSpacingEm}em`,
                       color: p.color,
@@ -357,27 +358,31 @@ function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock
                     }}
                   >
                     {p.name}
-                  </span>
-                  <span className="block text-[9px] text-evari-dimmer font-mono tabular-nums">
-                    {p.fontSizePx}px · {p.fontWeight} · {p.letterSpacingEm}em
-                  </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-[9px] text-evari-dimmer font-mono tabular-nums">
+                    <span>{p.fontSizePx}px</span>
+                    <span className="text-evari-edge">·</span>
+                    <span>{p.fontWeight}</span>
+                    <span className="text-evari-edge">·</span>
+                    <span>{p.letterSpacingEm}em</span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-1 px-1.5 pb-1.5 pt-0.5">
+                <div className="flex border-t border-evari-edge/20 divide-x divide-evari-edge/20">
                   <button
                     type="button"
                     onClick={() => addFromTypoPreset(p, 'heading')}
-                    className="text-[10px] py-1 rounded bg-evari-edge/30 text-evari-text hover:bg-evari-gold/20 hover:text-evari-gold transition-colors"
+                    className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] font-medium py-1.5 text-evari-dim hover:text-evari-gold hover:bg-evari-gold/10 transition-colors"
                     title="Add as a heading block"
                   >
-                    + Heading
+                    <Plus className="h-3 w-3" />Heading
                   </button>
                   <button
                     type="button"
                     onClick={() => addFromTypoPreset(p, 'text')}
-                    className="text-[10px] py-1 rounded bg-evari-edge/30 text-evari-text hover:bg-evari-gold/20 hover:text-evari-gold transition-colors"
+                    className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] font-medium py-1.5 text-evari-dim hover:text-evari-gold hover:bg-evari-gold/10 transition-colors"
                     title="Add as a text block"
                   >
-                    + Text
+                    <Plus className="h-3 w-3" />Text
                   </button>
                 </div>
               </li>
@@ -387,18 +392,18 @@ function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock
       ) : null}
       {buttons.length > 0 ? (
         <section>
-          <h3 className="text-[10px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-1.5">Buttons</h3>
-          <ul className="space-y-1">
+          <h3 className="text-[11px] font-semibold text-evari-text uppercase tracking-[0.1em] mb-2">Buttons</h3>
+          <ul className="space-y-1.5">
             {buttons.map((p) => (
               <li key={p.id}>
                 <button
                   type="button"
                   onClick={() => addFromButtonPreset(p)}
-                  className="w-full flex items-center gap-2 rounded-md border border-evari-edge/30 bg-evari-ink/40 hover:border-evari-gold/50 hover:bg-evari-ink/70 transition-colors px-2 py-1.5"
+                  className="w-full flex items-center gap-2.5 rounded-md border border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-ink/50 transition-colors px-2.5 py-2 group"
                   title={`Insert a button using "${p.name}"`}
                 >
                   <span
-                    className="inline-block px-2 py-1 rounded text-[10px] font-medium shrink-0"
+                    className="inline-flex items-center justify-center px-2.5 py-1 text-[10px] font-medium shrink-0"
                     style={{
                       background: p.backgroundColor,
                       color: p.textColor,
@@ -413,8 +418,9 @@ function PresetsPanel({ brand, onAddBlock }: { brand: MarketingBrand; onAddBlock
                   </span>
                   <span className="min-w-0 flex-1 text-left">
                     <span className="block text-[11px] text-evari-text leading-tight truncate">{p.name}</span>
-                    <span className="block text-[9px] text-evari-dimmer font-mono tabular-nums">{p.paddingYPx}×{p.paddingXPx} · r{p.borderRadiusPx}</span>
+                    <span className="block text-[9px] text-evari-dimmer font-mono tabular-nums mt-0.5">{p.paddingYPx}px · r{p.borderRadiusPx}</span>
                   </span>
+                  <Plus className="h-3 w-3 text-evari-dim group-hover:text-evari-gold transition-colors shrink-0" />
                 </button>
               </li>
             ))}
