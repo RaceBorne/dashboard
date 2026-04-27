@@ -335,7 +335,7 @@ function PreviewModal({ design, brand, onClose }: { design: EmailDesign; brand: 
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const html = useMemo(() => renderEmailDesign(design, brand), [design, brand]);
+  const html = useMemo(() => renderEmailDesign(design, brand, { device }), [design, brand, device]);
   const sizeKb = Math.round(new Blob([html]).size / 1024);
 
   async function sendTest() {

@@ -1069,7 +1069,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             so the design.background is visible as page chrome. The INNER
             email is centred and constrained to the chosen content width
             (360px on mobile preview). */}
-        <div className="flex flex-col min-w-0 min-h-0 overflow-hidden">
+        <div className="flex flex-col min-w-0 min-h-0 overflow-hidden -mr-3">
           <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1 flex items-center justify-between shrink-0">
             <span>Canvas</span>
             <span className="text-evari-dim">{previewDevice === 'mobile' ? `360px (mobile) · ${design.widthPx}px content` : `${design.widthPx}px (desktop)`}</span>

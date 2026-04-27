@@ -434,7 +434,7 @@ export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand, op
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${design.background};">
     <tr>
       <td align="center" style="padding:${design.paddingPx}px;">
-        <table role="presentation" width="${design.widthPx}" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;max-width:100%;">
+        <table role="presentation" width="${design.widthPx}" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;width:100%;max-width:${design.widthPx}px;">
           <tr>
             <td style="padding:0;">
               ${inner}
