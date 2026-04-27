@@ -742,11 +742,14 @@ export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand, op
   ${styles}
   ${mobileCss}
   <style type="text/css">
-    html { scrollbar-color: rgba(128,128,128,0.45) transparent; scrollbar-width: thin; }
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.45); border-radius: 6px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.7); }
+    /* Hide the iframe scrollbar entirely in the preview. Scroll
+       behaviour is preserved (mouse wheel + trackpad still scroll the
+       document); only the visible scrubber is removed. Email clients
+       ignore scrollbar-* and ::-webkit-scrollbar so the sent email is
+       unaffected. */
+    html { scrollbar-width: none; }
+    body { -ms-overflow-style: none; }
+    ::-webkit-scrollbar { width: 0; height: 0; display: none; }
   </style>
 </head>
 <body style="margin:0;padding:0;background:${design.background};">
