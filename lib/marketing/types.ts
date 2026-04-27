@@ -619,6 +619,8 @@ export type SplitItem =
       fontFamily?: string;
       /** 100-900 numeric weight. Default 400. */
       fontWeight?: number;
+      /** Horizontal alignment. Default 'left'. */
+      alignment?: 'left' | 'center' | 'right';
     })
   | (SplitItemBase & {
       kind: 'button';

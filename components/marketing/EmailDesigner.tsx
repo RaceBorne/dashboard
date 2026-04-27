@@ -36,6 +36,9 @@ import {
   Sparkles,
   Square,
   SquareSplitHorizontal,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowLeftRight,
   Star,
   Table as TableIcon,
@@ -1978,21 +1981,28 @@ function NumField({ label, value, min, max, onChange, step }: { label: string; v
 }
 
 function AlignmentField({ value, onChange }: { value: EmailAlignment; onChange: (v: EmailAlignment) => void }) {
+  const opts: Array<{ v: EmailAlignment; Icon: typeof AlignLeft; label: string }> = [
+    { v: 'left',   Icon: AlignLeft,   label: 'Align left' },
+    { v: 'center', Icon: AlignCenter, label: 'Align centre' },
+    { v: 'right',  Icon: AlignRight,  label: 'Align right' },
+  ];
   return (
     <label className="block">
       <span className={labelCls}>Alignment</span>
       <div className="grid grid-cols-3 gap-1 rounded-md bg-evari-ink border border-evari-edge/30 p-1">
-        {(['left', 'center', 'right'] as EmailAlignment[]).map((a) => (
+        {opts.map(({ v, Icon, label }) => (
           <button
-            key={a}
+            key={v}
             type="button"
-            onClick={() => onChange(a)}
+            onClick={() => onChange(v)}
+            title={label}
+            aria-label={label}
             className={cn(
-              'py-1.5 rounded text-[11px] font-medium capitalize transition-colors',
-              value === a ? 'bg-evari-gold text-evari-goldInk shadow-sm' : 'text-evari-dim hover:text-evari-text hover:bg-evari-edge/30',
+              'flex items-center justify-center py-1.5 rounded transition-colors',
+              value === v ? 'bg-evari-gold text-evari-goldInk shadow-sm' : 'text-evari-dim hover:text-evari-text hover:bg-evari-edge/30',
             )}
           >
-            {a}
+            <Icon className="h-4 w-4" />
           </button>
         ))}
       </div>
@@ -3547,6 +3557,7 @@ function SplitItemTextFields({ item, brand, onChange }: { item: Extract<SplitIte
       </label>
       <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
       <SplitWeightField value={item.fontWeight ?? 400} onChange={(v) => onChange({ fontWeight: v })} />
+      <SplitAlignmentField value={item.alignment ?? 'left'} onChange={(v) => onChange({ alignment: v })} />
       <label className="block">
         <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Size (px)</span>
         <input type="number" min={8} max={64} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(8, Math.min(64, Number(e.target.value) || 14)) })} className={cn(inputCls, 'font-mono')} />
@@ -3655,6 +3666,36 @@ function SplitItemDividerFields({ item, onChange }: { item: Extract<SplitItem, {
         </div>
       </label>
     </div>
+  );
+}
+
+function SplitAlignmentField({ value, onChange }: { value: 'left' | 'center' | 'right'; onChange: (v: 'left' | 'center' | 'right') => void }) {
+  const opts: Array<{ v: 'left' | 'center' | 'right'; Icon: typeof AlignLeft; label: string }> = [
+    { v: 'left',   Icon: AlignLeft,   label: 'Align left' },
+    { v: 'center', Icon: AlignCenter, label: 'Align centre' },
+    { v: 'right',  Icon: AlignRight,  label: 'Align right' },
+  ];
+  return (
+    <label className="block">
+      <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Alignment</span>
+      <div className="grid grid-cols-3 gap-1 rounded-md bg-evari-ink border border-evari-edge/30 p-1">
+        {opts.map(({ v, Icon, label }) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            title={label}
+            aria-label={label}
+            className={cn(
+              'flex items-center justify-center py-1.5 rounded transition-colors',
+              value === v ? 'bg-evari-gold text-evari-goldInk shadow-sm' : 'text-evari-dim hover:text-evari-text hover:bg-evari-edge/30',
+            )}
+          >
+            <Icon className="h-4 w-4" />
+          </button>
+        ))}
+      </div>
+    </label>
   );
 }
 
