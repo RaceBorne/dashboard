@@ -1815,8 +1815,8 @@ function DeviceOverrideBanner({ blockHasMobile, onClear }: { blockHasMobile: boo
 // Single source of truth for form-control look. Hard rule: every
 // single-line text input + dropdown in the designer is exactly 34px
 // tall. Multi-line textareas use textareaCls instead.
-const inputCls = 'w-full h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
-const textareaCls = 'w-full px-2.5 py-2 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
+const inputCls = 'w-full h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[9px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
+const textareaCls = 'w-full px-2.5 py-2 rounded-md bg-evari-ink text-evari-text text-[9px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
 // Standard label style — used everywhere a field needs an above-the-input label.
 const labelCls = 'block text-[10px] font-medium uppercase tracking-[0.1em] text-evari-dimmer mb-1';
 // Compact section header inside the right rail panels.
