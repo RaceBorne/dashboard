@@ -1422,10 +1422,10 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
 
       {/* Three-column layout: tile palette LEFT, interactive canvas
           CENTRE, properties RIGHT (when something is selected). */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(280px,340px)] gap-3 p-3 flex-1 min-h-0 overflow-hidden">
+      <div className={cn('grid gap-3 p-3 flex-1 min-h-0 overflow-hidden', previewMode ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(280px,340px)]')} style={previewMode ? { background: design.background } : undefined}>
 
-        {/* LEFT — tab strip + palette / layers */}
-        <div className="flex flex-col min-w-0 min-h-0 overflow-hidden">
+        {/* LEFT — tab strip + palette / layers (hidden in preview) */}
+        <div className={cn('flex flex-col min-w-0 min-h-0 overflow-hidden', previewMode && 'hidden')}>
           {/* Tab strip */}
           <div className="grid grid-cols-3 gap-1 p-1 rounded-md bg-evari-ink/40 border border-evari-edge/30 mb-2 shrink-0" role="tablist" aria-label="Palette / layers / presets">
             {(['blocks', 'rows', 'presets'] as const).map((t) => {
@@ -1540,7 +1540,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             so the design.background is visible as page chrome. The INNER
             email is centred and constrained to the chosen content width
             (360px on mobile preview). */}
-        <div className="flex flex-col min-w-0 min-h-0 overflow-hidden -mr-3">
+        <div className={cn('flex flex-col min-w-0 min-h-0 overflow-hidden', previewMode ? '' : '-mr-3')}>
           <div className="text-[11px] font-medium text-evari-dimmer mb-1 flex items-center justify-between shrink-0">
             <span>Canvas</span>
             <span className="text-evari-dim">{previewDevice === 'mobile' ? `360px (mobile) · ${design.widthPx}px content` : `${design.widthPx}px (desktop)`}</span>
@@ -1608,7 +1608,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             DRAFT block when a tile was clicked from the palette, or a
             placeholder when nothing's happening. Flat embedded panel,
             no floating-card outline. */}
-        <div className="min-w-0 min-h-0 overflow-y-auto bg-evari-surface/50 rounded-md" data-keep-edit>
+        <div className={cn('min-w-0 min-h-0 overflow-y-auto bg-evari-surface/50 rounded-md', previewMode && 'hidden')} data-keep-edit>
           {editingPreset ? (
             <InlinePresetEditor
               brand={initialBrand}
