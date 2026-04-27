@@ -182,7 +182,7 @@ export function BrandClient({ initialBrand }: Props) {
           <label className="block">
             <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Company postal address</span>
             <textarea className={cn(inputCls, 'min-h-[60px]')} value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} placeholder="123 Some Street, City, Country"  />
-            <span className="block text-[10px] text-evari-dimmer mt-1">Required by CAN-SPAM / GDPR — appears at the bottom of every email automatically.</span>
+            <span className="block text-[10px] text-evari-dimmer mt-1">Required by CAN-SPAM and GDPR. Appears at the bottom of every email automatically.</span>
           </label>
           <label className="block">
             <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Reply-To email</span>
@@ -200,7 +200,7 @@ export function BrandClient({ initialBrand }: Props) {
             </a>
           </div>
           <p className="text-[10px] text-evari-dimmer">
-            Pulled from <code className="text-evari-text">dashboard_branding</code> — the same image you uploaded under
+            Pulled from <code className="text-evari-text">dashboard_branding</code>, the same image you uploaded under
             Settings → Branding. Email sends use these automatically.
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -256,20 +256,26 @@ export function BrandClient({ initialBrand }: Props) {
           </div>
         </section>
 
-        {/* Typography — full-width: selectors LEFT, custom font upload + list RIGHT */}
+        {/* Typography. Two-column layout: brand-font pickers (heading +
+            body) on the LEFT, custom-font upload + list on the RIGHT.
+            Each side is grouped into bordered subsections so the
+            structure reads as paired panels rather than a soup. */}
         <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-evari-text">Typography</h2>
-            <span className="text-[10px] text-evari-dimmer">Brand fonts available everywhere — pickers, designers, sender</span>
+            <span className="text-[10px] text-evari-dimmer">Brand fonts available everywhere: pickers, designers, sender.</span>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,40%)_minmax(0,1fr)] gap-3">
 
-            {/* LEFT — Heading + body pickers with live samples */}
-            <div className="space-y-4">
+            {/* LEFT column. Each picker is its own bordered block so the
+                label + dropdown + live sample read as one unit, and the
+                two units sit visually balanced against the upload card
+                on the right. */}
+            <div className="space-y-2">
               {(['heading', 'body'] as Array<'heading' | 'body'>).map((slot) => (
-                <label key={slot} className="block">
-                  <span className="block text-[10px] font-medium uppercase tracking-[0.1em] text-evari-dimmer mb-1.5 capitalize">{slot}</span>
+                <label key={slot} className="block rounded-md border border-evari-edge/20 bg-evari-ink/30 p-2.5">
+                  <span className="block text-[10px] font-medium uppercase tracking-[0.12em] text-evari-dimmer mb-1.5 capitalize">{slot}</span>
                   <select className={inputCls} value={fonts[slot]} onChange={(e) => setFont(slot, e.target.value)}>
                     {customFonts.length > 0 ? (
                       <optgroup label="Brand fonts (uploaded)">
@@ -281,19 +287,19 @@ export function BrandClient({ initialBrand }: Props) {
                     </optgroup>
                   </select>
                   <p
-                    className="mt-2.5 text-evari-text leading-snug"
+                    className="mt-2 text-evari-text leading-snug"
                     style={{ fontFamily: `'${fonts[slot]}', sans-serif`, fontSize: slot === 'heading' ? '22px' : '14px', fontWeight: slot === 'heading' ? 600 : 400 }}
                   >
                     {slot === 'heading' ? 'Sample heading' : 'The quick brown fox jumps over the lazy dog.'}
                   </p>
                 </label>
               ))}
-              <p className="text-[10px] text-evari-dimmer">
-                Web-safe fonts render natively in every email client. Google Fonts (Inter, Roboto, etc.) load via @import in the email head — most modern clients honour them, Outlook falls back to a sans-serif. Uploaded brand fonts are embedded by URL.
+              <p className="text-[10px] text-evari-dimmer leading-snug px-0.5">
+                Web-safe fonts render natively in every email client. Google Fonts (Inter, Roboto, etc.) load via @import in the email head. Most modern clients honour them; Outlook falls back to a sans-serif. Uploaded brand fonts are embedded by URL.
               </p>
             </div>
 
-            {/* RIGHT — drag/drop upload + uploaded fonts list */}
+            {/* RIGHT column. The drop-zone card owns its own layout. */}
             <div>
               <FontDropzone
                 initialFonts={customFonts}
@@ -310,7 +316,7 @@ export function BrandClient({ initialBrand }: Props) {
         <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-3 xl:col-span-2">
           <header className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-evari-text">Social media</h2>
-            <span className="text-[10px] text-evari-dimmer">Single source of truth — used by every email + thumbnail</span>
+            <span className="text-[10px] text-evari-dimmer">Single source of truth, used by every email and thumbnail</span>
           </header>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
             {([

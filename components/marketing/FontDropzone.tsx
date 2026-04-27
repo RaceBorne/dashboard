@@ -69,7 +69,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
       for (const file of Array.from(list)) {
         const ext = file.name.toLowerCase().split('.').pop() ?? '';
         if (!ACCEPTED.includes('.' + ext)) {
-          setError(`Skipped ${file.name} — only ${ACCEPTED.join(', ')} are accepted`);
+          setError(`Skipped ${file.name}. Only ${ACCEPTED.join(', ')} are accepted.`);
           continue;
         }
         const fd = new FormData();
@@ -96,7 +96,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
   }
 
   async function handleRemoveVariant(font: CustomFont) {
-    if (!confirm(`Remove "${font.name}" ${font.weight} ${font.style}? Existing emails referencing this exact variant will fall back to the next weight/style or the system font.`)) return;
+    if (!confirm(`Remove "${font.name}" ${font.weight} ${font.style}? Existing emails referencing this exact variant will fall back to the next weight or style, or the system font.`)) return;
     const url = `/api/marketing/brand/fonts/${encodeURIComponent(font.name)}?weight=${font.weight}&style=${font.style}`;
     const res = await fetch(url, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
@@ -133,100 +133,105 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
     }
   }
 
+  // Local input class so all the fields in this component match the
+  // global text-[11px] input rule and the 34px height.
+  const inputCls = 'w-full h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors';
+
   return (
-    <div className="space-y-2">
+    <div className="rounded-md border border-evari-edge/20 bg-evari-ink/30 p-2.5 space-y-2.5">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-evari-text uppercase tracking-[0.12em]">Custom fonts</h3>
         <span className="text-[10px] text-evari-dimmer tabular-nums">{fonts.length} uploaded</span>
       </div>
 
-      {/* 2-column layout: uploader on the LEFT (~40%), uploaded font list
-          stacked on the RIGHT (~60%) so we don't waste vertical real estate. */}
+      {/* Two-column layout: uploader on the LEFT (~40%), uploaded font
+          list stacked on the RIGHT (~60%). */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,40%)_minmax(0,1fr)] gap-3">
+
+        {/* Uploader */}
         <div className="space-y-2">
+          <div className="grid grid-cols-4 gap-1.5">
+            <label className="block col-span-2">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Family name <span className="text-evari-dimmer/70 normal-case tracking-normal">(optional)</span></span>
+              <input
+                type="text"
+                value={pendingName}
+                onChange={(e) => setPendingName(e.target.value)}
+                placeholder="auto-detect from filename"
+                className={inputCls}
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Weight</span>
+              <select
+                value={pendingWeight}
+                onChange={(e) => setPendingWeight(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">Auto</option>
+                {[100,200,300,400,500,600,700,800,900].map((w) => <option key={w} value={w}>{w}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Style</span>
+              <select
+                value={pendingStyle}
+                onChange={(e) => setPendingStyle(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">Auto</option>
+                <option value="normal">normal</option>
+                <option value="italic">italic</option>
+              </select>
+            </label>
+          </div>
 
-      {/* Per-upload metadata */}
-      <div className="grid grid-cols-3 gap-1">
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Family name (optional)</span>
-          <input
-            type="text"
-            value={pendingName}
-            onChange={(e) => setPendingName(e.target.value)}
-            placeholder="(auto-detect from filename)"
-            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[10px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
-          />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Weight</span>
-          <select
-            value={pendingWeight}
-            onChange={(e) => setPendingWeight(e.target.value)}
-            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[10px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
+          {/* Drop zone. Tightened: smaller icon + tighter padding so the
+              uploader docks neatly above the small error line below. */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              handleFiles(e.dataTransfer.files);
+            }}
+            onClick={() => fileRef.current?.click()}
+            className={cn(
+              'rounded-md border-2 border-dashed px-3 py-3 text-center cursor-pointer transition-colors duration-300 ease-in-out',
+              dragOver
+                ? 'border-evari-gold/60 bg-evari-gold/5'
+                : 'border-evari-edge/40 bg-evari-ink/40 hover:border-evari-edge/60 hover:bg-evari-ink/60',
+            )}
           >
-            <option value="">Auto (from filename)</option>
-            {[100,200,300,400,500,600,700,800,900].map((w) => <option key={w} value={w}>{w}</option>)}
-          </select>
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Style</span>
-          <select
-            value={pendingStyle}
-            onChange={(e) => setPendingStyle(e.target.value)}
-            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[10px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
-          >
-            <option value="">Auto (from filename)</option>
-            <option value="normal">normal</option>
-            <option value="italic">italic</option>
-          </select>
-        </label>
-      </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept={ACCEPTED.join(',')}
+              multiple
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files)}
+            />
+            <div className="flex flex-col items-center gap-1 text-evari-dim">
+              {uploading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-evari-gold" />
+              ) : (
+                <Upload className="h-5 w-5" />
+              )}
+              <p className="text-[12px] text-evari-text font-medium">
+                {uploading ? 'Uploading…' : 'Drop a font file or click to browse'}
+              </p>
+              <p className="text-[10px] text-evari-dimmer leading-snug">
+                .woff2 / .woff / .ttf / .otf, max 5 MB. Family, weight and style are auto-detected from the filename. Override above if needed.
+              </p>
+            </div>
+          </div>
 
-      {/* Drop zone */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          handleFiles(e.dataTransfer.files);
-        }}
-        onClick={() => fileRef.current?.click()}
-        className={cn(
-          'rounded-md border-2 border-dashed p-4 text-center cursor-pointer transition-colors duration-300 ease-in-out',
-          dragOver
-            ? 'border-evari-gold/60 bg-evari-gold/5'
-            : 'border-evari-edge/40 bg-evari-ink/40 hover:border-evari-edge/60 hover:bg-evari-ink/60',
-        )}
-      >
-        <input
-          ref={fileRef}
-          type="file"
-          accept={ACCEPTED.join(',')}
-          multiple
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
-        <div className="flex flex-col items-center gap-2 text-evari-dim">
-          {uploading ? (
-            <Loader2 className="h-6 w-6 animate-spin text-evari-gold" />
-          ) : (
-            <Upload className="h-6 w-6" />
-          )}
-          <p className="text-sm text-evari-text font-medium">
-            {uploading ? 'Uploading…' : 'Drop a font file here or click to browse'}
-          </p>
-          <p className="text-[11px] text-evari-dimmer">
-            .woff2 / .woff / .ttf / .otf · max 5 MB · family + weight + style auto-detected from filename — override above if needed
-          </p>
-        </div>
-      </div>
-
-      {error ? <p className="text-xs text-evari-danger">{error}</p> : null}
+          {error ? <p className="text-[11px] text-evari-danger">{error}</p> : null}
         </div>
 
-        {/* RIGHT column — family list, each row's preview line uses the
-            actual @font-face so heights/widths match what subscribers see. */}
+        {/* Family list. Each row uses the actual @font-face so heights
+            and widths match what subscribers see. */}
         <div className="min-h-0">
           <FontFamilyList
             fonts={fonts}
@@ -333,7 +338,7 @@ function FamilyRow({ name, variants, onRemoveVariant, onRemoveFamily, onRenameFa
                     setRenaming(false);
                   }
                 }}
-                className="flex-1 h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-gold/60 focus:outline-none"
+                className="flex-1 h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-gold/60 focus:outline-none"
               />
               <button
                 type="button"
@@ -358,26 +363,39 @@ function FamilyRow({ name, variants, onRemoveVariant, onRemoveFamily, onRenameFa
                 className="text-base text-evari-text truncate leading-tight"
                 style={{ fontFamily: `'${name}', sans-serif`, fontWeight: active.weight, fontStyle: active.style }}
               >
-                {name} — The quick brown fox jumps over the lazy dog
+                {name}: The quick brown fox jumps over the lazy dog
               </div>
               <button
                 type="button"
                 onClick={() => { setDraftName(name); setRenaming(true); }}
                 className="opacity-0 group-hover/family:opacity-100 p-0.5 text-evari-dim hover:text-evari-text transition-opacity"
-                title={`Rename "${name}" — merge variants by typing another family's name`}
+                title={`Rename "${name}". Merge variants by typing another family's name.`}
               >
                 <Pencil className="h-3 w-3" />
               </button>
             </div>
           )}
-          <div className="text-[10px] text-evari-dimmer font-mono tabular-nums truncate mt-0.5">
-            {variants.length} variant{variants.length === 1 ? '' : 's'} · {active.format} · {active.filename}
+          {/* Metadata + family-level Remove-all docked right. Single
+              fixed-height row for every family card whether 1 variant or 12. */}
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <div className="text-[10px] text-evari-dimmer font-mono tabular-nums truncate">
+              {variants.length} variant{variants.length === 1 ? '' : 's'} · {active.format} · {active.filename}
+            </div>
+            {variants.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => onRemoveFamily(name)}
+                className="text-[10px] text-evari-dimmer hover:text-evari-danger underline underline-offset-2 transition-colors shrink-0"
+              >
+                Remove all
+              </button>
+            ) : null}
           </div>
         </div>
         <select
           value={activeKey}
           onChange={(e) => setActiveKey(e.target.value)}
-          className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+          className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[11px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
           aria-label={`${name} variants`}
         >
           {variants.map((v) => (
@@ -395,17 +413,6 @@ function FamilyRow({ name, variants, onRemoveVariant, onRemoveFamily, onRenameFa
           <Trash2 className="h-3 w-3" />
         </button>
       </div>
-      {variants.length > 1 ? (
-        <div className="mt-1.5 flex items-center justify-end">
-          <button
-            type="button"
-            onClick={() => onRemoveFamily(name)}
-            className="text-[10px] text-evari-dimmer hover:text-evari-danger underline underline-offset-2 transition-colors"
-          >
-            Remove all variants
-          </button>
-        </div>
-      ) : null}
     </li>
   );
 }
