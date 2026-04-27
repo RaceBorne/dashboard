@@ -28,6 +28,7 @@ import {
   PlaySquare,
   Quote,
   Share2,
+  Smartphone,
   Sparkles,
   Square,
   SquareSplitHorizontal,
@@ -68,7 +69,7 @@ import {
   type TypographyPreset,
   type ButtonPreset,
 } from '@/lib/marketing/types';
-import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign, bgFillCss } from '@/lib/marketing/email-design';
+import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign, bgFillCss, effectiveBlock } from '@/lib/marketing/email-design';
 
 interface Props {
   initialBrand: MarketingBrand;
@@ -820,8 +821,8 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
   const blockIds = design.blocks.map((b) => b.id);
 
   const baseHtml = useMemo(
-    () => renderEmailDesign(design, initialBrand),
-    [design, initialBrand],
+    () => renderEmailDesign(design, initialBrand, { device: previewDevice }),
+    [design, initialBrand, previewDevice],
   );
   // Inject the selection-highlight CSS INTO the iframe's document so it
   // actually targets the rendered blocks. Doing this in the parent
@@ -1056,6 +1057,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                         key={b.id}
                         block={b}
                         brand={initialBrand}
+                        device={previewDevice}
                         selected={selectedId === b.id}
                         selectedId={selectedId}
                         editing={selectedId !== null}
@@ -1085,6 +1087,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                   block={sel}
                   brand={initialBrand}
                   designWidthPx={design.widthPx}
+                  device={previewDevice}
                   onChange={(patch) => updateBlock(sel.id, patch as Partial<EmailBlock>)}
                   onClose={() => setSelectedId(null)}
                 />
@@ -1208,7 +1211,20 @@ function BlockEditor({ block, selected, onSelect, onChange, onRemove, dragHandle
  * row when a block is selected. Renders to the right of the palette +
  * block list column so the thumbnails stay visible at the top.
  */
-function BlockPropertiesPanel({ block, brand, designWidthPx, onChange, onClose }: { block: EmailBlock; brand: MarketingBrand; designWidthPx: number; onChange: (patch: Partial<EmailBlock>) => void; onClose: () => void }) {
+function BlockPropertiesPanel({ block, brand, designWidthPx, device, onChange, onClose }: { block: EmailBlock; brand: MarketingBrand; designWidthPx: number; device: 'desktop' | 'mobile'; onChange: (patch: Partial<EmailBlock>) => void; onClose: () => void }) {
+  // Display the effective (merged) block so the field editors show the
+  // values that will actually render for the current device.
+  const view = effectiveBlock(block, device);
+  // Route writes — desktop writes to the root, mobile writes go into
+  // block.mobile so desktop values are preserved.
+  const routedOnChange = (patch: Partial<EmailBlock>) => {
+    if (device !== 'mobile') {
+      onChange(patch);
+      return;
+    }
+    const prevMobile = (block.mobile ?? {}) as Record<string, unknown>;
+    onChange({ mobile: { ...prevMobile, ...(patch as Record<string, unknown>) } } as Partial<EmailBlock>);
+  };
   const meta = ADD_BUTTONS.find((b) => b.type === block.type) ?? (block.type === 'heading' ? HEADING_TILE : null);
   const Icon = meta?.Icon ?? PenLine;
   const label = meta?.label ?? block.type;
@@ -1222,27 +1238,56 @@ function BlockPropertiesPanel({ block, brand, designWidthPx, onChange, onClose }
         </button>
       </header>
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2">
-        {block.type === 'heading'   ? <HeadingFields   block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
-        {block.type === 'text'      ? <TextFields      block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
-        {block.type === 'image'     ? <ImageFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'image' }>>) => void} /> : null}
-        {block.type === 'button'    ? <ButtonFields    block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void} /> : null}
-        {block.type === 'divider'   ? <DividerFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'divider' }>>) => void} /> : null}
-        {block.type === 'spacer'    ? <SpacerFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void} /> : null}
-        {block.type === 'html'      ? <HtmlFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void} /> : null}
-        {block.type === 'split'     ? <SplitFields     block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
-        {block.type === 'headerBar' ? <HeaderBarFields block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
-        {block.type === 'brandLogo' ? <BrandLogoFields block={block} brand={brand} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'brandLogo' }>>) => void} /> : null}
-        {block.type === 'card'      ? <CardFields      block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void} /> : null}
-        {block.type === 'social'    ? <SocialFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'social' }>>) => void} /> : null}
-        {block.type === 'coupon'    ? <CouponFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'coupon' }>>) => void} /> : null}
-        {block.type === 'table'     ? <TableFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'table' }>>) => void} /> : null}
-        {block.type === 'review'    ? <ReviewFields    block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'review' }>>) => void} /> : null}
-        {block.type === 'video'     ? <VideoFields     block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'video' }>>) => void} /> : null}
-        {block.type === 'product'   ? <ProductFields   block={block} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'product' }>>) => void} /> : null}
-        {block.type === 'section'   ? <SectionFields   block={block} brand={brand} designWidthPx={designWidthPx} onChange={onChange as (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void} /> : null}
-        <PaddingFields block={block} onChange={onChange as (p: PaddingPatch) => void} />
+        {device === 'mobile' ? <DeviceOverrideBanner blockHasMobile={!!block.mobile} onClear={() => onChange({ mobile: undefined } as unknown as Partial<EmailBlock>)} /> : null}
+        {view.type === 'heading'   ? <HeadingFields   block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
+        {view.type === 'text'      ? <TextFields      block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
+        {view.type === 'image'     ? <ImageFields     block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'image' }>>) => void} /> : null}
+        {view.type === 'button'    ? <ButtonFields    block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'button' }>>) => void} /> : null}
+        {view.type === 'divider'   ? <DividerFields   block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'divider' }>>) => void} /> : null}
+        {view.type === 'spacer'    ? <SpacerFields    block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void} /> : null}
+        {view.type === 'html'      ? <HtmlFields      block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void} /> : null}
+        {view.type === 'split'     ? <SplitFields     block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void} /> : null}
+        {view.type === 'headerBar' ? <HeaderBarFields block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'headerBar' }>>) => void} /> : null}
+        {view.type === 'brandLogo' ? <BrandLogoFields block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'brandLogo' }>>) => void} /> : null}
+        {view.type === 'card'      ? <CardFields      block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'card' }>>) => void} /> : null}
+        {view.type === 'social'    ? <SocialFields    block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'social' }>>) => void} /> : null}
+        {view.type === 'coupon'    ? <CouponFields    block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'coupon' }>>) => void} /> : null}
+        {view.type === 'table'     ? <TableFields     block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'table' }>>) => void} /> : null}
+        {view.type === 'review'    ? <ReviewFields    block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'review' }>>) => void} /> : null}
+        {view.type === 'video'     ? <VideoFields     block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'video' }>>) => void} /> : null}
+        {view.type === 'product'   ? <ProductFields   block={view} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'product' }>>) => void} /> : null}
+        {view.type === 'section'   ? <SectionFields   block={view} brand={brand} designWidthPx={designWidthPx} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'section' }>>) => void} /> : null}
+        <PaddingFields block={view} onChange={routedOnChange as (p: PaddingPatch) => void} />
       </div>
     </aside>
+  );
+}
+
+
+/**
+ * When the user is editing a block in mobile preview, surface a banner
+ * indicating any change here only affects mobile and offering a single
+ * click to wipe all mobile overrides for that block (revert to desktop).
+ */
+function DeviceOverrideBanner({ blockHasMobile, onClear }: { blockHasMobile: boolean; onClear: () => void }) {
+  return (
+    <div className="rounded-md border border-evari-gold/40 bg-evari-gold/10 px-2.5 py-2 flex items-start gap-2 text-[11px] text-evari-gold">
+      <Smartphone className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+      <div className="flex-1 leading-snug">
+        <span className="font-semibold">Editing mobile only.</span>
+        <span className="text-evari-gold/80"> Changes here override the desktop version on small screens.</span>
+      </div>
+      {blockHasMobile ? (
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-evari-gold/80 hover:text-evari-gold underline text-[10px]"
+          title="Remove all mobile overrides for this block"
+        >
+          Reset
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -2176,9 +2221,10 @@ function CanvasEndDrop() {
  * as nested CanvasBlocks inside their own SortableContext. Every
  * block is its own React node so click + drag work natively.
  */
-function CanvasBlock({ block, brand, selected, selectedId, editing, onSelect, onRemove, onSelectChild, onRemoveChild }: {
+function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSelect, onRemove, onSelectChild, onRemoveChild }: {
   block: EmailBlock;
   brand: MarketingBrand;
+  device: 'desktop' | 'mobile';
   selected: boolean;
   selectedId: string | null;
   editing: boolean;
@@ -2187,6 +2233,9 @@ function CanvasBlock({ block, brand, selected, selectedId, editing, onSelect, on
   onSelectChild: (id: string) => void;
   onRemoveChild: (id: string) => void;
 }) {
+  // Render with the device-effective block so mobile overrides take
+  // effect in the canvas.
+  const eff = effectiveBlock(block, device);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -2196,7 +2245,7 @@ function CanvasBlock({ block, brand, selected, selectedId, editing, onSelect, on
 
   // Sections render as a real DOM wrapper so children can layer on top.
   // Everything else uses the renderer's email-safe HTML directly.
-  const isSection = block.type === 'section';
+  const isSection = eff.type === 'section';
   return (
     <div ref={setNodeRef} style={style} className="relative group">
       <CanvasInsertionZone overId={block.id} />
@@ -2209,21 +2258,22 @@ function CanvasBlock({ block, brand, selected, selectedId, editing, onSelect, on
       >
         {isSection ? (
           <SectionCanvasWrapper
-            block={block as Extract<EmailBlock, { type: 'section' }>}
+            block={eff as Extract<EmailBlock, { type: 'section' }>}
             brand={brand}
+            device={device}
             selectedId={selectedId}
             editing={editing}
             onSelectChild={onSelectChild}
             onRemoveChild={onRemoveChild}
           />
         ) : (
-          <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: renderEmailBlockHtml(block, brand) }} />
+          <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: renderEmailBlockHtml(eff, brand, device) }} />
         )}
         <div className={cn(
           'absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink/95 border border-evari-edge/40 shadow-lg backdrop-blur-sm transition-opacity',
           selected ? 'opacity-100' : editing ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 pointer-events-none',
         )}>
-          {block.type === 'section' && (block as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top' ? (
+          {eff.type === 'section' && (eff as Extract<EmailBlock, { type: 'section' }>).pinTo === 'top' ? (
             <span className="p-1.5 text-evari-gold" title="Pinned to top — can't be reordered" aria-label="Pinned to top">
               <Pin className="h-3.5 w-3.5" />
             </span>
@@ -2241,9 +2291,10 @@ function CanvasBlock({ block, brand, selected, selectedId, editing, onSelect, on
   );
 }
 
-function SectionCanvasWrapper({ block, brand, selectedId, editing, onSelectChild, onRemoveChild }: {
+function SectionCanvasWrapper({ block, brand, device, selectedId, editing, onSelectChild, onRemoveChild }: {
   block: Extract<EmailBlock, { type: 'section' }>;
   brand: MarketingBrand;
+  device: 'desktop' | 'mobile';
   selectedId: string | null;
   editing: boolean;
   onSelectChild: (id: string) => void;
@@ -2279,6 +2330,7 @@ function SectionCanvasWrapper({ block, brand, selectedId, editing, onSelectChild
                 key={c.id}
                 block={c}
                 brand={brand}
+                device={device}
                 selected={selectedId === c.id}
                 selectedId={selectedId}
                 editing={editing}

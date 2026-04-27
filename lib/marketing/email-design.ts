@@ -17,6 +17,28 @@ function escape(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+
+/**
+ * Resolve a block for the given device. Mobile mode shallow-merges any
+ * `block.mobile` partial onto the base block — and recurses into a
+ * section's children so nested blocks pick up their own overrides too.
+ */
+export function effectiveBlock<B extends EmailBlock>(b: B, device: 'desktop' | 'mobile'): B {
+  if (device !== 'mobile' || !b.mobile) {
+    if (b.type === 'section') {
+      const sec = b as Extract<EmailBlock, { type: 'section' }>;
+      return { ...sec, blocks: (sec.blocks ?? []).map((c) => effectiveBlock(c, device)) } as unknown as B;
+    }
+    return b;
+  }
+  const merged = { ...b, ...(b.mobile as Partial<B>) } as B;
+  if (merged.type === 'section') {
+    const sec = merged as Extract<EmailBlock, { type: 'section' }>;
+    return { ...sec, blocks: (sec.blocks ?? []).map((c) => effectiveBlock(c, device)) } as unknown as B;
+  }
+  return merged;
+}
+
 function alignStyle(a: EmailAlignment): string { return `text-align:${a};`; }
 
 // Encode lone ampersands (same defensive pattern as footer + signature renderers).
@@ -235,8 +257,8 @@ export function bgFillCss(mode: string | undefined): { size: string; repeat: str
   }
 }
 
-function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: MarketingBrand): string {
-  const children = (b.blocks ?? []).map((c) => renderBlock(c, brand)).filter(Boolean).join('');
+function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: MarketingBrand, device: 'desktop' | 'mobile' = 'desktop'): string {
+  const children = (b.blocks ?? []).map((c) => renderBlock(c, brand, device)).filter(Boolean).join('');
   // Legacy fallback: pre-container sections stored their content as html.
   const inner = children || (b.html ? safeHtml(b.html) : '');
   // Vertical alignment — uses flex when set so 'middle' / 'bottom' actually
@@ -261,7 +283,7 @@ function renderSection(b: Extract<EmailBlock, { type: 'section' }>, brand: Marke
   return `<div style="${styles}">${inner}</div>`;
 }
 
-function renderInner(b: EmailBlock, brand: MarketingBrand): string {
+function renderInner(b: EmailBlock, brand: MarketingBrand, device: 'desktop' | 'mobile' = 'desktop'): string {
   switch (b.type) {
     case 'heading':   return renderHeading(b, brand);
     case 'text':      return renderText(b, brand);
@@ -280,7 +302,7 @@ function renderInner(b: EmailBlock, brand: MarketingBrand): string {
     case 'review':    return renderReview(b);
     case 'video':     return renderVideo(b);
     case 'product':   return renderProduct(b, brand);
-    case 'section':   return renderSection(b, brand);
+    case 'section':   return renderSection(b, brand, device);
     default:          return '';
   }
 }
@@ -289,15 +311,16 @@ function renderInner(b: EmailBlock, brand: MarketingBrand): string {
  * lets the in-app preview highlight selected blocks via
  * [data-block-id="..."] CSS, and lets every block push itself away
  * from its neighbours without dedicated spacer blocks. */
-function renderBlock(b: EmailBlock, brand: MarketingBrand): string {
-  const inner = renderInner(b, brand);
+function renderBlock(b: EmailBlock, brand: MarketingBrand, device: 'desktop' | 'mobile' = 'desktop'): string {
+  const eff = effectiveBlock(b, device);
+  const inner = renderInner(eff, brand, device);
   if (!inner) return '';
-  const top = b.paddingTopPx ?? 0;
-  const bot = b.paddingBottomPx ?? 0;
-  const left = b.paddingLeftPx ?? 0;
-  const right = b.paddingRightPx ?? 0;
+  const top = eff.paddingTopPx ?? 0;
+  const bot = eff.paddingBottomPx ?? 0;
+  const left = eff.paddingLeftPx ?? 0;
+  const right = eff.paddingRightPx ?? 0;
   const padStyle = top || bot || left || right ? `padding:${top}px ${right}px ${bot}px ${left}px;` : '';
-  return `<div data-block-id="${b.id}" style="display:block;${padStyle}">${inner}</div>`;
+  return `<div data-block-id="${eff.id}" style="display:block;${padStyle}">${inner}</div>`;
 }
 
 /**
@@ -305,8 +328,8 @@ function renderBlock(b: EmailBlock, brand: MarketingBrand): string {
  * interactive canvas (each block becomes its own React node + we drop
  * its rendered HTML inside via dangerouslySetInnerHTML).
  */
-export function renderEmailBlockHtml(block: EmailBlock, brand: MarketingBrand): string {
-  return renderBlock(block, brand);
+export function renderEmailBlockHtml(block: EmailBlock, brand: MarketingBrand, device: 'desktop' | 'mobile' = 'desktop'): string {
+  return renderBlock(block, brand, device);
 }
 
 export function normaliseEmailDesign(d: unknown): EmailDesign | null {
@@ -360,8 +383,9 @@ export function brandStyleBlock(brand: MarketingBrand): string {
     `</style>`;
 }
 
-export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand, opts?: { includeFooter?: boolean; unsubscribeUrl?: string }): string {
-  const inner = design.blocks.map((b) => renderBlock(b, brand)).filter(Boolean).join('\n');
+export function renderEmailDesign(design: EmailDesign, brand: MarketingBrand, opts?: { includeFooter?: boolean; unsubscribeUrl?: string; device?: 'desktop' | 'mobile' }): string {
+  const device = opts?.device ?? 'desktop';
+  const inner = design.blocks.map((b) => renderBlock(b, brand, device)).filter(Boolean).join('\n');
   const styles = brandStyleBlock(brand);
   // The brand footer is auto-appended at send time. To match what the user
   // is going to ship, always include a non-editable footer block in

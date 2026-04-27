@@ -576,6 +576,11 @@ type EmailBlockBase = {
   paddingBottomPx?: number;
   paddingLeftPx?: number;
   paddingRightPx?: number;
+  /** Mobile-only overrides — when rendering / editing for mobile the
+   *  fields here shallow-merge over the base block. Lets users tweak
+   *  the mobile rendering (smaller heading, tighter padding, etc.)
+   *  without affecting desktop. */
+  mobile?: Record<string, unknown>;
 };
 
 export type EmailBlock =
