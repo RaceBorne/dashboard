@@ -76,10 +76,11 @@ import {
   type MarketingBrand,
   SplitCell,
   SplitCells,
+  SplitItem,
   type TypographyPreset,
   type ButtonPreset,
 } from '@/lib/marketing/types';
-import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign, bgFillCss, effectiveBlock , getSplitCells } from '@/lib/marketing/email-design';
+import { renderEmailDesign, renderEmailBlockHtml, normaliseEmailDesign, bgFillCss, effectiveBlock , getSplitCells, getSplitCellItems } from '@/lib/marketing/email-design';
 
 interface Props {
   initialBrand: MarketingBrand;
@@ -3112,18 +3113,11 @@ function HtmlFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'h
 }
 
 function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'split' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void }) {
-  // The editor always works against the cells shape. getSplitCells
-  // migrates legacy blocks (saved before Phase 1) on the fly.
-  void brand;
   const cells: SplitCells = getSplitCells(block);
 
-  function setLeft(patch: Partial<SplitCell>) {
-    const left = { ...cells.left, ...patch };
-    onChange({ cells: { ...cells, left: enforceCellKind(left) } });
-  }
-  function setRight(patch: Partial<SplitCell>) {
-    const right = { ...cells.right, ...patch };
-    onChange({ cells: { ...cells, right: enforceCellKind(right) } });
+  function setItems(side: 'left' | 'right', items: SplitItem[]) {
+    const updated: SplitCell = { ...cells[side], items };
+    onChange({ cells: { ...cells, [side]: updated } });
   }
   function swap() {
     onChange({ cells: { left: cells.right, right: cells.left } });
@@ -3143,66 +3137,216 @@ function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { 
           Swap
         </button>
       </div>
-      <SplitCellEditor label="Left"  cell={cells.left}  onChange={setLeft} />
-      <SplitCellEditor label="Right" cell={cells.right} onChange={setRight} />
+      <SplitCellEditor side="left"  cell={cells.left}  brand={brand} onItemsChange={(items) => setItems('left',  items)} />
+      <SplitCellEditor side="right" cell={cells.right} brand={brand} onItemsChange={(items) => setItems('right', items)} />
     </div>
   );
 }
 
-/**
- * Make sure a freshly toggled cell has the fields its kind needs.
- * Without this a user clicking the Image toggle on a text cell would
- * inherit no src field and the renderer would render an empty cell.
- */
-function enforceCellKind(c: SplitCell): SplitCell {
-  if (c.kind === 'image') {
-    return {
-      kind: 'image',
-      src: c.src ?? '',
-      alt: c.alt ?? '',
-    };
+function nidSplitItem(): string { return Math.random().toString(36).slice(2, 10); }
+
+function makeSplitItem(kind: SplitItem['kind']): SplitItem {
+  if (kind === 'image') {
+    return { id: nidSplitItem(), kind: 'image', src: '', alt: '' };
   }
-  return {
-    kind: 'text',
-    html: c.html ?? 'Side-by-side text.',
-    fontSizePx: c.fontSizePx ?? 16,
-    lineHeight: c.lineHeight ?? 1.55,
-    color: c.color ?? '#333333',
-    buttonLabel: c.buttonLabel,
-    buttonUrl: c.buttonUrl,
-  };
+  if (kind === 'text') {
+    return { id: nidSplitItem(), kind: 'text', html: 'Side-by-side text.', fontSizePx: 16, lineHeight: 1.55, color: '#333333' };
+  }
+  return { id: nidSplitItem(), kind: 'button', label: 'Click me', url: '', backgroundColor: '#1a1a1a', textColor: '#ffffff', fontSizePx: 13, paddingXPx: 18, paddingYPx: 10, borderRadiusPx: 4 };
 }
 
 /**
- * Per-cell editor: kind toggle (image / text) + fields for the chosen
- * kind. Image kind opens the shared AssetPickerModal so users grab from
- * the asset library rather than typing URLs.
+ * Per-cell editor for the Phase 2 split block. Each cell carries a
+ * stack of items (image, text, button) that the user can reorder via
+ * drag, expand to edit inline, duplicate, or remove. Add buttons at
+ * the bottom append a new item of the chosen kind.
  */
-function SplitCellEditor({ label, cell, onChange }: { label: string; cell: SplitCell; onChange: (p: Partial<SplitCell>) => void }) {
-  const [pickerOpen, setPickerOpen] = useState(false);
+function SplitCellEditor({ side, cell, brand, onItemsChange }: { side: 'left' | 'right'; cell: SplitCell; brand: MarketingBrand; onItemsChange: (items: SplitItem[]) => void }) {
+  void brand;
+  const items: SplitItem[] = useMemo(() => getSplitCellItems(cell), [cell]);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const ids = items.map((i) => i.id);
+
+  function patchItem(id: string, patch: Partial<SplitItem>) {
+    const next: SplitItem[] = items.map((i) => (i.id === id ? ({ ...i, ...patch } as SplitItem) : i));
+    onItemsChange(next);
+  }
+  function removeItem(id: string) {
+    onItemsChange(items.filter((i) => i.id !== id));
+    if (openId === id) setOpenId(null);
+  }
+  function duplicateItem(id: string) {
+    const idx = items.findIndex((i) => i.id === id);
+    if (idx < 0) return;
+    const copy = { ...items[idx], id: nidSplitItem() } as SplitItem;
+    const next = [...items];
+    next.splice(idx + 1, 0, copy);
+    onItemsChange(next);
+    setOpenId(copy.id);
+  }
+  function addItem(kind: SplitItem['kind']) {
+    const it = makeSplitItem(kind);
+    onItemsChange([...items, it]);
+    setOpenId(it.id);
+  }
+  function move(activeId: string, overId: string) {
+    const from = items.findIndex((i) => i.id === activeId);
+    const to   = items.findIndex((i) => i.id === overId);
+    if (from < 0 || to < 0 || from === to) return;
+    onItemsChange(arrayMove(items, from, to));
+  }
+
   return (
     <div className="rounded-md border border-evari-edge/20 bg-evari-ink/30 p-2.5 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{label} cell</span>
-        <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5">
-          {(['image', 'text'] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => onChange({ kind: k })}
-              className={cn(
-                'px-2 py-0.5 rounded text-[11px] font-medium capitalize transition-colors',
-                cell.kind === k ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text',
-              )}
-            >{k}</button>
-          ))}
+        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{side === 'left' ? 'Left cell' : 'Right cell'}</span>
+        <span className="text-[10px] text-evari-dimmer">{items.length} item{items.length === 1 ? '' : 's'}</span>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-md border border-dashed border-evari-edge/30 px-3 py-6 text-center text-[11px] text-evari-dimmer">
+          Empty cell. Add an image, text or button below.
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={(ev) => { if (ev.over && ev.active.id !== ev.over.id) move(String(ev.active.id), String(ev.over.id)); }}
+        >
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            <ul className="space-y-1.5">
+              {items.map((it) => (
+                <SortableSplitItem
+                  key={it.id}
+                  item={it}
+                  open={openId === it.id}
+                  onToggle={() => setOpenId(openId === it.id ? null : it.id)}
+                  onChange={(patch) => patchItem(it.id, patch)}
+                  onDuplicate={() => duplicateItem(it.id)}
+                  onRemove={() => removeItem(it.id)}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      )}
+
+      <div className="flex items-center gap-1 pt-1 border-t border-evari-edge/10">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mr-1">Add</span>
+        <button type="button" onClick={() => addItem('image')}  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-evari-dim hover:text-evari-text bg-evari-ink hover:bg-black/40 transition-colors">
+          <ImageIcon className="h-3 w-3" /> Image
+        </button>
+        <button type="button" onClick={() => addItem('text')}   className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-evari-dim hover:text-evari-text bg-evari-ink hover:bg-black/40 transition-colors">
+          <Type className="h-3 w-3" /> Text
+        </button>
+        <button type="button" onClick={() => addItem('button')} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-evari-dim hover:text-evari-text bg-evari-ink hover:bg-black/40 transition-colors">
+          <MousePointerClick className="h-3 w-3" /> Button
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface SortableSplitItemProps {
+  item: SplitItem;
+  open: boolean;
+  onToggle: () => void;
+  onChange: (patch: Partial<SplitItem>) => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+}
+
+function SortableSplitItem({ item, open, onToggle, onChange, onDuplicate, onRemove }: SortableSplitItemProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.7 : 1 };
+  const meta = item.kind === 'image' ? { Icon: ImageIcon, label: 'Image' } : item.kind === 'text' ? { Icon: Type, label: 'Text' } : { Icon: MousePointerClick, label: 'Button' };
+  const Icon = meta.Icon;
+  const summary = splitItemSummary(item);
+  return (
+    <li ref={setNodeRef} style={style}>
+      <div className={cn(
+        'rounded-md border bg-evari-ink/40 transition-colors',
+        isDragging ? 'border-evari-gold/60' : open ? 'border-evari-gold/70 bg-evari-ink/70' : 'border-evari-edge/30',
+      )}>
+        <header onClick={onToggle} className="flex items-center gap-2 px-2 py-1.5 cursor-pointer select-none">
+          <button type="button" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="p-1 text-evari-dim hover:text-evari-text cursor-grab active:cursor-grabbing" aria-label="Drag">
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <Icon className="h-3.5 w-3.5 text-evari-dim shrink-0" />
+          <span className="text-[12px] text-evari-text truncate">{meta.label}</span>
+          {summary ? <span className="text-[10px] text-evari-dimmer truncate ml-2">{summary}</span> : null}
+          <span className="ml-auto text-evari-dim">
+            {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </span>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="text-evari-dim hover:text-evari-text px-1" aria-label="Duplicate" title="Duplicate">
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-evari-dim hover:text-evari-danger px-1" aria-label="Remove" title="Delete">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </header>
+        {open ? (
+          <div className="border-t border-evari-edge/20 px-2.5 py-2 space-y-2">
+            {item.kind === 'image'  ? <SplitItemImageFields  item={item} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'image'  }>>) => void} /> : null}
+            {item.kind === 'text'   ? <SplitItemTextFields   item={item} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'text'   }>>) => void} /> : null}
+            {item.kind === 'button' ? <SplitItemButtonFields item={item} onChange={onChange as (p: Partial<Extract<SplitItem, { kind: 'button' }>>) => void} /> : null}
+          </div>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function splitItemSummary(it: SplitItem): string {
+  if (it.kind === 'image') return it.src ? (it.widthPct ? `${it.widthPct}%` : 'fit') : 'no image';
+  if (it.kind === 'text')  return `${it.fontSizePx}px`;
+  return it.label || 'unlabelled';
+}
+
+function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { kind: 'image' }>; onChange: (p: Partial<Extract<SplitItem, { kind: 'image' }>>) => void }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const w = item.widthPct ?? 100;
+  return (
+    <div className="space-y-2">
+      <div className="rounded-md overflow-hidden border border-evari-edge/30 bg-evari-ink">
+        <div className="aspect-[5/3] flex items-center justify-center bg-zinc-100">
+          {item.src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.src} alt={item.alt} className="max-h-full max-w-full object-contain" />
+          ) : (
+            <span className="text-[10px] text-evari-dim">No image picked</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 px-2 py-1.5">
+          <button type="button" onClick={() => setPickerOpen(true)} className="text-[11px] text-evari-gold hover:underline">
+            {item.src ? 'Replace from library' : 'Choose from library'}
+          </button>
+          {item.src ? (
+            <button type="button" onClick={() => onChange({ src: '', alt: '' })} className="text-[11px] text-evari-dim hover:text-evari-text ml-auto">
+              Clear
+            </button>
+          ) : null}
         </div>
       </div>
-      {cell.kind === 'image' ? (
-        <SplitImageCellFields cell={cell} onChange={onChange} onOpenPicker={() => setPickerOpen(true)} />
-      ) : (
-        <SplitTextCellFields cell={cell} onChange={onChange} />
-      )}
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
+        <input type="text" value={item.alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
+      </label>
+      <label className="block">
+        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span>Width</span>
+          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{w}%</span>
+        </span>
+        <div className="px-2.5">
+          <input type="range" min={20} max={100} value={w} onChange={(e) => onChange({ widthPct: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+        </div>
+      </label>
+      <details>
+        <summary className="text-[10px] text-evari-dim hover:text-evari-text cursor-pointer">Or paste a URL</summary>
+        <input type="url" value={item.src} onChange={(e) => onChange({ src: e.target.value })} className={cn(inputCls, 'font-mono mt-1')} placeholder="https://..." />
+      </details>
       {pickerOpen ? (
         <AssetPickerModal
           onClose={() => setPickerOpen(false)}
@@ -3213,83 +3357,72 @@ function SplitCellEditor({ label, cell, onChange }: { label: string; cell: Split
   );
 }
 
-function SplitImageCellFields({ cell, onChange, onOpenPicker }: { cell: SplitCell; onChange: (p: Partial<SplitCell>) => void; onOpenPicker: () => void }) {
-  const src = cell.src ?? '';
-  const alt = cell.alt ?? '';
-  return (
-    <div className="space-y-2">
-      <div className="rounded-md overflow-hidden border border-evari-edge/30 bg-evari-ink">
-        <div className="aspect-[5/3] flex items-center justify-center bg-zinc-100">
-          {src ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={src} alt={alt} className="max-h-full max-w-full object-contain" />
-          ) : (
-            <span className="text-[10px] text-evari-dim">No image picked</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <button type="button" onClick={onOpenPicker} className="text-[11px] text-evari-gold hover:underline">
-            {src ? 'Replace from library' : 'Choose from library'}
-          </button>
-          {src ? (
-            <button type="button" onClick={() => onChange({ src: '', alt: '' })} className="text-[11px] text-evari-dim hover:text-evari-text ml-auto">
-              Clear
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
-        <input type="text" value={alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
-      </label>
-      <details>
-        <summary className="text-[10px] text-evari-dim hover:text-evari-text cursor-pointer">Or paste a URL</summary>
-        <input type="url" value={src} onChange={(e) => onChange({ src: e.target.value })} className={cn(inputCls, 'font-mono mt-1')} placeholder="https://..." />
-      </details>
-    </div>
-  );
-}
-
-function SplitTextCellFields({ cell, onChange }: { cell: SplitCell; onChange: (p: Partial<SplitCell>) => void }) {
-  const html = cell.html ?? '';
-  const fontSizePx = cell.fontSizePx ?? 16;
-  const lineHeight = cell.lineHeight ?? 1.55;
-  const color = cell.color ?? '#333333';
-  const buttonLabel = cell.buttonLabel ?? '';
-  const buttonUrl = cell.buttonUrl ?? '';
+function SplitItemTextFields({ item, onChange }: { item: Extract<SplitItem, { kind: 'text' }>; onChange: (p: Partial<Extract<SplitItem, { kind: 'text' }>>) => void }) {
   return (
     <div className="space-y-2">
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text (HTML allowed)</span>
-        <textarea value={html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[80px] font-mono')} />
+        <textarea value={item.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[80px] font-mono')} />
       </label>
       <div className="grid grid-cols-3 gap-2">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Size (px)</span>
-          <input type="number" min={8} max={64} value={fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(8, Math.min(64, Number(e.target.value) || 16)) })} className={cn(inputCls, 'font-mono')} />
+          <input type="number" min={8} max={64} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(8, Math.min(64, Number(e.target.value) || 16)) })} className={cn(inputCls, 'font-mono')} />
         </label>
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Line height</span>
-          <input type="number" step={0.05} min={1} max={3} value={lineHeight} onChange={(e) => onChange({ lineHeight: Math.max(1, Math.min(3, Number(e.target.value) || 1.55)) })} className={cn(inputCls, 'font-mono')} />
+          <input type="number" step={0.05} min={1} max={3} value={item.lineHeight} onChange={(e) => onChange({ lineHeight: Math.max(1, Math.min(3, Number(e.target.value) || 1.55)) })} className={cn(inputCls, 'font-mono')} />
         </label>
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Colour</span>
-          <input type="color" value={color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
+          <input type="color" value={item.color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
         </label>
       </div>
-      <fieldset className="pt-1 border-t border-evari-edge/10">
-        <legend className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Optional CTA button</legend>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Label</span>
-            <input type="text" value={buttonLabel} onChange={(e) => onChange({ buttonLabel: e.target.value })} className={inputCls} placeholder="e.g. Shop now" />
-          </label>
-          <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">URL</span>
-            <input type="url" value={buttonUrl} onChange={(e) => onChange({ buttonUrl: e.target.value })} className={cn(inputCls, 'font-mono')} placeholder="https://..." />
-          </label>
-        </div>
-      </fieldset>
+    </div>
+  );
+}
+
+function SplitItemButtonFields({ item, onChange }: { item: Extract<SplitItem, { kind: 'button' }>; onChange: (p: Partial<Extract<SplitItem, { kind: 'button' }>>) => void }) {
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Label</span>
+          <input type="text" value={item.label} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} placeholder="e.g. Shop now" />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">URL</span>
+          <input type="url" value={item.url} onChange={(e) => onChange({ url: e.target.value })} className={cn(inputCls, 'font-mono')} placeholder="https://..." />
+        </label>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Bg</span>
+          <input type="color" value={item.backgroundColor} onChange={(e) => onChange({ backgroundColor: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text</span>
+          <input type="color" value={item.textColor} onChange={(e) => onChange({ textColor: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Size (px)</span>
+          <input type="number" min={9} max={32} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(9, Math.min(32, Number(e.target.value) || 13)) })} className={cn(inputCls, 'font-mono')} />
+        </label>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Pad X (px)</span>
+          <input type="number" min={0} max={64} value={item.paddingXPx} onChange={(e) => onChange({ paddingXPx: Math.max(0, Math.min(64, Number(e.target.value) || 18)) })} className={cn(inputCls, 'font-mono')} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Pad Y (px)</span>
+          <input type="number" min={0} max={64} value={item.paddingYPx} onChange={(e) => onChange({ paddingYPx: Math.max(0, Math.min(64, Number(e.target.value) || 10)) })} className={cn(inputCls, 'font-mono')} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Radius (px)</span>
+          <input type="number" min={0} max={32} value={item.borderRadiusPx} onChange={(e) => onChange({ borderRadiusPx: Math.max(0, Math.min(32, Number(e.target.value) || 4)) })} className={cn(inputCls, 'font-mono')} />
+        </label>
+      </div>
     </div>
   );
 }

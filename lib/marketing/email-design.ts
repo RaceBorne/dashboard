@@ -7,7 +7,7 @@
  * subscribers receive.
  */
 
-import type { EmailAlignment, EmailBlock, EmailDesign, MarketingBrand, SplitCell, SplitCells } from './types';
+import type { EmailAlignment, EmailBlock, EmailDesign, MarketingBrand, SplitCell, SplitCells, SplitItem } from './types';
 
 function escape(s: string): string {
   return s
@@ -187,20 +187,67 @@ export function getSplitCells(b: Extract<EmailBlock, { type: 'split' }>): SplitC
     : { left: imageCell, right: textCell };
 }
 
-function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
+function nidSplit(): string { return Math.random().toString(36).slice(2, 10); }
+
+/**
+ * Resolve a split cell into its ordered list of stacked items. Cells
+ * saved in Phase 2+ already carry the items array; cells saved in
+ * Phase 1 (or directly migrated from the legacy block-level fields)
+ * carry kind+fields and get translated here on every render.
+ */
+export function getSplitCellItems(c: SplitCell): SplitItem[] {
+  if (c.items && c.items.length > 0) return c.items;
+  const out: SplitItem[] = [];
   if (c.kind === 'image') {
-    if (!c.src) return '';
-    return `<img src="${escape(c.src)}" alt="${escape(c.alt ?? '')}" style="display:block;width:100%;max-width:280px;height:auto;border:0;" />`;
+    if (c.src) out.push({ id: nidSplit(), kind: 'image', src: c.src, alt: c.alt ?? '' });
+    return out;
   }
-  // text cell
-  const html = c.html ?? '';
-  const size = c.fontSizePx ?? 16;
-  const lh = c.lineHeight ?? 1.55;
-  const colour = c.color ?? '#333333';
-  const button = c.buttonLabel && c.buttonUrl
-    ? `<div style="margin-top:12px;"><a href="${escape(c.buttonUrl)}" style="display:inline-block;background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:4px;font:bold 13px Arial,sans-serif;text-decoration:none;">${escape(c.buttonLabel)}</a></div>`
-    : '';
-  return `<div style="font:${size}px/${lh} ${fontFor(brand, '')}Arial,sans-serif;color:${colour};">${safeHtml(html)}${button}</div>`;
+  if (c.html !== undefined || c.kind === 'text') {
+    out.push({
+      id: nidSplit(),
+      kind: 'text',
+      html: c.html ?? '',
+      fontSizePx: c.fontSizePx ?? 16,
+      lineHeight: c.lineHeight ?? 1.55,
+      color: c.color ?? '#333333',
+    });
+  }
+  if (c.buttonLabel && c.buttonUrl) {
+    out.push({
+      id: nidSplit(),
+      kind: 'button',
+      label: c.buttonLabel,
+      url: c.buttonUrl,
+      backgroundColor: '#1a1a1a',
+      textColor: '#ffffff',
+      fontSizePx: 13,
+      paddingXPx: 18,
+      paddingYPx: 10,
+      borderRadiusPx: 4,
+    });
+  }
+  return out;
+}
+
+function renderSplitItem(it: SplitItem, brand: MarketingBrand): string {
+  if (it.kind === 'image') {
+    if (!it.src) return '';
+    const widthCss = typeof it.widthPct === 'number' && it.widthPct > 0 && it.widthPct <= 100
+      ? `width:${it.widthPct}%;height:auto;`
+      : `width:100%;max-width:280px;height:auto;`;
+    return `<div style="margin-bottom:8px;"><img src="${escape(it.src)}" alt="${escape(it.alt)}" style="display:block;${widthCss}border:0;" /></div>`;
+  }
+  if (it.kind === 'text') {
+    return `<div style="margin-bottom:8px;font:${it.fontSizePx}px/${it.lineHeight} ${fontFor(brand, '')}Arial,sans-serif;color:${it.color};">${safeHtml(it.html)}</div>`;
+  }
+  // button
+  return `<div style="margin-bottom:8px;"><a href="${escape(it.url)}" style="display:inline-block;background:${it.backgroundColor};color:${it.textColor};padding:${it.paddingYPx}px ${it.paddingXPx}px;border-radius:${it.borderRadiusPx}px;font:bold ${it.fontSizePx}px Arial,sans-serif;text-decoration:none;">${escape(it.label)}</a></div>`;
+}
+
+function renderSplitCell(c: SplitCell, brand: MarketingBrand): string {
+  const items = getSplitCellItems(c);
+  if (items.length === 0) return '';
+  return items.map((it) => renderSplitItem(it, brand)).join('');
 }
 
 function renderSplit(b: Extract<EmailBlock, { type: 'split' }>, brand: MarketingBrand): string {

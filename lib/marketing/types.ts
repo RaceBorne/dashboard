@@ -581,8 +581,53 @@ export const DEFAULT_SIGNATURE_DESIGN: SignatureDesign = {
 
 export type EmailAlignment = 'left' | 'center' | 'right';
 
+/**
+ * Phase 2: a split cell now carries an ordered stack of items. Each
+ * item is independently typed (image, text, or button) and the user
+ * can reorder them via @dnd-kit drag in the designer. The Phase 1
+ * fields (kind, src/alt, html/fontSizePx/..., buttonLabel/Url) stay
+ * on the type so cells saved before Phase 2 read correctly: the
+ * email-design helper getSplitCellItems migrates them on the fly.
+ */
+export interface SplitItemBase { id: string; }
+
+export type SplitItem =
+  | (SplitItemBase & {
+      kind: 'image';
+      src: string;
+      alt: string;
+      // 0-100 percent. undefined means natural max-width:280px (legacy
+      // default). Lets a stacked image align tighter than the cell.
+      widthPct?: number;
+    })
+  | (SplitItemBase & {
+      kind: 'text';
+      html: string;
+      fontSizePx: number;
+      lineHeight: number;
+      color: string;
+    })
+  | (SplitItemBase & {
+      kind: 'button';
+      label: string;
+      url: string;
+      backgroundColor: string;
+      textColor: string;
+      fontSizePx: number;
+      paddingXPx: number;
+      paddingYPx: number;
+      borderRadiusPx: number;
+    });
+
 export interface SplitCell {
-  kind: 'image' | 'text';
+  /**
+   * Phase 2 ordered stack. When set (and non-empty) it supersedes the
+   * Phase 1 fields below.
+   */
+  items?: SplitItem[];
+
+  // ─── Phase 1 (legacy) ────────────────────────────────────────
+  kind?: 'image' | 'text';
   // image cell:
   src?: string;
   alt?: string;
@@ -591,8 +636,6 @@ export interface SplitCell {
   fontSizePx?: number;
   lineHeight?: number;
   color?: string;
-  // text cell can carry a single CTA button (Phase 1). Phase 2 will
-  // turn this into a stack item alongside text and image.
   buttonLabel?: string;
   buttonUrl?: string;
 }
