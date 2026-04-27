@@ -3132,6 +3132,10 @@ function HtmlFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'h
 
 function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { type: 'split' }>; brand: MarketingBrand; onChange: (p: Partial<Extract<EmailBlock, { type: 'split' }>>) => void }) {
   const cells: SplitCells = getSplitCells(block);
+  // Single open-item id shared across both cells, accordion-style: only
+  // one item editor visible at a time, clicking another item (either cell)
+  // collapses the previously open one.
+  const [openItemId, setOpenItemId] = useState<string | null>(null);
 
   function setItems(side: 'left' | 'right', items: SplitItem[]) {
     const updated: SplitCell = { ...cells[side], items };
@@ -3155,8 +3159,8 @@ function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { 
           Swap
         </button>
       </div>
-      <SplitCellEditor side="left"  cell={cells.left}  brand={brand} onItemsChange={(items) => setItems('left',  items)} onCellChange={(patch) => onChange({ cells: { ...cells, left:  { ...cells.left,  ...patch } } })} />
-      <SplitCellEditor side="right" cell={cells.right} brand={brand} onItemsChange={(items) => setItems('right', items)} onCellChange={(patch) => onChange({ cells: { ...cells, right: { ...cells.right, ...patch } } })} />
+      <SplitCellEditor side="left"  cell={cells.left}  brand={brand} openItemId={openItemId} setOpenItemId={setOpenItemId} onItemsChange={(items) => setItems('left',  items)} onCellChange={(patch) => onChange({ cells: { ...cells, left:  { ...cells.left,  ...patch } } })} />
+      <SplitCellEditor side="right" cell={cells.right} brand={brand} openItemId={openItemId} setOpenItemId={setOpenItemId} onItemsChange={(items) => setItems('right', items)} onCellChange={(patch) => onChange({ cells: { ...cells, right: { ...cells.right, ...patch } } })} />
     </div>
   );
 }
@@ -3182,10 +3186,9 @@ function makeSplitItem(kind: SplitItem['kind']): SplitItem {
  * drag, expand to edit inline, duplicate, or remove. Add buttons at
  * the bottom append a new item of the chosen kind.
  */
-function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { side: 'left' | 'right'; cell: SplitCell; brand: MarketingBrand; onItemsChange: (items: SplitItem[]) => void; onCellChange: (patch: Partial<SplitCell>) => void }) {
+function SplitCellEditor({ side, cell, brand, openItemId, setOpenItemId, onItemsChange, onCellChange }: { side: 'left' | 'right'; cell: SplitCell; brand: MarketingBrand; openItemId: string | null; setOpenItemId: (id: string | null) => void; onItemsChange: (items: SplitItem[]) => void; onCellChange: (patch: Partial<SplitCell>) => void }) {
   void brand;
   const items: SplitItem[] = useMemo(() => getSplitCellItems(cell), [cell]);
-  const [openId, setOpenId] = useState<string | null>(null);
   const [bgPickerOpen, setBgPickerOpen] = useState(false);
   const mode: 'stack' | 'overlay' = cell.mode === 'overlay' ? 'overlay' : 'stack';
 
@@ -3198,7 +3201,7 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
   }
   function removeItem(id: string) {
     onItemsChange(items.filter((i) => i.id !== id));
-    if (openId === id) setOpenId(null);
+    if (openItemId === id) setOpenItemId(null);
   }
   function duplicateItem(id: string) {
     const idx = items.findIndex((i) => i.id === id);
@@ -3207,12 +3210,12 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
     const next = [...items];
     next.splice(idx + 1, 0, copy);
     onItemsChange(next);
-    setOpenId(copy.id);
+    setOpenItemId(copy.id);
   }
   function addItem(kind: SplitItem['kind']) {
     const it = makeSplitItem(kind);
     onItemsChange([...items, it]);
-    setOpenId(it.id);
+    setOpenItemId(it.id);
   }
   function move(activeId: string, overId: string) {
     const from = items.findIndex((i) => i.id === activeId);
@@ -3340,9 +3343,9 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
                 <SortableSplitItem
                   key={it.id}
                   item={it}
-                  open={openId === it.id}
+                  open={openItemId === it.id}
                   brand={brand}
-                  onToggle={() => setOpenId(openId === it.id ? null : it.id)}
+                  onToggle={() => setOpenItemId(openItemId === it.id ? null : it.id)}
                   onChange={(patch) => patchItem(it.id, patch)}
                   onDuplicate={() => duplicateItem(it.id)}
                   onRemove={() => removeItem(it.id)}
