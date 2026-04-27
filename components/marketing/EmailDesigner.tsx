@@ -615,8 +615,8 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
   }
 
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-gold/40 h-full flex flex-col">
-      <header className="flex items-center gap-2 px-3.5 py-2.5 border-b border-evari-gold/30 shrink-0">
+    <div className="h-full flex flex-col">
+      <header className="flex items-center gap-2 px-3 py-2.5 border-b border-evari-gold/30 shrink-0">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">
           <PenLine className="h-3.5 w-3.5" />
         </span>
@@ -624,9 +624,9 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
           <div className="text-[13px] text-evari-gold font-semibold truncate">Edit {entry.kind === 'typo' ? 'typography' : 'button'} style</div>
           <div className="text-[10px] text-evari-dimmer mt-0.5 truncate">{savedAt ? `Saved ${savedAt}` : 'Auto-saves as you edit'}</div>
         </div>
-        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1.5 rounded-md hover:bg-evari-ink/60 transition-colors" aria-label="Close"><X className="h-4 w-4" /></button>
+        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1.5 rounded-md hover:bg-evari-ink/40 transition-colors" aria-label="Close"><X className="h-4 w-4" /></button>
       </header>
-      <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Name</span>
           <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
@@ -1521,8 +1521,9 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
 
         {/* RIGHT — properties panel: live block when something is selected,
             DRAFT block when a tile was clicked from the palette, or a
-            placeholder when nothing's happening. */}
-        <div className="min-w-0 min-h-0 overflow-y-auto">
+            placeholder when nothing's happening. Flat embedded panel,
+            no floating-card outline. */}
+        <div className="min-w-0 min-h-0 overflow-y-auto bg-evari-surface/50 rounded-md">
           {editingPreset ? (
             <InlinePresetEditor
               brand={initialBrand}
@@ -1531,8 +1532,8 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
               onClose={() => setEditingPreset(null)}
             />
           ) : pendingTile ? (
-            <div className="rounded-md bg-evari-surface border border-evari-gold/40 h-full flex flex-col">
-              <header className="flex items-center gap-2 px-3.5 py-2.5 border-b border-evari-gold/30 shrink-0">
+            <div className="h-full flex flex-col">
+              <header className="flex items-center gap-2 px-3 py-2.5 border-b border-evari-gold/30 shrink-0">
                 {(() => { const Icn = pendingTile.tile.Icon; return (
                   <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold"><Icn className="h-3.5 w-3.5" /></span>
                 ); })()}
@@ -1579,9 +1580,9 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
               );
             })()
           ) : (
-            <aside className="rounded-md bg-evari-surface border border-evari-edge/30 p-6 text-center text-sm text-evari-dimmer h-full flex items-center justify-center">
-              Click any tile to pre-configure, or drag it onto the canvas to add directly.
-            </aside>
+            <div className="px-3 pt-6 text-[11px] text-evari-dimmer leading-relaxed">
+              Select a block to edit it, click a tile to pre-configure a new one, or drag a tile onto the canvas.
+            </div>
           )}
         </div>
       </div>
@@ -1714,17 +1715,17 @@ function BlockPropertiesPanel({ block, brand, designWidthPx, device, onChange, o
   const Icon = meta?.Icon ?? PenLine;
   const label = meta?.label ?? block.type;
   return (
-    <aside className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col h-full">
-      <header className="flex items-center gap-2 px-3.5 py-2.5 border-b border-evari-edge/30 shrink-0">
-        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-ink text-evari-text">
+    <aside className="flex flex-col h-full">
+      <header className="flex items-center gap-2 px-3 py-2.5 border-b border-evari-edge/30 shrink-0">
+        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-ink/60 text-evari-text">
           <Icon className="h-3.5 w-3.5" />
         </span>
         <span className="text-[13px] text-evari-text font-semibold flex-1 truncate">{label}</span>
-        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1.5 rounded-md hover:bg-evari-ink/60 transition-colors" aria-label="Close">
+        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1.5 rounded-md hover:bg-evari-ink/40 transition-colors" aria-label="Close">
           <X className="h-4 w-4" />
         </button>
       </header>
-      <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-4">
         {device === 'mobile' ? <DeviceOverrideBanner blockHasMobile={!!block.mobile} onClear={() => onChange({ mobile: undefined } as unknown as Partial<EmailBlock>)} /> : null}
         {view.type === 'heading'   ? <HeadingFields   block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'heading' }>>) => void} /> : null}
         {view.type === 'text'      ? <TextFields      block={view} brand={brand} onChange={routedOnChange as (p: Partial<Extract<EmailBlock, { type: 'text' }>>) => void} /> : null}
