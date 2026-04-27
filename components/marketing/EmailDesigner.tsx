@@ -632,13 +632,13 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
       </header>
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Name</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Name</span>
           <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
         </label>
         {entry.kind === 'typo' ? (
           <>
             <label className="block">
-              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
+              <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
               <input type="text" value={(draft as TypographyPreset).fontFamily} onChange={(e) => setDraft({ ...(draft as TypographyPreset), fontFamily: e.target.value } as TypographyPreset)} className={inputCls} placeholder="e.g. Katerina" />
             </label>
             <SliderField label="Size" value={(draft as TypographyPreset).fontSizePx} min={10} max={120} suffix="px" onChange={(v) => setDraft({ ...(draft as TypographyPreset), fontSizePx: v } as TypographyPreset)} />
@@ -651,7 +651,7 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
         ) : (
           <>
             <label className="block">
-              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Default label</span>
+              <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Default label</span>
               <input type="text" value={(draft as ButtonPreset).label ?? ''} onChange={(e) => setDraft({ ...(draft as ButtonPreset), label: e.target.value } as ButtonPreset)} className={inputCls} placeholder="e.g. Click me" />
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -664,7 +664,7 @@ function InlinePresetEditor({ brand, entry, onChange, onClose }: {
               <SliderField label="Padding Y" value={(draft as ButtonPreset).paddingYPx} min={4} max={48} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), paddingYPx: v } as ButtonPreset)} />
             </div>
             <label className="block">
-              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
+              <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Font family (blank = inherit)</span>
               <input type="text" value={(draft as ButtonPreset).fontFamily ?? ''} onChange={(e) => setDraft({ ...(draft as ButtonPreset), fontFamily: e.target.value } as ButtonPreset)} className={inputCls} />
             </label>
             <SliderField label="Size" value={(draft as ButtonPreset).fontSizePx ?? 14} min={10} max={32} suffix="px" onChange={(v) => setDraft({ ...(draft as ButtonPreset), fontSizePx: v } as ButtonPreset)} />
@@ -1494,7 +1494,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             email is centred and constrained to the chosen content width
             (360px on mobile preview). */}
         <div className="flex flex-col min-w-0 min-h-0 overflow-hidden -mr-3">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1 flex items-center justify-between shrink-0">
+          <div className="text-[11px] font-medium text-evari-dimmer mb-1 flex items-center justify-between shrink-0">
             <span>Canvas</span>
             <span className="text-evari-dim">{previewDevice === 'mobile' ? `360px (mobile) · ${design.widthPx}px content` : `${design.widthPx}px (desktop)`}</span>
           </div>
@@ -2094,7 +2094,7 @@ function TypographyStyles({
   return (
     <div className="rounded-md border border-evari-edge/30 bg-evari-ink/40 p-2 space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Typography style</span>
+        <span className="text-[11px] font-medium text-evari-dimmer">Typography style</span>
         <button
           type="button"
           onClick={handleSaveNew}
@@ -2292,7 +2292,7 @@ function ImageFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+        <span className="flex items-center justify-between text-[11px] font-medium text-evari-dimmer mb-0.5">
           <span>Image URL</span>
           <button type="button" onClick={() => setPickerOpen(true)} className="normal-case tracking-normal text-[10px] text-evari-gold hover:underline inline-flex items-center gap-1">
             <FolderOpen className="h-3 w-3" /> Browse library
@@ -2310,7 +2310,7 @@ function ImageFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
         />
       ) : null}
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Alt text</span>
         <input type="text" value={block.alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
       </label>
       <label className="flex items-center gap-2 text-[11px] text-evari-text cursor-pointer select-none">
@@ -2326,7 +2326,7 @@ function ImageFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
         <SliderField label="Width" value={block.maxWidthPx} min={40} max={1200} suffix="px" onChange={(v) => onChange({ maxWidthPx: v })} />
       ) : null}
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
         <input type="url" value={block.linkUrl ?? ''} onChange={(e) => onChange({ linkUrl: e.target.value || undefined })} placeholder="https://…" className={cn(inputCls, 'font-mono text-[12px]')} />
       </label>
       <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
@@ -2404,7 +2404,7 @@ function ButtonStyles({
   return (
     <div className="rounded-md border border-evari-edge/30 bg-evari-ink/40 p-2 space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Button preset</span>
+        <span className="text-[11px] font-medium text-evari-dimmer">Button preset</span>
         <button
           type="button"
           onClick={handleSaveNew}
@@ -2473,14 +2473,14 @@ function ButtonFields({ block, brand, onChange }: { block: Extract<EmailBlock, {
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span className="flex items-center justify-between text-[11px] font-medium text-evari-dimmer mb-0.5">
             <span>Label</span>
             <VariableMenu onPick={(token) => onChange({ label: block.label + token })} />
           </span>
           <input type="text" value={block.label} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} />
         </label>
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">URL</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">URL</span>
           <input type="url" value={block.url} onChange={(e) => onChange({ url: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
         </label>
       </div>
@@ -2520,7 +2520,7 @@ function ButtonFields({ block, brand, onChange }: { block: Extract<EmailBlock, {
         <ColourField label="Text" value={block.textColor} onChange={(v) => onChange({ textColor: v })} brand={brand} />
       </div>
       <div className="space-y-1.5">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Width</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer">Width</span>
         <div className="grid grid-cols-3 gap-1 rounded-md bg-evari-ink p-1 border border-evari-edge/30" role="radiogroup" aria-label="Button width mode">
           {([
             { v: 'auto',      l: 'Auto' },
@@ -2584,7 +2584,7 @@ function DividerFields({ block, onChange }: { block: Extract<EmailBlock, { type:
 function SpacerFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'spacer' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'spacer' }>>) => void }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Height (px)</span>
+      <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Height (px)</span>
       <input type="range" min={4} max={120} value={block.heightPx} onChange={(e) => onChange({ heightPx: Number(e.target.value) })} className="w-full accent-evari-gold" />
       <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{block.heightPx}px</span>
     </label>
@@ -2646,7 +2646,7 @@ function PairedPadding({ groupLabel, labelA, valueA, labelB, valueB, locked, onT
   return (
     <section className="rounded-md border border-evari-edge/20 px-2 py-1.5 space-y-1.5">
       <header className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{groupLabel}</span>
+        <span className="text-[11px] font-medium text-evari-dimmer">{groupLabel}</span>
         <button
           type="button"
           onClick={onToggleLock}
@@ -2902,7 +2902,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
   // Combined ref — sortable node ref AND the preset-target droppable ref.
   const setCombinedRef = (node: HTMLDivElement | null) => { setNodeRef(node); setPresetTargetRef(node); };
   return (
-    <div ref={setCombinedRef} style={style} className="relative group">
+    <div ref={setCombinedRef} style={style} className="relative group" data-block-id={block.id}>
       <CanvasInsertionZone overId={block.id} />
       <div
         {...dragProps}
@@ -3106,7 +3106,7 @@ function CanvasInsertionZone({ overId }: { overId: string }) {
 function HtmlFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'html' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'html' }>>) => void }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Custom HTML (escape hatch)</span>
+      <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Custom HTML (escape hatch)</span>
       <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[140px] font-mono')} />
     </label>
   );
@@ -3126,7 +3126,7 @@ function SplitFields({ block, brand, onChange }: { block: Extract<EmailBlock, { 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Layout (50 / 50)</span>
+        <span className="text-[11px] font-medium text-evari-dimmer">Layout (50 / 50)</span>
         <button
           type="button"
           onClick={swap}
@@ -3213,7 +3213,7 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
   return (
     <div className="rounded-md border border-evari-edge/20 bg-evari-ink/30 p-3 space-y-2.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{side === 'left' ? 'Left cell' : 'Right cell'}</span>
+        <span className="text-[11px] font-medium text-evari-dimmer">{side === 'left' ? 'Left cell' : 'Right cell'}</span>
         <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5">
           {(['stack', 'overlay'] as const).map((m) => (
             <button
@@ -3228,9 +3228,9 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
       </div>
 
       <label className="block">
-        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+        <span className="flex items-center justify-between text-[11px] font-medium text-evari-dimmer mb-0.5">
           <span>Cell padding</span>
-          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{cellPad}px</span>
+          <span className="font-mono tabular-nums text-evari-text">{cellPad}px</span>
         </span>
         <div className="px-2.5">
           <input type="range" min={0} max={64} value={cellPad} onChange={(e) => onCellChange({ paddingPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
@@ -3240,7 +3240,7 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
       {mode === 'overlay' ? (
         <div className="rounded-md border border-evari-edge/20 bg-evari-ink/40 p-2 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Background image</span>
+            <span className="text-[11px] font-medium text-evari-dimmer">Background image</span>
             <span className="text-[10px] text-evari-dimmer">items composite on top</span>
           </div>
           <div className="rounded-md overflow-hidden border border-evari-edge/30 bg-evari-ink">
@@ -3258,44 +3258,40 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
               ) : null}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
-                <span>Min height</span>
-                <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{minH}px</span>
-              </span>
-              <div className="px-2.5">
-                <input type="range" min={80} max={600} step={10} value={minH} onChange={(e) => onCellChange({ overlayMinHeightPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
-              </div>
-            </label>
-            <label className="block">
-              <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
-                <span>Padding</span>
-                <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{pad}px</span>
-              </span>
-              <div className="px-2.5">
-                <input type="range" min={0} max={64} value={pad} onChange={(e) => onCellChange({ overlayPaddingPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
-              </div>
-            </label>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Vertical</span>
-              <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5 w-full">
-                {(['top', 'middle', 'bottom'] as const).map((v) => (
-                  <button key={v} type="button" onClick={() => onCellChange({ overlayVerticalAlignment: v })} className={cn('flex-1 px-1.5 py-0.5 rounded text-[11px] font-medium capitalize transition-colors', vAlign === v ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}>{v}</button>
-                ))}
-              </div>
-            </label>
-            <label className="block">
-              <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Horizontal</span>
-              <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5 w-full">
-                {(['left', 'center', 'right'] as const).map((h) => (
-                  <button key={h} type="button" onClick={() => onCellChange({ overlayHorizontalAlignment: h })} className={cn('flex-1 px-1.5 py-0.5 rounded text-[11px] font-medium capitalize transition-colors', hAlign === h ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}>{h}</button>
-                ))}
-              </div>
-            </label>
-          </div>
+          <label className="block">
+            <span className="flex items-center justify-between text-[11px] font-medium text-evari-dimmer mb-0.5">
+              <span>Min height</span>
+              <span className="font-mono tabular-nums text-evari-text">{minH}px</span>
+            </span>
+            <div className="px-2.5">
+              <input type="range" min={80} max={600} step={10} value={minH} onChange={(e) => onCellChange({ overlayMinHeightPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+            </div>
+          </label>
+          <label className="block">
+            <span className="flex items-center justify-between text-[11px] font-medium text-evari-dimmer mb-0.5">
+              <span>Padding</span>
+              <span className="font-mono tabular-nums text-evari-text">{pad}px</span>
+            </span>
+            <div className="px-2.5">
+              <input type="range" min={0} max={64} value={pad} onChange={(e) => onCellChange({ overlayPaddingPx: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
+            </div>
+          </label>
+          <label className="block">
+            <span className="block text-[11px] font-medium text-evari-dimmer mb-1">Vertical alignment</span>
+            <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5 w-full">
+              {(['top', 'middle', 'bottom'] as const).map((v) => (
+                <button key={v} type="button" onClick={() => onCellChange({ overlayVerticalAlignment: v })} className={cn('flex-1 px-1.5 py-0.5 rounded text-[11px] font-medium capitalize transition-colors', vAlign === v ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}>{v}</button>
+              ))}
+            </div>
+          </label>
+          <label className="block">
+            <span className="block text-[11px] font-medium text-evari-dimmer mb-1">Horizontal alignment</span>
+            <div className="inline-flex rounded-md bg-evari-ink border border-evari-edge/30 p-0.5 w-full">
+              {(['left', 'center', 'right'] as const).map((h) => (
+                <button key={h} type="button" onClick={() => onCellChange({ overlayHorizontalAlignment: h })} className={cn('flex-1 px-1.5 py-0.5 rounded text-[11px] font-medium capitalize transition-colors', hAlign === h ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text')}>{h}</button>
+              ))}
+            </div>
+          </label>
           {bgPickerOpen ? (
             <AssetPickerModal
               onClose={() => setBgPickerOpen(false)}
@@ -3306,7 +3302,7 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
       ) : null}
 
       <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{mode === 'overlay' ? 'Overlay items' : 'Items'}</span>
+        <span className="text-[11px] font-medium text-evari-dimmer">{mode === 'overlay' ? 'Overlay items' : 'Items'}</span>
         <span className="text-[10px] text-evari-dimmer">{items.length} item{items.length === 1 ? '' : 's'}</span>
       </div>
 
@@ -3340,7 +3336,7 @@ function SplitCellEditor({ side, cell, brand, onItemsChange, onCellChange }: { s
       )}
 
       <div className="flex items-center gap-1 pt-1 border-t border-evari-edge/10">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mr-1">Add</span>
+        <span className="text-[11px] font-medium text-evari-dimmer mr-1">Add</span>
         <button type="button" onClick={() => addItem('image')}  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-evari-dim hover:text-evari-text bg-evari-ink hover:bg-black/40 transition-colors">
           <ImageIcon className="h-3 w-3" /> Image
         </button>
@@ -3445,23 +3441,23 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
         </div>
       </div>
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Alt text</span>
         <input type="text" value={item.alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
       </label>
       <label className="block">
-        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+        <span className="flex items-center justify-between text-[11px] font-medium text-evari-dimmer mb-0.5">
           <span>Width</span>
-          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{w}%</span>
+          <span className="font-mono tabular-nums text-evari-text">{w}%</span>
         </span>
         <div className="px-2.5">
           <input type="range" min={20} max={100} value={w} onChange={(e) => onChange({ widthPct: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
         </div>
       </label>
       <fieldset className="pt-2 border-t border-evari-edge/10">
-        <legend className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Drop shadow</legend>
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,72px)] gap-2">
+        <legend className="text-[11px] font-medium text-evari-dimmer mb-1">Drop shadow</legend>
+        <div className="space-y-2">
           <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Intensity</span>
+            <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Intensity</span>
             <select value={shadow} onChange={(e) => onChange({ shadow: e.target.value as 'none' | 'sm' | 'md' | 'lg' })} className={inputCls}>
               <option value="none">None</option>
               <option value="sm">Subtle</option>
@@ -3470,7 +3466,7 @@ function SplitItemImageFields({ item, onChange }: { item: Extract<SplitItem, { k
             </select>
           </label>
           <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Tint</span>
+            <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Tint</span>
             <input type="color" value={shadowColor} disabled={shadow === 'none'} onChange={(e) => onChange({ shadowColor: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer disabled:opacity-50" />
           </label>
         </div>
@@ -3494,27 +3490,23 @@ function SplitItemTextFields({ item, brand, onChange }: { item: Extract<SplitIte
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text (HTML allowed)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Text (HTML allowed)</span>
         <textarea value={item.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[80px] font-mono')} />
       </label>
-      <div className="grid grid-cols-2 gap-2">
-        <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
-        <SplitWeightField value={item.fontWeight ?? 400} onChange={(v) => onChange({ fontWeight: v })} />
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Size (px)</span>
-          <input type="number" min={8} max={64} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(8, Math.min(64, Number(e.target.value) || 14)) })} className={cn(inputCls, 'font-mono')} />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Line height</span>
-          <input type="number" step={0.05} min={1} max={3} value={item.lineHeight} onChange={(e) => onChange({ lineHeight: Math.max(1, Math.min(3, Number(e.target.value) || 1.55)) })} className={cn(inputCls, 'font-mono')} />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Colour</span>
-          <input type="color" value={item.color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
-        </label>
-      </div>
+      <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
+      <SplitWeightField value={item.fontWeight ?? 400} onChange={(v) => onChange({ fontWeight: v })} />
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Size (px)</span>
+        <input type="number" min={8} max={64} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(8, Math.min(64, Number(e.target.value) || 14)) })} className={cn(inputCls, 'font-mono')} />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Line height</span>
+        <input type="number" step={0.05} min={1} max={3} value={item.lineHeight} onChange={(e) => onChange({ lineHeight: Math.max(1, Math.min(3, Number(e.target.value) || 1.55)) })} className={cn(inputCls, 'font-mono')} />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Colour</span>
+        <input type="color" value={item.color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
+      </label>
     </div>
   );
 }
@@ -3539,55 +3531,47 @@ function SplitItemButtonFields({ item, brand, onChange }: { item: Extract<SplitI
     <div className="space-y-2">
       {presets.length > 0 ? (
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Apply preset</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Apply preset</span>
           <select onChange={(e) => { const v = e.target.value; if (v) applyPreset(v); e.currentTarget.value = ''; }} defaultValue="" className={inputCls}>
             <option value="">Pick a preset…</option>
             {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
       ) : null}
-      <div className="grid grid-cols-2 gap-2">
-        <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
-        <SplitWeightField value={item.fontWeight ?? 600} onChange={(v) => onChange({ fontWeight: v })} />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Label</span>
-          <input type="text" value={item.label} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} placeholder="e.g. Shop now" />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">URL</span>
-          <input type="url" value={item.url} onChange={(e) => onChange({ url: e.target.value })} className={cn(inputCls, 'font-mono')} placeholder="https://..." />
-        </label>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Bg</span>
-          <input type="color" value={item.backgroundColor} onChange={(e) => onChange({ backgroundColor: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Text</span>
-          <input type="color" value={item.textColor} onChange={(e) => onChange({ textColor: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Size (px)</span>
-          <input type="number" min={9} max={24} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(9, Math.min(24, Number(e.target.value) || 12)) })} className={cn(inputCls, 'font-mono')} />
-        </label>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Pad X (px)</span>
-          <input type="number" min={0} max={32} value={item.paddingXPx} onChange={(e) => onChange({ paddingXPx: Math.max(0, Math.min(32, Number(e.target.value) || 14)) })} className={cn(inputCls, 'font-mono')} />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Pad Y (px)</span>
-          <input type="number" min={0} max={32} value={item.paddingYPx} onChange={(e) => onChange({ paddingYPx: Math.max(0, Math.min(32, Number(e.target.value) || 8)) })} className={cn(inputCls, 'font-mono')} />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Radius (px)</span>
-          <input type="number" min={0} max={32} value={item.borderRadiusPx} onChange={(e) => onChange({ borderRadiusPx: Math.max(0, Math.min(32, Number(e.target.value) || 4)) })} className={cn(inputCls, 'font-mono')} />
-        </label>
-      </div>
+      <SplitFontField brand={brand} value={item.fontFamily ?? ''} onChange={(v) => onChange({ fontFamily: v })} />
+      <SplitWeightField value={item.fontWeight ?? 600} onChange={(v) => onChange({ fontWeight: v })} />
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Label</span>
+        <input type="text" value={item.label} onChange={(e) => onChange({ label: e.target.value })} className={inputCls} placeholder="e.g. Shop now" />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">URL</span>
+        <input type="url" value={item.url} onChange={(e) => onChange({ url: e.target.value })} className={cn(inputCls, 'font-mono')} placeholder="https://..." />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Background</span>
+        <input type="color" value={item.backgroundColor} onChange={(e) => onChange({ backgroundColor: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Text colour</span>
+        <input type="color" value={item.textColor} onChange={(e) => onChange({ textColor: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Size (px)</span>
+        <input type="number" min={9} max={24} value={item.fontSizePx} onChange={(e) => onChange({ fontSizePx: Math.max(9, Math.min(24, Number(e.target.value) || 12)) })} className={cn(inputCls, 'font-mono')} />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Padding X (px)</span>
+        <input type="number" min={0} max={32} value={item.paddingXPx} onChange={(e) => onChange({ paddingXPx: Math.max(0, Math.min(32, Number(e.target.value) || 14)) })} className={cn(inputCls, 'font-mono')} />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Padding Y (px)</span>
+        <input type="number" min={0} max={32} value={item.paddingYPx} onChange={(e) => onChange({ paddingYPx: Math.max(0, Math.min(32, Number(e.target.value) || 8)) })} className={cn(inputCls, 'font-mono')} />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Radius (px)</span>
+        <input type="number" min={0} max={32} value={item.borderRadiusPx} onChange={(e) => onChange({ borderRadiusPx: Math.max(0, Math.min(32, Number(e.target.value) || 4)) })} className={cn(inputCls, 'font-mono')} />
+      </label>
     </div>
   );
 }
@@ -3597,24 +3581,22 @@ function SplitItemDividerFields({ item, onChange }: { item: Extract<SplitItem, {
   const w = item.widthPct ?? 100;
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-3 gap-2">
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Colour</span>
-          <input type="color" value={item.color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Thickness (px)</span>
-          <input type="number" min={1} max={8} value={item.thicknessPx} onChange={(e) => onChange({ thicknessPx: Math.max(1, Math.min(8, Number(e.target.value) || 1)) })} className={cn(inputCls, 'font-mono')} />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Margin Y (px)</span>
-          <input type="number" min={0} max={64} value={item.marginYPx} onChange={(e) => onChange({ marginYPx: Math.max(0, Math.min(64, Number(e.target.value) || 0)) })} className={cn(inputCls, 'font-mono')} />
-        </label>
-      </div>
       <label className="block">
-        <span className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Colour</span>
+        <input type="color" value={item.color} onChange={(e) => onChange({ color: e.target.value })} className="h-[34px] w-full rounded-md border border-evari-edge/30 bg-evari-ink cursor-pointer" />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Thickness (px)</span>
+        <input type="number" min={1} max={8} value={item.thicknessPx} onChange={(e) => onChange({ thicknessPx: Math.max(1, Math.min(8, Number(e.target.value) || 1)) })} className={cn(inputCls, 'font-mono')} />
+      </label>
+      <label className="block">
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Margin Y (px)</span>
+        <input type="number" min={0} max={64} value={item.marginYPx} onChange={(e) => onChange({ marginYPx: Math.max(0, Math.min(64, Number(e.target.value) || 0)) })} className={cn(inputCls, 'font-mono')} />
+      </label>
+      <label className="block">
+        <span className="flex items-center justify-between text-[11px] font-medium text-evari-dimmer mb-0.5">
           <span>Width</span>
-          <span className="font-mono tabular-nums text-evari-text normal-case tracking-normal">{w}%</span>
+          <span className="font-mono tabular-nums text-evari-text">{w}%</span>
         </span>
         <div className="px-2.5">
           <input type="range" min={20} max={100} value={w} onChange={(e) => onChange({ widthPct: Number(e.target.value) })} className="w-full h-2 rounded-full bg-evari-ink accent-evari-gold" />
@@ -3635,7 +3617,7 @@ function SplitWeightField({ value, onChange }: { value: number; onChange: (v: nu
   ];
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Weight</span>
+      <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Weight</span>
       <select value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputCls}>
         {opts.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
       </select>
@@ -3655,7 +3637,7 @@ function SplitFontField({ brand, value, onChange }: { brand: MarketingBrand; val
   const websafe = ['Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat'];
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Font</span>
+      <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Font</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
         <option value="">Inherit (brand body)</option>
         <optgroup label="Brand kit">
@@ -3758,7 +3740,7 @@ function BrandLogoFields({ block, brand, onChange }: { block: Extract<EmailBlock
       <AlignmentField value={block.alignment} onChange={(v) => onChange({ alignment: v })} />
 
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
         <input type="url" value={block.linkUrl ?? ''} onChange={(e) => onChange({ linkUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
       </label>
 
@@ -3817,15 +3799,15 @@ function HeaderBarFields({ block, brand, onChange }: { block: Extract<EmailBlock
         )}
       </section>
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Logo URL (blank = brand light logo)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Logo URL (blank = brand light logo)</span>
         <input type="url" value={block.logoUrl} onChange={(e) => onChange({ logoUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
       </label>
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Tagline (right side)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Tagline (right side)</span>
         <input type="text" value={block.tagline} onChange={(e) => onChange({ tagline: e.target.value })} className={inputCls} />
       </label>
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Click-through URL (optional)</span>
         <input type="url" value={block.linkUrl} onChange={(e) => onChange({ linkUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
       </label>
       <div className="grid grid-cols-2 gap-2">
@@ -3846,14 +3828,14 @@ function CardFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'c
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Card content (HTML)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Card content (HTML)</span>
         <textarea value={block.html} onChange={(e) => onChange({ html: e.target.value })} className={cn(textareaCls, 'min-h-[100px] font-mono')} />
       </label>
       <div className="grid grid-cols-3 gap-2">
         <ColourField label="Background" value={block.backgroundColor} onChange={(v) => onChange({ backgroundColor: v })} />
         <NumField label="Radius (px)" value={block.borderRadiusPx} min={0} max={40} onChange={(v) => onChange({ borderRadiusPx: v })} />
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Shadow</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Shadow</span>
           <select value={block.shadow} onChange={(e) => onChange({ shadow: e.target.value as 'sm' | 'md' | 'lg' })} className={inputCls}>
             <option value="sm">Small</option>
             <option value="md">Medium</option>
@@ -3906,20 +3888,20 @@ function CouponFields({ block, onChange }: { block: Extract<EmailBlock, { type: 
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Code</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Code</span>
           <input type="text" value={block.code} onChange={(e) => onChange({ code: e.target.value })} className={cn(inputCls, 'font-mono uppercase tracking-wider')} />
         </label>
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Title (above code)</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Title (above code)</span>
           <input type="text" value={block.title} onChange={(e) => onChange({ title: e.target.value })} className={inputCls} />
         </label>
       </div>
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Subtitle (below code)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Subtitle (below code)</span>
         <input type="text" value={block.subtitle} onChange={(e) => onChange({ subtitle: e.target.value })} className={inputCls} />
       </label>
       <label className="block">
-        <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+        <span className="flex items-center gap-1 text-[11px] font-medium text-evari-dimmer mb-0.5">
           <Calendar className="h-3 w-3" /> Expiry (free text)
         </span>
         <input type="text" value={block.expiry} onChange={(e) => onChange({ expiry: e.target.value })} placeholder="31 Dec 2026" className={inputCls} />
@@ -3948,11 +3930,11 @@ function TableFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Header — label column</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Header — label column</span>
           <input type="text" value={block.headerLabel} onChange={(e) => onChange({ headerLabel: e.target.value })} className={inputCls} />
         </label>
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Header — value column</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Header — value column</span>
           <input type="text" value={block.headerValue} onChange={(e) => onChange({ headerValue: e.target.value })} className={inputCls} />
         </label>
       </div>
@@ -3978,22 +3960,22 @@ function ReviewFields({ block, onChange }: { block: Extract<EmailBlock, { type: 
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Quote</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Quote</span>
         <textarea value={block.quote} onChange={(e) => onChange({ quote: e.target.value })} className={cn(textareaCls, 'min-h-[80px] italic')} />
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Author</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Author</span>
           <input type="text" value={block.author} onChange={(e) => onChange({ author: e.target.value })} className={inputCls} />
         </label>
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Role / company</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Role / company</span>
           <input type="text" value={block.role} onChange={(e) => onChange({ role: e.target.value })} className={inputCls} />
         </label>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="flex items-center gap-1 text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">
+          <span className="flex items-center gap-1 text-[11px] font-medium text-evari-dimmer mb-0.5">
             <Star className="h-3 w-3" /> Rating (0–5)
           </span>
           <input type="number" min={0} max={5} step={0.5} value={block.rating} onChange={(e) => onChange({ rating: Number(e.target.value) })} className={cn(inputCls, 'font-mono')} />
@@ -4008,16 +3990,16 @@ function VideoFields({ block, onChange }: { block: Extract<EmailBlock, { type: '
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Thumbnail URL</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Thumbnail URL</span>
         <input type="url" value={block.thumbnailSrc} onChange={(e) => onChange({ thumbnailSrc: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
       </label>
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Video URL (where the play button goes)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Video URL (where the play button goes)</span>
         <input type="url" value={block.videoUrl} onChange={(e) => onChange({ videoUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Alt text</span>
           <input type="text" value={block.alt} onChange={(e) => onChange({ alt: e.target.value })} className={inputCls} />
         </label>
         <NumField label="Max width (px)" value={block.maxWidthPx} min={120} max={1200} onChange={(v) => onChange({ maxWidthPx: v })} />
@@ -4031,30 +4013,30 @@ function ProductFields({ block, onChange }: { block: Extract<EmailBlock, { type:
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Image URL</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Image URL</span>
         <input type="url" value={block.imageSrc} onChange={(e) => onChange({ imageSrc: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Title</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Title</span>
           <input type="text" value={block.title} onChange={(e) => onChange({ title: e.target.value })} className={inputCls} />
         </label>
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Price</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Price</span>
           <input type="text" value={block.price} onChange={(e) => onChange({ price: e.target.value })} className={inputCls} />
         </label>
       </div>
       <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Description (HTML)</span>
+        <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Description (HTML)</span>
         <textarea value={block.description} onChange={(e) => onChange({ description: e.target.value })} className={cn(textareaCls, 'min-h-[60px] font-mono')} />
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Button label</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Button label</span>
           <input type="text" value={block.buttonLabel} onChange={(e) => onChange({ buttonLabel: e.target.value })} className={inputCls} />
         </label>
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Button URL</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Button URL</span>
           <input type="url" value={block.buttonUrl} onChange={(e) => onChange({ buttonUrl: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
         </label>
       </div>
@@ -4200,12 +4182,12 @@ function SectionFields({ block, brand, designWidthPx, onChange }: { block: Extra
           </button>
         )}
         <label className="block mt-1.5">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Or paste a URL</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Or paste a URL</span>
           <input type="url" value={block.backgroundImage ?? ''} onChange={(e) => onChange({ backgroundImage: e.target.value })} className={cn(inputCls, 'font-mono text-[12px]')} />
         </label>
         <div className="mt-2">
           <label className="block">
-            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Fill</span>
+            <span className="block text-[11px] font-medium text-evari-dimmer mb-0.5">Fill</span>
             <select
               value={fillMode}
               onChange={(e) => onChange({ backgroundSize: e.target.value as 'original' | 'fit' | 'fill' | 'tile' })}
@@ -4241,7 +4223,7 @@ function SectionFields({ block, brand, designWidthPx, onChange }: { block: Extra
           </div>
         ) : null}
         <div className="mt-2">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Position</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-1">Position</span>
           <PositionGrid
             value={position}
             disabled={tileDisabled}
@@ -4269,7 +4251,7 @@ function SectionFields({ block, brand, designWidthPx, onChange }: { block: Extra
         <SliderField label="Inner padding" value={block.paddingPx} min={0} max={120} suffix="px" onChange={(v) => onChange({ paddingPx: v })} />
         <SliderField label="Corner radius" value={block.borderRadiusPx} min={0} max={40} suffix="px" onChange={(v) => onChange({ borderRadiusPx: v })} />
         <div className="mt-2">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Content vertical position</span>
+          <span className="block text-[11px] font-medium text-evari-dimmer mb-1">Content vertical position</span>
           <div className="grid grid-cols-3 gap-1 rounded-md bg-evari-ink p-1 border border-evari-edge/30" role="radiogroup" aria-label="Vertical alignment">
             {(['top', 'middle', 'bottom'] as const).map((opt) => {
               const active = (block.contentAlignY ?? 'top') === opt;
