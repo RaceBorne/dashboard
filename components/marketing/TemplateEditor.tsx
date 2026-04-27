@@ -330,7 +330,19 @@ function AIDraftModal({ design, template, onClose, onApply }: { design: EmailDes
 
 function PreviewModal({ design, brand, onClose }: { design: EmailDesign; brand: MarketingBrand; onClose: () => void }) {
   const [device, setDevice] = useState<Device>('desktop');
-  const [testEmail, setTestEmail] = useState('');
+  const TEST_EMAIL_STORAGE_KEY = 'evari.mkt.previewTestEmail';
+  const [testEmail, setTestEmail] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    try { return window.localStorage.getItem(TEST_EMAIL_STORAGE_KEY) ?? ''; }
+    catch { return ''; }
+  });
+  // Persist whenever the user types — comes back next time the modal opens
+  // (or after a page reload).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try { window.localStorage.setItem(TEST_EMAIL_STORAGE_KEY, testEmail); }
+    catch { /* private mode etc. */ }
+  }, [testEmail]);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
