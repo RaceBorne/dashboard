@@ -316,6 +316,19 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
     }
   }
 
+  // Persist a label rename for a button preset back to the brand kit.
+  // Optimistic update via the same PATCH endpoint other fields use.
+  async function renameLabel(id: string, label: string) {
+    const next = (brand.fonts.buttonPresets ?? []).map((bp) => bp.id === id ? { ...bp, label } : bp);
+    try {
+      await fetch('/api/marketing/brand', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fonts: { ...brand.fonts, buttonPresets: next } }),
+      });
+    } catch { /* swallow — re-render on next brand refetch will show actual state */ }
+  }
+
   function addFromButtonPreset(p: ButtonPreset) {
     const block: EmailBlock = {
       id: nid(),
@@ -362,13 +375,13 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
           <ul className="space-y-1.5">
             {typo.map((p, idx) => (
               <PresetCardDraggable key={p.id} draggableId={`preset-typo:${idx}`} data={{ presetTypo: p }}>
-              <li className="group rounded-md border border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-ink/50 transition-colors overflow-hidden">
-                <div className="px-2.5 py-2">
+              <li className="group rounded-md border border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 transition-colors overflow-hidden">
+                <div className="bg-zinc-200/95 px-3 py-3">
                   <div
-                    className="text-evari-text leading-tight truncate"
+                    className="leading-tight truncate"
                     style={{
                       fontFamily: p.fontFamily ? `'${p.fontFamily}', sans-serif` : undefined,
-                      fontSize: `${Math.min(p.fontSizePx, 18)}px`,
+                      fontSize: `${Math.min(p.fontSizePx, 22)}px`,
                       fontWeight: p.fontWeight,
                       letterSpacing: `${p.letterSpacingEm}em`,
                       color: p.color,
@@ -377,13 +390,13 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
                   >
                     {p.name}
                   </div>
-                  <div className="mt-1 flex items-center gap-1.5 text-[9px] text-evari-dimmer font-mono tabular-nums">
-                    <span>{p.fontSizePx}px</span>
-                    <span className="text-evari-edge">·</span>
-                    <span>{p.fontWeight}</span>
-                    <span className="text-evari-edge">·</span>
-                    <span>{p.letterSpacingEm}em</span>
-                  </div>
+                </div>
+                <div className="px-2.5 py-1.5 flex items-center gap-1.5 text-[9px] text-evari-dimmer font-mono tabular-nums">
+                  <span>{p.fontSizePx}px</span>
+                  <span className="text-evari-edge">·</span>
+                  <span>{p.fontWeight}</span>
+                  <span className="text-evari-edge">·</span>
+                  <span>{p.letterSpacingEm}em</span>
                 </div>
                 <div className="flex border-t border-evari-edge/20 divide-x divide-evari-edge/20">
                   {selKind === 'typo' ? (
@@ -428,32 +441,58 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
           <ul className="space-y-1.5">
             {buttons.map((p, idx) => (
               <PresetCardDraggable key={p.id} draggableId={`preset-button:${idx}`} data={{ presetButton: p }}>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => selKind === 'button' ? onApplyButtonPreset(p) : addFromButtonPreset(p)}
-                  className={cn(
-                    'w-full flex items-center gap-2.5 rounded-md border transition-colors px-2.5 py-2 group',
-                    selKind === 'button'
-                      ? 'border-evari-gold/40 bg-evari-gold/10 hover:bg-evari-gold/20'
-                      : 'border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-ink/50',
-                  )}
-                  title={selKind === 'button' ? `Apply "${p.name}" to the selected button` : `Insert a button using "${p.name}"`}
-                >
-                  <span
-                    className="inline-flex items-center justify-center px-2.5 py-1 text-[10px] font-medium shrink-0"
+              <li className={cn(
+                'rounded-md border transition-colors overflow-hidden',
+                selKind === 'button'
+                  ? 'border-evari-gold/40 bg-evari-gold/10'
+                  : 'border-evari-edge/20 bg-evari-ink/30 hover:border-evari-gold/40',
+              )}>
+                {/* Full-width button preview with editable label. Click-edits
+                    the label and persists back to the brand kit. */}
+                <div className="bg-zinc-200/95 px-3 py-3 flex items-center justify-center">
+                  <div
                     style={{
                       background: p.backgroundColor,
                       color: p.textColor,
                       borderRadius: `${p.borderRadiusPx}px`,
+                      padding: `${p.paddingYPx}px ${p.paddingXPx}px`,
                       fontFamily: p.fontFamily ? `'${p.fontFamily}', sans-serif` : undefined,
+                      fontSize: `${p.fontSizePx ?? 14}px`,
                       fontWeight: p.fontWeight ?? 700,
                       letterSpacing: p.letterSpacingEm != null ? `${p.letterSpacingEm}em` : undefined,
                       textTransform: p.textTransform && p.textTransform !== 'none' ? p.textTransform : undefined,
+                      display: 'inline-block',
+                      lineHeight: 1.2,
+                      cursor: 'text',
+                      minWidth: 60,
+                      textAlign: 'center',
+                      outline: 'none',
+                    }}
+                    contentEditable
+                    suppressContentEditableWarning
+                    spellCheck={false}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={(e) => {
+                      const next = (e.currentTarget.textContent ?? '').trim();
+                      if (next !== (p.label || 'Button') && next.length > 0) {
+                        renameLabel(p.id, next);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); (e.currentTarget as HTMLElement).blur(); }
                     }}
                   >
                     {p.label || 'Button'}
-                  </span>
+                  </div>
+                </div>
+                {/* Bottom row: preset name + meta + apply/insert affordance */}
+                <button
+                  type="button"
+                  onClick={() => selKind === 'button' ? onApplyButtonPreset(p) : addFromButtonPreset(p)}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 hover:bg-evari-ink/50 transition-colors"
+                  title={selKind === 'button' ? `Apply "${p.name}" to the selected button` : `Insert a button using "${p.name}"`}
+                >
                   <span className="min-w-0 flex-1 text-left">
                     <span className="block text-[11px] text-evari-text leading-tight truncate">{p.name}</span>
                     <span className="block text-[9px] text-evari-dimmer font-mono tabular-nums mt-0.5">{p.paddingYPx}px · r{p.borderRadiusPx}</span>
@@ -461,7 +500,7 @@ function PresetsPanel({ brand, selectedBlock, onAddBlock, onApplyTypoPreset, onA
                   {selKind === 'button' ? (
                     <Wand2 className="h-3 w-3 text-evari-gold shrink-0" />
                   ) : (
-                    <Plus className="h-3 w-3 text-evari-dim group-hover:text-evari-gold transition-colors shrink-0" />
+                    <Plus className="h-3 w-3 text-evari-dim shrink-0" />
                   )}
                 </button>
               </li>
