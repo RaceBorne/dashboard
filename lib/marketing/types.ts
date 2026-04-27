@@ -454,6 +454,7 @@ export type FooterBlock =
       color: string;
       thicknessPx: number;
       marginYPx: number;
+      widthPct?: number;
     })
   | (FooterBlockBase & {
       type: 'address';
@@ -650,6 +651,9 @@ export type EmailBlock =
       color: string;
       thicknessPx: number;
       marginYPx: number;
+      /** Width as a percentage of the parent container. 100 = full width
+       *  (default), lower values centre a fixed-width line within. */
+      widthPct?: number;
     })
   | (EmailBlockBase & {
       type: 'spacer';

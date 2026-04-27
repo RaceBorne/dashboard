@@ -2054,10 +2054,20 @@ function ButtonFields({ block, brand, onChange }: { block: Extract<EmailBlock, {
 
 function DividerFields({ block, onChange }: { block: Extract<EmailBlock, { type: 'divider' }>; onChange: (p: Partial<Extract<EmailBlock, { type: 'divider' }>>) => void }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />
-      <NumField label="Thickness (px)" value={block.thicknessPx} min={1} max={8} onChange={(v) => onChange({ thicknessPx: v })} />
-      <NumField label="Margin Y (px)" value={block.marginYPx} min={0} max={64} onChange={(v) => onChange({ marginYPx: v })} />
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-2">
+        <ColourField label="Colour" value={block.color} onChange={(v) => onChange({ color: v })} />
+        <NumField label="Thickness (px)" value={block.thicknessPx} min={1} max={8} onChange={(v) => onChange({ thicknessPx: v })} />
+        <NumField label="Margin Y (px)" value={block.marginYPx} min={0} max={64} onChange={(v) => onChange({ marginYPx: v })} />
+      </div>
+      <SliderField
+        label="Width"
+        value={block.widthPct ?? 100}
+        min={10}
+        max={100}
+        suffix="%"
+        onChange={(v) => onChange({ widthPct: v })}
+      />
     </div>
   );
 }

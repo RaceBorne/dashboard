@@ -128,7 +128,12 @@ function renderButton(b: Extract<EmailBlock, { type: 'button' }>, brand: Marketi
 }
 
 function renderDivider(b: Extract<EmailBlock, { type: 'divider' }>): string {
-  return `<div style="margin:${b.marginYPx}px 0;height:${b.thicknessPx}px;line-height:0;font-size:0;background:${b.color};">&nbsp;</div>`;
+  const w = typeof b.widthPct === 'number' && b.widthPct > 0 && b.widthPct < 100 ? b.widthPct : 100;
+  if (w >= 100) {
+    return `<div style="margin:${b.marginYPx}px 0;height:${b.thicknessPx}px;line-height:0;font-size:0;background:${b.color};">&nbsp;</div>`;
+  }
+  // Fixed-width centred line — wrap in a centred container.
+  return `<div style="margin:${b.marginYPx}px 0;text-align:center;font-size:0;line-height:0;"><div style="display:inline-block;width:${w}%;height:${b.thicknessPx}px;background:${b.color};">&nbsp;</div></div>`;
 }
 
 function renderSpacer(b: Extract<EmailBlock, { type: 'spacer' }>): string {
@@ -199,14 +204,14 @@ const SOCIAL_LABELS: Record<string, string> = {
   website:   'Website',
 };
 
-const SOCIAL_ICON_SLUGS: Record<string, string> = {
-  instagram: 'instagram',
-  twitter:   'x',
-  linkedin:  'linkedin',
-  facebook:  'facebook',
-  tiktok:    'tiktok',
-  youtube:   'youtube',
-  website:   'googlechrome',
+const SOCIAL_ICON_REFS: Record<string, { set: string; name: string }> = {
+  instagram: { set: 'mdi',          name: 'instagram' },
+  twitter:   { set: 'mdi',          name: 'twitter' },
+  linkedin:  { set: 'mdi',          name: 'linkedin' },
+  facebook:  { set: 'mdi',          name: 'facebook' },
+  tiktok:    { set: 'simple-icons', name: 'tiktok' },
+  youtube:   { set: 'mdi',          name: 'youtube' },
+  website:   { set: 'mdi',          name: 'web' },
 };
 
 function renderSocial(b: Extract<EmailBlock, { type: 'social' }>): string {
@@ -217,8 +222,8 @@ function renderSocial(b: Extract<EmailBlock, { type: 'social' }>): string {
     .filter((it) => it.url && it.url.trim())
     .map((it) => {
       const label = SOCIAL_LABELS[it.platform] ?? it.platform;
-      const slug  = SOCIAL_ICON_SLUGS[it.platform] ?? it.platform;
-      const iconUrl = `https://cdn.simpleicons.org/${slug}/${colourHex}`;
+      const ref = SOCIAL_ICON_REFS[it.platform] ?? { set: 'mdi', name: 'web' };
+      const iconUrl = `https://api.iconify.design/${ref.set}/${ref.name}.svg?color=%23${colourHex}`;
       return `<a href="${escape(it.url)}" target="_blank" rel="noopener" title="${escape(label)}" style="text-decoration:none;display:inline-block;margin:0 ${Math.round(gap / 2)}px;">` +
         `<img src="${iconUrl}" alt="${escape(label)}" width="${size}" height="${size}" style="display:inline-block;width:${size}px;height:${size}px;border:0;outline:none;" />` +
         `</a>`;

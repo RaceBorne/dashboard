@@ -38,14 +38,16 @@ function alignStyle(a: FooterAlignment): string {
 }
 
 
-const SOCIAL_ICON_SLUGS: Record<keyof FooterSocial, string> = {
-  instagram: 'instagram',
-  twitter:   'x',          // Simple Icons uses 'x' for X / Twitter
-  linkedin:  'linkedin',
-  facebook:  'facebook',
-  tiktok:    'tiktok',
-  youtube:   'youtube',
-  website:   'googlechrome', // generic globe-ish; can swap for icon8 link if desired
+// Iconify-compatible icon refs. mdi (Material Design Icons) covers most
+// platforms reliably; tiktok is missing from mdi so we use simple-icons.
+const SOCIAL_ICON_REFS: Record<keyof FooterSocial, { set: string; name: string }> = {
+  instagram: { set: 'mdi',           name: 'instagram' },
+  twitter:   { set: 'mdi',           name: 'twitter' },
+  linkedin:  { set: 'mdi',           name: 'linkedin' },
+  facebook:  { set: 'mdi',           name: 'facebook' },
+  tiktok:    { set: 'simple-icons',  name: 'tiktok' },
+  youtube:   { set: 'mdi',           name: 'youtube' },
+  website:   { set: 'mdi',           name: 'web' },
 };
 
 const SOCIAL_LABELS: Record<keyof FooterSocial, string> = {
@@ -80,7 +82,11 @@ function renderSpacer(b: Extract<FooterBlock, { type: 'spacer' }>): string {
 }
 
 function renderDivider(b: Extract<FooterBlock, { type: 'divider' }>): string {
-  return `<div style="margin:${b.marginYPx}px 0;height:${b.thicknessPx}px;line-height:0;font-size:0;background:${b.color};">&nbsp;</div>`;
+  const w = typeof b.widthPct === 'number' && b.widthPct > 0 && b.widthPct < 100 ? b.widthPct : 100;
+  if (w >= 100) {
+    return `<div style="margin:${b.marginYPx}px 0;height:${b.thicknessPx}px;line-height:0;font-size:0;background:${b.color};">&nbsp;</div>`;
+  }
+  return `<div style="margin:${b.marginYPx}px 0;text-align:center;font-size:0;line-height:0;"><div style="display:inline-block;width:${w}%;height:${b.thicknessPx}px;background:${b.color};">&nbsp;</div></div>`;
 }
 
 function renderAddress(b: Extract<FooterBlock, { type: 'address' }>, brand: MarketingBrand): string {
@@ -102,8 +108,8 @@ function renderSocial(b: Extract<FooterBlock, { type: 'social' }>, brand: Market
     .filter(([, url]) => Boolean(url && url.trim()))
     .map(([key, url]) => {
       const label = SOCIAL_LABELS[key] ?? String(key);
-      const slug  = SOCIAL_ICON_SLUGS[key] ?? String(key);
-      const iconUrl = `https://cdn.simpleicons.org/${slug}/${colourHex}`;
+      const ref = SOCIAL_ICON_REFS[key] ?? { set: 'mdi', name: 'web' };
+      const iconUrl = `https://api.iconify.design/${ref.set}/${ref.name}.svg?color=%23${colourHex}`;
       return `<a href="${escape(url!)}" style="text-decoration:none;display:inline-block;margin:0 ${Math.round(gap / 2)}px;" target="_blank" rel="noopener" title="${escape(label)}">` +
         `<img src="${iconUrl}" alt="${escape(label)}" width="${size}" height="${size}" style="display:inline-block;width:${size}px;height:${size}px;border:0;outline:none;text-decoration:none;" />` +
         `</a>`;
