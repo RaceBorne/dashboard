@@ -1091,7 +1091,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
               className={cn('mx-auto transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
               style={{
                 maxWidth: `${design.widthPx}px`,
-                background: design.background,
+                background: '#ffffff',
               }}
               onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
             >
