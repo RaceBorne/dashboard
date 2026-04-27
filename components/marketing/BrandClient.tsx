@@ -163,8 +163,10 @@ export function BrandClient({ initialBrand }: Props) {
     }
   }
 
+  // Match the global designer rule: every single-line input + select in
+  // the brand setup is exactly 34px tall.
   const inputCls =
-    'px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out w-full';
+    'h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors w-full';
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink p-4">
@@ -264,10 +266,10 @@ export function BrandClient({ initialBrand }: Props) {
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,40%)_minmax(0,1fr)] gap-3">
 
             {/* LEFT — Heading + body pickers with live samples */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               {(['heading', 'body'] as Array<'heading' | 'body'>).map((slot) => (
                 <label key={slot} className="block">
-                  <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5 capitalize">{slot}</span>
+                  <span className="block text-[10px] font-medium uppercase tracking-[0.1em] text-evari-dimmer mb-1.5 capitalize">{slot}</span>
                   <select className={inputCls} value={fonts[slot]} onChange={(e) => setFont(slot, e.target.value)}>
                     {customFonts.length > 0 ? (
                       <optgroup label="Brand fonts (uploaded)">
@@ -279,8 +281,8 @@ export function BrandClient({ initialBrand }: Props) {
                     </optgroup>
                   </select>
                   <p
-                    className="mt-2 text-base text-evari-text"
-                    style={{ fontFamily: `'${fonts[slot]}', sans-serif` }}
+                    className="mt-2.5 text-evari-text leading-snug"
+                    style={{ fontFamily: `'${fonts[slot]}', sans-serif`, fontSize: slot === 'heading' ? '22px' : '14px', fontWeight: slot === 'heading' ? 600 : 400 }}
                   >
                     {slot === 'heading' ? 'Sample heading' : 'The quick brown fox jumps over the lazy dog.'}
                   </p>

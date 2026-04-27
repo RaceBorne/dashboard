@@ -690,6 +690,7 @@ function PresetCardDraggable({ draggableId, data, children }: { draggableId: str
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      data-preset-card
       className={cn('cursor-grab active:cursor-grabbing touch-none', isDragging && 'opacity-50')}
     >
       {children}
@@ -857,6 +858,7 @@ function PaletteTile({ tile, brand, draggableId, onClick }: { tile: BlockTile; b
       disabled={disabled}
       title={disabled ? 'Coming soon' : `Click to pre-configure or drag onto the canvas to add ${tile.label}`}
       onClick={() => { if (!disabled && tile.make && onClick) onClick(); }}
+      data-palette-tile
       className={cn(
         'relative w-full aspect-[5/3] rounded-md border bg-evari-ink/40 flex flex-col items-center justify-center gap-1 transition-colors duration-200 cursor-grab active:cursor-grabbing overflow-hidden',
         disabled
@@ -958,6 +960,35 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [undo]);
+
+  // Click-outside-everything → close the open editing context. If the user
+  // clicks outside any block, palette tile, preset card, or the right-rail
+  // panel itself, we drop selectedId / pendingTile / editingPreset so the
+  // workspace returns to its 'nothing being edited' state. Critical UX —
+  // avoids stuck-open detail panels with stale state.
+  useEffect(() => {
+    if (!selectedId && !pendingTile && !editingPreset) return;
+    function onMouseDown(e: MouseEvent) {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      // Inside any of these zones → keep editing
+      if (
+        t.closest('[data-keep-edit]') ||
+        t.closest('[data-block-id]') ||
+        t.closest('[data-palette-tile]') ||
+        t.closest('[data-preset-card]') ||
+        t.closest('[role="dialog"]') ||
+        // Also keep when clicking inside any SELECT, INPUT, BUTTON, etc.
+        // that's a child of the right rail (the panel uses [data-keep-edit]).
+        false
+      ) return;
+      setSelectedId(null);
+      setPendingTile(null);
+      setEditingPreset(null);
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [selectedId, pendingTile, editingPreset]);
 
   // Register every brand custom font with document.fonts so the canvas
   // (which renders blocks via dangerouslySetInnerHTML, not a styled
@@ -1523,7 +1554,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             DRAFT block when a tile was clicked from the palette, or a
             placeholder when nothing's happening. Flat embedded panel,
             no floating-card outline. */}
-        <div className="min-w-0 min-h-0 overflow-y-auto bg-evari-surface/50 rounded-md">
+        <div className="min-w-0 min-h-0 overflow-y-auto bg-evari-surface/50 rounded-md" data-keep-edit>
           {editingPreset ? (
             <InlinePresetEditor
               brand={initialBrand}

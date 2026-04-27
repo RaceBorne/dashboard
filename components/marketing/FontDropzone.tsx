@@ -154,7 +154,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
             value={pendingName}
             onChange={(e) => setPendingName(e.target.value)}
             placeholder="(auto-detect from filename)"
-            className="px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
+            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
           />
         </label>
         <label className="block">
@@ -162,7 +162,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
           <select
             value={pendingWeight}
             onChange={(e) => setPendingWeight(e.target.value)}
-            className="px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
+            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
           >
             <option value="">Auto (from filename)</option>
             {[100,200,300,400,500,600,700,800,900].map((w) => <option key={w} value={w}>{w}</option>)}
@@ -173,7 +173,7 @@ export function FontDropzone({ initialFonts, onChange }: Props) {
           <select
             value={pendingStyle}
             onChange={(e) => setPendingStyle(e.target.value)}
-            className="px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
+            className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none w-full"
           >
             <option value="">Auto (from filename)</option>
             <option value="normal">normal</option>
@@ -333,7 +333,7 @@ function FamilyRow({ name, variants, onRemoveVariant, onRemoveFamily, onRenameFa
                     setRenaming(false);
                   }
                 }}
-                className="flex-1 px-2 py-1 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-gold/60 focus:outline-none"
+                className="flex-1 h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-gold/60 focus:outline-none"
               />
               <button
                 type="button"
@@ -377,7 +377,7 @@ function FamilyRow({ name, variants, onRemoveVariant, onRemoveFamily, onRenameFa
         <select
           value={activeKey}
           onChange={(e) => setActiveKey(e.target.value)}
-          className="px-2 py-1 rounded-md bg-evari-ink text-evari-text text-xs border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+          className="h-[34px] px-2.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
           aria-label={`${name} variants`}
         >
           {variants.map((v) => (
