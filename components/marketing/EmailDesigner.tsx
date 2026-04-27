@@ -3189,16 +3189,19 @@ function CanvasInsertionZone({ overId }: { overId: string }) {
     String(dnd.active.id).startsWith('preset-button:')
   );
   const { isOver, setNodeRef } = useDroppable({ id: overId, disabled: isPresetDrag });
+  // Pin the zone at zero height so its activation doesn't displace the
+  // surrounding blocks. The visible indicator paints as an absolute
+  // overlay sitting astride the seam; no layout shift = no canvas shake
+  // when the cursor crosses a zone during a drag.
   return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        'rounded transition-colors',
-        isOver
-          ? 'h-3 my-1 bg-evari-gold/15 border-y-2 border-dashed border-evari-gold/70'
-          : 'h-0',
-      )}
-    />
+    <div ref={setNodeRef} className="relative h-0 z-20">
+      {isOver ? (
+        <div
+          className="absolute inset-x-0 -top-1 h-2 rounded bg-evari-gold/15 border-y-2 border-dashed border-evari-gold/70 pointer-events-none"
+          aria-hidden
+        />
+      ) : null}
+    </div>
   );
 }
 
