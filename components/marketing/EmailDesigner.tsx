@@ -160,7 +160,7 @@ const ADD_BUTTONS: BlockTile[] = [
       paddingBottomPx: 0,
     }) },
   { group: 'layout', type: 'columns', label: 'Columns', Icon: Columns3, comingSoon: true },
-  { group: 'layout', type: 'section', label: 'Section', Icon: Square, badge: 'New', make: () => ({ id: nid(), type: 'section', blocks: [], backgroundColor: '#1a1a1a', backgroundImage: '', backgroundSize: 'fill', backgroundPosition: 'center', paddingPx: 0, borderRadiusPx: 0, contentColor: '#ffffff', minHeightPx: 320, paddingBottomPx: 16 }) },
+  { group: 'layout', type: 'section', label: 'Section', Icon: Square, badge: 'New', make: () => ({ id: nid(), type: 'section', blocks: [], backgroundColor: '#1a1a1a', backgroundImage: '', backgroundSize: 'fill', backgroundPosition: 'center', paddingPx: 0, borderRadiusPx: 0, contentColor: '#ffffff', minHeightPx: 320, paddingBottomPx: 0 }) },
 ];
 
 // Heading still gets a tile but we render it inside the Blocks group ahead of Text in the toolbar.
@@ -1079,17 +1079,21 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
             style={{ background: design.background }}
             onClick={() => setSelectedId(null)}
           >
+            {/* Outer padded layer — mirrors the email HTML's outer table
+                cell padding. Keeps blocks edge-to-edge of the inner email
+                frame so sections sit flush; the design.paddingPx margin
+                shows around the email instead of inside it. */}
+            <div
+              style={{ padding: `${design.paddingPx}px 0`, background: design.background }}
+              onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
+            >
             <div
               className={cn('mx-auto transition-[max-width] duration-300', previewDevice === 'mobile' ? '!max-w-[360px]' : '')}
               style={{
                 maxWidth: `${design.widthPx}px`,
-                paddingTop: `${design.paddingPx}px`,
-                paddingLeft: `${design.paddingPx}px`,
-                paddingRight: `${design.paddingPx}px`,
-                paddingBottom: 0,
                 background: design.background,
               }}
-              onClick={() => setSelectedId(null)}
+              onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
             >
               <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
                 {design.blocks.length === 0 ? (
@@ -1118,6 +1122,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
                 )}
               </SortableContext>
               <CanvasFooterPreview brand={initialBrand} onRefresh={onRefreshBrand} refreshing={refreshingBrand} />
+            </div>
             </div>
           </div>
         </div>
