@@ -222,11 +222,11 @@ function TemplateCard({ template, busy, onDuplicate, onDelete }: { template: Ema
   // For thumbnail: render a tiny scaled-down iframe of the design.
   const previewHtml = useMemo(() => renderEmailDesignWithStub(template.design), [template.design]);
   return (
-    <li className="group relative rounded-md border border-evari-edge/30 bg-evari-ink overflow-hidden hover:border-evari-gold/40 transition-colors">
+    <li className="group relative rounded-lg overflow-hidden bg-evari-surface ring-1 ring-evari-edge/20 hover:ring-evari-gold/40 transition-shadow">
       <Link href={`/email/templates/${template.id}/edit`} className="block">
-        {/* Thumbnail — 9:16 portrait that the iframe fills via measured scale */}
+        {/* Thumbnail — 4:5 portrait, scale-to-fit (no crop) */}
         <TemplateThumbnail title={`Preview of ${template.name}`} html={previewHtml} />
-        <div className="p-2">
+        <div className="px-3 py-2 bg-evari-ink/70 border-t border-evari-edge/30">
           <div className="text-sm text-evari-text font-medium truncate">{template.name}</div>
           <div className="text-[10px] text-evari-dimmer font-mono tabular-nums mt-0.5">
             {new Date(template.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -302,13 +302,29 @@ function CreateModal({ onClose, onCreate, creating }: { onClose: () => void; onC
  */
 function TemplateThumbnail({ title, html }: { title: string; html: string }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(0.32);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // Measured container dimensions + iframe content height. We compute
+  // scale = min(containerWidth / 600, containerHeight / contentHeight)
+  // so the entire email fits inside the 4:5 tile with no crop. If the
+  // email is shorter than the tile, it sits centred with letterbox at
+  // top + bottom; if taller, it sits centred with letterbox left/right.
+  const [containerW, setContainerW] = useState(240);
+  const [containerH, setContainerH] = useState(300);
+  const [contentH, setContentH] = useState(800); // generous default until measured
+  const measureContent = () => {
+    try {
+      const doc = iframeRef.current?.contentDocument;
+      if (!doc) return;
+      const h = Math.max(doc.body?.scrollHeight ?? 0, doc.documentElement?.scrollHeight ?? 0);
+      if (h > 0) setContentH(h);
+    } catch { /* cross-origin; rely on default */ }
+  };
   useEffect(() => {
     if (!wrapRef.current) return;
     const el = wrapRef.current;
     const update = () => {
-      const w = el.clientWidth;
-      if (w > 0) setScale(w / 600);
+      setContainerW(el.clientWidth);
+      setContainerH(el.clientHeight);
     };
     update();
     if (typeof ResizeObserver === 'undefined') return;
@@ -316,19 +332,25 @@ function TemplateThumbnail({ title, html }: { title: string; html: string }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  // Inner iframe is sized so width=600 and height matches a 9:16 crop of
-  // that width (600 × 16 / 9 ≈ 1067). The container's aspect-ratio also
-  // 9:16, so the scaled iframe exactly fills it.
+  // Re-measure if html changes
+  useEffect(() => { measureContent(); }, [html]);
+  const scale = Math.min(containerW / 600, containerH / Math.max(contentH, 1));
+  const scaledW = 600 * scale;
+  const scaledH = contentH * scale;
+  const offsetX = Math.max(0, (containerW - scaledW) / 2);
+  const offsetY = Math.max(0, (containerH - scaledH) / 2);
   return (
-    <div ref={wrapRef} className="aspect-[9/16] bg-zinc-100 overflow-hidden relative pointer-events-none">
+    <div ref={wrapRef} className="aspect-[4/5] bg-evari-ink overflow-hidden relative pointer-events-none">
       <iframe
+        ref={iframeRef}
         title={title}
         srcDoc={html}
+        onLoad={measureContent}
         className="absolute top-0 left-0 bg-white"
         style={{
           width: '600px',
-          height: `${Math.round(600 * 16 / 9)}px`,
-          transform: `scale(${scale})`,
+          height: `${contentH}px`,
+          transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
           transformOrigin: 'top left',
           border: 0,
         }}

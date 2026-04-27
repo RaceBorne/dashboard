@@ -448,30 +448,44 @@ function TemplatePickerModal({ templates, onClose, onPick }: { templates: EmailT
  */
 function PickerThumbnail({ title, html }: { title: string; html: string }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(0.32);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [containerW, setContainerW] = useState(240);
+  const [containerH, setContainerH] = useState(300);
+  const [contentH, setContentH] = useState(800);
+  const measureContent = () => {
+    try {
+      const doc = iframeRef.current?.contentDocument;
+      if (!doc) return;
+      const h = Math.max(doc.body?.scrollHeight ?? 0, doc.documentElement?.scrollHeight ?? 0);
+      if (h > 0) setContentH(h);
+    } catch { /* noop */ }
+  };
   useEffect(() => {
     if (!wrapRef.current) return;
     const el = wrapRef.current;
-    const update = () => {
-      const w = el.clientWidth;
-      if (w > 0) setScale(w / 600);
-    };
+    const update = () => { setContainerW(el.clientWidth); setContainerH(el.clientHeight); };
     update();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  useEffect(() => { measureContent(); }, [html]);
+  const scale = Math.min(containerW / 600, containerH / Math.max(contentH, 1));
+  const offsetX = Math.max(0, (containerW - 600 * scale) / 2);
+  const offsetY = Math.max(0, (containerH - contentH * scale) / 2);
   return (
-    <div ref={wrapRef} className="aspect-[9/16] bg-zinc-100 overflow-hidden relative pointer-events-none">
+    <div ref={wrapRef} className="aspect-[4/5] bg-evari-ink overflow-hidden relative pointer-events-none">
       <iframe
+        ref={iframeRef}
         title={title}
         srcDoc={html}
+        onLoad={measureContent}
         className="absolute top-0 left-0 bg-white"
         style={{
           width: '600px',
-          height: `${Math.round(600 * 16 / 9)}px`,
-          transform: `scale(${scale})`,
+          height: `${contentH}px`,
+          transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
           transformOrigin: 'top left',
           border: 0,
         }}
