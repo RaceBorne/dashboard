@@ -725,6 +725,7 @@ function LayersTree({ blocks, selectedId, onSelect, onRemove }: {
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
+  const ids = blocks.map((b) => `layer:${b.id}`);
   if (blocks.length === 0) {
     return (
       <div className="text-[11px] text-evari-dim px-2 py-6 text-center leading-relaxed">
@@ -733,11 +734,13 @@ function LayersTree({ blocks, selectedId, onSelect, onRemove }: {
     );
   }
   return (
-    <ul className="space-y-2">
-      {blocks.map((b) => (
-        <LayerRow key={b.id} block={b} depth={0} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
-      ))}
-    </ul>
+    <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+      <ul className="space-y-2">
+        {blocks.map((b) => (
+          <LayerRow key={b.id} block={b} depth={0} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
+        ))}
+      </ul>
+    </SortableContext>
   );
 }
 
@@ -777,6 +780,12 @@ function LayerRow({ block, depth, selectedId, onSelect, onRemove }: {
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `layer:${block.id}` });
+  const sortStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
   const tile = ADD_BUTTONS.find((t) => t.type === block.type) ?? (block.type === 'heading' ? HEADING_TILE : null);
   const Icon = tile?.Icon ?? Square;
   const selected = selectedId === block.id;
@@ -795,9 +804,11 @@ function LayerRow({ block, depth, selectedId, onSelect, onRemove }: {
     : baseSurface;
   const hoverSurface = selected ? '' : 'hover:bg-white/[0.16]';
   return (
-    <li>
+    <li ref={setNodeRef} style={sortStyle}>
       <div
-        className={cn('group rounded-lg overflow-hidden cursor-pointer transition-colors', surface, hoverSurface)}
+        {...attributes}
+        {...listeners}
+        className={cn('group rounded-lg overflow-hidden cursor-grab active:cursor-grabbing transition-colors touch-none', surface, hoverSurface)}
         onClick={(e) => { e.stopPropagation(); onSelect(block.id); }}
       >
         {/* Row header — same height for every block, regardless of nesting. */}
@@ -814,6 +825,7 @@ function LayerRow({ block, depth, selectedId, onSelect, onRemove }: {
           </div>
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onRemove(block.id); }}
             className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md text-evari-dim hover:text-evari-danger hover:bg-black/20 transition-all"
             title="Delete block"
@@ -826,11 +838,13 @@ function LayerRow({ block, depth, selectedId, onSelect, onRemove }: {
             own (lighter) rectangles. Inset slightly so the parent
             boundary is visible top + sides + bottom. */}
         {isSection && children && children.length > 0 ? (
-          <ul className="space-y-1.5 px-1.5 pb-1.5">
-            {children.map((c) => (
-              <LayerRow key={c.id} block={c} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
-            ))}
-          </ul>
+          <SortableContext items={children.map((c) => `layer:${c.id}`)} strategy={verticalListSortingStrategy}>
+            <ul className="space-y-1.5 px-1.5 pb-1.5">
+              {children.map((c) => (
+                <LayerRow key={c.id} block={c} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRemove={onRemove} />
+              ))}
+            </ul>
+          </SortableContext>
         ) : null}
       </div>
     </li>
@@ -1366,6 +1380,26 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
     // Sortable in-list reorder. Same-container only — cross-container moves
     // aren't supported yet (delete + re-add covers that case). Pinned-top
     // sections also refuse to be moved (or to be displaced by another move).
+    // Layers-panel drag: ids prefixed with 'layer:' come from the
+    // LayersTree. Strip the prefix on both sides and reorder blocks
+    // the same way a canvas sortable would.
+    if (activeId.startsWith('layer:')) {
+      if (!overId.startsWith('layer:')) return;
+      const aId = activeId.slice('layer:'.length);
+      const oId = overId.slice('layer:'.length);
+      if (aId === oId) return;
+      const aLoc = findContainerOf(design.blocks, aId);
+      const oLoc = findContainerOf(design.blocks, oId);
+      if (!aLoc || !oLoc) return;
+      // Only same-container reorder; cross-container moves not supported.
+      if (aLoc.parentId !== oLoc.parentId) return;
+      commit({
+        ...design,
+        blocks: updateChildren(design.blocks, aLoc.parentId, (kids) => arrayMove(kids, aLoc.index, oLoc.index)),
+      });
+      return;
+    }
+
     if (activeId !== overId && overId !== 'end-of-list' && !overId.startsWith('section-end:') && !overId.startsWith('section-body:')) {
       const active = findBlockById(design.blocks, activeId);
       const over   = findBlockById(design.blocks, overId);
