@@ -2938,23 +2938,19 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
         {...dragProps}
         onClick={(e) => {
           e.stopPropagation();
-          // Phase 5: split-block click-to-edit. Walk the visual stack at the
-          // click point looking for a data-split-item-id; if found, route
-          // through onSelectItem so the right-rail accordion auto-expands
-          // that item. Falls through to plain onSelect for non-split blocks
-          // and for clicks that miss every item (cell padding, overlay bg).
+          // Stop links / button-hrefs in the rendered email content from
+          // navigating when the user is actually editing.
+          e.preventDefault();
+          // Split block click-to-edit. e.target is now the actual rendered
+          // element (image, text div, button) since pointer-events-none
+          // is no longer blanketing the content. Walk up to the nearest
+          // data-split-item-id and route to its editor.
           if (block.type === 'split' && onSelectItem) {
-            const els = document.elementsFromPoint(e.clientX, e.clientY);
-            // TEMP DEBUG: log so we can confirm the handler runs and
-            // see what elementsFromPoint actually finds. Remove after
-            // confirming.
-            // eslint-disable-next-line no-console
-            console.log('[split-click]', { x: e.clientX, y: e.clientY, count: els.length, ids: els.map((el) => (el as HTMLElement).dataset?.splitItemId).filter(Boolean), blockType: block.type });
-            for (const el of els) {
-              if (el instanceof HTMLElement && el.dataset.splitItemId) {
-                onSelectItem(el.dataset.splitItemId);
-                return;
-              }
+            const t = e.target as HTMLElement | null;
+            const hit = t?.closest('[data-split-item-id]') as HTMLElement | null;
+            if (hit && hit.dataset.splitItemId) {
+              onSelectItem(hit.dataset.splitItemId);
+              return;
             }
           }
           onSelect();
@@ -2980,7 +2976,7 @@ function CanvasBlock({ block, brand, device, selected, selectedId, editing, onSe
             onDuplicateChild={onDuplicateChild}
           />
         ) : (
-          <div className="pointer-events-none" dangerouslySetInnerHTML={{ __html: renderEmailBlockHtml(eff, brand, device) }} />
+          <div dangerouslySetInnerHTML={{ __html: renderEmailBlockHtml(eff, brand, device) }} />
         )}
         <div className={cn(
           'absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md bg-evari-ink/95 border border-evari-edge/40 shadow-lg backdrop-blur-sm transition-opacity',
