@@ -391,7 +391,7 @@ function PreviewModal({ design, brand, onClose }: { design: EmailDesign; brand: 
 
       <div className="flex-1 min-h-0 grid grid-cols-[1fr_360px] gap-3 p-3 overflow-hidden">
         {/* Preview iframe */}
-        <div className="min-h-0 overflow-auto flex justify-center bg-zinc-100 rounded-md">
+        <div className="min-h-0 overflow-auto flex justify-center rounded-md" style={{ background: design.background }}>
           <iframe
             title="Preview"
             srcDoc={html}
