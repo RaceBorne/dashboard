@@ -37,6 +37,8 @@ import { SuccessMetricsStep } from './strategy/SuccessMetricsStep';
 import { HandoffStep as HandoffStepDashboard } from './strategy/HandoffStep';
 import { BriefSummaryStep } from './strategy/BriefSummaryStep';
 import { BriefEditorDrawer, type BriefSection } from './strategy/BriefEditorDrawer';
+import { StrategyTimeline, STRATEGY_STEPS } from './strategy/StrategyTimeline';
+import { useSearchParams } from 'next/navigation';
 
 interface Brief {
   id: string;
@@ -80,7 +82,14 @@ interface Props {
 export function StrategyClient({ plays, play, initialBrief }: Props) {
   const router = useRouter();
   const [brief, setBrief] = useState<Brief | null>(initialBrief);
-  const [step, setStep] = useState<StepKey>('brief');
+  const searchParams = useSearchParams();
+  const initialStep = (searchParams?.get('step') ?? 'brief') as StepKey;
+  const [step, setStep] = useState<StepKey>(STRATEGY_STEPS.find((s) => s.key === initialStep) ? initialStep : 'brief');
+  useEffect(() => {
+    const q = searchParams?.get('step') as StepKey | null;
+    if (q && STRATEGY_STEPS.find((s) => s.key === q) && q !== step) setStep(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorSection, setEditorSection] = useState<BriefSection>('overview');
@@ -180,7 +189,7 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
       </div>
 
       {/* Fixed bottom timeline */}
-      <BottomTimeline step={step} onPick={go} />
+      <StrategyTimeline mode="internal" step={step} onPick={go} playId={brief.playId} />
 
       <BriefEditorDrawer
         open={editorOpen}
@@ -210,34 +219,6 @@ function SlideContainer({ step, direction, children }: { step: StepKey; directio
       `}</style>
       {children}
     </div>
-  );
-}
-
-// ─── Bottom timeline ──────────────────────────────────────────
-
-function BottomTimeline({ step, onPick }: { step: StepKey; onPick: (k: StepKey) => void }) {
-  const idx = STEPS.findIndex((s) => s.key === step);
-  return (
-    <nav className="absolute left-0 right-0 bottom-0 z-10 bg-evari-ink border-t border-evari-edge/30 px-4 py-3">
-      <div className="max-w-[1100px] 2xl:max-w-[1240px] mx-auto px-2 2xl:px-6">
-        <div className="grid grid-cols-7 gap-2 items-end">
-          {STEPS.map((s, i) => {
-            const active = s.key === step;
-            const past = i < idx;
-            return (
-              <button key={s.key} type="button" onClick={() => onPick(s.key)} className="group flex flex-col items-center gap-1.5">
-                <div className="relative w-full h-[3px] rounded-full bg-evari-edge/30 overflow-hidden">
-                  <div className={cn('absolute inset-y-0 left-0', active ? 'w-1/2 bg-evari-gold' : past ? 'w-full bg-evari-gold/60' : 'w-0')} />
-                </div>
-                <span className={cn('text-[10px] uppercase tracking-[0.12em] transition-colors', active ? 'text-evari-text font-semibold' : past ? 'text-evari-dim' : 'text-evari-dimmer group-hover:text-evari-text')}>
-                  {s.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </nav>
   );
 }
 
