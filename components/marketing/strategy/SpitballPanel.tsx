@@ -172,90 +172,97 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
   if (!open) return null;
 
   return (
-    <aside
-      className={cn(
-        'absolute right-0 top-0 bottom-0 z-30 w-[420px] max-w-[90vw] flex flex-col',
-        'bg-evari-surface border-l border-evari-edge/30 shadow-2xl',
-      )}
-    >
-      <header className="h-[44px] px-3 flex items-center gap-2 border-b border-evari-edge/30">
+    // Inline panel: takes the full centre of the Strategy page when
+    // open. The seven-step rail content is hidden behind it; the
+    // bottom timeline stays available for navigation.
+    <section className="h-full w-full flex flex-col bg-evari-ink">
+      <header className="shrink-0 px-4 h-11 flex items-center gap-2 border-b border-evari-edge/30">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">
           <Sparkles className="h-3.5 w-3.5" />
         </span>
-        <h3 className="text-[12px] font-semibold text-evari-text flex-1 truncate">
+        <h3 className="text-[13px] font-semibold text-evari-text flex-1 truncate">
           Spitball: {playTitle}
         </h3>
         <button
           type="button"
           onClick={onClose}
-          className="text-evari-dim hover:text-evari-text p-1 rounded transition"
-          title="Close"
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition"
+          title="Close Spitball, return to Brief"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-3.5 w-3.5" /> Close
         </button>
       </header>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
-        <div className="rounded-md border border-evari-edge/30 bg-evari-ink/40 px-2.5 py-2 text-[11px] text-evari-dim leading-relaxed">
-          <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer block mb-0.5">Pitch</span>
-          {pitch || '(no pitch on file)'}
-        </div>
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+        {/* Centred conversation column. Wider than the floating panel
+            so paragraphs breathe. Pitch sits at the top as anchor
+            context. */}
+        <div className="mx-auto w-full max-w-[760px] px-4 py-5 space-y-4">
+          <div className="rounded-panel border border-evari-edge/30 bg-evari-surface px-3 py-2.5 text-[12px] text-evari-dim leading-relaxed">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer block mb-1">Pitch</span>
+            {pitch || '(no pitch on file)'}
+          </div>
 
-        {messages.map((m) => (
-          <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
-            <div className={cn(
-              'rounded-md px-2.5 py-1.5 text-[12px] max-w-[85%] whitespace-pre-wrap break-words leading-relaxed',
-              m.role === 'user'
-                ? 'bg-evari-gold/15 text-evari-text'
-                : 'bg-evari-ink/40 text-evari-text border border-evari-edge/30',
-            )}>
-              {m.content}
+          {messages.map((m) => (
+            <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+              <div className={cn(
+                'rounded-panel px-3 py-2 text-[13px] max-w-[85%] whitespace-pre-wrap break-words leading-relaxed',
+                m.role === 'user'
+                  ? 'bg-evari-gold/15 text-evari-text'
+                  : 'bg-evari-surface text-evari-text border border-evari-edge/30',
+              )}>
+                {m.content}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
 
-        {busy ? (
-          <div className="flex items-center gap-2 text-[11px] text-evari-dim">
-            <Loader2 className="h-3 w-3 animate-spin" /> Thinking...
-          </div>
-        ) : null}
+          {busy ? (
+            <div className="flex items-center gap-2 text-[12px] text-evari-dim">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Thinking...
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <div className="px-3 py-2 border-t border-evari-edge/30">
-        <button
-          type="button"
-          onClick={() => void commit()}
-          disabled={committing}
-          className={cn(
-            'w-full inline-flex items-center justify-center gap-2 h-10 rounded-md text-[12px] font-semibold transition',
-            'bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-60 disabled:cursor-wait',
-          )}
-        >
-          {committing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {committing ? 'Locking strategy & launching discovery…' : 'Commit & start discovery'}
-        </button>
+      {/* Footer: input + commit. Centred to match the conversation column. */}
+      <div className="shrink-0 border-t border-evari-edge/30 bg-evari-ink">
+        <div className="mx-auto w-full max-w-[760px] px-4 py-3 space-y-2">
+          <form
+            onSubmit={(e) => { e.preventDefault(); void send(input); }}
+            className="flex items-center gap-2"
+          >
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Reply to Claude..."
+              disabled={busy || committing}
+              className="flex-1 h-10 px-3 rounded-panel bg-evari-surface text-evari-text text-[13px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || busy || committing}
+              className="inline-flex items-center justify-center h-10 w-10 rounded-panel bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
+              title="Send"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => void commit()}
+              disabled={committing}
+              className={cn(
+                'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-panel text-[12px] font-semibold transition',
+                'bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-60 disabled:cursor-wait',
+              )}
+              title="Lock the strategy and start finding companies"
+            >
+              {committing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {committing ? 'Locking…' : 'Commit & start discovery'}
+            </button>
+          </form>
+        </div>
       </div>
-
-      <form
-        onSubmit={(e) => { e.preventDefault(); void send(input); }}
-        className="px-3 py-2 border-t border-evari-edge/30 flex items-center gap-2"
-      >
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Reply to Claude..."
-          disabled={busy || committing}
-          className="flex-1 h-8 px-2 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || busy || committing}
-          className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
-        >
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-        </button>
-      </form>
-    </aside>
+    </section>
   );
 }

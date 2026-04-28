@@ -175,8 +175,10 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-evari-ink relative">
       {/* Scaling viewport — caps width at xl breakpoints, scales slightly at 2xl. */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <div className="h-full px-gutter py-5 pb-28 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div className={cn(
+          spitballOpen ? 'shrink-0 px-gutter pt-5' : 'h-full px-gutter py-5 pb-28 overflow-y-auto',
+        )}>
           {/* Header */}
           <div className="flex items-center gap-2 mb-4">
             <select
@@ -208,17 +210,35 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
             </div>
           </div>
 
-          {/* Sliding step content */}
-          <SlideContainer step={step} direction={direction}>
-            {step === 'brief'     ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} /> : null}
-            {step === 'target'    ? <TargetProfileStep playId={brief.playId} /> : null}
-            {step === 'ideal'     ? <IdealCustomerStep playId={brief.playId} brief={{ idealCustomer: brief.idealCustomer, set }} /> : null}
-            {step === 'channels'  ? <ChannelsStepDashboard playId={brief.playId} briefChannels={brief.channels} onEdit={() => openEditor('channels')} /> : null}
-            {step === 'messaging' ? <MessagingStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('messaging')} /> : null}
-            {step === 'metrics'   ? <SuccessMetricsStep playId={brief.playId} brief={brief} onEdit={() => openEditor('metrics')} /> : null}
-            {step === 'handoff'   ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} /> : null}
-          </SlideContainer>
+          {/* Seven-step rail (only when Spitball is closed). */}
+          {spitballOpen ? null : (
+            <SlideContainer step={step} direction={direction}>
+              {step === 'brief'     ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} /> : null}
+              {step === 'target'    ? <TargetProfileStep playId={brief.playId} /> : null}
+              {step === 'ideal'     ? <IdealCustomerStep playId={brief.playId} brief={{ idealCustomer: brief.idealCustomer, set }} /> : null}
+              {step === 'channels'  ? <ChannelsStepDashboard playId={brief.playId} briefChannels={brief.channels} onEdit={() => openEditor('channels')} /> : null}
+              {step === 'messaging' ? <MessagingStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('messaging')} /> : null}
+              {step === 'metrics'   ? <SuccessMetricsStep playId={brief.playId} brief={brief} onEdit={() => openEditor('metrics')} /> : null}
+              {step === 'handoff'   ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} /> : null}
+            </SlideContainer>
+          )}
         </div>
+
+        {/* Spitball fills the remaining height when open. Sibling of
+            the header so it occupies the entire viewable area between
+            header and bottom timeline. */}
+        {spitballOpen ? (
+          <div className="flex-1 min-h-0">
+            <SpitballPanel
+              playId={brief.playId}
+              playTitle={play.title}
+              pitch={play.brief}
+              open={spitballOpen}
+              kickoff={kickoffOnOpen}
+              onClose={() => { setSpitballOpen(false); setKickoffOnOpen(false); }}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* Fixed bottom timeline */}
@@ -232,14 +252,7 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
         set={set}
       />
 
-      <SpitballPanel
-        playId={brief.playId}
-        playTitle={play.title}
-        pitch={play.brief}
-        open={spitballOpen}
-        kickoff={kickoffOnOpen}
-        onClose={() => { setSpitballOpen(false); setKickoffOnOpen(false); }}
-      />
+
     </div>
   );
 }
