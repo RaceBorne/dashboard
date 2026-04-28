@@ -1,113 +1,22 @@
 import { TopBar } from '@/components/sidebar/TopBar';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCountsPerPlay, listPlays } from '@/lib/dashboard/repository';
-import type { Play, PlayStage } from '@/lib/types';
-import { VentureHero } from '@/components/plays/VentureHero';
-import { PlayRow } from '@/components/plays/PlayRow';
-import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
-import { STAGE_WRAPPER_CLASSNAME } from '@/lib/layout/stageWrapper';
+import { IdeasClient } from '@/components/plays/IdeasClient';
+import { IdeasAIBinding } from '@/components/plays/IdeasAIBinding';
 
-// Stage pages depend on ?playId= and per-request data, so opt out of
-// static prerender. Without this, Next.js 16 fails the build with
-// 'useSearchParams() should be wrapped in a suspense boundary' for any
-// client component (FunnelRibbon, ProjectRail) that reads search params.
 export const dynamic = 'force-dynamic';
-
-
-const STAGES: {
-  key: PlayStage;
-  label: string;
-  hint: string;
-}[] = [
-  { key: 'idea', label: 'Ideas', hint: 'Parked, no commitment' },
-  { key: 'researching', label: 'Researching', hint: 'Digging in' },
-  { key: 'building', label: 'Building', hint: 'Messaging + audience' },
-  { key: 'ready', label: 'Ready', hint: 'Awaiting launch' },
-  { key: 'live', label: 'Live', hint: 'In market' },
-  { key: 'retired', label: 'Retired', hint: 'Archived' },
-];
 
 export default async function VenturesPage() {
   const supabase = createSupabaseAdmin();
-  // Fetch plays + per-play pipeline counts in parallel. The counts power
-  // the right side of each PlayRow (replaces the old "idea" stage lozenge).
   const [plays, countsByPlay] = await Promise.all([
     listPlays(supabase),
     getCountsPerPlay(supabase),
   ]);
-  const byStage = new Map<PlayStage, Play[]>();
-  for (const s of STAGES) byStage.set(s.key, []);
-  for (const c of plays) {
-    const arr = byStage.get(c.stage) ?? [];
-    arr.push(c);
-    byStage.set(c.stage, arr);
-  }
-
-  const total = plays.length;
-
   return (
     <>
-      <TopBar
-        title="Prospecting"
-        subtitle={total + ' in flight — idea → live'}
-      />
-
-      {/*
-        Layout: the original generous clearspace (p-6 + space-y-6). Ribbon
-        mounts at the top so the Ventures chip is visible in the funnel;
-        hero is the primary action; the existing ventures list lives
-        below as a smaller, secondary section.
-      */}
-      <div className={STAGE_WRAPPER_CLASSNAME}>
-        <FunnelRibbon stage="ventures" playId={plays[0]?.id ?? ""} />
-
-        {/* Hero — big, the primary action on this page. */}
-        <VentureHero />
-
-        {/* Existing ventures — smaller section below the hero. */}
-        {total > 0 ? (
-          <section className="space-y-4">
-            <div className="flex items-baseline gap-2 px-1">
-              <h3 className="text-[11px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
-                Your ventures
-              </h3>
-              <span className="text-[11px] text-evari-dimmer/80">
-                {total} total · idea → live
-              </span>
-            </div>
-
-            {STAGES.map((s) => {
-              const items = byStage.get(s.key) ?? [];
-              if (items.length === 0) return null;
-              return (
-                <div key={s.key} className="space-y-2">
-                  <div className="flex items-center gap-3 px-1">
-                    <h4 className="text-sm font-medium text-evari-text capitalize">
-                      {s.label}
-                    </h4>
-                    <span className="text-[11px] text-evari-dimmer">
-                      {s.hint} · {items.length}
-                    </span>
-                  </div>
-                  <ul className="space-y-1">
-                    {items.map((c) => (
-                      <PlayRow
-                        key={c.id}
-                        play={c}
-                        counts={countsByPlay.get(c.id)}
-                      />
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </section>
-        ) : (
-          <div className="px-1 text-[12px] text-evari-dimmer">
-            No ventures yet. Fill in the box above to start your first one.
-          </div>
-        )}
-      </div>
+      <TopBar title="Ideas" subtitle="Prospecting · Capture, develop and organise new targeting concepts" />
+      <IdeasAIBinding count={plays.length} />
+      <IdeasClient plays={plays} counts={countsByPlay} />
     </>
   );
 }

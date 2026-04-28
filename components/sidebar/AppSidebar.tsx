@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Sparkles,
+  Star,
+  Database,
   Sun,
   Moon,
   LayoutDashboard,
@@ -48,7 +50,10 @@ const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
   { href: '/ventures', label: 'Prospecting', icon: Rocket, group: 'pipeline' },
+  { href: '/strategy', label: 'Strategy', icon: ListTodo, group: 'pipeline', child: true },
   { href: '/discover', label: 'Discover', icon: Search, group: 'pipeline', child: true },
+  { href: '/shortlist', label: 'Shortlist', icon: Star, group: 'pipeline', child: true },
+  { href: '/enrichment', label: 'Enrichment', icon: Database, group: 'pipeline', child: true },
   { href: '/leads', label: 'Leads', icon: Users, group: 'pipeline', child: true },
   { href: '/traffic', label: 'Traffic', icon: TrendingUp, group: 'web' },
   { href: '/seo', label: 'SEO Health', icon: Search, group: 'web', warn: true },
