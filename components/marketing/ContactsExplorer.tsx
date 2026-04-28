@@ -64,6 +64,7 @@ export function ContactsExplorer({ initialBundle }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [bulkOp, setBulkOp] = useState<null | 'addTag' | 'removeTag'>(null);
+  const [campaignPickerOpen, setCampaignPickerOpen] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
 
   const folders = bundle.folders;
@@ -211,11 +212,19 @@ export function ContactsExplorer({ initialBundle }: Props) {
               >
                 <X className="h-3 w-3" /> Remove from group
               </button>
+              <button
+                type="button"
+                onClick={() => setCampaignPickerOpen(true)}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-evari-ink/60 text-evari-text hover:bg-black/40 transition-colors"
+                title="Add the selected contacts to an existing draft or scheduled campaign"
+              >
+                <Send className="h-3 w-3" /> Add to campaign
+              </button>
               <a
                 href={`/email/campaigns/new?ids=${Array.from(checked).join(',')}`}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
               >
-                <Send className="h-3 w-3" /> Send campaign
+                <Send className="h-3 w-3" /> New campaign
               </a>
             </div>
           </div>
@@ -252,6 +261,14 @@ export function ContactsExplorer({ initialBundle }: Props) {
           ids={Array.from(checked)}
           onClose={() => setBulkOp(null)}
           onDone={async () => { setBulkOp(null); setChecked(new Set()); await refresh(); }}
+        />
+      ) : null}
+
+      {campaignPickerOpen ? (
+        <AddToCampaignModal
+          contactIds={Array.from(checked)}
+          onClose={() => setCampaignPickerOpen(false)}
+          onDone={() => { setCampaignPickerOpen(false); setChecked(new Set()); }}
         />
       ) : null}
 
@@ -781,6 +798,114 @@ function NewGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             Create
           </button>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+// ─── Add to campaign modal ────────────────────────────────────
+//
+// Lists every campaign that's still in 'draft' or 'scheduled' (the
+// only states where the recipient set is still mutable). The picked
+// campaign's recipientEmails get the selected contacts' emails
+// appended via /api/marketing/campaigns/<id>/add-recipients (which
+// handles de-duping + suppression checks server-side).
+
+function AddToCampaignModal({ contactIds, onClose, onDone }: { contactIds: string[]; onClose: () => void; onDone: () => void }) {
+  const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string; subject: string; status: string; updatedAt: string; recipientEmails: string[] | null }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [doneMsg, setDoneMsg] = useState<string | null>(null);
+
+  useMemo(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    fetch('/api/marketing/campaigns', { signal: ctrl.signal, cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => {
+        const all = ((d?.campaigns ?? []) as Array<{ id: string; name: string; subject: string; status: string; updatedAt: string; recipientEmails: string[] | null }>);
+        const usable = all.filter((c) => c.status === 'draft' || c.status === 'scheduled');
+        setCampaigns(usable);
+      })
+      .catch((e) => { if (e?.name !== 'AbortError') setError(e instanceof Error ? e.message : 'Load failed'); })
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+  }, []);
+
+  async function pick(id: string) {
+    if (busyId) return;
+    setBusyId(id); setError(null); setDoneMsg(null);
+    try {
+      const res = await fetch(`/api/marketing/campaigns/${id}/add-recipients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactIds }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) throw new Error(data.error ?? 'Add failed');
+      const dupes = data.alreadyPresent || 0;
+      const suppressed = data.suppressedSkipped || 0;
+      const parts: string[] = [];
+      parts.push(`Added ${data.added} recipient${data.added === 1 ? '' : 's'}`);
+      if (dupes > 0) parts.push(`${dupes} already on the list`);
+      if (suppressed > 0) parts.push(`${suppressed} skipped (suppressed)`);
+      setDoneMsg(parts.join(', ') + '.');
+      // Brief pause so the designer can read the result, then close.
+      setTimeout(() => onDone(), 1100);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Add failed');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md max-h-[80vh] rounded-md bg-evari-surface border border-evari-edge/40 flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center justify-between px-4 py-3 border-b border-evari-edge/20">
+          <h3 className="text-sm font-semibold text-evari-text">
+            Add {contactIds.length} contact{contactIds.length === 1 ? '' : 's'} to campaign
+          </h3>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
+        </header>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {loading ? (
+            <div className="py-10 text-center text-sm text-evari-dimmer inline-flex items-center gap-2 w-full justify-center"><Loader2 className="h-4 w-4 animate-spin" /> Loading campaigns…</div>
+          ) : campaigns.length === 0 ? (
+            <div className="py-10 text-center text-[12px] text-evari-dimmer">
+              No draft or scheduled campaigns. <a href="/email/campaigns/new" className="text-evari-gold underline">Create one</a> and come back.
+            </div>
+          ) : (
+            <ul className="divide-y divide-evari-edge/15 rounded-md border border-evari-edge/30">
+              {campaigns.map((c) => {
+                const recipientCount = c.recipientEmails?.length ?? 0;
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      disabled={busyId !== null}
+                      onClick={() => pick(c.id)}
+                      className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-evari-ink/40 disabled:opacity-50 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] text-evari-text font-medium truncate">{c.name || 'Untitled campaign'}</div>
+                        <div className="text-[10px] text-evari-dim truncate font-mono">{c.subject || '(no subject)'}</div>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-end gap-0.5">
+                        <span className={cn('text-[9px] uppercase tracking-[0.1em] px-1.5 py-0.5 rounded', c.status === 'draft' ? 'bg-evari-edge/30 text-evari-dim' : 'bg-evari-gold/20 text-evari-gold')}>{c.status}</span>
+                        <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{recipientCount} on list</span>
+                      </div>
+                      {busyId === c.id ? <Loader2 className="h-3 w-3 animate-spin text-evari-gold mt-1" /> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {error ? <p className="text-[11px] text-evari-danger">{error}</p> : null}
+          {doneMsg ? <p className="text-[11px] text-evari-success">{doneMsg}</p> : null}
+        </div>
       </div>
     </div>
   );
