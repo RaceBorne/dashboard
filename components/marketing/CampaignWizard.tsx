@@ -36,6 +36,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { CampaignReviewModal } from './CampaignReviewModal';
+import { LaunchChecksPanel } from './LaunchChecksPanel';
 import { AIDraftButton } from '../ai/AIDraftButton';
 
 interface AIFlag { severity: 'info' | 'warn' | 'error'; kind: string; message: string }
@@ -72,10 +73,10 @@ type AudienceKind = 'segment' | 'group' | 'custom';
 type StepKey = 'who' | 'what' | 'when' | 'send';
 
 const STEPS: Array<{ key: StepKey; label: string; sub: string }> = [
-  { key: 'who',  label: 'Who',  sub: 'Pick your audience' },
-  { key: 'what', label: 'What', sub: 'Choose your email' },
-  { key: 'when', label: 'When', sub: 'Name + subject + schedule' },
-  { key: 'send', label: 'Send', sub: 'Review and ship' },
+  { key: 'who',  label: 'Audience',       sub: 'Who receives this' },
+  { key: 'what', label: 'Message',        sub: 'Email design + content' },
+  { key: 'when', label: 'When',           sub: 'Name + subject + schedule' },
+  { key: 'send', label: 'Launch',         sub: 'Review + forecast + send' },
 ];
 
 export function CampaignWizard({ groups, segments, templates, brand, initialRecipientEmails = [] }: Props) {
@@ -312,6 +313,8 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
               onSend={() => sendNow()} onReview={openReview}
               sending={sending}
               sendResult={sendResult}
+              campaignId={savedCampaign?.id ?? null}
+              recipientCount={recipientEmails.length || 0}
             />
           )}
         </div>
@@ -613,9 +616,14 @@ function EmptyAudience({ label, cta }: { label: string; cta: React.ReactNode }) 
 function WhatStep({ templates, brand, picked, onPickTemplate, hasDesign }: { templates: EmailTemplate[]; brand: MarketingBrand; picked: EmailTemplate | null; onPickTemplate: (t: EmailTemplate | null) => void; hasDesign: boolean }) {
   return (
     <div>
-      <header className="mb-3">
-        <h2 className="text-base font-semibold text-evari-text">Choose your email</h2>
-        <p className="text-[12px] text-evari-dim mt-0.5">Start from a saved template, or build a fresh design from scratch.</p>
+      <header className="mb-3 flex items-end justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold text-evari-text">Message</h2>
+          <p className="text-[12px] text-evari-dim mt-0.5">Start from a saved template, or build a fresh design from scratch.</p>
+        </div>
+        <Link href="/email/flows/new" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border border-evari-gold/30 bg-evari-gold/5 text-evari-gold hover:bg-evari-gold/15 transition" title="Multi-email follow-up sequence">
+          + Journey builder
+        </Link>
       </header>
 
       <ul className="grid grid-cols-3 gap-2 mb-3">
@@ -799,14 +807,18 @@ function SendStep(props: {
   testEmail: string; setTestEmail: (s: string) => void;
   onTest: () => void; testSending: boolean; testResult: string | null;
   onSend: () => void; onReview: () => void; sending: boolean; sendResult: { attempted: number; sent: number; suppressed: number; failed: number } | null;
+  campaignId: string | null;
+  recipientCount: number;
 }) {
-  const { audienceLabel, templateLabel, name, subject, previewText, scheduleMode, scheduledFor, testEmail, setTestEmail, onTest, testSending, testResult, onSend, onReview, sending, sendResult } = props;
+  const { audienceLabel, templateLabel, name, subject, previewText, scheduleMode, scheduledFor, testEmail, setTestEmail, onTest, testSending, testResult, onSend, onReview, sending, sendResult, campaignId, recipientCount } = props;
   return (
     <div className="space-y-4 max-w-2xl">
       <header>
-        <h2 className="text-base font-semibold text-evari-text">Review and send</h2>
-        <p className="text-[12px] text-evari-dim mt-0.5">Confirm the details, fire a test to yourself, then send.</p>
+        <h2 className="text-base font-semibold text-evari-text">Launch</h2>
+        <p className="text-[12px] text-evari-dim mt-0.5">Sanity-check the forecast and the deliverability before shipping.</p>
       </header>
+
+      {campaignId ? <LaunchChecksPanel campaignId={campaignId} recipientCount={recipientCount} /> : null}
 
       <ul className="rounded-md border border-evari-edge/30 divide-y divide-evari-edge/15">
         <SummaryRow label="Audience"  value={audienceLabel} />
