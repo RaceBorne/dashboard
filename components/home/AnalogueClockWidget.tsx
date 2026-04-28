@@ -21,7 +21,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const SECOND_SHADOW = 'drop-shadow(1px 2px 2.5px rgba(0,0,0,0.28))';
+const SECOND_SHADOW = [
+  'drop-shadow(0 1px 0.75px rgba(0,0,0,0.55))',   // sharp contact shadow at the source
+  'drop-shadow(0 3px 4px rgba(0,0,0,0.32))',      // mid falloff
+  'drop-shadow(0 7px 12px rgba(0,0,0,0.18))',     // soft outer falloff
+].join(' ');
 
 export function AnalogueClockWidget() {
   const [time, setTime] = useState<{ h: number; m: number; s: number; ms: number } | null>(null);
@@ -42,6 +46,8 @@ export function AnalogueClockWidget() {
 
   return (
     <div className="absolute inset-0 overflow-hidden rounded-panel">
+      {/* Inner stage — scales the clock down so the dial sits with breathing room. */}
+      <div className="absolute" style={{ inset: '12%' }}>
       {/* Dial face — single PNG asset, no SVG markings. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -65,6 +71,7 @@ export function AnalogueClockWidget() {
           <circle cx="300" cy="300" r="6" fill="#B91C1C" />
         </g>
       </svg>
+      </div>
     </div>
   );
 }
