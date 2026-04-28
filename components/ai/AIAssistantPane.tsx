@@ -35,6 +35,10 @@ interface AIPaneContextValue {
   setSuggestions: (actions: QuickAction[]) => void;
   open: boolean;
   setOpen: (b: boolean) => void;
+  /** Component-driven prompt injection. Pane reads this and clears it after sending. */
+  pendingPrompt: string | null;
+  askPane: (prompt: string) => void;
+  consumePending: () => string | null;
 }
 
 const AIPaneContext = createContext<AIPaneContextValue | null>(null);
@@ -45,6 +49,7 @@ export function AIPaneProvider({ children }: { children: ReactNode }) {
   const [context, setContext] = useState<Record<string, unknown> | null>(null);
   const [suggestions, setSuggestions] = useState<QuickAction[]>([]);
   const [open, setOpen] = useState<boolean>(true);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 
   // Persist open/closed across navigation.
   useEffect(() => {
@@ -66,8 +71,18 @@ export function AIPaneProvider({ children }: { children: ReactNode }) {
     setSuggestions([]);
   }, []);
 
+  function askPane(prompt: string) {
+    setPendingPrompt(prompt);
+    setOpen(true);
+  }
+  function consumePending() {
+    const p = pendingPrompt;
+    setPendingPrompt(null);
+    return p;
+  }
+
   return (
-    <AIPaneContext.Provider value={{ surface, scopeId, context, suggestions, setSurface, setSuggestions, open, setOpen }}>
+    <AIPaneContext.Provider value={{ surface, scopeId, context, suggestions, setSurface, setSuggestions, open, setOpen, pendingPrompt, askPane, consumePending }}>
       {children}
     </AIPaneContext.Provider>
   );
@@ -116,7 +131,7 @@ interface Message {
 }
 
 export function AIAssistantPane() {
-  const { surface, scopeId, context, suggestions, open, setOpen } = useAIPane();
+  const { surface, scopeId, context, suggestions, open, setOpen, pendingPrompt, consumePending } = useAIPane();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -138,6 +153,13 @@ export function AIAssistantPane() {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, busy]);
+
+  useEffect(() => {
+    if (!pendingPrompt) return;
+    const text = consumePending();
+    if (text) void send(text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPrompt]);
 
   async function send(userText: string) {
     if (!userText.trim() || busy) return;

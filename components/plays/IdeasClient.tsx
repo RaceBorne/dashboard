@@ -17,7 +17,8 @@ import Link from 'next/link';
 import { Search, Filter, Star, Plus } from 'lucide-react';
 
 import type { Play } from '@/lib/types';
-import { PlayRow } from './PlayRow';
+import { IdeaCard } from './IdeaCard';
+import { IdeasHero } from './IdeasHero';
 import { cn } from '@/lib/utils';
 
 type Bucket = 'all' | 'favourites' | 'drafts' | 'in_progress' | 'archived';
@@ -79,6 +80,7 @@ export function IdeasClient({ plays, counts }: Props) {
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
       <div className="max-w-5xl mx-auto px-4 py-5 space-y-4">
+        <IdeasHero />
         {/* Header row */}
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0">
@@ -132,9 +134,9 @@ export function IdeasClient({ plays, counts }: Props) {
             {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet.'}
           </div>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {filtered.map((p) => (
-              <PlayRow key={p.id} play={p} counts={counts.get(p.id)} />
+              <IdeaCard key={p.id} play={p} />
             ))}
           </ul>
         )}
