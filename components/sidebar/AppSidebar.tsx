@@ -65,6 +65,7 @@ const NAV = [
   { href: '/email/audience', label: 'Lists & Segments', icon: Users, group: 'marketing', child: true },
   { href: '/email/templates', label: 'Templates', icon: Image, group: 'marketing', child: true },
   { href: '/email/campaigns', label: 'Campaigns', icon: Send, group: 'marketing', child: true },
+  { href: '/email/statistics', label: 'Statistics', icon: TrendingUp, group: 'marketing', child: true },
   { href: '/email/flows', label: 'Flows', icon: GitBranch, group: 'marketing', child: true },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'marketing' },
   // Setup group — touch-once-then-forget pages. Sits below Marketing in
