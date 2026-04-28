@@ -125,7 +125,7 @@ export function NewVentureButton() {
         )}
       >
         <Plus className="h-3.5 w-3.5" />
-        New campaign
+        New idea
       </button>
 
       {open ? (

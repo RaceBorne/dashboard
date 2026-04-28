@@ -13,12 +13,12 @@
  */
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
-import { Search, Filter, Star, Plus } from 'lucide-react';
+import { Search, Filter, Star } from 'lucide-react';
 
 import type { Play } from '@/lib/types';
 import { IdeaCard } from './IdeaCard';
 import { IdeasHero } from './IdeasHero';
+import { NewVentureButton } from './NewVentureButton';
 import { cn } from '@/lib/utils';
 
 type Bucket = 'all' | 'favourites' | 'drafts' | 'in_progress' | 'archived';
@@ -103,9 +103,7 @@ export function IdeasClient({ plays, counts }: Props) {
             <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-panel bg-evari-surface border border-evari-edge/40 text-evari-dim hover:text-evari-text hover:border-evari-gold/40 transition" title="Filters">
               <Filter className="h-3.5 w-3.5" />
             </button>
-            <Link href="/ideas?new=1" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition">
-              <Plus className="h-3.5 w-3.5" /> New idea
-            </Link>
+            <NewVentureButton />
           </div>
         </div>
 
