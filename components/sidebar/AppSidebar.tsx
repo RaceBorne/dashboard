@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Sparkles,
   Star,
@@ -196,6 +196,30 @@ export function AppSidebar() {
       return next;
     });
   }, []);
+
+  // Refs for click-outside dismissal of the System pull-up. We need
+  // both the pull-up itself AND the gear trigger excluded from the
+  // outside-click test, otherwise clicking the gear would re-open the
+  // group in the same tick that the document handler closes it.
+  const systemPanelRef = useRef<HTMLDivElement | null>(null);
+  const systemTriggerRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!openGroups.has('system')) return;
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (systemPanelRef.current?.contains(t)) return;
+      if (systemTriggerRef.current?.contains(t)) return;
+      setOpenGroups((prev) => {
+        if (!prev.has('system')) return prev;
+        const next = new Set(prev);
+        next.delete('system');
+        return next;
+      });
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [openGroups]);
 
   // Group items
   const groups = NAV.reduce<Record<string, typeof NAV[number][]>>((acc, item) => {
@@ -418,23 +442,17 @@ export function AppSidebar() {
         })}
       </nav>
 
-      {/* System group — pinned to the bottom of the sidebar.
-          When the user clicks the header the items grow UPWARD from
-          0 → fit (max-h interpolated over 500ms ease-evari) so they
-          unfold above the header. Source order inside the wrapper is
-          items-then-header, which is what gives the upward-reveal
-          feel: as max-height increases the items push the rest of
-          the sidebar contents up by the same amount. */}
       {/* System pull-up. Triggered by the gear button in the footer
           row below, so it has no inline trigger of its own anymore.
           Darker bg than the sidebar so it reads as a discrete layer
-          floating above. */}
+          floating above. Clicking outside dismisses it (see effect on
+          systemPanelRef + systemTriggerRef above). */}
       {(() => {
         const systemItems = groups['system'] ?? [];
         if (systemItems.length === 0) return null;
         const open = openGroups.has('system');
         return (
-          <div className="shrink-0">
+          <div ref={systemPanelRef} className="shrink-0">
             {!collapsed ? (
               <div
                 className={cn(
@@ -517,6 +535,7 @@ export function AppSidebar() {
             {theme === 'dark' ? 'Light' : 'Dark'}
           </button>
           <button
+            ref={systemTriggerRef}
             type="button"
             onClick={() => toggleGroup('system')}
             aria-expanded={openGroups.has('system')}
