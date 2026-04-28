@@ -69,6 +69,10 @@ export interface ListMember {
   /** Company name pulled through from the underlying contact row. */
   company: string | null;
   status: 'pending' | 'approved';
+  /** True if this contact's email is in dashboard_suppressions. The
+   *  send pipeline already blocks them at send time; surfacing this
+   *  in the UI keeps the count honest + warns the operator. */
+  isSuppressed: boolean;
   addedAt: string;
   addedBySource: string | null;
 }
@@ -135,16 +139,23 @@ export async function deleteGroup(id: string): Promise<boolean> {
 export async function listMembers(id: string): Promise<ListMember[]> {
   const sb = createSupabaseAdmin();
   if (!sb) return [];
-  const { data, error } = await sb
-    .from('dashboard_mkt_contact_groups')
-    .select('contact_id, status, added_at, added_by_source, contact:dashboard_mkt_contacts(id, email, first_name, last_name, lead_id, company)')
-    .eq('group_id', id)
-    .order('added_at', { ascending: false });
-  if (error) {
-    console.error('[marketing.listMembers]', error);
+  const [memRes, suppRes] = await Promise.all([
+    sb
+      .from('dashboard_mkt_contact_groups')
+      .select('contact_id, status, added_at, added_by_source, contact:dashboard_mkt_contacts(id, email, first_name, last_name, lead_id, company)')
+      .eq('group_id', id)
+      .order('added_at', { ascending: false }),
+    // Suppression set is small (a few hundred at worst) — pull the
+    // whole list once and intersect in memory rather than running an
+    // IN(...) per request.
+    sb.from('dashboard_suppressions').select('email'),
+  ]);
+  if (memRes.error) {
+    console.error('[marketing.listMembers]', memRes.error);
     return [];
   }
-  return (data as unknown as MemberJoinRow[]).map((r) => ({
+  const suppSet = new Set(((suppRes.data ?? []) as Array<{ email: string }>).map((r) => (r.email ?? '').toLowerCase()));
+  return (memRes.data as unknown as MemberJoinRow[]).map((r) => ({
     contactId: r.contact_id,
     email: r.contact?.email ?? '',
     firstName: r.contact?.first_name ?? null,
@@ -152,6 +163,7 @@ export async function listMembers(id: string): Promise<ListMember[]> {
     leadId: r.contact?.lead_id ?? null,
     company: r.contact?.company ?? null,
     status: r.status,
+    isSuppressed: suppSet.has((r.contact?.email ?? '').toLowerCase()),
     addedAt: r.added_at,
     addedBySource: r.added_by_source,
   }));
@@ -356,29 +368,43 @@ export async function removeMembers(groupId: string, contactIds: string[]): Prom
  *  the campaign create flow so audience cards show how many people
  *  are in each list before the operator picks one (avoids 'send
  *  blind' anxiety — they always know what they're committing to). */
-export async function listGroupsWithCounts(): Promise<Array<Group & { memberCount: number; approvedCount: number; pendingCount: number }>> {
+export async function listGroupsWithCounts(): Promise<Array<Group & { memberCount: number; approvedCount: number; pendingCount: number; suppressedCount: number; sendableCount: number }>> {
   const sb = createSupabaseAdmin();
   if (!sb) return [];
   const groups = await listGroups();
   if (groups.length === 0) return [];
-  // One query — get counts grouped by (group_id, status) for every group at once.
-  const { data, error } = await sb
-    .from('dashboard_mkt_contact_groups')
-    .select('group_id, status');
-  if (error) {
-    console.error('[marketing.listGroupsWithCounts]', error);
-    return groups.map((g) => ({ ...g, memberCount: 0, approvedCount: 0, pendingCount: 0 }));
+  // Pull every membership row + every suppressed email in parallel.
+  const [memRes, suppRes, contactsRes] = await Promise.all([
+    sb.from('dashboard_mkt_contact_groups').select('group_id, contact_id, status'),
+    sb.from('dashboard_suppressions').select('email'),
+    sb.from('dashboard_mkt_contacts').select('id, email'),
+  ]);
+  if (memRes.error) {
+    console.error('[marketing.listGroupsWithCounts]', memRes.error);
+    return groups.map((g) => ({ ...g, memberCount: 0, approvedCount: 0, pendingCount: 0, suppressedCount: 0, sendableCount: 0 }));
   }
-  type Row = { group_id: string; status: string };
-  const counts = new Map<string, { approved: number; pending: number }>();
-  for (const r of (data as Row[])) {
-    const c = counts.get(r.group_id) ?? { approved: 0, pending: 0 };
+  // Map contactId -> lowercase email so we can resolve suppression
+  // without joining server-side (Supabase REST doesn't support arbitrary joins).
+  const contactEmail = new Map<string, string>();
+  for (const c of (contactsRes.data ?? []) as Array<{ id: string; email: string }>) {
+    contactEmail.set(c.id, (c.email ?? '').toLowerCase());
+  }
+  const suppSet = new Set(((suppRes.data ?? []) as Array<{ email: string }>).map((r) => (r.email ?? '').toLowerCase()));
+  type Row = { group_id: string; contact_id: string; status: string };
+  const counts = new Map<string, { approved: number; pending: number; suppressed: number }>();
+  for (const r of (memRes.data as Row[])) {
+    const c = counts.get(r.group_id) ?? { approved: 0, pending: 0, suppressed: 0 };
     if (r.status === 'pending') c.pending += 1;
     else c.approved += 1;
+    if (suppSet.has(contactEmail.get(r.contact_id) ?? '')) c.suppressed += 1;
     counts.set(r.group_id, c);
   }
   return groups.map((g) => {
-    const c = counts.get(g.id) ?? { approved: 0, pending: 0 };
-    return { ...g, memberCount: c.approved + c.pending, approvedCount: c.approved, pendingCount: c.pending };
+    const c = counts.get(g.id) ?? { approved: 0, pending: 0, suppressed: 0 };
+    // sendable = approved that aren't suppressed. Suppressed pendings
+    // are an oddity but are excluded from sendable for safety.
+    const memberCount = c.approved + c.pending;
+    const sendableCount = Math.max(0, c.approved - c.suppressed);
+    return { ...g, memberCount, approvedCount: c.approved, pendingCount: c.pending, suppressedCount: c.suppressed, sendableCount };
   });
 }

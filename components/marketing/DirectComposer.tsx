@@ -382,13 +382,14 @@ function WhoStep({ groups, segments, audienceKind, setAudienceKind, groupId, set
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-[13px] font-semibold text-evari-text truncate flex-1 min-w-0">{g.name}</div>
                       <div className="shrink-0 inline-flex items-center gap-1 text-[10px] font-mono tabular-nums text-evari-gold bg-evari-gold/10 px-1.5 py-0.5 rounded">
-                        <Users className="h-3 w-3" /> {g.memberCount}
+                        <Users className="h-3 w-3" /> {g.sendableCount}
                       </div>
                     </div>
                     {g.description ? <div className="text-[11px] text-evari-dim truncate mt-0.5">{g.description}</div> : null}
-                    {g.pendingCount > 0 ? (
-                      <div className="text-[10px] text-evari-warn mt-1">
-                        {g.approvedCount} approved · {g.pendingCount} pending review
+                    {(g.pendingCount > 0 || g.suppressedCount > 0) ? (
+                      <div className="text-[10px] mt-1 space-x-1">
+                        {g.pendingCount > 0    ? <span className="text-evari-warn">{g.pendingCount} pending</span>    : null}
+                        {g.suppressedCount > 0 ? <span className="text-evari-danger">{g.suppressedCount} suppressed</span> : null}
                       </div>
                     ) : null}
                   </button>
@@ -628,15 +629,18 @@ function ListPreview({ groupId }: { groupId: string }) {
 
   const approved = members.filter((m) => m.status === 'approved');
   const pending  = members.filter((m) => m.status === 'pending');
-  const visible  = showAll ? approved : approved.slice(0, 8);
+  const suppressed = members.filter((m) => m.isSuppressed);
+  const willSend = approved.filter((m) => !m.isSuppressed);
+  const visible  = showAll ? willSend : willSend.slice(0, 8);
 
   return (
     <div className="rounded-md border border-evari-edge/30 bg-evari-ink/30">
       <header className="px-3 py-2 border-b border-evari-edge/20 flex items-center gap-2">
         <CheckCircle2 className="h-3.5 w-3.5 text-evari-gold" />
         <div className="flex-1 text-[12px]">
-          <strong className="text-evari-text">{approved.length}</strong> <span className="text-evari-dim">people will receive this</span>
-          {pending.length > 0 ? <span className="text-evari-warn"> · {pending.length} pending excluded</span> : null}
+          <strong className="text-evari-text">{willSend.length}</strong> <span className="text-evari-dim">people will receive this</span>
+          {pending.length    > 0 ? <span className="text-evari-warn"> · {pending.length} pending excluded</span> : null}
+          {suppressed.length > 0 ? <span className="text-evari-danger"> · {suppressed.length} suppressed excluded</span> : null}
         </div>
       </header>
       <ul className="divide-y divide-evari-edge/10">

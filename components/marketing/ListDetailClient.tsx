@@ -38,6 +38,7 @@ import {
   Pencil,
   Plus,
   Search,
+  ShieldAlert,
   Trash2,
   Upload,
   UserPlus,
@@ -73,8 +74,12 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
   const [toast, setToast] = useState<string | null>(null);
 
   const counts = useMemo(() => {
-    const out = { all: members.length, approved: 0, pending: 0 };
-    for (const m of members) out[m.status] += 1;
+    const out = { all: members.length, approved: 0, pending: 0, suppressed: 0, sendable: 0 };
+    for (const m of members) {
+      out[m.status] += 1;
+      if (m.isSuppressed) out.suppressed += 1;
+    }
+    out.sendable = Math.max(0, out.approved - out.suppressed);
     return out;
   }, [members]);
 
@@ -251,8 +256,11 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
 
               {/* Stats: approved + pending */}
               <div className="flex items-center gap-4 mt-3">
-                <Stat label="Approved" value={counts.approved} accent="gold" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
+                <Stat label="Will receive sends" value={counts.sendable} accent="gold" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
                 <Stat label="Pending review" value={counts.pending} accent={counts.pending > 0 ? 'amber' : 'mute'} icon={<Clock className="h-3.5 w-3.5" />} />
+                {counts.suppressed > 0 ? (
+                  <Stat label="Suppressed" value={counts.suppressed} accent="danger" icon={<ShieldAlert className="h-3.5 w-3.5" />} />
+                ) : null}
                 <Stat label="Total" value={counts.all} accent="mute" icon={<Users className="h-3.5 w-3.5" />} />
               </div>
             </div>
@@ -448,11 +456,11 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
 
 // ─── Sub-components ───────────────────────────────────────────
 
-function Stat({ label, value, accent, icon }: { label: string; value: number; accent: 'gold' | 'amber' | 'mute'; icon: React.ReactNode }) {
-  const accentCls = accent === 'gold' ? 'text-evari-gold' : accent === 'amber' ? 'text-evari-warn' : 'text-evari-dimmer';
+function Stat({ label, value, accent, icon }: { label: string; value: number; accent: 'gold' | 'amber' | 'mute' | 'danger'; icon: React.ReactNode }) {
+  const accentCls = accent === 'gold' ? 'text-evari-gold' : accent === 'amber' ? 'text-evari-warn' : accent === 'danger' ? 'text-evari-danger' : 'text-evari-dimmer';
   return (
     <div className="inline-flex items-center gap-2">
-      <span className={cn('inline-flex items-center justify-center h-6 w-6 rounded-md', accent === 'gold' ? 'bg-evari-gold/15' : accent === 'amber' ? 'bg-evari-warn/15' : 'bg-evari-ink/40', accentCls)}>
+      <span className={cn('inline-flex items-center justify-center h-6 w-6 rounded-md', accent === 'gold' ? 'bg-evari-gold/15' : accent === 'amber' ? 'bg-evari-warn/15' : accent === 'danger' ? 'bg-evari-danger/15' : 'bg-evari-ink/40', accentCls)}>
         {icon}
       </span>
       <div>
@@ -518,7 +526,11 @@ function MemberRow({ member, selected, onToggle, onPromote, onRemove }: { member
         </a>
       </td>
       <td className="px-3 py-2">
-        {isPending ? (
+        {member.isSuppressed ? (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-evari-danger/15 text-evari-danger" title="This contact is on the suppression list and will not be sent to.">
+            <ShieldAlert className="h-3 w-3" /> Suppressed
+          </span>
+        ) : isPending ? (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-evari-warn/15 text-evari-warn">
             <Clock className="h-3 w-3" /> Pending
           </span>

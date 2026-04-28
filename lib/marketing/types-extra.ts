@@ -10,4 +10,9 @@ export interface GroupWithCounts extends Group {
   memberCount: number;
   approvedCount: number;
   pendingCount: number;
+  /** How many approved-or-pending members are on the suppression list. */
+  suppressedCount: number;
+  /** approvedCount minus the suppressed-among-approved subset.
+   *  This is the actual 'will receive a send' number. */
+  sendableCount: number;
 }
