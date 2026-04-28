@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { CampaignReviewModal } from './CampaignReviewModal';
 import type {
   Campaign,
   EmailDesign,
@@ -101,6 +102,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
   const [testResult, setTestResult] = useState<string | null>(null);
   const [savedCampaign, setSavedCampaign] = useState<Campaign | null>(null);
   const [sending, setSending] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [sendResult, setSendResult] = useState<{ attempted: number; sent: number; suppressed: number; failed: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -198,13 +200,16 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
     }
   }
 
-  async function sendNow() {
+  async function sendNow(excludeContactIds: string[] = []) {
     if (sending) return;
     setSending(true); setError(null); setSendResult(null);
     try {
       const c = await ensureSaved();
       if (!c) return;
-      const res = await fetch(`/api/marketing/campaigns/${c.id}/send`, { method: 'POST' });
+      const res = await fetch(`/api/marketing/campaigns/${c.id}/send`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excludeContactIds }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!data.ok && !data.attempted) throw new Error(data.error ?? 'Send failed');
       setSendResult({
@@ -213,12 +218,18 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
         suppressed: data.suppressed ?? 0,
         failed: data.failed ?? 0,
       });
+      setReviewOpen(false);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Send failed');
     } finally {
       setSending(false);
     }
+  }
+  async function openReview() {
+    setError(null);
+    const c = await ensureSaved();
+    if (c) setReviewOpen(true);
   }
 
   return (
@@ -281,7 +292,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
               onTest={sendTest}
               testSending={testSending}
               testResult={testResult}
-              onSend={sendNow}
+              onSend={() => sendNow()} onReview={openReview}
               sending={sending}
               sendResult={sendResult}
             />
@@ -332,6 +343,13 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
           </div>
         )}
       </div>
+      {reviewOpen && savedCampaign ? (
+        <CampaignReviewModal
+          campaignId={savedCampaign.id}
+          onClose={() => setReviewOpen(false)}
+          onSend={(excludeIds) => sendNow(excludeIds)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -720,9 +738,9 @@ function SendStep(props: {
   scheduledFor: string;
   testEmail: string; setTestEmail: (s: string) => void;
   onTest: () => void; testSending: boolean; testResult: string | null;
-  onSend: () => void; sending: boolean; sendResult: { attempted: number; sent: number; suppressed: number; failed: number } | null;
+  onSend: () => void; onReview: () => void; sending: boolean; sendResult: { attempted: number; sent: number; suppressed: number; failed: number } | null;
 }) {
-  const { audienceLabel, templateLabel, name, subject, previewText, scheduleMode, scheduledFor, testEmail, setTestEmail, onTest, testSending, testResult, onSend, sending, sendResult } = props;
+  const { audienceLabel, templateLabel, name, subject, previewText, scheduleMode, scheduledFor, testEmail, setTestEmail, onTest, testSending, testResult, onSend, onReview, sending, sendResult } = props;
   return (
     <div className="space-y-4 max-w-2xl">
       <header>
@@ -780,15 +798,26 @@ function SendStep(props: {
           </ul>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={onSend}
-          disabled={sending}
-          className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-md text-[13px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
-        >
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          {sending ? 'Sending…' : scheduleMode === 'now' ? 'Send campaign now' : 'Schedule campaign'}
-        </button>
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={onReview}
+            disabled={sending}
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-md text-[13px] font-semibold bg-evari-ink text-evari-text border border-evari-edge/40 hover:border-evari-gold/60 hover:text-evari-gold disabled:opacity-50 transition"
+          >
+            <CheckCircle2 className="h-4 w-4" /> Review every email first (recommended)
+          </button>
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={sending}
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-md text-[13px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {sending ? 'Sending…' : scheduleMode === 'now' ? 'Send campaign now' : 'Schedule campaign'}
+          </button>
+          <p className="text-[10px] text-evari-dimmer text-center">Reviewing lets you walk through each recipient's merged email + hold any that aren't right.</p>
+        </div>
       )}
     </div>
   );

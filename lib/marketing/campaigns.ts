@@ -26,6 +26,26 @@ import { trackEvent } from './events';
 import { appendLeadActivity } from './leads-as-contacts';
 import { renderEmailDesign } from './email-design';
 import { getBrand } from './brand';
+
+/**
+ * Per-recipient merge substitution. Replaces standard placeholders
+ * with the contact's actual fields so the recipient sees their own
+ * name / company instead of literal {{firstName}}. Anything missing
+ * falls back to a sensible default ('there' for firstName,
+ * empty string elsewhere) so emails never ship with the raw token
+ * leaking through.
+ */
+export function applyMerge(html: string, contact: { firstName?: string | null; lastName?: string | null; email?: string | null; company?: string | null }): string {
+  const first = (contact.firstName ?? '').trim();
+  const last  = (contact.lastName  ?? '').trim();
+  const full  = [first, last].filter(Boolean).join(' ');
+  return html
+    .replace(/\{\{\s*firstName\s*\}\}/g, first || 'there')
+    .replace(/\{\{\s*lastName\s*\}\}/g,  last  || '')
+    .replace(/\{\{\s*name\s*\}\}/g,      full  || 'there')
+    .replace(/\{\{\s*email\s*\}\}/g,     contact.email   ?? '')
+    .replace(/\{\{\s*company\s*\}\}/g,   contact.company ?? '');
+}
 import type {
   Campaign,
   CampaignKind,
@@ -293,7 +313,7 @@ async function loadContactsByIds(ids: string[]): Promise<ContactForSend[]> {
  * recipients already have a row in dashboard_mkt_campaign_recipients
  * (e.g. a previous partial run), they're skipped.
  */
-export async function sendCampaign(id: string): Promise<SendResult> {
+export async function sendCampaign(id: string, opts: { excludeContactIds?: string[] } = {}): Promise<SendResult> {
   const sb = createSupabaseAdmin();
   if (!sb) return { ok: false, attempted: 0, sent: 0, suppressed: 0, failed: 0, error: 'Supabase unavailable' };
   const campaign = await getCampaign(id);
@@ -322,6 +342,10 @@ export async function sendCampaign(id: string): Promise<SendResult> {
 
   const recipientIds = await resolveRecipientIds(campaign);
   const contacts = await loadContactsByIds(recipientIds);
+  // Honour the excludeContactIds list — held-by-reviewer contacts
+  // are filtered out at this stage so they never get a campaign
+  // recipient row, never get sent to, never count against stats.
+  const excludeSet = new Set(opts.excludeContactIds ?? []);
 
   // Filter out non-active contacts up front — we never send to
   // unsubscribed/suppressed users regardless of segment results.
@@ -377,6 +401,11 @@ export async function sendCampaign(id: string): Promise<SendResult> {
       continue;
     }
 
+    if (excludeSet.has(contact.id)) {
+      // Held by reviewer — skip entirely. No recipient row created,
+      // no count against attempted/suppressed/failed.
+      continue;
+    }
     // Hand off to the sender abstraction. Direct-message campaigns
     // already include the signature in the body (composed in the
     // wizard), and the signature carries the legal/confidentiality
@@ -385,10 +414,15 @@ export async function sendCampaign(id: string): Promise<SendResult> {
     // auto-footer since their visual designer doesn't include one
     // by default.
     const skipBrandFooter = campaign.kind === 'direct';
+    // Substitute {{firstName}} / {{lastName}} / {{name}} / {{company}}
+    // in BOTH the body and the subject before each send so each
+    // recipient gets their own personalised version.
+    const mergedHtml    = applyMerge(renderedHtml, contact as { firstName?: string | null; lastName?: string | null; email?: string | null; company?: string | null });
+    const mergedSubject = applyMerge(campaign.subject, contact as { firstName?: string | null; lastName?: string | null; email?: string | null; company?: string | null });
     const res = await sendOne({
       to: contact.email,
-      subject: campaign.subject,
-      html: renderedHtml,
+      subject: mergedSubject,
+      html: mergedHtml,
       context: campaign.name,
       unsubscribeUrl: unsubscribeUrlFor(contact.email),
       skipBrandFooter,
