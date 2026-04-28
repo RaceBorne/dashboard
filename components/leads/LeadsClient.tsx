@@ -883,8 +883,8 @@ export function LeadsClient({ initialLeads, scopedTo }: Props) {
             <div className="shrink-0 inline-flex rounded-md bg-evari-ink/40 border border-evari-edge/20 p-0.5">
               {([
                 { v: 'all', label: 'All' },
-                { v: 'lead', label: 'Leads' },
                 { v: 'prospect', label: 'Prospects' },
+                { v: 'lead', label: 'Leads' },
               ] as const).map((opt) => (
                 <button
                   key={opt.v}
@@ -1081,14 +1081,18 @@ function LeadRow({
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <span
-          className={cn(
-            'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium',
-            STAGE_TONE[stage],
-          )}
-        >
-          {STAGE_LABEL[stage]}
-        </span>
+        {/* Tier-driven status pill — prospects = not contacted yet,
+            leads = have been emailed at least once. Always shows the
+            current state regardless of which sub-stage a lead is on. */}
+        {lead.tier === 'lead' ? (
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-orange-500/15 text-orange-400">
+            Contacted
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-evari-edge/30 text-evari-dim">
+            Not contacted
+          </span>
+        )}
       </div>
     </li>
   );

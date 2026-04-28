@@ -275,7 +275,7 @@ export function CompanyPanel({
   const emailCount = emails.length;
 
   const body = (
-    <div className="flex h-full flex-col overflow-hidden bg-evari-ink">
+    <div className="flex h-full flex-col overflow-hidden bg-evari-surface">
       <div className="flex-1 overflow-y-auto">
         {/* ---------- Header ---------- */}
         <div className="relative px-5 pt-5 pb-4">
