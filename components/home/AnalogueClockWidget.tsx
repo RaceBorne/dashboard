@@ -75,9 +75,9 @@ export function AnalogueClockWidget() {
       />
 
       {/* Layer 1+ — round dial inside a centred square so it stays
-          circular on any tile aspect ratio, with 35px clear space at
-          the top and bottom of the tile. */}
-      <div className="absolute inset-0 flex items-center justify-center" style={{ paddingTop: 35, paddingBottom: 35 }}>
+          circular on any tile aspect ratio. The face fills the
+          available height with only a few pixels of breathing room. */}
+      <div className="absolute inset-0 flex items-center justify-center" style={{ paddingTop: 8, paddingBottom: 8 }}>
         <div className="relative h-full" style={{ aspectRatio: '1 / 1' }}>
           {/* Face — round dial with markings, no hands. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -88,7 +88,7 @@ export function AnalogueClockWidget() {
             className="absolute inset-0 h-full w-full object-contain pointer-events-none select-none"
           />
 
-          {/* Hour hand. */}
+          {/* Hour hand — sized so the bar reaches into the dial ring. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/clock/hour-hand.png"
@@ -97,14 +97,14 @@ export function AnalogueClockWidget() {
             className="absolute pointer-events-none select-none"
             style={{
               top: '50%', left: '50%',
-              width: '100%', height: '100%',
+              width: '170%', height: '170%',
               transform: `translate(-50%, -50%) rotate(${hourAngle}deg)`,
               transformOrigin: 'center center',
               filter: HAND_SHADOW,
             }}
           />
 
-          {/* Minute hand. */}
+          {/* Minute hand — slightly longer than the hour hand. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/clock/min-hand.png"
@@ -113,7 +113,7 @@ export function AnalogueClockWidget() {
             className="absolute pointer-events-none select-none"
             style={{
               top: '50%', left: '50%',
-              width: '100%', height: '100%',
+              width: '195%', height: '195%',
               transform: `translate(-50%, -50%) rotate(${minuteAngle}deg)`,
               transformOrigin: 'center center',
               filter: HAND_SHADOW,
