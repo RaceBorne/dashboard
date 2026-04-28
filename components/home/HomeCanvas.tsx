@@ -213,6 +213,8 @@ export function HomeCanvas() {
     <div
       className="fixed inset-0 bg-evari-ink overflow-hidden text-evari-text"
       style={prefs.bgImage ? { backgroundImage: `url(${prefs.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+      onDragOver={(e) => { e.preventDefault(); }}
+      onDrop={(e) => { e.preventDefault(); /* swallow stray drops so the browser doesn't navigate to the image */ }}
     >
       {/* Top-right exit pill */}
       <Link
@@ -492,7 +494,19 @@ function EditDrawer({ tiles, prefs, onPrefs, onClose, onSetWidget, onSetSize, on
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-start" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40" />
-      <aside className="relative m-3 w-[420px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-24px)] rounded-panel bg-evari-surface border border-evari-edge/40 shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <aside
+        className="relative m-3 w-[420px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-24px)] rounded-panel bg-evari-surface border border-evari-edge/40 shadow-2xl flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        onDragOver={(e) => { e.preventDefault(); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const file = e.dataTransfer.files?.[0];
+          if (!file || !file.type.startsWith('image/')) return;
+          const reader = new FileReader();
+          reader.onload = () => { if (typeof reader.result === 'string') onPrefs({ bgImage: reader.result }); };
+          reader.readAsDataURL(file);
+        }}
+      >
         <header className="px-4 py-3 border-b border-evari-edge/30 flex items-center gap-2">
           <span className="inline-flex items-center justify-center h-7 w-7 rounded-panel bg-evari-gold/15 text-evari-gold">
             <Settings className="h-4 w-4" />
