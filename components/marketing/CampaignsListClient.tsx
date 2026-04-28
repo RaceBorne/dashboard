@@ -213,11 +213,11 @@ export function CampaignsListClient({ campaigns: initialCampaigns, statsMap, gro
                     </td>
                     <td className="px-3 py-2 text-right text-evari-text font-mono tabular-nums">{s.total.toLocaleString()}</td>
                     <td className="px-2 py-2">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-0.5">
+                      <div className="flex items-center justify-end gap-0.5">
                         <Link
                           href={`/email/campaigns/${c.id}`}
                           title="Edit campaign"
-                          className="p-1 rounded text-evari-dim hover:text-evari-text hover:bg-evari-ink/60"
+                          className="p-1.5 rounded text-evari-dimmer hover:text-evari-text hover:bg-evari-ink/60 transition-colors"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Link>
@@ -226,7 +226,7 @@ export function CampaignsListClient({ campaigns: initialCampaigns, statsMap, gro
                             type="button"
                             onClick={() => setDeleteTarget(c)}
                             title="Delete campaign"
-                            className="p-1 rounded text-evari-dim hover:text-evari-danger hover:bg-evari-danger/10"
+                            className="p-1.5 rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-danger/10 transition-colors"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
