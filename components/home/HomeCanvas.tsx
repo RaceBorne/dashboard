@@ -2,42 +2,130 @@
 
 /**
  * Bare homepage canvas. Fixed 6×5 grid that always fills the viewport
- * without scroll, regardless of aspect ratio. Cells flex with 1fr so
- * there is no rounding cut-off. Tiles snap to grid cells on drag end.
+ * without scroll. Tiles can be 1×1, 1×2, 2×1 or 2×2. Drag any tile to
+ * move; drag the corner handle to resize. Layout persists per device.
+ *
+ * Bottom-left gear opens an edit drawer to add tiles, change widget
+ * type, change size, or remove tiles. Top-right pill exits to the app.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Sparkles, Target } from 'lucide-react';
+import {
+  ArrowRight,
+  Compass,
+  Database,
+  Inbox,
+  Mail,
+  Megaphone,
+  Plus,
+  Radar,
+  Search,
+  Settings,
+  Sparkles,
+  Star,
+  Target,
+  Trash2,
+  Users,
+  X,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
 const COLS = 6;
 const ROWS = 5;
-const GRID_GAP = 10;     // matches design token spacing.panel
-const PAGE_GUTTER = 20;  // matches design token spacing.gutter
+const GRID_GAP = 10;
+const PAGE_GUTTER = 20;
+
+// ─── widget catalog ──────────────────────────────────────────────
+
+type WidgetId =
+  | 'empty'
+  | 'clock'
+  | 'prospecting'
+  | 'broadcast'
+  | 'marketing'
+  | 'briefing'
+  | 'ideas'
+  | 'discover'
+  | 'shortlist'
+  | 'enrichment'
+  | 'people'
+  | 'campaigns'
+  | 'audience'
+  | 'statistics'
+  | 'conversations';
+
+interface WidgetDef {
+  id: WidgetId;
+  label: string;
+  subtitle?: string;
+  icon: LucideIcon;
+  href?: string;
+  accent: 'gold' | 'teal' | 'mute';
+}
+
+const WIDGETS: Record<WidgetId, WidgetDef> = {
+  empty:         { id: 'empty',         label: 'Empty',          subtitle: 'Click the gear to fill', icon: Sparkles,   accent: 'mute' },
+  clock:         { id: 'clock',         label: 'Clock',          subtitle: 'Local time',             icon: Zap,        accent: 'mute' },
+  prospecting:   { id: 'prospecting',   label: 'Prospecting',    subtitle: 'Ideas → Discovery',      icon: Target,     href: '/ideas',                accent: 'gold' },
+  broadcast:     { id: 'broadcast',     label: 'Broadcast',      subtitle: 'Campaigns + journeys',   icon: Megaphone,  href: '/email/campaigns',      accent: 'teal' },
+  marketing:     { id: 'marketing',     label: 'Marketing',      subtitle: 'Audience + statistics',  icon: Compass,    href: '/email',                accent: 'gold' },
+  briefing:      { id: 'briefing',      label: 'Briefing',       subtitle: 'Daily snapshot',         icon: Sparkles,   href: '/briefing',             accent: 'gold' },
+  ideas:         { id: 'ideas',         label: 'Ideas',          subtitle: 'Targeting concepts',     icon: Sparkles,   href: '/ideas',                accent: 'gold' },
+  discover:      { id: 'discover',      label: 'Discover',       subtitle: 'Find companies',         icon: Search,     href: '/discover',             accent: 'teal' },
+  shortlist:     { id: 'shortlist',     label: 'Shortlist',      subtitle: 'Curate your buy list',   icon: Star,       href: '/shortlist',            accent: 'gold' },
+  enrichment:    { id: 'enrichment',    label: 'Enrichment',     subtitle: 'Contacts + signals',     icon: Database,   href: '/enrichment',           accent: 'teal' },
+  people:        { id: 'people',        label: 'People',         subtitle: 'Person-centric inbox',   icon: Users,      href: '/people',               accent: 'mute' },
+  campaigns:     { id: 'campaigns',     label: 'Campaigns',      subtitle: 'Sends + reports',        icon: Megaphone,  href: '/email/campaigns',      accent: 'teal' },
+  audience:      { id: 'audience',      label: 'Audience',       subtitle: 'Lists + segments',       icon: Users,      href: '/email/audience',       accent: 'gold' },
+  statistics:    { id: 'statistics',    label: 'Statistics',     subtitle: 'Aggregate analytics',    icon: Radar,      href: '/email/statistics',     accent: 'teal' },
+  conversations: { id: 'conversations', label: 'Conversations',  subtitle: 'Replies inbox',          icon: Inbox,      href: '/email/conversations',  accent: 'mute' },
+};
+
+const WIDGET_ORDER: WidgetId[] = [
+  'empty', 'clock',
+  'prospecting', 'broadcast', 'marketing',
+  'briefing', 'ideas', 'discover', 'shortlist', 'enrichment',
+  'people', 'campaigns', 'audience', 'statistics', 'conversations',
+];
+
+// ─── data model ──────────────────────────────────────────────────
+
+type Size = '1x1' | '1x2' | '2x1' | '2x2';
 
 interface Tile {
   id: string;
-  col: number;  // 0..(COLS - w)
-  row: number;  // 0..(ROWS - h)
-  w: number;
-  h: number;
-  title: string;
-  subtitle?: string;
-  accent: 'gold' | 'teal';
+  col: number;
+  row: number;
+  w: number;  // 1 or 2
+  h: number;  // 1 or 2
+  widget: WidgetId;
 }
 
 const DEFAULTS: Tile[] = [
-  { id: 'tile-1', col: 1, row: 1, w: 1, h: 1, title: 'Square one', subtitle: 'Drag me anywhere on the grid.', accent: 'gold' },
-  { id: 'tile-2', col: 3, row: 1, w: 1, h: 1, title: 'Square two', subtitle: 'I snap into place.',          accent: 'teal' },
+  { id: 'tile-1', col: 0, row: 0, w: 1, h: 1, widget: 'prospecting' },
+  { id: 'tile-2', col: 1, row: 0, w: 1, h: 1, widget: 'broadcast' },
 ];
 
-const STORAGE_KEY = 'evari.home.tiles.v1';
+const STORAGE_KEY = 'evari.home.tiles.v3';
+
+function sizeOf(t: { w: number; h: number }): Size {
+  return `${t.w}x${t.h}` as Size;
+}
+function applySize(t: Tile, size: Size): Tile {
+  const [w, h] = size.split('x').map(Number);
+  return { ...t, w, h };
+}
+
+// ─── canvas ──────────────────────────────────────────────────────
 
 export function HomeCanvas() {
   const [tiles, setTiles] = useState<Tile[]>(DEFAULTS);
   const [hydrated, setHydrated] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -66,8 +154,42 @@ export function HomeCanvas() {
     });
   }, []);
 
+  const resizeTile = useCallback((id: string, w: number, h: number) => {
+    setTiles((cur) => {
+      const tile = cur.find((t) => t.id === id);
+      if (!tile) return cur;
+      const cw = Math.max(1, Math.min(2, w));
+      const ch = Math.max(1, Math.min(2, h));
+      // Try original col/row first; if it overflows or collides, find nearest free.
+      const clamped = clamp(tile.col, tile.row, cw, ch);
+      const colliders = cur.some((t) => t.id !== id && clamped.col < t.col + t.w && clamped.col + cw > t.col && clamped.row < t.row + t.h && clamped.row + ch > t.row);
+      if (!colliders) return cur.map((t) => t.id === id ? { ...t, w: cw, h: ch, col: clamped.col, row: clamped.row } : t);
+      const free = nearestFree(cur, id, clamped.col, clamped.row, cw, ch);
+      return cur.map((t) => t.id === id ? { ...t, w: cw, h: ch, col: free.col, row: free.row } : t);
+    });
+  }, []);
+
+  const setWidget = useCallback((id: string, widget: WidgetId) => {
+    setTiles((cur) => cur.map((t) => t.id === id ? { ...t, widget } : t));
+  }, []);
+
+  const deleteTile = useCallback((id: string) => {
+    setTiles((cur) => cur.filter((t) => t.id !== id));
+  }, []);
+
+  const addTile = useCallback((widget: WidgetId, size: Size) => {
+    const [w, h] = size.split('x').map(Number);
+    setTiles((cur) => {
+      const spot = firstFree(cur, w, h);
+      if (!spot) return cur; // grid is full at that size
+      const id = `tile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      return [...cur, { id, col: spot.col, row: spot.row, w, h, widget }];
+    });
+  }, []);
+
   return (
     <div className="fixed inset-0 bg-evari-ink overflow-hidden text-evari-text">
+      {/* Top-right exit pill */}
       <Link
         href="/briefing"
         className="absolute top-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-panel border border-evari-edge/40 bg-evari-surface/80 backdrop-blur text-evari-dim hover:text-evari-gold hover:border-evari-gold/40 transition text-[11px] font-semibold"
@@ -75,19 +197,43 @@ export function HomeCanvas() {
         <Sparkles className="h-3.5 w-3.5" /> Open app <ArrowRight className="h-3.5 w-3.5" />
       </Link>
 
-      <GridSurface tiles={tiles} onMove={moveTile} />
+      {/* Bottom-left edit gear */}
+      <button
+        type="button"
+        onClick={() => setEditorOpen(true)}
+        className="absolute bottom-3 left-3 z-30 inline-flex items-center justify-center h-9 w-9 rounded-full border border-evari-edge/40 bg-evari-surface/80 backdrop-blur text-evari-dim hover:text-evari-gold hover:border-evari-gold/40 transition shadow-md"
+        title="Edit home"
+      >
+        <Settings className="h-4 w-4" />
+      </button>
+
+      <GridSurface
+        tiles={tiles}
+        onMove={moveTile}
+        onResize={resizeTile}
+      />
+
+      {editorOpen ? (
+        <EditDrawer
+          tiles={tiles}
+          onClose={() => setEditorOpen(false)}
+          onSetWidget={setWidget}
+          onSetSize={(id, size) => { const [w, h] = size.split('x').map(Number); resizeTile(id, w, h); }}
+          onDelete={deleteTile}
+          onAdd={addTile}
+        />
+      ) : null}
     </div>
   );
 }
 
-/**
- * The grid surface is a CSS grid pinned 20px from each viewport edge,
- * with 6 equal-fraction columns and 5 equal-fraction rows. Tiles sit
- * at their grid coordinates when idle. While dragging, a tile is
- * temporarily lifted out of grid flow with absolute positioning so it
- * follows the cursor; on drop it snaps back into a new grid cell.
- */
-function GridSurface({ tiles, onMove }: { tiles: Tile[]; onMove: (id: string, col: number, row: number) => void }) {
+// ─── grid surface ────────────────────────────────────────────────
+
+function GridSurface({ tiles, onMove, onResize }: {
+  tiles: Tile[];
+  onMove: (id: string, col: number, row: number) => void;
+  onResize: (id: string, w: number, h: number) => void;
+}) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const [cellW, setCellW] = useState(120);
   const [cellH, setCellH] = useState(120);
@@ -101,12 +247,11 @@ function GridSurface({ tiles, onMove }: { tiles: Tile[]; onMove: (id: string, co
   }, []);
 
   useLayoutEffect(() => { recompute(); }, [recompute]);
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const onResize = () => recompute();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const onResizeWin = () => recompute();
+    window.addEventListener('resize', onResizeWin);
+    return () => window.removeEventListener('resize', onResizeWin);
   }, [recompute]);
 
   return (
@@ -127,16 +272,33 @@ function GridSurface({ tiles, onMove }: { tiles: Tile[]; onMove: (id: string, co
       }}
     >
       {tiles.map((t) => (
-        <DraggableTile key={t.id} tile={t} cellW={cellW} cellH={cellH} onDrop={(col, row) => onMove(t.id, col, row)} />
+        <DraggableTile
+          key={t.id}
+          tile={t}
+          cellW={cellW}
+          cellH={cellH}
+          onDrop={(col, row) => onMove(t.id, col, row)}
+          onResizeDrop={(w, h) => onResize(t.id, w, h)}
+        />
       ))}
     </div>
   );
 }
 
-function DraggableTile({ tile, cellW, cellH, onDrop }: { tile: Tile; cellW: number; cellH: number; onDrop: (col: number, row: number) => void }) {
+// ─── tile ────────────────────────────────────────────────────────
+
+function DraggableTile({ tile, cellW, cellH, onDrop, onResizeDrop }: {
+  tile: Tile;
+  cellW: number;
+  cellH: number;
+  onDrop: (col: number, row: number) => void;
+  onResizeDrop: (w: number, h: number) => void;
+}) {
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
+  const [resize, setResize] = useState<{ dx: number; dy: number } | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
 
+  // ── drag (move) ──
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -157,43 +319,221 @@ function DraggableTile({ tile, cellW, cellH, onDrop }: { tile: Tile; cellW: numb
     setDrag(null);
   };
 
-  // Idle: occupy grid cell. Dragging: lift to absolute with translate.
+  // ── resize ──
+  const resizeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const onResizePointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    resizeStartRef.current = { x: e.clientX, y: e.clientY };
+    setResize({ dx: 0, dy: 0 });
+  };
+  const onResizePointerMove = (e: React.PointerEvent) => {
+    if (!resizeStartRef.current) return;
+    setResize({ dx: e.clientX - resizeStartRef.current.x, dy: e.clientY - resizeStartRef.current.y });
+  };
+  const onResizePointerUp = () => {
+    if (!resizeStartRef.current || !resize) { resizeStartRef.current = null; setResize(null); return; }
+    const wDelta = Math.round(resize.dx / (cellW + GRID_GAP));
+    const hDelta = Math.round(resize.dy / (cellH + GRID_GAP));
+    const newW = Math.max(1, Math.min(2, tile.w + wDelta));
+    const newH = Math.max(1, Math.min(2, tile.h + hDelta));
+    onResizeDrop(newW, newH);
+    resizeStartRef.current = null;
+    setResize(null);
+  };
+
   const dragging = drag !== null;
+  const resizing = resize !== null;
+  const widget = WIDGETS[tile.widget] ?? WIDGETS.empty;
+  const Icon = widget.icon;
+
+  // Live preview width/height while resizing.
+  const previewW = resizing ? Math.max(1, Math.min(2, tile.w + Math.round((resize?.dx ?? 0) / (cellW + GRID_GAP)))) : tile.w;
+  const previewH = resizing ? Math.max(1, Math.min(2, tile.h + Math.round((resize?.dy ?? 0) / (cellH + GRID_GAP)))) : tile.h;
+
   return (
     <div
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={() => { setDrag(null); startRef.current = null; }}
       style={{
-        gridColumn: `${tile.col + 1} / span ${tile.w}`,
-        gridRow: `${tile.row + 1} / span ${tile.h}`,
+        gridColumn: `${tile.col + 1} / span ${previewW}`,
+        gridRow:    `${tile.row + 1} / span ${previewH}`,
         transform: dragging ? `translate(${drag!.dx}px, ${drag!.dy}px)` : undefined,
-        transition: dragging ? 'none' : 'transform 200ms cubic-bezier(0.22,0.61,0.36,1)',
-        zIndex: dragging ? 20 : 1,
+        transition: dragging || resizing ? 'none' : 'transform 200ms cubic-bezier(0.22,0.61,0.36,1)',
+        zIndex: dragging || resizing ? 20 : 1,
         touchAction: 'none',
       }}
-      className={cn(
-        'rounded-panel border bg-evari-surface p-5 select-none cursor-grab active:cursor-grabbing',
-        tile.accent === 'gold' ? 'border-evari-edge/40 hover:border-evari-gold/50' : 'border-evari-edge/40 hover:border-[#4AA39C]/50',
-        dragging ? 'shadow-2xl' : 'shadow-md',
-      )}
+      className="relative"
     >
-      <div className="h-full w-full flex flex-col justify-between pointer-events-none">
-        <span className={cn(
-          'inline-flex items-center justify-center h-9 w-9 rounded-panel',
-          tile.accent === 'gold' ? 'bg-evari-gold/15 text-evari-gold' : 'bg-[#4AA39C]/15 text-[#7CCFC2]',
-        )}>
-          <Target className="h-5 w-5" />
-        </span>
-        <div>
-          <div className="text-[18px] font-bold leading-tight">{tile.title}</div>
-          {tile.subtitle ? <div className="text-[11px] text-evari-dim mt-0.5">{tile.subtitle}</div> : null}
+      {/* Tile body — the move-drag handle. */}
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => { setDrag(null); startRef.current = null; }}
+        className={cn(
+          'h-full w-full rounded-panel border bg-evari-surface p-5 select-none cursor-grab active:cursor-grabbing transition-shadow',
+          widget.accent === 'gold' ? 'border-evari-edge/40 hover:border-evari-gold/50' :
+          widget.accent === 'teal' ? 'border-evari-edge/40 hover:border-[#4AA39C]/50' :
+                                     'border-evari-edge/40 hover:border-evari-text/40',
+          dragging || resizing ? 'shadow-2xl' : 'shadow-md',
+        )}
+      >
+        <div className="h-full w-full flex flex-col justify-between pointer-events-none">
+          <span className={cn(
+            'inline-flex items-center justify-center h-9 w-9 rounded-panel',
+            widget.accent === 'gold' ? 'bg-evari-gold/15 text-evari-gold' :
+            widget.accent === 'teal' ? 'bg-[#4AA39C]/15 text-[#7CCFC2]' :
+                                       'bg-evari-ink/40 text-evari-dim',
+          )}>
+            <Icon className="h-5 w-5" />
+          </span>
+          <div>
+            {widget.id === 'clock' ? <ClockBody /> : (
+              <>
+                {widget.href ? (
+                  <Link href={widget.href} className="text-[20px] font-bold text-evari-text leading-tight hover:text-evari-gold transition pointer-events-auto">{widget.label}</Link>
+                ) : (
+                  <div className="text-[20px] font-bold text-evari-text leading-tight">{widget.label}</div>
+                )}
+                {widget.subtitle ? <div className="text-[11px] text-evari-dim mt-0.5">{widget.subtitle}</div> : null}
+              </>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Resize handle at bottom-right corner. */}
+      <div
+        onPointerDown={onResizePointerDown}
+        onPointerMove={onResizePointerMove}
+        onPointerUp={onResizePointerUp}
+        onPointerCancel={() => { setResize(null); resizeStartRef.current = null; }}
+        className="absolute bottom-1 right-1 h-5 w-5 rounded-sm cursor-se-resize bg-transparent hover:bg-evari-gold/20 flex items-end justify-end p-0.5 transition"
+        title="Drag to resize"
+        style={{ touchAction: 'none' }}
+      >
+        <svg viewBox="0 0 10 10" className="h-3 w-3 text-evari-dim">
+          <line x1="2" y1="9" x2="9" y2="2" stroke="currentColor" strokeWidth="1" />
+          <line x1="5" y1="9" x2="9" y2="5" stroke="currentColor" strokeWidth="1" />
+          <line x1="8" y1="9" x2="9" y2="8" stroke="currentColor" strokeWidth="1" />
+        </svg>
       </div>
     </div>
   );
 }
+
+function ClockBody() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  if (!now) return <div className="text-[20px] font-bold text-evari-text">--:--</div>;
+  const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const date = now.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+  return (
+    <div>
+      <div className="text-[28px] font-bold text-evari-text leading-none tabular-nums">{time}</div>
+      <div className="text-[11px] text-evari-dim mt-1">{date}</div>
+    </div>
+  );
+}
+
+// ─── edit drawer ─────────────────────────────────────────────────
+
+function EditDrawer({ tiles, onClose, onSetWidget, onSetSize, onDelete, onAdd }: {
+  tiles: Tile[];
+  onClose: () => void;
+  onSetWidget: (id: string, w: WidgetId) => void;
+  onSetSize: (id: string, size: Size) => void;
+  onDelete: (id: string) => void;
+  onAdd: (widget: WidgetId, size: Size) => void;
+}) {
+  const [addWidget, setAddWidget] = useState<WidgetId>('empty');
+  const [addSize, setAddSize] = useState<Size>('1x1');
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-start" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <aside className="relative m-3 w-[420px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-24px)] rounded-panel bg-evari-surface border border-evari-edge/40 shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <header className="px-4 py-3 border-b border-evari-edge/30 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center h-7 w-7 rounded-panel bg-evari-gold/15 text-evari-gold">
+            <Settings className="h-4 w-4" />
+          </span>
+          <h2 className="text-[14px] font-semibold text-evari-text flex-1">Edit home</h2>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text p-1 rounded transition" title="Close"><X className="h-4 w-4" /></button>
+        </header>
+
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+          {/* Add a tile */}
+          <section className="rounded-panel border border-evari-edge/40 bg-evari-ink/30 p-3">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-2">Add a tile</div>
+            <div className="flex flex-col gap-2">
+              <select value={addWidget} onChange={(e) => setAddWidget(e.target.value as WidgetId)} className="w-full px-2 py-1.5 rounded-panel bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none">
+                {WIDGET_ORDER.map((id) => <option key={id} value={id}>{WIDGETS[id].label}</option>)}
+              </select>
+              <SizePicker value={addSize} onChange={setAddSize} />
+              <button type="button" onClick={() => onAdd(addWidget, addSize)} className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-panel text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition">
+                <Plus className="h-3.5 w-3.5" /> Add tile
+              </button>
+            </div>
+          </section>
+
+          {/* Tile list */}
+          <section>
+            <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-2 px-1">Tiles ({tiles.length})</div>
+            <ul className="space-y-2">
+              {tiles.length === 0 ? <li className="text-[11px] text-evari-dim px-1">No tiles yet. Add one above.</li> : null}
+              {tiles.map((t) => {
+                const w = WIDGETS[t.widget];
+                const Icon = w.icon;
+                return (
+                  <li key={t.id} className="rounded-panel border border-evari-edge/30 bg-evari-ink/30 p-2.5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={cn('inline-flex items-center justify-center h-7 w-7 rounded-panel',
+                        w.accent === 'gold' ? 'bg-evari-gold/15 text-evari-gold' :
+                        w.accent === 'teal' ? 'bg-[#4AA39C]/15 text-[#7CCFC2]' :
+                                              'bg-evari-ink/40 text-evari-dim')}>
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <select value={t.widget} onChange={(e) => onSetWidget(t.id, e.target.value as WidgetId)} className="flex-1 px-2 py-1 rounded-panel bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none">
+                        {WIDGET_ORDER.map((id) => <option key={id} value={id}>{WIDGETS[id].label}</option>)}
+                      </select>
+                      <button type="button" onClick={() => onDelete(t.id)} className="text-evari-dim hover:text-evari-danger p-1 rounded transition" title="Delete tile"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                    <SizePicker value={sizeOf(t)} onChange={(s) => onSetSize(t.id, s)} compact />
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function SizePicker({ value, onChange, compact }: { value: Size; onChange: (s: Size) => void; compact?: boolean }) {
+  const sizes: Size[] = ['1x1', '1x2', '2x1', '2x2'];
+  return (
+    <div className={cn('grid gap-1', compact ? 'grid-cols-4' : 'grid-cols-4')}>
+      {sizes.map((s) => (
+        <button
+          key={s}
+          type="button"
+          onClick={() => onChange(s)}
+          className={cn('px-2 py-1 rounded-panel text-[11px] font-mono tabular-nums border transition',
+            value === s ? 'bg-evari-gold text-evari-goldInk border-evari-gold' : 'bg-evari-ink text-evari-dim border-evari-edge/40 hover:border-evari-gold/40')}
+        >
+          {s.replace('x', '×')}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── helpers ─────────────────────────────────────────────────────
 
 function clamp(col: number, row: number, w: number, h: number) {
   return {
@@ -216,4 +556,14 @@ function nearestFree(tiles: Tile[], movingId: string, col: number, row: number, 
     }
   }
   return clamp(col, row, w, h);
+}
+
+function firstFree(tiles: Tile[], w: number, h: number): { col: number; row: number } | null {
+  for (let r = 0; r <= ROWS - h; r++) {
+    for (let c = 0; c <= COLS - w; c++) {
+      const occupied = tiles.some((t) => c < t.col + t.w && c + w > t.col && r < t.row + t.h && r + h > t.row);
+      if (!occupied) return { col: c, row: r };
+    }
+  }
+  return null;
 }
