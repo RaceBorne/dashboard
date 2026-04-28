@@ -125,17 +125,32 @@ export async function addSuppression(input: {
     return null;
   }
   // Also flip the contact's status to 'unsubscribed' if we know who.
-  if (input.contactId) {
+  // Resolve the contact id whether the caller passed it or we have to
+  // look up by email — we need it for both the status flip AND the
+  // list-membership cleanup below.
+  let resolvedContactId = input.contactId ?? null;
+  if (!resolvedContactId) {
+    const { data: c } = await sb
+      .from('dashboard_mkt_contacts')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+    resolvedContactId = (c as { id: string } | null)?.id ?? null;
+  }
+  if (resolvedContactId) {
     await sb
       .from('dashboard_mkt_contacts')
       .update({ status: 'unsubscribed' })
-      .eq('id', input.contactId);
-  } else {
-    // If contactId wasn't passed, look it up by email + flip status.
-    await sb
-      .from('dashboard_mkt_contacts')
-      .update({ status: 'unsubscribed' })
-      .eq('email', email);
+      .eq('id', resolvedContactId);
+    // Hard-remove from every list. Suppressed contacts should not
+    // appear in any list view at all — their presence is in the
+    // suppression list and nowhere else. Operator can re-add them
+    // manually if they're ever un-suppressed.
+    const { error: rmErr } = await sb
+      .from('dashboard_mkt_contact_groups')
+      .delete()
+      .eq('contact_id', resolvedContactId);
+    if (rmErr) console.error('[mkt.suppressions.add cleanup memberships]', rmErr);
   }
   return rowToSuppression(data as SuppressionRow);
 }
