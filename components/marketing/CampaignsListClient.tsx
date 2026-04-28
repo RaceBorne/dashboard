@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Calendar as CalendarIcon, Mail as MailIcon, Plus, Search, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Mail as MailIcon, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import type { Campaign, CampaignStatus } from '@/lib/marketing/types';
@@ -50,10 +51,29 @@ function pct(n: number, d: number): string {
  * click rate columns. Open + click rates are computed from the
  * delivered base — same denominator the campaign-detail Overview tab uses.
  */
-export function CampaignsListClient({ campaigns, statsMap, groupsMap, segmentsMap }: Props) {
+export function CampaignsListClient({ campaigns: initialCampaigns, statsMap, groupsMap, segmentsMap }: Props) {
+  const router = useRouter();
+  const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
   const [range, setRange] = useState<RangeKey>('30d');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Campaign | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function confirmDelete(target: Campaign) {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/marketing/campaigns/${target.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (data?.ok) {
+        setCampaigns((prev) => prev.filter((c) => c.id !== target.id));
+        setDeleteTarget(null);
+        router.refresh();
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -152,6 +172,7 @@ export function CampaignsListClient({ campaigns, statsMap, groupsMap, segmentsMa
                 <th className="px-3 py-2 text-right w-32">Open rate</th>
                 <th className="px-3 py-2 text-right w-32">Click rate</th>
                 <th className="px-3 py-2 text-right w-24">Recipients</th>
+                <th className="w-16" />
               </tr>
             </thead>
             <tbody className="divide-y divide-evari-edge/10">
@@ -159,7 +180,7 @@ export function CampaignsListClient({ campaigns, statsMap, groupsMap, segmentsMa
                 const s = statsMap[c.id] ?? { total: 0, sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, failed: 0 };
                 const sent = c.sentAt ? new Date(c.sentAt) : null;
                 return (
-                  <tr key={c.id} className="hover:bg-evari-ink/30 transition-colors">
+                  <tr key={c.id} className="group hover:bg-evari-ink/30 transition-colors">
                     <td className="px-3 py-2">
                       <Link href={`/email/campaigns/${c.id}`} className="block group">
                         <div className="flex items-center gap-2">
@@ -191,6 +212,27 @@ export function CampaignsListClient({ campaigns, statsMap, groupsMap, segmentsMa
                       <div className="text-[10px] text-evari-dimmer font-mono tabular-nums">{s.clicked} of {s.delivered}</div>
                     </td>
                     <td className="px-3 py-2 text-right text-evari-text font-mono tabular-nums">{s.total.toLocaleString()}</td>
+                    <td className="px-2 py-2">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-0.5">
+                        <Link
+                          href={`/email/campaigns/${c.id}`}
+                          title="Edit campaign"
+                          className="p-1 rounded text-evari-dim hover:text-evari-text hover:bg-evari-ink/60"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Link>
+                        {c.status === 'sent' || c.status === 'sending' ? null : (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(c)}
+                            title="Delete campaign"
+                            className="p-1 rounded text-evari-dim hover:text-evari-danger hover:bg-evari-danger/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -198,6 +240,34 @@ export function CampaignsListClient({ campaigns, statsMap, groupsMap, segmentsMa
           </table>
         )}
       </div>
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !deleting && setDeleteTarget(null)}>
+          <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <header className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-evari-text">Delete &quot;{deleteTarget.name || 'Untitled'}&quot;?</h3>
+              <button type="button" onClick={() => !deleting && setDeleteTarget(null)} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
+            </header>
+            <p className="text-[12px] text-evari-dim">
+              The campaign and its recipient rows are removed permanently. Linked
+              conversations stay (their campaign reference is just unlinked).
+              This can&apos;t be undone.
+            </p>
+            <footer className="flex items-center justify-end gap-2">
+              <button type="button" onClick={() => !deleting && setDeleteTarget(null)} className="text-[12px] text-evari-dim hover:text-evari-text px-3 py-1 rounded">Cancel</button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => confirmDelete(deleteTarget)}
+                className="inline-flex items-center gap-1 text-[12px] font-semibold bg-evari-danger text-white px-3 py-1 rounded disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                Delete campaign
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
