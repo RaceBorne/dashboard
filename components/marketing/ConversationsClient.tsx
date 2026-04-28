@@ -14,7 +14,12 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import type { Conversation, ConversationStatus } from '@/lib/marketing/conversations';
+import {
+  type Conversation,
+  type ConversationStatus,
+  type ConversationThread,
+  groupThreads,
+} from '@/lib/marketing/conversations';
 
 interface Props {
   initialConversations: Conversation[];
@@ -31,9 +36,9 @@ const FOLDERS: Array<{ key: ConversationStatus | 'all'; label: string; Icon: typ
 ];
 
 /**
- * Three-pane inbox: folder sidebar (status), conversation list (filtered),
- * conversation detail with read/replied/archive controls + a deep-link
- * to the originating contact when we have one.
+ * Three-pane inbox: folder sidebar (status), THREAD list (each row is
+ * one thread), thread detail showing every message in chronological
+ * order with a reply composer beneath.
  */
 export function ConversationsClient({ initialConversations, initialCounts }: Props) {
   const router = useRouter();
@@ -41,42 +46,78 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
   const [counts, setCounts] = useState(initialCounts);
   const [folder, setFolder] = useState<ConversationStatus | 'all'>('all');
   const [search, setSearch] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(initialConversations[0]?.id ?? null);
+
+  // Build threads from the flat conversation list. Each thread groups
+  // every message (inbound + outbound) sharing a thread_key.
+  const threads = useMemo(() => groupThreads(conversations), [conversations]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return conversations.filter((c) => {
-      if (folder !== 'all' && c.status !== folder) return false;
+    return threads.filter((t) => {
+      if (folder !== 'all' && t.status !== folder) return false;
       if (!q) return true;
       return (
-        c.fromEmail.toLowerCase().includes(q) ||
-        (c.fromName ?? '').toLowerCase().includes(q) ||
-        (c.subject ?? '').toLowerCase().includes(q)
+        t.counterpartyEmail.toLowerCase().includes(q) ||
+        (t.counterpartyName ?? '').toLowerCase().includes(q) ||
+        (t.subject ?? '').toLowerCase().includes(q)
       );
     });
-  }, [conversations, folder, search]);
+  }, [threads, folder, search]);
 
+  const [selectedKey, setSelectedKey] = useState<string | null>(threads[0]?.threadKey ?? null);
   const selected = useMemo(
-    () => conversations.find((c) => c.id === selectedId) ?? null,
-    [conversations, selectedId],
+    () => threads.find((t) => t.threadKey === selectedKey) ?? null,
+    [threads, selectedKey],
   );
 
-  async function setStatus(id: string, status: ConversationStatus) {
-    const res = await fetch(`/api/marketing/conversations/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    const data = await res.json().catch(() => null);
-    if (!data?.ok) return;
-    setConversations((cs) => cs.map((c) => (c.id === id ? data.conversation : c)));
+  /**
+   * Patch the status of every inbound message in a thread (server
+   * persists each, then we reflect it locally without a full refresh).
+   * Outbound messages keep their 'replied' status.
+   */
+  async function setThreadStatus(thread: ConversationThread, status: ConversationStatus) {
+    const inboundIds = thread.messages.filter((m) => m.direction === 'inbound').map((m) => m.id);
+    const updated: Conversation[] = [];
+    for (const id of inboundIds) {
+      const res = await fetch(`/api/marketing/conversations/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.ok) updated.push(data.conversation as Conversation);
+    }
+    if (updated.length === 0) return;
+    setConversations((cs) => cs.map((c) => updated.find((u) => u.id === c.id) ?? c));
     setCounts((curr) => {
-      const prev = conversations.find((c) => c.id === id)?.status;
-      const next = { ...curr };
-      if (prev) next[prev] = Math.max(0, (next[prev] ?? 1) - 1);
-      next[status] = (next[status] ?? 0) + 1;
+      // Recompute from the patched list — small cost, simpler than
+      // delta arithmetic when one thread can carry several messages.
+      const next: Record<ConversationStatus | 'total', number> = { unread: 0, read: 0, replied: 0, archived: 0, spam: 0, total: 0 };
+      for (const c of conversations.map((c) => updated.find((u) => u.id === c.id) ?? c)) {
+        if (c.direction !== 'inbound') continue;
+        next[c.status] = (next[c.status] ?? 0) + 1;
+        next.total += 1;
+      }
       return next;
     });
     router.refresh();
+  }
+
+  /** Append the outbound row that the reply endpoint just persisted,
+   *  patch the inbound's status to 'replied', so the UI updates inline. */
+  function applyReply(updatedInbound: Conversation, outbound: Conversation | null) {
+    setConversations((cs) => {
+      const patched = cs.map((c) => (c.id === updatedInbound.id ? updatedInbound : c));
+      return outbound ? [...patched, outbound] : patched;
+    });
+    setCounts((curr) => {
+      const out = { ...curr };
+      const prev = conversations.find((c) => c.id === updatedInbound.id)?.status;
+      if (prev && prev !== updatedInbound.status) {
+        out[prev] = Math.max(0, (out[prev] ?? 1) - 1);
+        out[updatedInbound.status] = (out[updatedInbound.status] ?? 0) + 1;
+      }
+      return out;
+    });
   }
 
   return (
@@ -96,7 +137,7 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
               <li key={f.key}>
                 <button
                   type="button"
-                  onClick={() => { setFolder(f.key); setSelectedId(null); }}
+                  onClick={() => { setFolder(f.key); setSelectedKey(null); }}
                   className={cn(
                     'w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors duration-200 text-left',
                     active ? 'bg-evari-ink/60 text-evari-text' : 'text-evari-dim hover:bg-evari-ink/30 hover:text-evari-text',
@@ -111,11 +152,11 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
           })}
         </ul>
         <div className="px-3 py-2 border-t border-evari-edge/20 text-[10px] text-evari-dimmer leading-snug">
-          Replies arrive via the Postmark inbound webhook — once configured, every reply to a campaign or outreach lands here automatically.
+          Replies arrive via the Postmark inbound webhook. Threads group by counterparty + subject so a reply chain reads as one conversation.
         </div>
       </aside>
 
-      {/* MID — list */}
+      {/* MID — thread list */}
       <section className="flex-1 min-w-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
         <header className="px-3 py-2 border-b border-evari-edge/20 flex items-center gap-2">
           <Search className="h-3.5 w-3.5 text-evari-dimmer" />
@@ -126,24 +167,24 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
             placeholder="Search by sender, subject…"
             className="flex-1 bg-transparent text-sm text-evari-text placeholder:text-evari-dimmer focus:outline-none"
           />
-          <span className="text-[10px] text-evari-dimmer tabular-nums">{visible.length} / {conversations.length}</span>
+          <span className="text-[10px] text-evari-dimmer tabular-nums">{visible.length} / {threads.length}</span>
         </header>
         {visible.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-evari-dimmer text-sm text-center px-6">
-            {conversations.length === 0
-              ? 'No replies yet — they’ll appear here as soon as someone responds to a campaign.'
+            {threads.length === 0
+              ? "No replies yet — they'll appear here as soon as someone responds to a campaign."
               : 'Nothing matches that filter.'}
           </div>
         ) : (
           <ul className="flex-1 overflow-y-auto divide-y divide-evari-edge/10">
-            {visible.map((c) => (
-              <ConversationRow
-                key={c.id}
-                conversation={c}
-                active={c.id === selectedId}
+            {visible.map((t) => (
+              <ThreadRow
+                key={t.threadKey}
+                thread={t}
+                active={t.threadKey === selectedKey}
                 onClick={() => {
-                  setSelectedId(c.id);
-                  if (c.status === 'unread') setStatus(c.id, 'read');
+                  setSelectedKey(t.threadKey);
+                  if (t.unread) setThreadStatus(t, 'read');
                 }}
               />
             ))}
@@ -151,25 +192,13 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
         )}
       </section>
 
-      {/* RIGHT — detail */}
-      <aside className="w-[480px] shrink-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
+      {/* RIGHT — thread detail */}
+      <aside className="w-[520px] shrink-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
         {selected ? (
-          <ConversationDetail
-            conversation={selected}
-            onStatus={(s) => setStatus(selected.id, s)}
-            onReplied={(next) => {
-              setConversations((cs) => cs.map((c) => (c.id === next.id ? next : c)));
-              // Bump inbox counts so the 'replied' folder ticks up.
-              setCounts((curr) => {
-                const prev = conversations.find((c) => c.id === next.id)?.status;
-                const out = { ...curr };
-                if (prev && prev !== next.status) {
-                  out[prev] = Math.max(0, (out[prev] ?? 1) - 1);
-                  out[next.status] = (out[next.status] ?? 0) + 1;
-                }
-                return out;
-              });
-            }}
+          <ThreadDetail
+            thread={selected}
+            onStatus={(s) => setThreadStatus(selected, s)}
+            onReplied={(updated, outbound) => applyReply(updated, outbound)}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-evari-dimmer text-sm gap-2">
@@ -182,8 +211,7 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
   );
 }
 
-function ConversationRow({ conversation, active, onClick }: { conversation: Conversation; active: boolean; onClick: () => void }) {
-  const isUnread = conversation.status === 'unread';
+function ThreadRow({ thread, active, onClick }: { thread: ConversationThread; active: boolean; onClick: () => void }) {
   return (
     <li>
       <button
@@ -194,21 +222,24 @@ function ConversationRow({ conversation, active, onClick }: { conversation: Conv
           active ? 'bg-evari-ink/70' : 'hover:bg-evari-ink/30',
         )}
       >
-        <span className={cn('mt-1.5 h-1.5 w-1.5 rounded-full shrink-0', isUnread ? 'bg-evari-gold' : 'bg-transparent')} />
+        <span className={cn('mt-1.5 h-1.5 w-1.5 rounded-full shrink-0', thread.unread ? 'bg-evari-gold' : 'bg-transparent')} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={cn('text-sm truncate', isUnread ? 'font-semibold text-evari-text' : 'text-evari-text')}>
-              {conversation.fromName || conversation.fromEmail}
+            <span className={cn('text-sm truncate', thread.unread ? 'font-semibold text-evari-text' : 'text-evari-text')}>
+              {thread.counterpartyName || thread.counterpartyEmail}
             </span>
+            {thread.messages.length > 1 ? (
+              <span className="text-[10px] text-evari-dimmer font-mono tabular-nums">{thread.messages.length}</span>
+            ) : null}
             <span className="ml-auto text-[10px] text-evari-dimmer tabular-nums shrink-0">
-              {new Date(conversation.receivedAt).toLocaleDateString()}
+              {new Date(thread.lastMessageAt).toLocaleDateString()}
             </span>
           </div>
-          <div className={cn('text-[12px] truncate mt-0.5', isUnread ? 'text-evari-text' : 'text-evari-dim')}>
-            {conversation.subject || '(no subject)'}
+          <div className={cn('text-[12px] truncate mt-0.5', thread.unread ? 'text-evari-text' : 'text-evari-dim')}>
+            {thread.subject || '(no subject)'}
           </div>
           <div className="text-[11px] text-evari-dimmer truncate mt-0.5">
-            {(conversation.strippedText || conversation.textBody || '').slice(0, 120)}
+            {thread.preview || '(empty)'}
           </div>
         </div>
       </button>
@@ -216,28 +247,38 @@ function ConversationRow({ conversation, active, onClick }: { conversation: Conv
   );
 }
 
-function ConversationDetail({ conversation, onStatus, onReplied }: { conversation: Conversation; onStatus: (s: ConversationStatus) => void; onReplied: (next: Conversation) => void }) {
+function ThreadDetail({ thread, onStatus, onReplied }: { thread: ConversationThread; onStatus: (s: ConversationStatus) => void; onReplied: (updatedInbound: Conversation, outbound: Conversation | null) => void }) {
   const [busy, setBusy] = useState<ConversationStatus | null>(null);
   const [replyDraft, setReplyDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [justSent, setJustSent] = useState(false);
+
   async function go(s: ConversationStatus) {
     setBusy(s);
     await onStatus(s);
     setBusy(null);
   }
+
+  // Reply targets the most-recent inbound message in the thread —
+  // that's the one the operator is responding to, even if there have
+  // already been outbound replies in this thread.
+  const replyTargetId = useMemo(() => {
+    const inboundOnly = thread.messages.filter((m) => m.direction === 'inbound');
+    return inboundOnly[inboundOnly.length - 1]?.id ?? thread.messages[thread.messages.length - 1]?.id ?? null;
+  }, [thread]);
+
   async function sendReply() {
-    if (!replyDraft.trim() || sending) return;
+    if (!replyDraft.trim() || sending || !replyTargetId) return;
     setSending(true); setReplyError(null); setJustSent(false);
     try {
-      const res = await fetch(`/api/marketing/conversations/${conversation.id}/reply`, {
+      const res = await fetch(`/api/marketing/conversations/${replyTargetId}/reply`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html: replyDraft.trim().replace(/\n/g, '<br/>') }),
       });
       const data = await res.json().catch(() => null);
       if (!data?.ok) throw new Error(data?.error ?? 'Send failed');
-      onReplied(data.conversation as Conversation);
+      onReplied(data.conversation as Conversation, (data.outbound ?? null) as Conversation | null);
       setReplyDraft('');
       setJustSent(true);
       setTimeout(() => setJustSent(false), 3000);
@@ -247,13 +288,13 @@ function ConversationDetail({ conversation, onStatus, onReplied }: { conversatio
       setSending(false);
     }
   }
-  const body = conversation.strippedText || conversation.textBody || '';
+
   return (
     <>
       <header className="px-4 py-3 border-b border-evari-edge/20 space-y-1">
         <div className="flex items-center gap-2">
           <h3 className="text-base font-semibold text-evari-text truncate flex-1">
-            {conversation.subject || '(no subject)'}
+            {thread.subject || '(no subject)'}
           </h3>
           <div className="flex items-center gap-1 shrink-0">
             <button type="button" disabled={!!busy} onClick={() => go('replied')} className="px-2 py-1 rounded text-[11px] bg-evari-ink/60 text-evari-text hover:bg-black/40 transition-colors inline-flex items-center gap-1">
@@ -267,45 +308,36 @@ function ConversationDetail({ conversation, onStatus, onReplied }: { conversatio
           </div>
         </div>
         <p className="text-[12px] text-evari-dim">
-          <strong>{conversation.fromName || conversation.fromEmail}</strong>
-          {conversation.fromName ? <span className="text-evari-dimmer"> — {conversation.fromEmail}</span> : null}
+          <strong>{thread.counterpartyName || thread.counterpartyEmail}</strong>
+          {thread.counterpartyName ? <span className="text-evari-dimmer"> — {thread.counterpartyEmail}</span> : null}
         </p>
         <p className="text-[10px] text-evari-dimmer tabular-nums">
-          {new Date(conversation.receivedAt).toLocaleString()}
-          {conversation.toEmail ? <span> · to {conversation.toEmail}</span> : null}
+          {thread.messages.length} message{thread.messages.length === 1 ? '' : 's'} · last activity {new Date(thread.lastMessageAt).toLocaleString()}
         </p>
-        <div className="flex items-center gap-2 pt-1">
-          {conversation.contactId ? (
-            <a href="/email/contacts" className="text-[11px] text-evari-gold hover:underline">→ View contact</a>
-          ) : <span className="text-[11px] text-evari-dimmer">Unmatched contact</span>}
-          {conversation.campaignId ? (
-            <a href={`/email/campaigns/${conversation.campaignId}`} className="text-[11px] text-evari-gold hover:underline">→ View campaign</a>
-          ) : null}
-        </div>
       </header>
-      <div className="flex-1 overflow-y-auto p-4">
-        {conversation.htmlBody ? (
-          <div className="rounded-md bg-zinc-50 text-zinc-900 p-4" dangerouslySetInnerHTML={{ __html: conversation.htmlBody }} />
-        ) : (
-          <pre className="whitespace-pre-wrap font-sans text-sm text-evari-text leading-relaxed">{body || '(empty body)'}</pre>
-        )}
+
+      {/* Chronological message list — oldest first, so the thread reads
+          top-to-bottom like an email client. Inbound messages sit on
+          the left with a soft surface; outbound (us) align to the
+          right with a gold accent so the back-and-forth is unmissable. */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {thread.messages.map((msg) => (
+          <MessageBubble key={msg.id} msg={msg} />
+        ))}
       </div>
 
-      {/* Reply composer — sends via /api/marketing/conversations/<id>/reply,
-          which calls sendOne (Postmark when configured, stub-logs in dev)
-          and marks the conversation as 'replied' on success. */}
       <footer className="border-t border-evari-edge/30 p-3 bg-evari-ink/30">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] text-evari-dim">
-            Reply to <strong className="text-evari-text">{conversation.fromName || conversation.fromEmail}</strong>
+            Reply to <strong className="text-evari-text">{thread.counterpartyName || thread.counterpartyEmail}</strong>
           </span>
           {justSent ? <span className="text-[11px] text-evari-success inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Sent</span> : null}
         </div>
         <textarea
           value={replyDraft}
           onChange={(e) => setReplyDraft(e.target.value)}
-          placeholder={`Write your reply…`}
-          disabled={sending}
+          placeholder="Write your reply…"
+          disabled={sending || !replyTargetId}
           className="w-full min-h-[110px] px-2 py-1.5 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none disabled:opacity-60"
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendReply();
@@ -316,7 +348,7 @@ function ConversationDetail({ conversation, onStatus, onReplied }: { conversatio
           <span className="text-[10px] text-evari-dimmer">⌘↵ to send</span>
           <button
             type="button"
-            disabled={sending || !replyDraft.trim()}
+            disabled={sending || !replyDraft.trim() || !replyTargetId}
             onClick={sendReply}
             className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1.5 rounded disabled:opacity-50 hover:brightness-110 transition"
           >
@@ -326,5 +358,36 @@ function ConversationDetail({ conversation, onStatus, onReplied }: { conversatio
         </div>
       </footer>
     </>
+  );
+}
+
+function MessageBubble({ msg }: { msg: Conversation }) {
+  const isUs = msg.direction === 'outbound';
+  const body = msg.strippedText || msg.textBody || '';
+  return (
+    <div className={cn('flex', isUs ? 'justify-end' : 'justify-start')}>
+      <div
+        className={cn(
+          'max-w-[88%] rounded-md px-3 py-2 border',
+          isUs
+            ? 'bg-evari-gold/10 border-evari-gold/30 text-evari-text'
+            : 'bg-evari-ink/40 border-evari-edge/20 text-evari-text',
+        )}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <span className={cn('text-[10px] uppercase tracking-[0.1em] font-semibold', isUs ? 'text-evari-gold' : 'text-evari-dim')}>
+            {isUs ? 'You' : (msg.fromName || msg.fromEmail)}
+          </span>
+          <span className="text-[10px] text-evari-dimmer tabular-nums ml-auto">
+            {new Date(msg.receivedAt).toLocaleString()}
+          </span>
+        </div>
+        {msg.htmlBody ? (
+          <div className="rounded bg-zinc-50 text-zinc-900 p-2 text-[13px] leading-relaxed" dangerouslySetInnerHTML={{ __html: msg.htmlBody }} />
+        ) : (
+          <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed">{body || '(empty)'}</pre>
+        )}
+      </div>
+    </div>
   );
 }

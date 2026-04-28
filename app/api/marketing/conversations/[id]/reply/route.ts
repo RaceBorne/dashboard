@@ -14,7 +14,7 @@
 
 import { NextResponse } from 'next/server';
 
-import { getConversation, setConversationStatus } from '@/lib/marketing/conversations';
+import { getConversation, setConversationStatus, recordOutboundReply } from '@/lib/marketing/conversations';
 import { sendOne } from '@/lib/marketing/sender';
 import { getBrand } from '@/lib/marketing/brand';
 
@@ -49,11 +49,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ ok: false, error: result.error ?? 'Send failed' }, { status: 500 });
   }
 
-  // Mark replied so the inbox folder count and the row's badge update.
+  // Mark the inbound replied so the inbox folder count + row badge update.
   const updated = await setConversationStatus(id, 'replied');
+
+  // Persist the outbound reply as a sibling row with the same
+  // thread_key so groupThreads() will surface it inline. Using the
+  // brand's reply-to as the from-address (or POSTMARK_FROM_EMAIL
+  // when reply-to isn't set) so the thread reads as evari->them.
+  const fromEmail = brand.replyToEmail
+    ?? process.env.POSTMARK_FROM_EMAIL
+    ?? brand.companyName
+    ?? 'noreply@evari.cc';
+  const outbound = await recordOutboundReply({
+    inReplyTo: conv,
+    toEmail: conv.fromEmail,
+    fromEmail,
+    fromName: brand.companyName ?? null,
+    subject,
+    htmlBody: html,
+    textBody: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    messageId: result.messageId ?? null,
+  });
+
   return NextResponse.json({
     ok: true,
     messageId: result.messageId,
     conversation: updated ?? conv,
+    outbound: outbound ?? null,
   });
 }

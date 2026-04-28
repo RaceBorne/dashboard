@@ -19,6 +19,7 @@
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 
 export type ConversationStatus = 'unread' | 'read' | 'replied' | 'archived' | 'spam';
+export type ConversationDirection = 'inbound' | 'outbound';
 
 export interface Conversation {
   id: string;
@@ -39,6 +40,37 @@ export interface Conversation {
   readAt: string | null;
   repliedAt: string | null;
   archivedAt: string | null;
+  /** 'inbound' = arrived via Postmark webhook. 'outbound' = we sent
+   *  it (a reply to an inbound, persisted so the thread shows the
+   *  full back-and-forth). Defaults inbound for legacy rows. */
+  direction: ConversationDirection;
+  /** Stable grouping key — lower(counterpartyEmail) + '|' +
+   *  normalisedSubject (re/fwd stripped). Computed on read if the
+   *  underlying row's column is null, so the UI never has to think
+   *  about backfill state. */
+  threadKey: string;
+}
+
+/** A back-and-forth thread of messages, both directions, sorted
+ *  oldest-first. Computed by groupThreads() from a flat list. */
+export interface ConversationThread {
+  threadKey: string;
+  /** The other party — the one Evari is talking TO. Pulled from the
+   *  most-recent message that has it (inbound: from; outbound: to). */
+  counterpartyEmail: string;
+  counterpartyName: string | null;
+  subject: string | null;
+  /** Status of the most-recent inbound message in the thread (the one
+   *  the operator is acting on). */
+  status: ConversationStatus;
+  /** True if any inbound message in the thread is still unread. */
+  unread: boolean;
+  /** Timestamp of the most-recent message in either direction. */
+  lastMessageAt: string;
+  /** Snippet of the most-recent message body. */
+  preview: string;
+  /** Every message in the thread, oldest -> newest. */
+  messages: Conversation[];
 }
 
 interface Row {
@@ -60,9 +92,30 @@ interface Row {
   read_at: string | null;
   replied_at: string | null;
   archived_at: string | null;
+  direction: ConversationDirection | null;
+  thread_key: string | null;
+}
+
+/**
+ * Compute the thread key for a message. Thread key is
+ *   lower(counterpartyEmail) + '|' + normalisedSubject
+ * where normalisedSubject strips leading 'Re:' / 'Fwd:' so reply
+ * chains group with their original. Used on both read (fallback if
+ * the column is null on legacy rows) and write (every new row gets
+ * one stamped at insert time).
+ */
+export function computeThreadKey(counterpartyEmail: string | null | undefined, subject: string | null | undefined): string {
+  const email = (counterpartyEmail ?? '').trim().toLowerCase();
+  const subj  = (subject ?? '').trim().toLowerCase().replace(/^(re|fwd?):\s*/i, '');
+  return `${email}|${subj}`;
 }
 
 function rowToConversation(r: Row): Conversation {
+  const direction: ConversationDirection = r.direction ?? 'inbound';
+  // Counterparty = the OTHER side of the conversation. For inbound
+  // messages that's from_email; for outbound that's to_email.
+  const counterparty = direction === 'outbound' ? r.to_email : r.from_email;
+  const threadKey = r.thread_key ?? computeThreadKey(counterparty, r.subject);
   return {
     id: r.id,
     campaignId: r.campaign_id,
@@ -82,6 +135,8 @@ function rowToConversation(r: Row): Conversation {
     readAt: r.read_at,
     repliedAt: r.replied_at,
     archivedAt: r.archived_at,
+    direction,
+    threadKey,
   };
 }
 
@@ -232,6 +287,8 @@ export async function ingestInbound(payload: {
     stripped_text:  payload.StrippedTextReply ?? null,
     received_at:    payload.Date ? new Date(payload.Date).toISOString() : new Date().toISOString(),
     status:         'unread',
+    direction:      'inbound',
+    thread_key:     computeThreadKey(fromEmail, payload.Subject ?? null),
   };
   const { data, error } = await sb
     .from('dashboard_mkt_conversations')
@@ -270,4 +327,96 @@ export async function getInboxCounts(): Promise<Record<ConversationStatus | 'tot
     out.total += 1;
   }
   return out;
+}
+
+/**
+ * Group a flat list of Conversation rows into ConversationThread
+ * structures. Threads are sorted most-recent first (so the inbox
+ * surfaces active threads at the top); messages within each thread
+ * are sorted oldest-first (so the detail panel reads naturally
+ * top-to-bottom).
+ */
+export function groupThreads(rows: Conversation[]): ConversationThread[] {
+  const map = new Map<string, Conversation[]>();
+  for (const r of rows) {
+    const arr = map.get(r.threadKey) ?? [];
+    arr.push(r);
+    map.set(r.threadKey, arr);
+  }
+  const out: ConversationThread[] = [];
+  for (const [key, arr] of map.entries()) {
+    const sorted = [...arr].sort((a, b) => +new Date(a.receivedAt) - +new Date(b.receivedAt));
+    const last = sorted[sorted.length - 1]!;
+    // Most-recent inbound carries the status the operator acts on.
+    const lastInbound = [...sorted].reverse().find((m) => m.direction === 'inbound');
+    const status = lastInbound?.status ?? last.status;
+    const unread = sorted.some((m) => m.direction === 'inbound' && m.status === 'unread');
+    // Counterparty: pick from any message that has it. Prefer the
+    // most-recent inbound (their email + display name).
+    const cp = lastInbound ?? sorted.find((m) => m.direction === 'inbound') ?? last;
+    const counterpartyEmail = cp.direction === 'outbound' ? (cp.toEmail ?? '') : cp.fromEmail;
+    const counterpartyName  = cp.direction === 'outbound' ? null : cp.fromName;
+    const previewSrc = last.strippedText || last.textBody || (last.htmlBody ? last.htmlBody.replace(/<[^>]+>/g, ' ') : '') || '';
+    out.push({
+      threadKey: key,
+      counterpartyEmail,
+      counterpartyName,
+      subject: cp.subject,
+      status,
+      unread,
+      lastMessageAt: last.receivedAt,
+      preview: previewSrc.replace(/\s+/g, ' ').slice(0, 160),
+      messages: sorted,
+    });
+  }
+  out.sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt));
+  return out;
+}
+
+/**
+ * Persist an outbound reply that we just sent via the email provider.
+ * Inserts a sibling row with the same thread_key as the inbound
+ * we're replying to, so groupThreads() will surface it inline.
+ */
+export async function recordOutboundReply(input: {
+  inReplyTo: Conversation;
+  toEmail: string;
+  fromEmail: string;
+  fromName?: string | null;
+  subject: string;
+  htmlBody: string;
+  textBody?: string | null;
+  messageId?: string | null;
+}): Promise<Conversation | null> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return null;
+  const now = new Date().toISOString();
+  const insertRow: Record<string, unknown> = {
+    campaign_id:    input.inReplyTo.campaignId,
+    contact_id:     input.inReplyTo.contactId,
+    recipient_id:   input.inReplyTo.recipientId,
+    message_id:     input.messageId ?? null,
+    in_reply_to:    input.inReplyTo.messageId,
+    from_email:     input.fromEmail.toLowerCase(),
+    from_name:      input.fromName ?? null,
+    to_email:       input.toEmail.toLowerCase(),
+    subject:        input.subject,
+    text_body:      input.textBody ?? null,
+    html_body:      input.htmlBody,
+    stripped_text:  input.textBody ?? null,
+    received_at:    now,
+    status:         'replied',
+    direction:      'outbound',
+    thread_key:     input.inReplyTo.threadKey,
+  };
+  const { data, error } = await sb
+    .from('dashboard_mkt_conversations')
+    .insert(insertRow)
+    .select('*')
+    .single();
+  if (error) {
+    console.error('[mkt.conversations.recordOutbound]', error);
+    return null;
+  }
+  return rowToConversation(data as Row);
 }
