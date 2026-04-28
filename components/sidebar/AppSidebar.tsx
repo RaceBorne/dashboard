@@ -61,17 +61,18 @@ const NAV = [
   { href: '/journals', label: 'Journals', icon: FileText, group: 'broadcast', child: true },
   { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'marketing' },
   { href: '/email', label: 'Email', icon: Mail, group: 'marketing' },
-  { href: '/email/contacts', label: 'Contacts', icon: Users, group: 'marketing', child: true },
   { href: '/email/conversations', label: 'Conversations', icon: Mail, group: 'marketing', child: true },
   { href: '/email/audience', label: 'Lists & Segments', icon: Users, group: 'marketing', child: true },
   { href: '/email/templates', label: 'Templates', icon: Image, group: 'marketing', child: true },
   { href: '/email/campaigns', label: 'Campaigns', icon: Send, group: 'marketing', child: true },
   { href: '/email/flows', label: 'Flows', icon: GitBranch, group: 'marketing', child: true },
-  { href: '/email/domains', label: 'Domains', icon: Globe, group: 'marketing', child: true },
-  { href: '/email/suppressions', label: 'Suppressions', icon: Ban, group: 'marketing', child: true },
-  { href: '/email/brand', label: 'Brand setup', icon: Palette, group: 'marketing', child: true },
-  { href: '/email/assets', label: 'Assets', icon: Image, group: 'marketing', child: true },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'marketing' },
+  // Setup group — touch-once-then-forget pages. Sits below Marketing in
+  // the sidebar so daily workflow items lead, configuration follows.
+  { href: '/email/brand', label: 'Brand setup', icon: Palette, group: 'setup' },
+  { href: '/email/domains', label: 'Domains', icon: Globe, group: 'setup' },
+  { href: '/email/suppressions', label: 'Suppressions', icon: Ban, group: 'setup' },
+  { href: '/email/assets', label: 'Assets', icon: Image, group: 'setup' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
   { href: '/users', label: 'Users', icon: Users, group: 'system' },
   { href: '/settings', label: 'Settings', icon: Settings, group: 'system' },
@@ -83,6 +84,7 @@ const GROUP_LABELS: Record<string, string> = {
   web: 'Website',
   broadcast: 'Broadcast',
   marketing: 'Marketing',
+  setup: 'Setup',
   system: 'System',
 };
 
@@ -91,7 +93,7 @@ const LS_OPEN_GROUPS = 'evari.sidebar.openGroups';
 // Every group is expanded by default. User collapses whichever
 // sections they want out of the way, and the choice is remembered
 // per-device.
-const DEFAULT_OPEN_GROUPS: string[] = ['today', 'pipeline', 'web', 'broadcast', 'marketing', 'system'];
+const DEFAULT_OPEN_GROUPS: string[] = ['today', 'pipeline', 'web', 'broadcast', 'marketing', 'setup', 'system'];
 
 // Don't steal arrow keys while the user is typing.
 function isTypingTarget(t: EventTarget | null): boolean {
