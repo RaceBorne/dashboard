@@ -45,6 +45,8 @@ const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
   { href: '/ventures', label: 'Prospecting', icon: Rocket, group: 'pipeline' },
+  { href: '/discover', label: 'Discover', icon: Search, group: 'pipeline', child: true },
+  { href: '/leads', label: 'Leads', icon: Users, group: 'pipeline', child: true },
   { href: '/traffic', label: 'Traffic', icon: TrendingUp, group: 'web' },
   { href: '/seo', label: 'SEO Health', icon: Search, group: 'web', warn: true },
   { href: '/pages', label: 'Pages', icon: FileText, group: 'web' },

@@ -77,6 +77,11 @@ export function LeadsClient({ initialLeads }: Props) {
   const searchParams = useSearchParams();
   const deepLinkId = searchParams?.get('id') ?? null;
   const playId = searchParams?.get('playId') ?? null;
+  // Optional tier filter — 'all' (default) | 'lead' | 'prospect'.
+  // Set via the chips above the list, or pre-applied via ?tier=
+  // (used by the /prospects redirect that bounces here).
+  const initialTier = (searchParams?.get('tier') as 'all' | 'lead' | 'prospect' | null) ?? 'all';
+  const [tierFilter, setTierFilter] = useState<'all' | 'lead' | 'prospect'>(initialTier === 'lead' || initialTier === 'prospect' ? initialTier : 'all');
 
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [activeFolder, setActiveFolder] = useState<string | null>(null); // null = All
@@ -177,6 +182,7 @@ export function LeadsClient({ initialLeads }: Props) {
     const q = search.trim().toLowerCase();
     return leads.filter((l) => {
       if (playId && l.playId !== playId) return false;
+      if (tierFilter !== 'all' && l.tier !== tierFilter) return false;
       if (activeFolder) {
         const key = (l.category ?? '').trim() || UNCATEGORISED;
         if (key !== activeFolder) return false;
@@ -196,7 +202,7 @@ export function LeadsClient({ initialLeads }: Props) {
       }
       return true;
     });
-  }, [leads, activeFolder, search]);
+  }, [leads, activeFolder, search, playId, tierFilter]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -746,6 +752,30 @@ export function LeadsClient({ initialLeads }: Props) {
                 </div>
               </>
             )}
+            {/* Tier chips — All / Leads / Prospects. Both tiers live in
+                dashboard_leads (just the 'tier' field differs); the chips
+                let the operator scope the view without leaving the page. */}
+            <div className="shrink-0 inline-flex rounded-md bg-evari-ink/40 border border-evari-edge/20 p-0.5">
+              {([
+                { v: 'all', label: 'All' },
+                { v: 'lead', label: 'Leads' },
+                { v: 'prospect', label: 'Prospects' },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => setTierFilter(opt.v)}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[11px] transition-colors',
+                    tierFilter === opt.v
+                      ? 'bg-evari-gold/20 text-evari-gold'
+                      : 'text-evari-dim hover:text-evari-text',
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
             <div className="relative w-48 shrink-0">
               <SearchIcon className="h-3.5 w-3.5 text-evari-dimmer absolute left-2.5 top-1/2 -translate-y-1/2" />
               <Input

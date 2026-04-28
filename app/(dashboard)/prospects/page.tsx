@@ -1,29 +1,18 @@
-import { TopBar } from '@/components/sidebar/TopBar';
-import { createSupabaseAdmin } from '@/lib/supabase/admin';
-import { listLeadsByTier } from '@/lib/dashboard/repository';
-import { ProspectsClient } from '@/components/prospects/ProspectsClient';
+import { redirect } from 'next/navigation';
 
-// Stage pages depend on ?playId= and per-request data, so opt out of
-// static prerender. Without this, Next.js 16 fails the build with
-// 'useSearchParams() should be wrapped in a suspense boundary' for any
-// client component (FunnelRibbon, ProjectRail) that reads search params.
-export const dynamic = 'force-dynamic';
-
-
-export default async function ProspectsPage() {
-  const leads = await listLeadsByTier(createSupabaseAdmin(), 'prospect');
-  const ready = leads.filter(
-    (l) =>
-      l.prospectStatus === 'replied_positive' ||
-      l.prospectStatus === 'qualified',
-  ).length;
-  return (
-    <>
-      <TopBar
-        title="Prospects"
-        subtitle={`${leads.length} in test · ${ready} ready to promote`}
-      />
-      <ProspectsClient initialLeads={leads} />
-    </>
-  );
+/**
+ * /prospects has been collapsed into /leads as a tier filter — the
+ * /leads page now lists every dashboard_leads row regardless of
+ * tier, with a filter chip for Prospects vs Leads. This redirect
+ * keeps any deep-linked URL working by bouncing into the same view.
+ */
+export default async function ProspectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ playId?: string }>;
+}) {
+  const sp = await searchParams;
+  const qs = new URLSearchParams({ tier: 'prospect' });
+  if (sp.playId) qs.set('playId', sp.playId);
+  redirect(`/leads?${qs.toString()}`);
 }

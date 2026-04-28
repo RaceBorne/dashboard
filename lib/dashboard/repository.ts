@@ -51,6 +51,20 @@ export async function listLeads(supabase: SupabaseClient | null): Promise<Lead[]
   return (data as { payload: Lead }[]).map((r) => r.payload).sort(byLastTouchLead);
 }
 
+/**
+ * Combined fetch — every dashboard_leads row regardless of tier.
+ * Used by the unified /leads page (Prospects collapsed in here so
+ * Discovery does the surfacing and Leads does the working).
+ */
+export async function listLeadsAllTiers(supabase: SupabaseClient | null): Promise<Lead[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('dashboard_leads')
+    .select('payload');
+  if (error || !data?.length) return [];
+  return (data as { payload: Lead }[]).map((r) => r.payload).sort(byLastTouchLead);
+}
+
 export async function getLead(
   supabase: SupabaseClient | null,
   id: string,
