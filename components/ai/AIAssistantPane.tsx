@@ -13,7 +13,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Loader2, Maximize2, Minimize2, Send, Sparkles, X } from 'lucide-react';
+import { Loader2, Minimize2, Send, Sparkles, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -135,7 +135,7 @@ export function AIAssistantPane() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Load thread when surface changes.
@@ -202,20 +202,25 @@ export function AIAssistantPane() {
 
   return (
     <aside className={cn('flex flex-col border-l border-evari-edge/30 bg-evari-surface min-h-0 flex-shrink-0 transition-all',
-      expanded ? 'w-[520px]' : 'w-[320px]')}>
-      <header className="px-3 py-2.5 border-b border-evari-edge/30 flex items-center gap-2">
-        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">
+      collapsed ? 'w-14' : 'w-[320px]')}>
+      <header className={cn('border-b border-evari-edge/30 flex items-center h-[44px]', collapsed ? 'px-2 justify-center' : 'px-3 gap-2')}>
+        <button type="button" onClick={() => setCollapsed(false)} className={cn('inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold', collapsed ? 'cursor-pointer hover:brightness-110' : '')} title={collapsed ? 'Expand' : undefined}>
           <Sparkles className="h-3.5 w-3.5" />
-        </span>
-        <h3 className="text-[12px] font-semibold text-evari-text flex-1">AI Assistant</h3>
-        <button type="button" onClick={() => setExpanded((v) => !v)} className="text-evari-dim hover:text-evari-text p-1 rounded transition">
-          {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-evari-dim hover:text-evari-text p-1 rounded transition" title="Hide">
-          <X className="h-3.5 w-3.5" />
-        </button>
+        {collapsed ? null : (
+          <>
+            <h3 className="text-[12px] font-semibold text-evari-text flex-1">AI Assistant</h3>
+            <button type="button" onClick={() => setCollapsed(true)} className="text-evari-dim hover:text-evari-text p-1 rounded transition" title="Minimise">
+              <Minimize2 className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className="text-evari-dim hover:text-evari-text p-1 rounded transition" title="Hide">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
       </header>
 
+      {collapsed ? null : (<>
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
         {messages.length === 0 ? (
           <div className="text-[11px] text-evari-dim">
@@ -269,6 +274,7 @@ export function AIAssistantPane() {
         </button>
       </form>
       <div className="px-3 pb-2 text-[10px] text-evari-dimmer">AI responses may be inaccurate.</div>
+      </>)}
     </aside>
   );
 }

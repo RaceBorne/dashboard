@@ -25,6 +25,9 @@ import {
   Link2,
   Mail,
   PanelLeft,
+  Minimize2,
+  Maximize2,
+  X,
   Stethoscope,
   ChevronDown,
   Instagram,
@@ -124,6 +127,7 @@ export function AppSidebar() {
   const { theme, setTheme, logoLight, logoDark } = useTheme();
   const [openTaskCount, setOpenTaskCount] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   // Which groups are expanded. Set for O(1) membership checks.
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(DEFAULT_OPEN_GROUPS));
@@ -209,6 +213,18 @@ export function AppSidebar() {
     uploaded ??
     (theme === 'dark' ? '/evari-logo-on-dark.svg' : '/evari-logo-on-light.svg');
 
+  if (hidden) {
+    return (
+      <button
+        type="button"
+        onClick={() => setHidden(false)}
+        className="hidden lg:inline-flex fixed left-3 bottom-3 z-30 items-center gap-1.5 px-3 py-1.5 rounded-full border border-evari-gold/40 bg-evari-surface text-evari-gold hover:brightness-110 shadow-lg transition text-[11px] font-semibold"
+      >
+        <Maximize2 className="h-3.5 w-3.5" /> Show nav
+      </button>
+    );
+  }
+
   return (
     <aside
       className={cn(
@@ -233,15 +249,38 @@ export function AppSidebar() {
             draggable={false}
           />
         ) : null}
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={collapsed ? 'Expand (→)' : 'Collapse (←)'}
-          className="h-7 w-7 inline-flex items-center justify-center rounded-md text-evari-dimmer hover:text-evari-text hover:bg-evari-surface/60 transition-colors"
-        >
-          <PanelLeft className="h-4 w-4" />
-        </button>
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            aria-label="Expand sidebar"
+            title="Expand"
+            className="text-evari-dim hover:text-evari-text p-1 rounded transition"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <div className="inline-flex items-center gap-0">
+            <button
+              type="button"
+              onClick={() => setCollapsed(true)}
+              aria-label="Minimise sidebar"
+              title="Minimise"
+              className="text-evari-dim hover:text-evari-text p-1 rounded transition"
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setHidden(true)}
+              aria-label="Hide sidebar"
+              title="Hide"
+              className="text-evari-dim hover:text-evari-text p-1 rounded transition"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
