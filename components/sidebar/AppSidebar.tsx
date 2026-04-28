@@ -59,7 +59,6 @@ const NAV = [
   { href: '/social/tiktok', label: 'TikTok', icon: Music, group: 'broadcast', child: true },
   { href: '/social/linkedin', label: 'LinkedIn', icon: Linkedin, group: 'broadcast', child: true },
   { href: '/journals', label: 'Journals', icon: FileText, group: 'broadcast', child: true },
-  { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'marketing' },
   { href: '/email', label: 'Email', icon: Mail, group: 'marketing' },
   { href: '/email/conversations', label: 'Conversations', icon: Mail, group: 'marketing', child: true },
   { href: '/email/audience', label: 'Audience', icon: Users, group: 'marketing', child: true },
@@ -67,13 +66,17 @@ const NAV = [
   { href: '/email/campaigns', label: 'Campaigns', icon: Send, group: 'marketing', child: true },
   { href: '/email/statistics', label: 'Statistics', icon: TrendingUp, group: 'marketing', child: true },
   { href: '/email/flows', label: 'Flows', icon: GitBranch, group: 'marketing', child: true },
-  { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'marketing' },
-  // Setup group — touch-once-then-forget pages. Sits below Marketing in
-  // the sidebar so daily workflow items lead, configuration follows.
+  // Setup group — touch-once-then-forget pages + integration plumbing.
+  // Sits below Marketing in the sidebar so daily workflow items lead,
+  // configuration follows. Klaviyo + Shopify live here too because
+  // they're fundamentally integrations to set up once, not surfaces
+  // the operator works in daily.
   { href: '/email/brand', label: 'Brand setup', icon: Palette, group: 'setup' },
   { href: '/email/domains', label: 'Domains', icon: Globe, group: 'setup' },
   { href: '/email/suppressions', label: 'Suppressions', icon: Ban, group: 'setup' },
   { href: '/email/assets', label: 'Assets', icon: Image, group: 'setup' },
+  { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'setup' },
+  { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'setup' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
   { href: '/users', label: 'Users', icon: Users, group: 'system' },
   { href: '/settings', label: 'Settings', icon: Settings, group: 'system' },
