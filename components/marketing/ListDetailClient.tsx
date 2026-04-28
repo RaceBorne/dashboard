@@ -490,21 +490,32 @@ function Tab({ active, onClick, label, count, accent }: { active: boolean; onCli
 function MemberRow({ member, selected, onToggle, onPromote, onRemove }: { member: ListMember; selected: boolean; onToggle: () => void; onPromote: () => void; onRemove: () => void }) {
   const fullName = `${member.firstName ?? ''} ${member.lastName ?? ''}`.trim();
   const isPending = member.status === 'pending';
+  // Each member row links to the SAME detail panel /leads uses, so
+  // the operator sees the homogeneous prospecting view (company,
+  // role, address, activity timeline, conversation thread, notes)
+  // instead of the limited info we have on dashboard_mkt_contacts.
+  // Manual / CSV contacts that don't carry a lead_id link to the
+  // underlying mkt_contact instead.
+  const detailHref = member.leadId
+    ? `/leads?id=${encodeURIComponent(member.leadId)}`
+    : `/email/contacts?contact=${encodeURIComponent(member.contactId)}`;
   return (
     <tr className={cn('group transition-colors', selected ? 'bg-evari-gold/5' : 'hover:bg-evari-ink/30')}>
       <td className="px-3 py-2">
         <input type="checkbox" checked={selected} onChange={onToggle} className="accent-evari-gold cursor-pointer" />
       </td>
       <td className="px-3 py-2">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <a href={detailHref} className="flex items-center gap-2.5 min-w-0 hover:text-evari-gold transition-colors" title={member.leadId ? 'Open full record on /leads' : 'Open contact'}>
           <div className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-full bg-evari-ink text-[10px] font-semibold text-evari-dim uppercase">
             {(fullName || member.email).slice(0, 2)}
           </div>
           <div className="min-w-0">
             <div className="text-evari-text truncate font-medium">{fullName || member.email}</div>
-            {fullName ? <div className="text-[11px] text-evari-dim truncate font-mono">{member.email}</div> : null}
+            <div className="text-[11px] text-evari-dim truncate font-mono">
+              {member.email}{member.company ? <span className="text-evari-dimmer"> · {member.company}</span> : null}
+            </div>
           </div>
-        </div>
+        </a>
       </td>
       <td className="px-3 py-2">
         {isPending ? (

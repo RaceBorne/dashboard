@@ -377,13 +377,21 @@ export async function sendCampaign(id: string): Promise<SendResult> {
       continue;
     }
 
-    // Hand off to the sender abstraction
+    // Hand off to the sender abstraction. Direct-message campaigns
+    // already include the signature in the body (composed in the
+    // wizard), and the signature carries the legal/confidentiality
+    // notice — so we suppress the auto-appended brand footer to
+    // avoid the legal block doubling up. Newsletters keep the
+    // auto-footer since their visual designer doesn't include one
+    // by default.
+    const skipBrandFooter = campaign.kind === 'direct';
     const res = await sendOne({
       to: contact.email,
       subject: campaign.subject,
       html: renderedHtml,
       context: campaign.name,
       unsubscribeUrl: unsubscribeUrlFor(contact.email),
+      skipBrandFooter,
     });
 
     const nowIso = new Date().toISOString();

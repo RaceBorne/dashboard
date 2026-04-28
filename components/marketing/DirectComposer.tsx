@@ -126,6 +126,14 @@ export function DirectComposer({ groups, segments, brand, initialRecipientEmails
   async function ensureSaved(): Promise<Campaign | null> {
     if (savedCampaign) return savedCampaign;
     setError(null);
+    if (!name.trim()) {
+      setError('Campaign needs an internal name before it can save. Go back to the Write step.');
+      return null;
+    }
+    if (!subject.trim()) {
+      setError('Subject line is required.');
+      return null;
+    }
     try {
       const payload: Record<string, unknown> = {
         name: name.trim(),
@@ -157,7 +165,7 @@ export function DirectComposer({ groups, segments, brand, initialRecipientEmails
     try {
       const res = await fetch('/api/marketing/templates/preview-send', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: testEmail.trim(), html: composedHtml, subject: `[Test] ${subject.trim()}` }),
+        body: JSON.stringify({ to: testEmail.trim(), html: composedHtml, subject: `[Test] ${subject.trim()}`, skipBrandFooter: true }),
       });
       const data = await res.json().catch(() => ({}));
       if (!data.ok) throw new Error(data.error ?? 'Test failed');

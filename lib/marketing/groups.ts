@@ -63,6 +63,11 @@ export interface ListMember {
   email: string;
   firstName: string | null;
   lastName: string | null;
+  /** dashboard_leads.id for prospecting-mirrored contacts. Null when
+   *  the contact was created manually / via CSV (no upstream lead). */
+  leadId: string | null;
+  /** Company name pulled through from the underlying contact row. */
+  company: string | null;
   status: 'pending' | 'approved';
   addedAt: string;
   addedBySource: string | null;
@@ -73,7 +78,7 @@ interface MemberJoinRow {
   status: 'pending' | 'approved';
   added_at: string;
   added_by_source: string | null;
-  contact: { id: string; email: string; first_name: string | null; last_name: string | null } | null;
+  contact: { id: string; email: string; first_name: string | null; last_name: string | null; lead_id: string | null; company: string | null } | null;
 }
 
 export async function getGroup(id: string): Promise<Group | null> {
@@ -132,7 +137,7 @@ export async function listMembers(id: string): Promise<ListMember[]> {
   if (!sb) return [];
   const { data, error } = await sb
     .from('dashboard_mkt_contact_groups')
-    .select('contact_id, status, added_at, added_by_source, contact:dashboard_mkt_contacts(id, email, first_name, last_name)')
+    .select('contact_id, status, added_at, added_by_source, contact:dashboard_mkt_contacts(id, email, first_name, last_name, lead_id, company)')
     .eq('group_id', id)
     .order('added_at', { ascending: false });
   if (error) {
@@ -144,6 +149,8 @@ export async function listMembers(id: string): Promise<ListMember[]> {
     email: r.contact?.email ?? '',
     firstName: r.contact?.first_name ?? null,
     lastName: r.contact?.last_name ?? null,
+    leadId: r.contact?.lead_id ?? null,
+    company: r.contact?.company ?? null,
     status: r.status,
     addedAt: r.added_at,
     addedBySource: r.added_by_source,

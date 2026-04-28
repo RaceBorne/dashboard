@@ -43,7 +43,11 @@ function renderBlockInner(b: SignatureBlock, brand: MarketingBrand): string {
       // Encode lone ampersands so & in user text becomes a valid &amp; in the
       // rendered HTML — without re-escaping properly-formed tags or entities.
       const html = b.html.replace(/&(?!(amp|lt|gt|quot|apos|nbsp|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
-      return `<div style="${alignStyle(b.alignment)}font:${b.fontSizePx}px/${b.lineHeight} ${family}Arial,sans-serif;color:${b.color};">${html}</div>`;
+      // Cap signature text blocks at 400px so long legal notices
+      // (confidentiality, etc) don't stretch the full email width.
+      // The cap is applied via an inline-block container that respects
+      // the alignment (left/center/right) of the parent.
+      return `<div style="${alignStyle(b.alignment)}"><div style="display:inline-block;max-width:400px;text-align:${b.alignment};font:${b.fontSizePx}px/${b.lineHeight} ${family}Arial,sans-serif;color:${b.color};">${html}</div></div>`;
     }
     case 'spacer':
       return `<div style="height:${b.heightPx}px;line-height:${b.heightPx}px;font-size:0;">&nbsp;</div>`;
