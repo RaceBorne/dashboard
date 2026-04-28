@@ -31,6 +31,12 @@ import { useAISurface } from '@/components/ai/AIAssistantPane';
 import { AIDraftButton } from '@/components/ai/AIDraftButton';
 import { TargetProfileStep } from './strategy/TargetProfileStep';
 import { IdealCustomerStep } from './strategy/IdealCustomerStep';
+import { ChannelsStep as ChannelsStepDashboard } from './strategy/ChannelsStep';
+import { MessagingStep as MessagingStepDashboard } from './strategy/MessagingStep';
+import { SuccessMetricsStep } from './strategy/SuccessMetricsStep';
+import { HandoffStep as HandoffStepDashboard } from './strategy/HandoffStep';
+import { BriefSummaryStep } from './strategy/BriefSummaryStep';
+import { BriefEditorDrawer, type BriefSection } from './strategy/BriefEditorDrawer';
 
 interface Brief {
   id: string;
@@ -76,6 +82,8 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
   const [brief, setBrief] = useState<Brief | null>(initialBrief);
   const [step, setStep] = useState<StepKey>('brief');
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorSection, setEditorSection] = useState<BriefSection>('overview');
   const [savingAt, setSavingAt] = useState<number | null>(null);
   const saveTimer = useRef<number | null>(null);
 
@@ -111,6 +119,10 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
     setBrief((cur) => cur ? { ...cur, [key]: val } : cur);
   }
 
+  function openEditor(section: BriefSection) {
+    setEditorSection(section);
+    setEditorOpen(true);
+  }
   function go(next: StepKey) {
     const curIdx = STEPS.findIndex((s) => s.key === step);
     const nextIdx = STEPS.findIndex((s) => s.key === next);
@@ -156,19 +168,27 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
 
           {/* Sliding step content */}
           <SlideContainer step={step} direction={direction}>
-            {step === 'brief'     ? <BriefStep brief={brief} set={set} /> : null}
+            {step === 'brief'     ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} /> : null}
             {step === 'target'    ? <TargetProfileStep playId={brief.playId} /> : null}
             {step === 'ideal'     ? <IdealCustomerStep playId={brief.playId} brief={{ idealCustomer: brief.idealCustomer, set }} /> : null}
-            {step === 'channels'  ? <ChannelsStep brief={brief} set={set} /> : null}
-            {step === 'messaging' ? <MessagingStep brief={brief} set={set} /> : null}
-            {step === 'metrics'   ? <MetricsStep brief={brief} set={set} /> : null}
-            {step === 'handoff'   ? <HandoffStep brief={brief} onHandoff={handoff} /> : null}
+            {step === 'channels'  ? <ChannelsStepDashboard playId={brief.playId} briefChannels={brief.channels} onEdit={() => openEditor('channels')} /> : null}
+            {step === 'messaging' ? <MessagingStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('messaging')} /> : null}
+            {step === 'metrics'   ? <SuccessMetricsStep playId={brief.playId} brief={brief} onEdit={() => openEditor('metrics')} /> : null}
+            {step === 'handoff'   ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} /> : null}
           </SlideContainer>
         </div>
       </div>
 
       {/* Fixed bottom timeline */}
       <BottomTimeline step={step} onPick={go} />
+
+      <BriefEditorDrawer
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        initialSection={editorSection}
+        brief={brief}
+        set={set}
+      />
     </div>
   );
 }
