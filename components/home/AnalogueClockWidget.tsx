@@ -74,11 +74,11 @@ export function AnalogueClockWidget() {
         className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
       />
 
-      {/* Layer 1+ — round dial inside a centred square so it stays
-          circular on any tile aspect ratio. The face fills the
-          available height with only a few pixels of breathing room. */}
-      <div className="absolute inset-0 flex items-center justify-center" style={{ paddingTop: 8, paddingBottom: 8 }}>
-        <div className="relative h-full" style={{ aspectRatio: '1 / 1' }}>
+      {/* Layer 1+ — round dial sized 110% of the tile height so it
+          extends slightly beyond the tile edges (clipped by the
+          outer overflow-hidden) for a more prominent face. */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="relative" style={{ aspectRatio: '1 / 1', height: '110%' }}>
           {/* Face — round dial with markings, no hands. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -97,7 +97,7 @@ export function AnalogueClockWidget() {
             className="absolute pointer-events-none select-none"
             style={{
               top: '50%', left: '50%',
-              width: '170%', height: '170%',
+              width: '155%', height: '155%',
               transform: `translate(-50%, -50%) rotate(${hourAngle}deg)`,
               transformOrigin: 'center center',
               filter: HAND_SHADOW,
@@ -113,7 +113,7 @@ export function AnalogueClockWidget() {
             className="absolute pointer-events-none select-none"
             style={{
               top: '50%', left: '50%',
-              width: '195%', height: '195%',
+              width: '180%', height: '180%',
               transform: `translate(-50%, -50%) rotate(${minuteAngle}deg)`,
               transformOrigin: 'center center',
               filter: HAND_SHADOW,
