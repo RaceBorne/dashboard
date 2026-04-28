@@ -22,7 +22,7 @@ export default async function ConversationsPage({ searchParams }: PageProps) {
   return (
     <>
       <TopBar
-        title="Email outreach"
+        title="Conversations"
         subtitle={String(threads.filter((t) => t.unread).length) + ' unread'}
       />
       <ConversationsClient

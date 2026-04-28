@@ -99,7 +99,7 @@ const STAGES: StageDef[] = [
   },
   {
     key: 'conversations',
-    label: 'Email outreach',
+    label: 'Conversations',
     href: (id) => (id ? `/conversations?playId=${id}` : '/conversations'),
   },
 ];
