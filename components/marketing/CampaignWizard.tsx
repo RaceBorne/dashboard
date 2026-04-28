@@ -36,6 +36,14 @@ import {
 
 import { cn } from '@/lib/utils';
 import { CampaignReviewModal } from './CampaignReviewModal';
+
+interface AIFlag { severity: 'info' | 'warn' | 'error'; kind: string; message: string }
+interface HeldPayload {
+  contactId: string;
+  reason?: string | null;
+  source?: 'human' | 'ai' | 'both';
+  aiFlags?: AIFlag[] | null;
+}
 import type {
   Campaign,
   EmailDesign,
@@ -200,7 +208,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
     }
   }
 
-  async function sendNow(excludeContactIds: string[] = []) {
+  async function sendNow(held: HeldPayload[] = []) {
     if (sending) return;
     setSending(true); setError(null); setSendResult(null);
     try {
@@ -208,7 +216,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
       if (!c) return;
       const res = await fetch(`/api/marketing/campaigns/${c.id}/send`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ excludeContactIds }),
+        body: JSON.stringify({ held }),
       });
       const data = await res.json().catch(() => ({}));
       if (!data.ok && !data.attempted) throw new Error(data.error ?? 'Send failed');
@@ -347,7 +355,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
         <CampaignReviewModal
           campaignId={savedCampaign.id}
           onClose={() => setReviewOpen(false)}
-          onSend={(excludeIds) => sendNow(excludeIds)}
+          onSend={(held) => sendNow(held)}
         />
       ) : null}
     </div>

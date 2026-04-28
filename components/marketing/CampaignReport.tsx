@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import type { Campaign } from '@/lib/marketing/types';
 import type { CampaignAnalytics } from '@/lib/marketing/campaign-analytics';
 import { CampaignAnalyticsTabs } from './CampaignAnalyticsTabs';
+import { HoldingPenPanel } from './HoldingPenPanel';
 
 interface Props {
   campaign: Campaign;
@@ -153,6 +154,9 @@ export function CampaignReport({ campaign, analytics, audienceLabel, recipientCo
             icon={<AlertCircle className="h-4 w-4" />}
           />
         </div>
+
+        {/* Holding pen — recipients held back during pre-flight review */}
+        <HoldingPenPanel campaignId={campaign.id} />
 
         {/* Analytics detail tabs (Overview chart, Recipient activity, Link activity) */}
         {analytics ? (

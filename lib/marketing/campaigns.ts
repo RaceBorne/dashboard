@@ -250,6 +250,18 @@ interface ContactForSend {
   id: string;
   email: string;
   status: string;
+  firstName: string | null;
+  lastName: string | null;
+  company: string | null;
+}
+
+interface ContactRowForSend {
+  id: string;
+  email: string;
+  status: string;
+  first_name: string | null;
+  last_name: string | null;
+  company: string | null;
 }
 
 async function resolveRecipientIds(campaign: Campaign): Promise<string[]> {
@@ -296,13 +308,20 @@ async function loadContactsByIds(ids: string[]): Promise<ContactForSend[]> {
   if (!sb) return [];
   const { data, error } = await sb
     .from('dashboard_mkt_contacts')
-    .select('id, email, status')
+    .select('id, email, status, first_name, last_name, company')
     .in('id', ids);
   if (error) {
     console.error('[marketing.loadContactsByIds]', error);
     return [];
   }
-  return (data ?? []) as ContactForSend[];
+  return ((data ?? []) as ContactRowForSend[]).map((r) => ({
+    id: r.id,
+    email: r.email,
+    status: r.status,
+    firstName: r.first_name,
+    lastName: r.last_name,
+    company: r.company,
+  }));
 }
 
 // Suppression check delegates to lib/marketing/suppressions.ts so
