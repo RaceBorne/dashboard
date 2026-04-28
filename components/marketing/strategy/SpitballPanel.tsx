@@ -38,14 +38,23 @@ interface Props {
   onClose: () => void;
 }
 
-const OPENER = [
-  "I've got the pitch. Three quick questions to lock the brief, then I'll find you companies:",
+// Hidden user prompt that kicks off the conversation. Claude already
+// knows Evari and the customer (loaded server-side via brand brief);
+// this just tells it to convert the pitch directly into a draft
+// strategy without asking the user any clarifying questions.
+const DRAFT_PROMPT = [
+  "Draft a complete prospecting strategy for this idea. Don't ask me clarifying questions, you already know Evari and our customer. Use the pitch as ground truth.",
   '',
-  '1. What does success look like in 90 days, in numbers? (e.g. 30 booked calls, 5 paid pilots)',
-  '2. Who *exactly* are we trying to reach: role, seniority, and the kind of company they sit in?',
-  "3. What's the wedge, the one angle that makes them care enough to reply?",
+  'Format the reply as markdown with these sections, in order:',
   '',
-  "Hit me with all three in one go. I'll fold them into the brief.",
+  '**Hypothesis** — one sentence, why this segment, why now.',
+  '**Sector & geography** — the slice we are hunting in.',
+  '**Target persona** — the exact role/title we email, with seniority.',
+  '**Messaging angles** — three distinct one-liners.',
+  '**Success metrics** — two or three measurable outcomes for the first 90 days.',
+  '**Disqualifiers** — when not to pursue an otherwise-matching lead.',
+  '',
+  'Tight sentences. No filler. No em-dashes.',
 ].join('\n');
 
 export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose }: Props) {
@@ -57,24 +66,53 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const kickoffFired = useRef(false);
 
-  // Auto-fire the opener whenever the panel is open and the chat is
-  // empty, regardless of kickoff. Synthetic assistant message so the
-  // user sees Claude's framing instantly with no network round trip.
-  // The first real LLM call happens when they reply. The kickoff flag
-  // is now informational only — the opener fires for fresh ideas and
-  // for existing ideas without prior chat alike.
+  // Auto-draft the strategy on first mount. Fires a real Claude call
+  // with the hidden DRAFT_PROMPT so the user lands on a populated
+  // page with a real first-pass strategy instead of a list of
+  // questions. The hidden prompt is persisted into the chat history
+  // server-side so subsequent refinement turns have full context.
   useEffect(() => {
     if (!open) return;
     if (kickoffFired.current) return;
     if (messages.length > 0) return;
     kickoffFired.current = true;
-    const opener: SpitballMessage = {
-      id: 'opener-' + Date.now(),
-      role: 'assistant',
-      content: OPENER,
-    };
-    setMessages([opener]);
-  }, [open, messages.length]);
+    void (async () => {
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/plays/${playId}/chat`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ message: DRAFT_PROMPT, history: [] }),
+        });
+        const json = await res.json();
+        if (json?.ok && typeof json.markdown === 'string') {
+          setMessages([
+            { id: 'a-' + Date.now(), role: 'assistant', content: json.markdown },
+          ]);
+        } else {
+          setMessages([
+            {
+              id: 'a-err',
+              role: 'assistant',
+              content:
+                'Could not draft a strategy. Type a refinement below or click Lock strategy to commit what we have.',
+            },
+          ]);
+        }
+      } catch {
+        setMessages([
+          {
+            id: 'a-err',
+            role: 'assistant',
+            content:
+              'Network error drafting the strategy. Type a refinement below or click Lock strategy to retry.',
+          },
+        ]);
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [open, messages.length, playId]);
 
   // Stick to bottom on new messages.
   useEffect(() => {
@@ -182,13 +220,13 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
           <Sparkles className="h-3.5 w-3.5" />
         </span>
         <h3 className="text-[13px] font-semibold text-evari-text flex-1 truncate">
-          Spitball: {playTitle}
+          Strategy: {playTitle}
         </h3>
         <button
           type="button"
           onClick={onClose}
           className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition"
-          title="Close Spitball, return to Brief"
+          title="Hide chat, show structured brief"
         >
           <X className="h-3.5 w-3.5" /> Close
         </button>
@@ -236,7 +274,7 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Reply to Claude..."
+              placeholder="Refine the strategy, or hit Lock to commit..."
               disabled={busy || committing}
               className="flex-1 h-10 px-3 rounded-panel bg-evari-surface text-evari-text text-[13px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none disabled:opacity-50"
             />
@@ -259,7 +297,7 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
               title="Lock the strategy and start finding companies"
             >
               {committing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {committing ? 'Locking…' : 'Commit & start discovery'}
+              {committing ? 'Locking…' : 'Lock strategy & start discovery'}
             </button>
           </form>
         </div>

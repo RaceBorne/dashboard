@@ -245,8 +245,11 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
         ) : null}
       </div>
 
-      {/* Fixed bottom timeline */}
-      <StrategyTimeline mode="internal" step={step} onPick={go} playId={brief.playId} />
+      {/* Bottom timeline only when the structured brief is the
+          surface. Hidden during Spitball so the chat owns the bottom. */}
+      {spitballOpen ? null : (
+        <StrategyTimeline mode="internal" step={step} onPick={go} playId={brief.playId} />
+      )}
 
       <BriefEditorDrawer
         open={editorOpen}
