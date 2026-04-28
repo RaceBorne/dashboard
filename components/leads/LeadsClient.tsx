@@ -974,7 +974,7 @@ function LeadRow({
 // Right-panel action row (thread / demote / delete)
 // ---------------------------------------------------------------------------
 
-function LeadPanelActions({
+export function LeadPanelActions({
   lead,
   busy,
   onMoveToProspect,

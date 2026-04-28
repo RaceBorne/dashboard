@@ -7,6 +7,22 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
+ * GET /api/leads/[id]
+ * Returns the Lead by id. Used by the shared LeadDetailPanel which
+ * mounts on /leads (selected row) AND inside /email/audience/[id]'s
+ * member detail slide-over.
+ */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const lead = await getLead(createSupabaseAdmin(), id);
+  if (!lead) return NextResponse.json({ ok: false, error: 'Not found' }, { status: 404 });
+  return NextResponse.json({ ok: true, lead });
+}
+
+/**
  * PATCH /api/leads/[id]
  *
  * Generic partial-update for a Lead row. Handles the small set of fields the

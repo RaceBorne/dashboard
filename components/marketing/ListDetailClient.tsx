@@ -49,7 +49,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { Group } from '@/lib/marketing/types';
 import type { ListMember } from '@/lib/marketing/groups';
-import { ContactEditDrawer } from './ContactEditDrawer';
+import { LeadDetailPanel } from '@/components/leads/LeadDetailPanel';
 
 interface Props {
   group: Group;
@@ -73,7 +73,33 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [editTarget, setEditTarget] = useState<ListMember | null>(null);
+  const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  const [openingLead, setOpeningLead] = useState(false);
+
+  /**
+   * Open the rich lead-detail slide-over for a member. If the
+   * member already has a lead_id (prospecting-mirrored), open
+   * directly. Otherwise auto-promote the contact to a lead via
+   * /api/marketing/contacts/[id]/promote-to-lead, then open the
+   * resulting lead. Idempotent — repeat opens use the same lead.
+   */
+  async function openMember(m: ListMember) {
+    if (m.leadId) {
+      setOpenLeadId(m.leadId);
+      return;
+    }
+    setOpeningLead(true);
+    try {
+      const res = await fetch(`/api/marketing/contacts/${m.contactId}/promote-to-lead`, { method: 'POST' });
+      const data = await res.json().catch(() => null);
+      if (data?.ok && data.lead?.id) {
+        setOpenLeadId(data.lead.id as string);
+        await refresh();
+      }
+    } finally {
+      setOpeningLead(false);
+    }
+  }
 
   const counts = useMemo(() => {
     const out = { all: members.length, approved: 0, pending: 0, suppressed: 0, sendable: 0 };
@@ -356,7 +382,7 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
                     key={m.contactId}
                     member={m}
                     selected={selected.has(m.contactId)}
-                    onOpen={() => setEditTarget(m)}
+                    onOpen={() => openMember(m)}
                     onToggle={() => toggleOne(m.contactId)}
                     onPromote={async () => {
                       setBusy(true);
@@ -430,23 +456,17 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
       ) : null}
 
       {/* Delete confirm */}
-      {editTarget ? (
-        <ContactEditDrawer
-          contactId={editTarget.contactId}
-          leadId={editTarget.leadId}
-          onClose={() => setEditTarget(null)}
-          onSaved={async () => { await refresh(); flash('Contact updated'); }}
-          onRemoveFromList={async () => {
-            const target = editTarget;
-            setEditTarget(null);
-            const res = await fetch(`/api/marketing/groups/${group.id}/remove`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ contactIds: [target.contactId] }),
-            });
-            const d = await res.json().catch(() => null);
-            if (d?.ok) { flash(`Removed ${target.email} from this list`); await refresh(); }
-          }}
+      {openLeadId ? (
+        <LeadDetailPanel
+          leadId={openLeadId}
+          onClose={() => setOpenLeadId(null)}
+          onChanged={() => refresh()}
         />
+      ) : null}
+      {openingLead ? (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center text-evari-text text-sm gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Opening lead detail…
+        </div>
       ) : null}
 
       {confirmDelete ? (
