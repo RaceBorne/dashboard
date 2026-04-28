@@ -100,7 +100,6 @@ export function NewVentureButton() {
       // The /ideas/[id] detail page is still reachable as a resume target
       // from the Ideas list.
       router.push(`/strategy?playId=${body.id}&kickoff=1`);
-      router.refresh();
       // Let the rail and any other venture-listeners know a new one exists.
       try {
         window.dispatchEvent(new Event('evari:plays-dirty'));
