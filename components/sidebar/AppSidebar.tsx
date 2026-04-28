@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Sparkles,
+  Sun,
+  Moon,
   LayoutDashboard,
   TrendingUp,
   Search,
@@ -77,6 +80,7 @@ const NAV = [
   { href: '/email/suppressions', label: 'Suppressions', icon: Ban, group: 'setup' },
   { href: '/email/assets', label: 'Assets', icon: Image, group: 'setup' },
   { href: '/email/settings', label: 'Email settings', icon: Settings, group: 'setup' },
+  { href: '/scoring', label: 'Fit scoring', icon: Sparkles, group: 'setup' },
   { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'setup' },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'setup' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },
@@ -112,7 +116,7 @@ function isTypingTarget(t: EventTarget | null): boolean {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { theme, logoLight, logoDark } = useTheme();
+  const { theme, setTheme, logoLight, logoDark } = useTheme();
   const [openTaskCount, setOpenTaskCount] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -468,6 +472,15 @@ export function AppSidebar() {
       {/* Footer */}
       {!collapsed ? (
         <div className="px-4 py-3 text-[11px] text-evari-dimmer leading-tight">
+          <button
+            type="button"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="mb-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-evari-success" />
             <span>Supabase + integrations</span>
@@ -475,7 +488,15 @@ export function AppSidebar() {
           <div className="mt-1 text-evari-dimmer/80 font-mono">v0.1.0</div>
         </div>
       ) : (
-        <div className="py-3 flex items-center justify-center">
+        <div className="py-3 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="text-evari-dim hover:text-evari-text transition"
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </button>
           <span
             className="h-1.5 w-1.5 rounded-full bg-evari-success"
             title="Supabase + integrations"
