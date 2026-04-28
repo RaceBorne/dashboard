@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn, relativeTime } from '@/lib/utils';
 import type { DiscoveredCompany, Lead, LeadNote, LeadStage } from '@/lib/types';
+import { LeadConversationPanel } from '@/components/leads/LeadConversationPanel';
 import { CompanyPanel } from '@/components/discover/CompanyPanel';
 import { FunnelRibbon } from '@/components/nav/FunnelRibbon';
 import { ProjectRail } from '@/components/nav/ProjectRail';
@@ -829,6 +830,7 @@ export function LeadsClient({ initialLeads }: Props) {
         {/* Column 3: CompanyPanel */}
         <section className="basis-1/2 flex-1 min-w-0 h-full rounded-xl bg-evari-surface overflow-hidden">
           {selected && selectedCompany ? (
+            <div className="flex flex-col gap-3 h-full overflow-hidden">
             <CompanyPanel
               key={selected.id}
               domain={selectedCompany.domain}
@@ -864,6 +866,13 @@ export function LeadsClient({ initialLeads }: Props) {
                 />
               }
             />
+            {/* Inline email conversation: marketing thread + reply
+                composer scoped to this lead's email so the operator
+                can read + reply without leaving the page. */}
+            <div className="shrink-0">
+              <LeadConversationPanel email={selected.email} />
+            </div>
+            </div>
           ) : (
             <EmptyPanel />
           )}
