@@ -345,3 +345,33 @@ export async function removeMembers(groupId: string, contactIds: string[]): Prom
   return count ?? 0;
 }
 
+/** listGroups + a member count per group, run in parallel. Used by
+ *  the campaign create flow so audience cards show how many people
+ *  are in each list before the operator picks one (avoids 'send
+ *  blind' anxiety — they always know what they're committing to). */
+export async function listGroupsWithCounts(): Promise<Array<Group & { memberCount: number; approvedCount: number; pendingCount: number }>> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return [];
+  const groups = await listGroups();
+  if (groups.length === 0) return [];
+  // One query — get counts grouped by (group_id, status) for every group at once.
+  const { data, error } = await sb
+    .from('dashboard_mkt_contact_groups')
+    .select('group_id, status');
+  if (error) {
+    console.error('[marketing.listGroupsWithCounts]', error);
+    return groups.map((g) => ({ ...g, memberCount: 0, approvedCount: 0, pendingCount: 0 }));
+  }
+  type Row = { group_id: string; status: string };
+  const counts = new Map<string, { approved: number; pending: number }>();
+  for (const r of (data as Row[])) {
+    const c = counts.get(r.group_id) ?? { approved: 0, pending: 0 };
+    if (r.status === 'pending') c.pending += 1;
+    else c.approved += 1;
+    counts.set(r.group_id, c);
+  }
+  return groups.map((g) => {
+    const c = counts.get(g.id) ?? { approved: 0, pending: 0 };
+    return { ...g, memberCount: c.approved + c.pending, approvedCount: c.approved, pendingCount: c.pending };
+  });
+}

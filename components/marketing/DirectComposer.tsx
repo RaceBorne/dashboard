@@ -34,9 +34,11 @@ import {
 
 import { cn } from '@/lib/utils';
 import type { Campaign, Group, MarketingBrand, Segment } from '@/lib/marketing/types';
+import type { GroupWithCounts } from '@/lib/marketing/types-extra';
+import type { ListMember } from '@/lib/marketing/groups';
 
 interface Props {
-  groups: Group[];
+  groups: GroupWithCounts[];
   segments: Segment[];
   brand: MarketingBrand;
   initialRecipientEmails?: string[];
@@ -305,7 +307,7 @@ function Stepper({ current }: { current: StepKey }) {
 // ─── Who step ─────────────────────────────────────────────────
 
 function WhoStep({ groups, segments, audienceKind, setAudienceKind, groupId, setGroupId, segmentId, setSegmentId, recipientEmails, setRecipientEmails }: {
-  groups: Group[]; segments: Segment[];
+  groups: GroupWithCounts[]; segments: Segment[];
   audienceKind: AudienceKind; setAudienceKind: (k: AudienceKind) => void;
   groupId: string; setGroupId: (s: string) => void;
   segmentId: string; setSegmentId: (s: string) => void;
@@ -344,16 +346,29 @@ function WhoStep({ groups, segments, audienceKind, setAudienceKind, groupId, set
         groups.length === 0 ? (
           <Empty label="You don't have any lists yet." cta={<Link href="/email/audience" className="inline-flex items-center gap-1 text-[12px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded">Build a list <ArrowRight className="h-3.5 w-3.5" /></Link>} />
         ) : (
-          <ul className="grid grid-cols-2 gap-2">
-            {groups.map((g) => (
-              <li key={g.id}>
-                <button type="button" onClick={() => setGroupId(g.id)} className={cn('w-full text-left rounded-md border p-3 transition-colors', groupId === g.id ? 'border-evari-gold bg-evari-gold/10' : 'border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40')}>
-                  <div className="text-[13px] font-semibold text-evari-text truncate">{g.name}</div>
-                  {g.description ? <div className="text-[11px] text-evari-dim truncate mt-0.5">{g.description}</div> : null}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-3">
+            <ul className="grid grid-cols-2 gap-2">
+              {groups.map((g) => (
+                <li key={g.id}>
+                  <button type="button" onClick={() => setGroupId(g.id)} className={cn('w-full text-left rounded-md border p-3 transition-colors', groupId === g.id ? 'border-evari-gold bg-evari-gold/10' : 'border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40')}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[13px] font-semibold text-evari-text truncate flex-1 min-w-0">{g.name}</div>
+                      <div className="shrink-0 inline-flex items-center gap-1 text-[10px] font-mono tabular-nums text-evari-gold bg-evari-gold/10 px-1.5 py-0.5 rounded">
+                        <Users className="h-3 w-3" /> {g.memberCount}
+                      </div>
+                    </div>
+                    {g.description ? <div className="text-[11px] text-evari-dim truncate mt-0.5">{g.description}</div> : null}
+                    {g.pendingCount > 0 ? (
+                      <div className="text-[10px] text-evari-warn mt-1">
+                        {g.approvedCount} approved · {g.pendingCount} pending review
+                      </div>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {groupId ? <ListPreview groupId={groupId} /> : null}
+          </div>
         )
       ) : (
         segments.length === 0 ? (
@@ -535,4 +550,79 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Drops in beneath the list cards once the operator has picked one.
+ * Shows the actual member emails so they can SEE who they're about to
+ * send to before continuing — solves the 'fearful of sending' problem
+ * by making the audience concrete.
+ */
+function ListPreview({ groupId }: { groupId: string }) {
+  const [members, setMembers] = useState<ListMember[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+  // Re-fetch whenever the picked list changes.
+  useMemo(() => {
+    setLoading(true);
+    fetch(`/api/marketing/groups/${groupId}/members`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => setMembers((d?.members ?? []) as ListMember[]))
+      .catch(() => setMembers([]))
+      .finally(() => setLoading(false));
+  }, [groupId]);
+
+  if (loading) {
+    return (
+      <div className="rounded-md border border-evari-edge/30 bg-evari-ink/30 px-3 py-2.5 text-[11px] text-evari-dimmer inline-flex items-center gap-2">
+        <Loader2 className="h-3 w-3 animate-spin" /> Loading members…
+      </div>
+    );
+  }
+  if (!members || members.length === 0) {
+    return (
+      <div className="rounded-md border border-evari-warn/30 bg-evari-warn/5 px-3 py-2.5 text-[12px] text-evari-warn">
+        This list is empty. Add members on /email/audience before sending.
+      </div>
+    );
+  }
+
+  const approved = members.filter((m) => m.status === 'approved');
+  const pending  = members.filter((m) => m.status === 'pending');
+  const visible  = showAll ? approved : approved.slice(0, 8);
+
+  return (
+    <div className="rounded-md border border-evari-edge/30 bg-evari-ink/30">
+      <header className="px-3 py-2 border-b border-evari-edge/20 flex items-center gap-2">
+        <CheckCircle2 className="h-3.5 w-3.5 text-evari-gold" />
+        <div className="flex-1 text-[12px]">
+          <strong className="text-evari-text">{approved.length}</strong> <span className="text-evari-dim">people will receive this</span>
+          {pending.length > 0 ? <span className="text-evari-warn"> · {pending.length} pending excluded</span> : null}
+        </div>
+      </header>
+      <ul className="divide-y divide-evari-edge/10">
+        {visible.map((m) => {
+          const fullName = `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim();
+          return (
+            <li key={m.contactId} className="flex items-center gap-2.5 px-3 py-1.5">
+              <span className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full bg-evari-ink text-[10px] font-semibold text-evari-dim uppercase">
+                {(fullName || m.email).slice(0, 2)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] text-evari-text truncate">{fullName || m.email}</div>
+                {fullName ? <div className="text-[10px] text-evari-dim truncate font-mono">{m.email}</div> : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {approved.length > 8 ? (
+        <footer className="px-3 py-1.5 border-t border-evari-edge/20">
+          <button type="button" onClick={() => setShowAll((v) => !v)} className="text-[11px] text-evari-gold hover:underline">
+            {showAll ? 'Show first 8 only' : `Show all ${approved.length} recipients`}
+          </button>
+        </footer>
+      ) : null}
+    </div>
+  );
 }

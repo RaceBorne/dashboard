@@ -22,12 +22,13 @@ import { ChevronLeft, FileText, Mail, Sparkles, ArrowRight } from 'lucide-react'
 
 import { cn } from '@/lib/utils';
 import type { CampaignKind, Group, MarketingBrand, Segment } from '@/lib/marketing/types';
+import type { GroupWithCounts } from '@/lib/marketing/types-extra';
 import type { EmailTemplate } from '@/lib/marketing/templates';
 import { CampaignWizard } from './CampaignWizard';
 import { DirectComposer } from './DirectComposer';
 
 interface Props {
-  groups: Group[];
+  groups: GroupWithCounts[];
   segments: Segment[];
   templates: EmailTemplate[];
   brand: MarketingBrand;

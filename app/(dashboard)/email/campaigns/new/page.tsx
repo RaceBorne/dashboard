@@ -1,5 +1,5 @@
 import { TopBar } from '@/components/sidebar/TopBar';
-import { listGroups } from '@/lib/marketing/groups';
+import { listGroupsWithCounts } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
 import { getBrand } from '@/lib/marketing/brand';
 import { listTemplates } from '@/lib/marketing/templates';
@@ -38,7 +38,7 @@ export default async function NewCampaignPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const ids = (sp.ids ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const [groups, segments, customEmails, brand, templates] = await Promise.all([
-    listGroups(),
+    listGroupsWithCounts(),
     listSegments(),
     loadEmailsForLeadIds(ids),
     getBrand(),
