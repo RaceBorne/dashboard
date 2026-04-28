@@ -92,7 +92,7 @@ export function AnalogueClockWidget() {
             className="absolute pointer-events-none select-none"
             style={{
               top: '50%', left: '50%',
-              width: '70%', height: '70%',
+              width: '56%', height: '56%',
               transform: `translate(-50%, -50%) rotate(${hourAngle}deg)`,
               transformOrigin: 'center center',
               filter: HAND_SHADOW,
@@ -108,7 +108,7 @@ export function AnalogueClockWidget() {
             className="absolute pointer-events-none select-none"
             style={{
               top: '50%', left: '50%',
-              width: '85%', height: '85%',
+              width: '68%', height: '68%',
               transform: `translate(-50%, -50%) rotate(${minuteAngle}deg)`,
               transformOrigin: 'center center',
               filter: HAND_SHADOW,
@@ -123,8 +123,8 @@ export function AnalogueClockWidget() {
             style={{ filter: HAND_SHADOW }}
           >
             <g style={{ transform: `rotate(${secondAngle}deg)`, transformOrigin: '300px 300px' }}>
-              <line x1="300" y1="345" x2="300" y2="170" stroke="#B91C1C" strokeWidth="2.4" strokeLinecap="round" />
-              <circle cx="300" cy="300" r="5" fill="#B91C1C" />
+              <line x1="300" y1="336" x2="300" y2="196" stroke="#B91C1C" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="300" cy="300" r="4" fill="#B91C1C" />
             </g>
           </svg>
         </div>
