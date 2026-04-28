@@ -212,16 +212,16 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        'hidden lg:flex shrink-0 flex-col bg-evari-carbon sticky top-0 h-screen self-start transition-[width] duration-500 ease-evari',
-        collapsed ? 'w-14' : 'w-60',
+        'hidden lg:flex shrink-0 flex-col bg-evari-surface border-r border-evari-edge/30 sticky top-0 h-screen self-start transition-[width] duration-500 ease-evari',
+        collapsed ? 'w-14' : 'w-[320px]',
       )}
       aria-label="Main navigation"
     >
       {/* Brand + collapse toggle */}
       <div
         className={cn(
-          'py-5 flex items-center',
-          collapsed ? 'px-2 justify-center' : 'px-5 justify-between',
+          'flex items-center border-b border-evari-edge/30 h-[44px]',
+          collapsed ? 'px-2 justify-center' : 'px-3 justify-between',
         )}
       >
         {!collapsed ? (
@@ -229,7 +229,7 @@ export function AppSidebar() {
           <img
             src={logoSrc}
             alt="Evari"
-            style={{ width: 110, height: 'auto' }}
+            style={{ width: 84, height: 'auto' }}
             draggable={false}
           />
         ) : null}
