@@ -98,7 +98,11 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
   // (the path after creating a new idea), or manually via the Spitball
   // button in the header. `kickoff` flag drives the auto-opener.
   const kickoffFlag = searchParams?.get('kickoff') === '1';
-  const [spitballOpen, setSpitballOpen] = useState<boolean>(kickoffFlag);
+  // Spitball is the default surface on Strategy: it's where the user
+  // talks to Claude and converts the conversation into a committed
+  // strategy. The seven-step rail is reachable behind it via the
+  // 'Show brief' toggle in the header.
+  const [spitballOpen, setSpitballOpen] = useState<boolean>(true);
   const [kickoffOnOpen, setKickoffOnOpen] = useState<boolean>(kickoffFlag);
   // Strip kickoff=1 from the URL after first paint so a refresh doesn't
   // re-arm the opener. We keep the panel open via local state.
@@ -194,11 +198,11 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
               ) : null}
               <button
                 type="button"
-                onClick={openSpitball}
+                onClick={() => spitballOpen ? setSpitballOpen(false) : openSpitball()}
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold hover:bg-evari-gold/25 border border-evari-gold/30 transition"
-                title="Spitball with Claude, then commit"
+                title={spitballOpen ? 'Hide Spitball, show seven-step brief' : 'Spitball with Claude, then commit'}
               >
-                <Sparkles className="h-3.5 w-3.5" /> Spitball
+                <Sparkles className="h-3.5 w-3.5" /> {spitballOpen ? 'Show brief' : 'Spitball'}
               </button>
               <button
                 type="button"

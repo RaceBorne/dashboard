@@ -57,13 +57,14 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const kickoffFired = useRef(false);
 
-  // Auto-fire the opener on kickoff. Done as a synthetic assistant
-  // message so the user sees Claude's three questions immediately, no
-  // network round-trip needed for the framing turn. The first real LLM
-  // call happens when they reply.
+  // Auto-fire the opener whenever the panel is open and the chat is
+  // empty, regardless of kickoff. Synthetic assistant message so the
+  // user sees Claude's framing instantly with no network round trip.
+  // The first real LLM call happens when they reply. The kickoff flag
+  // is now informational only — the opener fires for fresh ideas and
+  // for existing ideas without prior chat alike.
   useEffect(() => {
     if (!open) return;
-    if (!kickoff) return;
     if (kickoffFired.current) return;
     if (messages.length > 0) return;
     kickoffFired.current = true;
@@ -73,7 +74,7 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
       content: OPENER,
     };
     setMessages([opener]);
-  }, [open, kickoff, messages.length]);
+  }, [open, messages.length]);
 
   // Stick to bottom on new messages.
   useEffect(() => {

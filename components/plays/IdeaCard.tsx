@@ -66,7 +66,7 @@ export function IdeaCard({ play, onTogglePin }: { play: Play; onTogglePin?: (id:
   return (
     <li>
       <Link
-        href={`/ideas/${play.id}`}
+        href={`/strategy?playId=${play.id}`}
         className="group flex items-center gap-3 rounded-panel bg-evari-surface border border-evari-edge/30 hover:border-evari-gold/40 p-3 transition-colors"
       >
         <div className="h-12 w-12 shrink-0 rounded-md bg-evari-ink/40 flex items-center justify-center text-evari-dim border border-evari-edge/20">
