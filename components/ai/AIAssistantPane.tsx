@@ -307,39 +307,37 @@ export function AIAssistantPane() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask AI anything..."
-          className="flex-1 px-2 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
+          className="flex-1 h-8 px-2 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
         />
         <button
           type="submit"
           disabled={!input.trim() || busy}
-          className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
+          className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
         </button>
       </form>
-      <div className="border-t border-evari-edge/30">
-        <div className="h-9 px-3 flex items-center gap-2 text-[11px] text-evari-dimmer leading-tight">
-          <span className="h-1.5 w-1.5 rounded-full bg-evari-success" />
-          <span className="flex-1 truncate">Supabase + integrations</span>
-        </div>
-        <div className="h-9 px-3 flex items-center gap-2 border-t border-evari-edge/20">
-          <button
-            type="button"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
-            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          >
-            {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
-            {theme === 'dark' ? 'Light' : 'Dark'}
-          </button>
-          <Link
-            href="/settings"
-            className="ml-auto inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
-            title="System"
-          >
-            <Settings className="h-3 w-3" /> System
-          </Link>
-        </div>
+      {/* Footer — single row mirrored on the sidebar. Lozenge sized
+          to match the input above, gear sized to match the send
+          button, so the row reads as a deliberate pair. */}
+      <div className="px-3 py-2 border-t border-evari-edge/30 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          {theme === 'dark' ? 'Light' : 'Dark'}
+        </button>
+        <Link
+          href="/settings"
+          aria-label="System settings"
+          title="System"
+          className="ml-auto inline-flex items-center justify-center h-8 w-8 rounded-md bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
+        >
+          <Settings className="h-3.5 w-3.5" />
+        </Link>
       </div>
       </>)}
     </aside>

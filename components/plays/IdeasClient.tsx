@@ -78,8 +78,11 @@ export function IdeasClient({ plays, counts }: Props) {
   }, [plays, active, search]);
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
-      <div className="px-gutter py-5 space-y-4">
+    // Page is split into a frozen top section (hero + header + tabs)
+    // and a scrollable rows region. Only the row list moves; the hero
+    // and search/tabs stay pinned so the operator never loses context.
+    <div className="flex-1 min-h-0 flex flex-col bg-evari-ink">
+      <div className="shrink-0 px-gutter pt-5 pb-3 space-y-4">
         <IdeasHero />
         {/* Header row */}
         <div className="flex items-center gap-2">
@@ -106,7 +109,8 @@ export function IdeasClient({ plays, counts }: Props) {
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs — last frozen element. Border underneath sits flush
+            with the scroll region so the rows appear to slide under it. */}
         <div className="flex items-center gap-1 border-b border-evari-edge/30">
           {BUCKETS.map((b) => (
             <button
@@ -127,14 +131,16 @@ export function IdeasClient({ plays, counts }: Props) {
             </button>
           ))}
         </div>
+      </div>
 
-        {/* List */}
+      {/* Scrollable list region. */}
+      <div className="flex-1 min-h-0 overflow-auto px-gutter pb-5">
         {filtered.length === 0 ? (
           <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-10 text-center text-[13px] text-evari-dim">
             {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet.'}
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-2 pt-3">
             {filtered.map((p) => (
               <IdeaCard key={p.id} play={p} />
             ))}

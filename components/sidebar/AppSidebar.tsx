@@ -425,73 +425,58 @@ export function AppSidebar() {
           items-then-header, which is what gives the upward-reveal
           feel: as max-height increases the items push the rest of
           the sidebar contents up by the same amount. */}
+      {/* System pull-up. Triggered by the gear button in the footer
+          row below, so it has no inline trigger of its own anymore.
+          Darker bg than the sidebar so it reads as a discrete layer
+          floating above. */}
       {(() => {
         const systemItems = groups['system'] ?? [];
         if (systemItems.length === 0) return null;
         const open = openGroups.has('system');
         return (
-          <div className="shrink-0 border-t border-evari-edge/20">
+          <div className="shrink-0">
             {!collapsed ? (
-              <>
-                <div
-                  className={cn(
-                    'overflow-hidden transition-[max-height] duration-500 ease-evari',
-                    open ? 'max-h-[400px]' : 'max-h-0',
-                  )}
-                  aria-hidden={!open}
-                >
-                  <div className="space-y-0.5 px-2 pt-2 pb-1">
-                    {systemItems.map((item) => {
-                      const active = pathname.startsWith(item.href);
-                      const Icon = item.icon;
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
+              <div
+                className={cn(
+                  'overflow-hidden border-t border-evari-edge/30 bg-evari-ink transition-[max-height] duration-500 ease-evari',
+                  open ? 'max-h-[400px]' : 'max-h-0 border-t-0',
+                )}
+                aria-hidden={!open}
+              >
+                <div className="space-y-0.5 px-2 py-2">
+                  {systemItems.map((item) => {
+                    const active = pathname === item.href || pathname.startsWith(item.href + '/');
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors',
+                          active
+                            ? 'bg-evari-surface text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                            : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
+                        )}
+                      >
+                        <Icon
                           className={cn(
-                            'flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors',
-                            active
-                              ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
-                              : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
+                            'h-4 w-4 shrink-0',
+                            active ? 'text-evari-text' : 'text-evari-dimmer',
                           )}
-                        >
-                          <Icon
-                            className={cn(
-                              'h-4 w-4 shrink-0',
-                              active ? 'text-evari-text' : 'text-evari-dimmer',
-                            )}
-                          />
-                          <span className="flex-1">{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
+                        />
+                        <span className="flex-1">{item.label}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleGroup('system')}
-                  aria-expanded={open}
-                  className="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium hover:text-evari-dim transition-colors"
-                >
-                  <ChevronDown
-                    className={cn(
-                      'h-3 w-3 text-evari-dimmer/70 transition-transform duration-500 ease-evari',
-                      // Closed: chevron points UP to hint that the
-                      // group reveals upward. Open: rotated back to
-                      // its standard pointing-down position.
-                      open ? '' : 'rotate-180',
-                    )}
-                  />
-                  <span className="flex-1 text-left">System</span>
-                </button>
-              </>
+              </div>
             ) : (
               /* Collapsed sidebar: show system items inline as
                  icon-only links pinned to the bottom. No expand/
                  collapse since the icons already fit. */
-              <div className="py-2 space-y-0.5 flex flex-col items-center">
+              <div className="py-2 space-y-0.5 flex flex-col items-center border-t border-evari-edge/20">
                 {systemItems.map((item) => {
-                  const active = pathname.startsWith(item.href);
+                  const active = pathname === item.href || pathname.startsWith(item.href + '/');
                   const Icon = item.icon;
                   return (
                     <Link
@@ -516,37 +501,34 @@ export function AppSidebar() {
         );
       })()}
 
-      {/* Footer — two stacked rows of equal height. Mirrors the AI
-          pane footer on the opposite side so they read as a matched
-          pair. Row 1: connection status. Row 2: theme toggle + System
-          link. */}
+      {/* Footer — single row, mirrors the AI pane footer. Lozenge
+          height matches the AI pane's input field; gear button matches
+          its send button so the two panes read as a matched pair. The
+          gear toggles the System pull-up above. */}
       {!collapsed ? (
-        <div className="border-t border-evari-edge/20">
-          <div className="h-9 px-4 flex items-center gap-2 text-[11px] text-evari-dimmer leading-tight">
-            <span className="h-1.5 w-1.5 rounded-full bg-evari-success" />
-            <span className="flex-1 truncate">Supabase + integrations</span>
-          </div>
-          <div className="h-9 px-4 flex items-center gap-2 border-t border-evari-edge/20">
-            <button
-              type="button"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
-              title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            >
-              {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
-              {theme === 'dark' ? 'Light' : 'Dark'}
-            </button>
-            <Link
-              href="/settings"
-              className="ml-auto inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
-              title="System"
-            >
-              <Settings className="h-3 w-3" /> System
-            </Link>
-          </div>
+        <div className="px-3 py-2 border-t border-evari-edge/30 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleGroup('system')}
+            aria-expanded={openGroups.has('system')}
+            aria-label="System"
+            title="System"
+            className="ml-auto inline-flex items-center justify-center h-8 w-8 rounded-md bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </button>
         </div>
       ) : (
-        <div className="py-3 flex flex-col items-center gap-2 border-t border-evari-edge/20">
+        <div className="py-3 flex flex-col items-center gap-2 border-t border-evari-edge/30">
           <button
             type="button"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -555,10 +537,6 @@ export function AppSidebar() {
           >
             {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </button>
-          <span
-            className="h-1.5 w-1.5 rounded-full bg-evari-success"
-            title="Supabase + integrations"
-          />
         </div>
       )}
     </aside>
