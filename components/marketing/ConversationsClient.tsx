@@ -123,7 +123,7 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
   return (
     <div className="flex-1 min-h-0 overflow-hidden bg-evari-ink p-2 flex gap-2">
       {/* LEFT — folder sidebar */}
-      <aside className="w-[220px] shrink-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
+      <aside className="w-[220px] shrink-0 rounded-panel bg-evari-surface border border-evari-edge/30 flex flex-col">
         <div className="px-3 py-2.5 border-b border-evari-edge/20 flex items-center justify-between">
           <h2 className="text-xs font-semibold text-evari-text uppercase tracking-[0.12em]">Inbox</h2>
           <span className="text-[10px] tabular-nums text-evari-dimmer">{counts.total}</span>
@@ -157,7 +157,7 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
       </aside>
 
       {/* MID — thread list */}
-      <section className="flex-1 min-w-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
+      <section className="flex-1 min-w-0 rounded-panel bg-evari-surface border border-evari-edge/30 flex flex-col">
         <header className="px-3 py-2 border-b border-evari-edge/20 flex items-center gap-2">
           <Search className="h-3.5 w-3.5 text-evari-dimmer" />
           <input
@@ -193,7 +193,7 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
       </section>
 
       {/* RIGHT — thread detail */}
-      <aside className="w-[520px] shrink-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
+      <aside className="w-[520px] shrink-0 rounded-panel bg-evari-surface border border-evari-edge/30 flex flex-col">
         {selected ? (
           <ThreadDetail
             thread={selected}

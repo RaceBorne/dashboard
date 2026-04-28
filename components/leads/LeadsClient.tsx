@@ -721,7 +721,7 @@ export function LeadsClient({ initialLeads, scopedTo }: Props) {
       ) : null}
       {scopedTo && scopeRenameOpen ? (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !scopeBusy && setScopeRenameOpen(false)}>
-          <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-evari-text">Rename list</h3>
             <input
               autoFocus
@@ -753,7 +753,7 @@ export function LeadsClient({ initialLeads, scopedTo }: Props) {
       ) : null}
       {scopedTo && scopeDeleteOpen ? (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !scopeBusy && setScopeDeleteOpen(false)}>
-          <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-evari-text">Delete &quot;{scopedTo.listName}&quot;?</h3>
             <p className="text-[12px] text-evari-dim">
               The list and its memberships are removed. The underlying contacts (and their lead records) stay — they remain on any other lists they belong to.
@@ -797,7 +797,7 @@ export function LeadsClient({ initialLeads, scopedTo }: Props) {
                     type="button"
                     onClick={() => setBulkMoveOpen((v) => !v)}
                     disabled={bulkMoveBusy}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70"
+                    className="inline-flex items-center gap-1.5 rounded-panel border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70"
                   >
                     {bulkMoveBusy ? (
                       <Loader2 className="h-3 w-3 animate-spin" />

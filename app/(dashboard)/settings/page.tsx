@@ -92,7 +92,7 @@ export default function SettingsPage() {
             </div>
             <Link
               href="/settings/connectors"
-              className="inline-flex items-center gap-1.5 rounded-md h-8 px-3 text-xs font-medium bg-evari-surfaceSoft text-evari-text hover:bg-evari-mute/60 transition"
+              className="inline-flex items-center gap-1.5 rounded-panel h-8 px-3 text-xs font-medium bg-evari-surfaceSoft text-evari-text hover:bg-evari-mute/60 transition"
             >
               Open Connectors
               <ArrowUpRight className="h-3.5 w-3.5" />
@@ -114,7 +114,7 @@ export default function SettingsPage() {
             </div>
             <Link
               href="/wireframe"
-              className="inline-flex items-center gap-1.5 rounded-md h-8 px-3 text-xs font-medium bg-evari-surfaceSoft text-evari-text hover:bg-evari-mute/60 transition"
+              className="inline-flex items-center gap-1.5 rounded-panel h-8 px-3 text-xs font-medium bg-evari-surfaceSoft text-evari-text hover:bg-evari-mute/60 transition"
             >
               Go to Wireframe
               <ArrowUpRight className="h-3.5 w-3.5" />

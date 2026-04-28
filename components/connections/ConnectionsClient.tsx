@@ -369,7 +369,7 @@ function ConnectionCard({
   return (
     <div
       className={cn(
-        'group relative rounded-md bg-evari-surface/60 hover:bg-evari-surface transition-colors',
+        'group relative rounded-panel bg-evari-surface/60 hover:bg-evari-surface transition-colors',
         open ? 'p-4 space-y-3' : 'p-0',
       )}
     >
@@ -479,7 +479,7 @@ function ConnectionCard({
               {s.capabilities.map((c) => (
                 <li
                   key={c.name}
-                  className="rounded-md bg-evari-surface/60 px-3 py-2 flex items-start gap-3"
+                  className="rounded-panel bg-evari-surface/60 px-3 py-2 flex items-start gap-3"
                 >
                   <code className="text-[11px] font-mono text-evari-gold shrink-0 pt-0.5">
                     {c.name}

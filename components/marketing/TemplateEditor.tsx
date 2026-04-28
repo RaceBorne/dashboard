@@ -270,7 +270,7 @@ function AIDraftModal({ design, template, onClose, onApply }: { design: EmailDes
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-purple-400" />
           <h3 className="text-sm font-semibold text-evari-text flex-1">Draft email content</h3>
@@ -401,7 +401,7 @@ function PreviewModal({ design, brand, onClose }: { design: EmailDesign; brand: 
         </div>
 
         {/* Side panel — total size + send test */}
-        <aside className="rounded-md bg-evari-surface border border-evari-edge/30 p-3 space-y-4 overflow-y-auto">
+        <aside className="rounded-panel bg-evari-surface border border-evari-edge/30 p-3 space-y-4 overflow-y-auto">
           <section>
             <h4 className="text-xs font-semibold text-evari-text mb-1">Total size</h4>
             <div className="flex items-center gap-2">

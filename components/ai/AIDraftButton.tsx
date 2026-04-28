@@ -76,7 +76,7 @@ export function AIDraftButton({ field, value, context, onApply, className, compa
       </button>
 
       {open ? (
-        <div className="absolute right-0 mt-1 z-50 w-72 rounded-md bg-evari-surface border border-evari-edge/40 shadow-lg p-2">
+        <div className="absolute right-0 mt-1 z-50 w-72 rounded-panel bg-evari-surface border border-evari-edge/40 shadow-lg p-2">
           <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1.5 px-1">AI suggestions</div>
           <div className="grid grid-cols-2 gap-1">
             <ModeBtn label="Draft 3" busy={busy === 'draft'} onClick={() => run('draft', 3)} />

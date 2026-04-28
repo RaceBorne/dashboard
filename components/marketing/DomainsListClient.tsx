@@ -58,7 +58,7 @@ export function DomainsListClient({ initialDomains }: Props) {
       </div>
 
       {adding ? (
-        <div className="mb-3 p-3 rounded-md bg-evari-surface border border-evari-edge/30">
+        <div className="mb-3 p-3 rounded-panel bg-evari-surface border border-evari-edge/30">
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -93,7 +93,7 @@ export function DomainsListClient({ initialDomains }: Props) {
         </div>
       ) : null}
 
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30 overflow-hidden">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[10px] uppercase tracking-[0.14em] text-evari-dimmer border-b border-evari-edge/30">

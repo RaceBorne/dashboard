@@ -814,7 +814,7 @@ function PageRow({
       {/* Page */}
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-evari-surfaceSoft text-evari-dim shrink-0">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-panel bg-evari-surfaceSoft text-evari-dim shrink-0">
             <Icon className="h-3 w-3" />
           </span>
           <div className="min-w-0 flex-1">
@@ -1162,7 +1162,7 @@ function DrawerBody({
             {row.findings.map((f) => (
               <li
                 key={f.id}
-                className="flex items-start gap-2 p-3 rounded-md bg-evari-surfaceSoft/60"
+                className="flex items-start gap-2 p-3 rounded-panel bg-evari-surfaceSoft/60"
               >
                 <span
                   className={cn(
@@ -1262,7 +1262,7 @@ function MetaValue({
 
 function GscStubTile({ label }: { label: string }) {
   return (
-    <div className="rounded-md bg-evari-surfaceSoft/60 p-3">
+    <div className="rounded-panel bg-evari-surfaceSoft/60 p-3">
       <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
         {label}
       </div>

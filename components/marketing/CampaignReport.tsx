@@ -79,7 +79,7 @@ export function CampaignReport({ campaign, analytics, audienceLabel, recipientCo
         </Link>
 
         {/* Hero */}
-        <header className="rounded-md bg-evari-surface border border-evari-edge/30 p-5 mb-3">
+        <header className="rounded-panel bg-evari-surface border border-evari-edge/30 p-5 mb-3">
           <div className="flex items-start gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -166,7 +166,7 @@ export function CampaignReport({ campaign, analytics, audienceLabel, recipientCo
         {analytics ? (
           <CampaignAnalyticsTabs analytics={analytics} />
         ) : (
-          <div className="rounded-md bg-evari-surface border border-evari-edge/30 px-6 py-12 text-center text-sm text-evari-dim">
+          <div className="rounded-panel bg-evari-surface border border-evari-edge/30 px-6 py-12 text-center text-sm text-evari-dim">
             {isSending ? 'Send is in flight — analytics will appear here once delivery webhooks arrive.' :
              isFailed  ? 'This send failed. No analytics to show.' :
                          'No analytics yet — this campaign hasn\'t been sent.'}
@@ -195,7 +195,7 @@ function StatusPill({ status }: { status: Campaign['status'] }) {
 function BigStat({ label, value, sub, accent, icon }: { label: string; value: string; sub: string; accent: 'gold' | 'mute' | 'danger'; icon: React.ReactNode }) {
   const accentCls = accent === 'gold' ? 'text-evari-gold' : accent === 'danger' ? 'text-evari-danger' : 'text-evari-text';
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+    <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
       <div className="flex items-center gap-2 mb-2">
         <span className={cn('inline-flex items-center justify-center h-7 w-7 rounded-md', accent === 'gold' ? 'bg-evari-gold/15' : accent === 'danger' ? 'bg-evari-danger/15' : 'bg-evari-ink/40', accentCls)}>
           {icon}

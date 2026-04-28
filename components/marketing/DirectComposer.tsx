@@ -231,7 +231,7 @@ export function DirectComposer({ groups, segments, brand, initialRecipientEmails
 
         <Stepper current={step} />
 
-        <div className="mt-4 rounded-md bg-evari-surface border border-evari-edge/30 p-4 min-h-[420px]">
+        <div className="mt-4 rounded-panel bg-evari-surface border border-evari-edge/30 p-4 min-h-[420px]">
           {step === 'who' ? (
             <WhoStep
               groups={groups} segments={segments}
@@ -309,7 +309,7 @@ export function DirectComposer({ groups, segments, brand, initialRecipientEmails
 function Stepper({ current }: { current: StepKey }) {
   const idx = STEPS.findIndex((s) => s.key === current);
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-edge/30 px-2 py-2">
+    <div className="rounded-panel bg-evari-surface border border-evari-edge/30 px-2 py-2">
       <ol className="flex items-stretch">
         {STEPS.map((s, i) => {
           const isCurrent = s.key === current;

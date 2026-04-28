@@ -62,7 +62,7 @@ export default async function SEOPage() {
     <li
     key={f.id}
     className={cn(
-     'rounded-md bg-evari-surface/60 p-5 ring-1 ring-inset',
+     'rounded-panel bg-evari-surface/60 p-5 ring-1 ring-inset',
      tone.ring,
     )}
     >
@@ -80,7 +80,7 @@ export default async function SEOPage() {
      </div>
      <p className="text-sm text-evari-dim leading-relaxed">{f.description}</p>
      {f.severity !== 'pass' && f.recommendation && (
-      <div className="mt-3 rounded-md bg-evari-surfaceSoft p-3">
+      <div className="mt-3 rounded-panel bg-evari-surfaceSoft p-3">
       <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-1">
        Recommendation
       </div>

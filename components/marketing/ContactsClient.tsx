@@ -90,7 +90,7 @@ export function ContactsClient({ initialContacts }: Props) {
             placeholder="Search by name, email, company"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-md bg-evari-surface text-evari-text text-sm placeholder:text-evari-dimmer border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out"
+            className="w-full pl-9 pr-3 py-2 rounded-panel bg-evari-surface text-evari-text text-sm placeholder:text-evari-dimmer border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out"
           />
         </div>
         <span className="text-xs text-evari-dimmer tabular-nums">
@@ -108,7 +108,7 @@ export function ContactsClient({ initialContacts }: Props) {
 
       {/* Inline create row */}
       {creating ? (
-        <div className="mb-3 p-3 rounded-md bg-evari-surface border border-evari-edge/30">
+        <div className="mb-3 p-3 rounded-panel bg-evari-surface border border-evari-edge/30">
           <div className="grid grid-cols-3 gap-2">
             <input
               type="email"
@@ -155,7 +155,7 @@ export function ContactsClient({ initialContacts }: Props) {
       ) : null}
 
       {/* Table */}
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30 overflow-hidden">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[10px] uppercase tracking-[0.14em] text-evari-dimmer border-b border-evari-edge/30">

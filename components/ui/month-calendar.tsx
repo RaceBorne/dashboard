@@ -370,7 +370,7 @@ function HoverImagePreview({ event }: { event: CalendarEvent }) {
   const caption = event.imageCaption ?? event.title;
   return (
     <div
-      className="absolute z-50 left-full top-0 ml-2 w-[180px] pointer-events-none rounded-md ring-1 ring-evari-edge bg-evari-surface shadow-[0_6px_18px_rgba(0,0,0,0.4)] overflow-hidden"
+      className="absolute z-50 left-full top-0 ml-2 w-[180px] pointer-events-none rounded-panel ring-1 ring-evari-edge bg-evari-surface shadow-[0_6px_18px_rgba(0,0,0,0.4)] overflow-hidden"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

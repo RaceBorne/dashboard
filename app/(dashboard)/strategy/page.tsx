@@ -19,7 +19,7 @@ export default async function StrategyPage({
       <>
         <TopBar title="Strategy" subtitle="Define the strategy and target profile for an idea" />
         <div className="flex-1 flex items-center justify-center bg-evari-ink p-8">
-          <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-6 max-w-md text-center">
+          <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-6 max-w-md text-center">
             <p className="text-[13px] text-evari-text mb-3">You need an idea before you can build a strategy for it.</p>
             <Link href="/ideas" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition">Go to Ideas</Link>
           </div>

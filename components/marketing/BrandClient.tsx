@@ -173,7 +173,7 @@ export function BrandClient({ initialBrand }: Props) {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
 
         {/* Identity */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
           <h2 className="text-sm font-semibold text-evari-text">Identity</h2>
           <label className="block">
             <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Company name</span>
@@ -192,7 +192,7 @@ export function BrandClient({ initialBrand }: Props) {
         </section>
 
         {/* Logos — sourced from Settings → Branding (single source of truth) */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-evari-text">Logos</h2>
             <a href="/settings" className="text-[11px] text-evari-dim hover:text-evari-text underline underline-offset-2">
@@ -230,7 +230,7 @@ export function BrandClient({ initialBrand }: Props) {
         </section>
 
         {/* Colours */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
           <h2 className="text-sm font-semibold text-evari-text mb-3">Colours</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {COLOR_KEYS.map(({ key, label, hint }) => (
@@ -260,7 +260,7 @@ export function BrandClient({ initialBrand }: Props) {
             body) on the LEFT, custom-font upload + list on the RIGHT.
             Each side is grouped into bordered subsections so the
             structure reads as paired panels rather than a soup. */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-evari-text">Typography</h2>
             <span className="text-[10px] text-evari-dimmer">Brand fonts available everywhere: pickers, designers, sender.</span>
@@ -313,7 +313,7 @@ export function BrandClient({ initialBrand }: Props) {
             Footer Social block, email signature, and any social-thumbnail
             generator all read from here so the user only fills them in
             once. */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-3 xl:col-span-2">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 space-y-3 xl:col-span-2">
           <header className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-evari-text">Social media</h2>
             <span className="text-[10px] text-evari-dimmer">Single source of truth, used by every email and thumbnail</span>

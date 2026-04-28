@@ -248,13 +248,13 @@ export function DraftsPane({ play }: { play: Play }) {
       )}
 
       {loading && drafts.length === 0 && (
-        <div className="rounded-md bg-evari-surface/60 p-6 text-center text-xs text-evari-dimmer">
+        <div className="rounded-panel bg-evari-surface/60 p-6 text-center text-xs text-evari-dimmer">
           Loading drafts…
         </div>
       )}
 
       {!loading && drafts.length === 0 && (
-        <div className="rounded-md bg-evari-surface/60 p-8 text-center">
+        <div className="rounded-panel bg-evari-surface/60 p-8 text-center">
           <div className="text-sm text-evari-dim">No drafts yet.</div>
           <div className="text-xs text-evari-dimmer mt-1">
             Click <span className="text-evari-text">Generate drafts</span> to draft a
@@ -273,7 +273,7 @@ export function DraftsPane({ play }: { play: Play }) {
             <li
               key={d.id}
               className={cn(
-                'rounded-md bg-evari-surface/60 p-4 space-y-3',
+                'rounded-panel bg-evari-surface/60 p-4 space-y-3',
                 busy && 'opacity-60',
                 locked && 'opacity-80',
               )}

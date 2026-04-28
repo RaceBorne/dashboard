@@ -123,7 +123,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-panel">
       {/* Header */}
       <header className="flex items-center gap-2">
         <div className="flex-1">
@@ -133,7 +133,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
         <select
           value={play.id}
           onChange={(e) => router.push(`/discover?playId=${e.target.value}`)}
-          className="px-2 py-1.5 rounded-md bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
+          className="px-2 py-1.5 rounded-panel bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
         >
           {plays.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
         </select>
@@ -146,7 +146,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
       </header>
 
       {/* Stats strip */}
-      <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Stat label="Companies found" value={stats.companiesFound.toLocaleString()} sub="100% of target" />
           <Stat label="Decision makers" value={stats.decisionMakers.toLocaleString()} sub="100% of target" />
@@ -157,7 +157,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
       </section>
 
       {/* Filter row */}
-      <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-3 space-y-2">
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-3 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[220px]">
             <Search className="h-3.5 w-3.5 text-evari-dim absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -189,7 +189,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
       </section>
 
       {/* Companies table */}
-      <section className="rounded-md bg-evari-surface border border-evari-edge/30 overflow-hidden">
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 overflow-hidden">
         <table className="w-full text-[12px]">
           <thead>
             <tr className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer border-b border-evari-edge/30">

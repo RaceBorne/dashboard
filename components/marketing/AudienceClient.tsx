@@ -104,7 +104,7 @@ export function AudienceClient({ initialBundle }: Props) {
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink p-4">
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30">
         {/* Toolbar */}
         <header className="flex items-center gap-2 p-3 border-b border-evari-edge/20">
           <div className="flex-1 flex items-center gap-2 max-w-md rounded-md bg-evari-ink border border-evari-edge/30 px-2 py-1.5">
@@ -245,7 +245,7 @@ function CreateModal({ onClose, onCreateList, creatingList }: { onClose: () => v
   const [name, setName] = useState('');
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-evari-text">Create</h3>
           <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
@@ -311,7 +311,7 @@ function RenameModal({ entry, busy, onClose, onSave }: { entry: AudienceEntry; b
   const [name, setName] = useState(entry.name);
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-evari-text">Rename list</h3>
           <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
@@ -346,7 +346,7 @@ function RenameModal({ entry, busy, onClose, onSave }: { entry: AudienceEntry; b
 function DeleteModal({ entry, busy, onClose, onConfirm }: { entry: AudienceEntry; busy: boolean; onClose: () => void; onConfirm: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-evari-text">Delete &quot;{entry.name}&quot;?</h3>
           <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>

@@ -96,7 +96,7 @@ export function CampaignsListClient({ campaigns: initialCampaigns, statsMap, gro
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink p-4">
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30">
         {/* Toolbar */}
         <header className="flex items-center gap-2 p-3 border-b border-evari-edge/20 flex-wrap">
           <div className="flex-1 min-w-[200px] max-w-md flex items-center gap-2 rounded-md bg-evari-ink border border-evari-edge/30 px-2 py-1.5">
@@ -241,7 +241,7 @@ export function CampaignsListClient({ campaigns: initialCampaigns, statsMap, gro
 
       {deleteTarget ? (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !deleting && setDeleteTarget(null)}>
-          <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
             <header className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-evari-text">Delete &quot;{deleteTarget.name || 'Untitled'}&quot;?</h3>
               <button type="button" onClick={() => !deleting && setDeleteTarget(null)} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>

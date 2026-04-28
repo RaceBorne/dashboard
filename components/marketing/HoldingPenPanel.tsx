@@ -139,7 +139,7 @@ export function HoldingPenPanel({ campaignId }: Props) {
 
   if (held === null) {
     return (
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-6 text-[13px] text-evari-dim flex items-center gap-2 mb-3">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-6 text-[13px] text-evari-dim flex items-center gap-2 mb-3">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading holding pen...
       </div>
     );
@@ -150,7 +150,7 @@ export function HoldingPenPanel({ campaignId }: Props) {
   }
 
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-warn/30 mb-3">
+    <div className="rounded-panel bg-evari-surface border border-evari-warn/30 mb-3">
       <header className="px-4 py-3 border-b border-evari-edge/30 flex items-center gap-3">
         <div className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-evari-warn/15 text-evari-warn">
           <Pause className="h-4 w-4" />

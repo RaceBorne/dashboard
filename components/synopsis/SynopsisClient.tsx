@@ -401,7 +401,7 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
                 return (
                   <li
                     key={id}
-                    className="flex items-start gap-3 rounded-md bg-evari-surfaceSoft/40 px-3 py-2.5"
+                    className="flex items-start gap-3 rounded-panel bg-evari-surfaceSoft/40 px-3 py-2.5"
                   >
                     <span className="text-[12px] font-mono tabular-nums text-evari-dimmer pt-0.5 shrink-0 w-5 text-right">
                       {i + 1}.
@@ -504,7 +504,7 @@ export function SynopsisClient({ synopsis }: { synopsis: Synopsis }) {
         </header>
 
         {issues.length === 0 ? (
-          <div className="rounded-md bg-evari-surface px-5 py-10 text-center text-[13px] text-evari-dim">
+          <div className="rounded-panel bg-evari-surface px-5 py-10 text-center text-[13px] text-evari-dim">
             <Check className="h-5 w-5 mx-auto text-evari-success mb-2" />
             Nothing to fix right now. Next move is in the Enhance list below.
           </div>
@@ -605,7 +605,7 @@ function IssueRow({
         ? 'bg-evari-warn/15 text-evari-warn'
         : 'bg-evari-surfaceSoft text-evari-dim';
   return (
-    <li className="rounded-md bg-evari-surface px-5 py-4 flex items-start gap-4 relative overflow-hidden">
+    <li className="rounded-panel bg-evari-surface px-5 py-4 flex items-start gap-4 relative overflow-hidden">
       {busy ? <ProgressBar /> : null}
 
       <div className="pt-0.5 shrink-0">
@@ -647,7 +647,7 @@ function IssueRow({
           </div>
         ) : null}
         {issue.kind === 'manual' && issue.manualGuide ? (
-          <div className="mt-2 rounded-md bg-evari-surfaceSoft/60 p-2 text-[12px] text-evari-dim leading-relaxed">
+          <div className="mt-2 rounded-panel bg-evari-surfaceSoft/60 p-2 text-[12px] text-evari-dim leading-relaxed">
             <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium mb-1">
               How to fix
             </div>
@@ -717,7 +717,7 @@ function EnhanceRow({
   const err = todoErrors[enhancement.id];
 
   return (
-    <li className="rounded-md bg-evari-surface overflow-hidden">
+    <li className="rounded-panel bg-evari-surface overflow-hidden">
       <div
         className={cn(
           'px-5 py-4 flex items-start gap-4',
@@ -830,7 +830,7 @@ function EnhanceRow({
               return (
                 <li
                   key={child.id}
-                  className="rounded-md bg-evari-surface px-3 py-2.5 flex items-start gap-3"
+                  className="rounded-panel bg-evari-surface px-3 py-2.5 flex items-start gap-3"
                 >
                   <ChevronRight className="h-3 w-3 text-evari-dimmer mt-1 shrink-0" />
                   <div className="min-w-0 flex-1">
@@ -1395,7 +1395,7 @@ function InternalLinksModal({ onClose }: { onClose: () => void }) {
           </p>
           <ul className="space-y-3">
             {proposals.map((p) => (
-              <li key={p.target.pageId} className="rounded-md bg-evari-surface px-4 py-3">
+              <li key={p.target.pageId} className="rounded-panel bg-evari-surface px-4 py-3">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[13px] font-semibold text-evari-text">{p.target.pageTitle}</span>
                   <span className="text-[11px] font-mono text-evari-dim">{p.target.pagePath}</span>
@@ -1497,7 +1497,7 @@ function BlogTopicsModal({ onClose }: { onClose: () => void }) {
           </p>
           <ul className="space-y-3">
             {briefs.map((b, i) => (
-              <li key={i} className="rounded-md bg-evari-surface px-4 py-3">
+              <li key={i} className="rounded-panel bg-evari-surface px-4 py-3">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-semibold text-evari-text">{b.title}</div>
@@ -1578,7 +1578,7 @@ function Stat({
           ? 'text-evari-success'
           : 'text-evari-text';
   return (
-    <div className="rounded-md bg-evari-surfaceSoft/50 p-2">
+    <div className="rounded-panel bg-evari-surfaceSoft/50 p-2">
       <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
         {label}
       </div>

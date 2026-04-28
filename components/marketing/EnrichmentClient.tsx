@@ -140,7 +140,7 @@ export function EnrichmentClient({ plays, play, initial, summary }: Props) {
           <select
             value={play.id}
             onChange={(e) => router.push(`/enrichment?playId=${e.target.value}`)}
-            className="px-2 py-1.5 rounded-md bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
+            className="px-2 py-1.5 rounded-panel bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
           >
             {plays.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
           </select>
@@ -178,7 +178,7 @@ export function EnrichmentClient({ plays, play, initial, summary }: Props) {
 
         {/* Master/detail */}
         <div className="grid grid-cols-[300px_minmax(0,1fr)] gap-3">
-          <div className="rounded-md bg-evari-surface border border-evari-edge/30 max-h-[60vh] overflow-y-auto">
+          <div className="rounded-panel bg-evari-surface border border-evari-edge/30 max-h-[60vh] overflow-y-auto">
             {filtered.length === 0 ? (
               <div className="p-6 text-center text-[12px] text-evari-dim">No contacts in this bucket. Add contacts from the Shortlist page.</div>
             ) : (
@@ -220,7 +220,7 @@ export function EnrichmentClient({ plays, play, initial, summary }: Props) {
 
           {/* Detail */}
           {selected ? (
-            <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-4">
+            <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 space-y-4">
               <header className="flex items-start gap-3 pb-3 border-b border-evari-edge/20">
                 <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-evari-ink/40 text-[12px] font-semibold text-evari-dim uppercase shrink-0">
                   {(selected.fullName ?? selected.email ?? '?').slice(0, 2)}
@@ -308,13 +308,13 @@ export function EnrichmentClient({ plays, play, initial, summary }: Props) {
               </footer>
             </div>
           ) : (
-            <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-6 text-[13px] text-evari-dim">Pick a contact on the left.</div>
+            <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-6 text-[13px] text-evari-dim">Pick a contact on the left.</div>
           )}
         </div>
       </div>
     {promoteFor ? (
       <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setPromoteFor(null)}>
-        <div className="w-full max-w-md rounded-md bg-evari-surface border border-evari-edge/40 p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="w-full max-w-md rounded-panel bg-evari-surface border border-evari-edge/40 p-4" onClick={(e) => e.stopPropagation()}>
           <h3 className="text-[14px] font-semibold text-evari-text mb-1">Promote to audience</h3>
           <p className="text-[12px] text-evari-dim mb-3">Creates a marketing contact and optionally adds them to a list.</p>
           <label className="block mb-2">

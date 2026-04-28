@@ -349,7 +349,7 @@ export function CompanyPanel({
                 {company?.name ?? domain}
               </h3>
               <div className="mt-2">
-                <span className="inline-flex items-center rounded-md bg-evari-surfaceSoft px-2 py-0.5 text-[11px] font-medium text-evari-dim">
+                <span className="inline-flex items-center rounded-panel bg-evari-surfaceSoft px-2 py-0.5 text-[11px] font-medium text-evari-dim">
                   {emailCount === 0
                     ? 'No contacts'
                     : emailCount + ' contact' + (emailCount === 1 ? '' : 's')}
@@ -436,7 +436,7 @@ export function CompanyPanel({
                         href={s.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="h-6 w-6 inline-flex items-center justify-center rounded-md bg-evari-surfaceSoft text-evari-dim hover:text-evari-text"
+                        className="h-6 w-6 inline-flex items-center justify-center rounded-panel bg-evari-surfaceSoft text-evari-dim hover:text-evari-text"
                         title={s.label}
                       >
                         {s.icon}
@@ -773,7 +773,7 @@ export function CompanyPanel({
             {logOpen ? (
               <div
                 ref={logRef}
-                className="mt-2 max-h-40 overflow-y-auto rounded-md bg-evari-surface p-2 font-mono text-[10px] text-evari-dim whitespace-pre-wrap"
+                className="mt-2 max-h-40 overflow-y-auto rounded-panel bg-evari-surface p-2 font-mono text-[10px] text-evari-dim whitespace-pre-wrap"
               >
                 {log.join('\n')}
               </div>
@@ -1519,7 +1519,7 @@ function StrategyTab({
       </div>
 
       {short ? (
-        <div className="rounded-md bg-evari-surfaceSoft px-3 py-2">
+        <div className="rounded-panel bg-evari-surfaceSoft px-3 py-2">
           <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-evari-dimmer">
             Short
           </div>

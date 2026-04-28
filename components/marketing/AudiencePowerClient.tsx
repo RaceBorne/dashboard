@@ -172,7 +172,7 @@ function BrowserPane({
   inWorkspace: (id: string) => boolean;
 }) {
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col min-h-0 overflow-hidden">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 flex flex-col min-h-0 overflow-hidden">
       <header className="px-3 py-2.5 border-b border-evari-edge/20 flex items-center gap-2 shrink-0">
         <Boxes className="h-4 w-4 text-evari-gold" />
         <h2 className="text-[13px] font-semibold text-evari-text flex-1">All audiences <span className="text-evari-dim">({totalEntries})</span></h2>
@@ -556,7 +556,7 @@ function CreateListModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [busy, setBusy] = useState(false);
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
-      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-semibold text-evari-text">New list</h3>
         <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="VIP / Newsletter / Beta…" className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
         <footer className="flex items-center justify-end gap-2">
@@ -579,7 +579,7 @@ function RenameListModal({ entry, onClose, onSaved }: { entry: AudienceEntry; on
   const [busy, setBusy] = useState(false);
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
-      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-semibold text-evari-text">Rename list</h3>
         <input autoFocus value={name} onChange={(e) => setName(e.target.value)} className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
         <footer className="flex items-center justify-end gap-2">
@@ -601,7 +601,7 @@ function DeleteListModal({ entry, onClose, onDeleted }: { entry: AudienceEntry; 
   const [busy, setBusy] = useState(false);
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
-      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-semibold text-evari-text">Delete &quot;{entry.name}&quot;?</h3>
         <p className="text-[12px] text-evari-dim">The list and its {entry.members} membership{entry.members === 1 ? '' : 's'} are removed. The underlying contacts stay — they remain on any other lists they belong to.</p>
         <footer className="flex items-center justify-end gap-2">

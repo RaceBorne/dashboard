@@ -57,7 +57,7 @@ export function FollowupInbox() {
   if (items === null || items.length === 0) return null;
 
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-gold/30 p-3 mb-3">
+    <div className="rounded-panel bg-evari-surface border border-evari-gold/30 p-3 mb-3">
       <header className="flex items-center gap-2 mb-2">
         <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-evari-gold/15 text-evari-gold">
           <Sparkles className="h-4 w-4" />

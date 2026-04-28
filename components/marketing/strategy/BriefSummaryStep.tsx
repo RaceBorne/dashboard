@@ -58,7 +58,7 @@ export function BriefSummaryStep({ playId, brief, onEdit }: { playId: string; br
   const oneLiner = valueProp.split(/[.!?]/)[0].trim() + '.';
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-panel">
       <header className="flex items-start gap-2">
         <div className="flex-1">
           <StepTitle substep="Brief" />
@@ -69,7 +69,7 @@ export function BriefSummaryStep({ playId, brief, onEdit }: { playId: string; br
         </button>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-panel">
         <Card icon={<Users className="h-4 w-4" />} title="Target market">
           {a === null ? <Loading /> : (
             <div className="grid grid-cols-3 gap-3">
@@ -110,7 +110,7 @@ export function BriefSummaryStep({ playId, brief, onEdit }: { playId: string; br
       </div>
 
       <Card icon={<TrendingUp className="h-4 w-4" />} title="Success metrics">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-panel">
           {(brief.successMetrics ?? []).slice(0, 6).map((m, i) => (
             <Stat key={i} label={m.name || `Metric ${i + 1}`} value={m.target ?? '—'} sub="Target" accent />
           ))}
@@ -125,7 +125,7 @@ export function BriefSummaryStep({ playId, brief, onEdit }: { playId: string; br
 
 function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
       <h3 className="text-[13px] font-semibold text-evari-text mb-3 flex items-center gap-2">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">{icon}</span>
         {title}

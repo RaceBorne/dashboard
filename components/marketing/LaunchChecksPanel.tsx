@@ -52,7 +52,7 @@ export function LaunchChecksPanel({ campaignId, recipientCount }: { campaignId: 
 function ForecastCard({ forecast }: { forecast: Forecast | null }) {
   if (!forecast) {
     return (
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-3 text-[12px] text-evari-dim flex items-center gap-2">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-3 text-[12px] text-evari-dim flex items-center gap-2">
         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading forecast...
       </div>
     );
@@ -60,7 +60,7 @@ function ForecastCard({ forecast }: { forecast: Forecast | null }) {
   const pct = (n: number) => `${(n * 100).toFixed(0)}%`;
   const fmt = (n: number) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: forecast.predictedPipeline.currency, maximumFractionDigits: 0 }).format(n);
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-3">
+    <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-3">
       <div className="flex items-center gap-2 mb-2">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold"><TrendingUp className="h-3.5 w-3.5" /></span>
         <span className="text-[11px] uppercase tracking-[0.12em] text-evari-dimmer">Performance forecast</span>
@@ -79,7 +79,7 @@ function ForecastCard({ forecast }: { forecast: Forecast | null }) {
 function ChecksCard({ checks }: { checks: Check[] | null }) {
   if (!checks) {
     return (
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-3 text-[12px] text-evari-dim flex items-center gap-2">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-3 text-[12px] text-evari-dim flex items-center gap-2">
         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Running compliance checks...
       </div>
     );
@@ -87,7 +87,7 @@ function ChecksCard({ checks }: { checks: Check[] | null }) {
   const fails = checks.filter((c) => c.status === 'fail').length;
   const warns = checks.filter((c) => c.status === 'warn').length;
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-3">
+    <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-3">
       <div className="flex items-center gap-2 mb-2">
         <span className={cn('inline-flex items-center justify-center h-6 w-6 rounded-md',
           fails > 0 ? 'bg-evari-danger/15 text-evari-danger' : warns > 0 ? 'bg-evari-warn/15 text-evari-warn' : 'bg-evari-success/15 text-evari-success')}>

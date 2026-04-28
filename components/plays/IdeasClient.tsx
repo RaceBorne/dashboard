@@ -94,10 +94,10 @@ export function IdeasClient({ plays, counts }: Props) {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search ideas..."
-                className="pl-7 pr-2 py-1.5 rounded-md bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none w-56"
+                className="pl-7 pr-2 py-1.5 rounded-panel bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none w-56"
               />
             </div>
-            <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-evari-surface border border-evari-edge/40 text-evari-dim hover:text-evari-text hover:border-evari-gold/40 transition" title="Filters">
+            <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-panel bg-evari-surface border border-evari-edge/40 text-evari-dim hover:text-evari-text hover:border-evari-gold/40 transition" title="Filters">
               <Filter className="h-3.5 w-3.5" />
             </button>
             <Link href="/ideas?new=1" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition">
@@ -130,7 +130,7 @@ export function IdeasClient({ plays, counts }: Props) {
 
         {/* List */}
         {filtered.length === 0 ? (
-          <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-10 text-center text-[13px] text-evari-dim">
+          <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-10 text-center text-[13px] text-evari-dim">
             {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet.'}
           </div>
         ) : (

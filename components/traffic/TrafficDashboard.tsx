@@ -307,7 +307,7 @@ export function TrafficDashboard({ snapshot }: Props) {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {/* Zoom stepper */}
-              <div className="flex items-center rounded-md border border-evari-edge bg-evari-surfaceSoft overflow-hidden">
+              <div className="flex items-center rounded-panel border border-evari-edge bg-evari-surfaceSoft overflow-hidden">
                 <button
                   onClick={() => canZoomOut && setTrendWindow(TREND_WINDOWS[windowIdx + 1])}
                   disabled={!canZoomOut}
@@ -743,7 +743,7 @@ function HeroUsersPanel({
           </div>
           <span
             className={cn(
-              'inline-flex items-center gap-0.5 text-xs font-mono tabular-nums px-1.5 py-0.5 rounded-md bg-evari-surfaceSoft',
+              'inline-flex items-center gap-0.5 text-xs font-mono tabular-nums px-1.5 py-0.5 rounded-panel bg-evari-surfaceSoft',
               tone,
             )}
           >

@@ -34,7 +34,7 @@ export function ScoringRubricClient({ initial }: { initial: Criteria }) {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
         <header className="flex items-center gap-2 mb-3">
           <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-evari-gold/15 text-evari-gold">
             <Sparkles className="h-4 w-4" />
@@ -53,7 +53,7 @@ export function ScoringRubricClient({ initial }: { initial: Criteria }) {
         </div>
       </section>
 
-      <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
         <h2 className="text-[13px] font-semibold text-evari-text mb-2">Ideal customer (prose)</h2>
         <textarea
           value={c.idealCustomer ?? ''}
@@ -63,7 +63,7 @@ export function ScoringRubricClient({ initial }: { initial: Criteria }) {
         />
       </section>
 
-      <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
         <h2 className="text-[13px] font-semibold text-evari-text mb-2">Notes (deal-breakers, exclusions, anything else)</h2>
         <textarea
           value={c.notes ?? ''}

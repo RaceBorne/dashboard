@@ -754,7 +754,7 @@ export function JournalEditor({ draft, blogs }: Props) {
                   can sanity-check whether the SEO direction matches the
                   article's actual intent. */}
               {seoInsights ? (
-                <section className="rounded-md ring-1 ring-evari-edge bg-evari-surface/40 p-3 space-y-3">
+                <section className="rounded-panel ring-1 ring-evari-edge bg-evari-surface/40 p-3 space-y-3">
                   <header className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-evari-gold font-semibold">
                     <Lightbulb className="h-3 w-3" />
                     SEO insights

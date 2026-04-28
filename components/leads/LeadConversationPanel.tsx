@@ -81,7 +81,7 @@ export function LeadConversationPanel({ email }: Props) {
 
   if (loading) {
     return (
-      <div className="rounded-md border border-evari-edge/20 bg-evari-surface px-3 py-3 inline-flex items-center gap-2 text-evari-dimmer text-[12px]">
+      <div className="rounded-panel border border-evari-edge/20 bg-evari-surface px-3 py-3 inline-flex items-center gap-2 text-evari-dimmer text-[12px]">
         <Loader2 className="h-3 w-3 animate-spin" /> Loading conversation…
       </div>
     );
@@ -95,14 +95,14 @@ export function LeadConversationPanel({ email }: Props) {
   }
   if (!threads.length) {
     return (
-      <div className="rounded-md border border-evari-edge/20 bg-evari-surface px-3 py-3 text-evari-dimmer text-[12px] inline-flex items-center gap-2">
+      <div className="rounded-panel border border-evari-edge/20 bg-evari-surface px-3 py-3 text-evari-dimmer text-[12px] inline-flex items-center gap-2">
         <Mail className="h-3.5 w-3.5" /> No email exchanges with {email} yet.
       </div>
     );
   }
 
   return (
-    <div className="rounded-md border border-evari-edge/20 bg-evari-surface flex flex-col">
+    <div className="rounded-panel border border-evari-edge/20 bg-evari-surface flex flex-col">
       {threads.map((thread) => (
         <ThreadView
           key={thread.threadKey}

@@ -469,7 +469,7 @@ function WinnerLoserCard({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-evari-surfaceSoft/60 px-2 py-1.5">
+    <div className="rounded-panel bg-evari-surfaceSoft/60 px-2 py-1.5">
       <div className="text-[10px] uppercase tracking-wider text-evari-dimmer">{label}</div>
       <div className="text-sm font-medium text-evari-text tabular-nums">{value}</div>
     </div>
@@ -757,7 +757,7 @@ function StatChip({
   return (
     <div
       className={cn(
-        'rounded-md px-2.5 py-1.5 bg-evari-surfaceSoft/50',
+        'rounded-panel px-2.5 py-1.5 bg-evari-surfaceSoft/50',
         hero && 'bg-evari-surfaceSoft',
         dim && 'bg-transparent border border-evari-edge/40',
       )}

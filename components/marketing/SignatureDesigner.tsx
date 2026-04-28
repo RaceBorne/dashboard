@@ -135,7 +135,7 @@ export function SignatureDesigner({ initialBrand, value, onChange }: Props) {
   );
 
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 xl:col-span-2">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-evari-text">Email signature</h2>
         <span className="text-[10px] text-evari-dimmer">Drag blocks to reorder · same renderer as the mailbox preview</span>

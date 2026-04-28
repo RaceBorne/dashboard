@@ -2103,7 +2103,7 @@ function SummaryStrip({
             e.stopPropagation();
             onCleanLayout();
           }}
-          className="h-8 px-3 rounded-md inline-flex items-center gap-1.5 bg-evari-surfaceSoft/70 text-evari-dim hover:text-evari-text hover:bg-evari-surface transition-colors text-[10px] uppercase tracking-[0.1em]"
+          className="h-8 px-3 rounded-panel inline-flex items-center gap-1.5 bg-evari-surfaceSoft/70 text-evari-dim hover:text-evari-text hover:bg-evari-surface transition-colors text-[10px] uppercase tracking-[0.1em]"
           title="Reset every box to its default position"
         >
           <LayoutGrid className="h-3 w-3" />
@@ -2660,7 +2660,7 @@ function EnvVarRow({
 
   if (present && !editing) {
     return (
-      <div className="flex items-center justify-between gap-3 rounded-md bg-evari-surfaceSoft/40 px-3 py-2">
+      <div className="flex items-center justify-between gap-3 rounded-panel bg-evari-surfaceSoft/40 px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">
           <Check className="h-3 w-3 text-evari-success shrink-0" />
           <code className="text-[11px] font-mono text-evari-dim truncate">{varName}</code>
@@ -2681,7 +2681,7 @@ function EnvVarRow({
 
   if (!present && !editing) {
     return (
-      <div className="flex items-center justify-between gap-3 rounded-md bg-evari-surfaceSoft/40 px-3 py-2">
+      <div className="flex items-center justify-between gap-3 rounded-panel bg-evari-surfaceSoft/40 px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="h-1.5 w-1.5 rounded-full bg-evari-warn shrink-0" />
           <code className="text-[11px] font-mono text-evari-dim truncate">{varName}</code>
@@ -2700,7 +2700,7 @@ function EnvVarRow({
 
   // Editing
   return (
-    <div className="rounded-md bg-evari-surfaceSoft/60 px-3 py-2 space-y-2">
+    <div className="rounded-panel bg-evari-surfaceSoft/60 px-3 py-2 space-y-2">
       <div className="flex items-center gap-2">
         <code className="text-[11px] font-mono text-evari-dim">{varName}</code>
       </div>

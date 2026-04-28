@@ -419,7 +419,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
           (week/day views) so the column itself doesn't scroll —
           everything outside the post-preview pane stays fixed. */}
       <div
-        className="flex-1 min-h-0 flex flex-col rounded-md bg-evari-surface overflow-hidden"
+        className="flex-1 min-h-0 flex flex-col rounded-panel bg-evari-surface overflow-hidden"
         style={{
           minHeight: view === 'month' ? 720 : 760,
         }}
@@ -580,7 +580,7 @@ export function SocialCalendarClient({ posts, journalDrafts = [] }: Props) {
 function PostCard({ post }: { post: SocialPost }) {
   const Icon = PLATFORM_ICON[post.platform];
   return (
-    <div className="rounded-md bg-evari-surface p-1">
+    <div className="rounded-panel bg-evari-surface p-1">
       <div className="flex items-center justify-between mb-2">
         <div className="inline-flex items-center gap-1 text-[10px] rounded-full px-2 py-0.5 capitalize bg-evari-surfaceSoft text-evari-dim">
           <Icon className="h-3 w-3" />
@@ -648,7 +648,7 @@ function ScheduleActionsPanel({
 }: SchedulePanelProps) {
   if (!selectedJournal && !selectedSocial) {
     return (
-      <div className="flex-none p-4 rounded-md bg-evari-surface">
+      <div className="flex-none p-4 rounded-panel bg-evari-surface">
         <div className="text-xs text-evari-text font-medium mb-2">
           Schedule
         </div>
@@ -677,7 +677,7 @@ function ScheduleActionsPanel({
     ? 'Scheduled'
     : selectedSocial!.status;
   return (
-    <section className="p-4 rounded-md bg-evari-surface flex-none">
+    <section className="p-4 rounded-panel bg-evari-surface flex-none">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-semibold">
           {kindLabel}
@@ -760,7 +760,7 @@ function PostPreviewWindow({
 }: PreviewWindowProps) {
   if (!selectedJournal && !selectedSocial) {
     return (
-      <section className="flex-1 flex flex-col p-4 gap-1 rounded-md bg-evari-surface">
+      <section className="flex-1 flex flex-col p-4 gap-1 rounded-panel bg-evari-surface">
         <div className="h-32 rounded-md bg-evari-ink/30" />
         <div className="h-4 rounded-md bg-evari-ink/20 w-3/4" />
         <div className="h-3 rounded-md bg-evari-ink/20 w-full" />
@@ -777,7 +777,7 @@ function PostPreviewWindow({
     : selectedSocial!.scheduledFor || selectedSocial!.publishedAt || '';
   const date = dateIso ? new Date(dateIso) : null;
   return (
-    <section className="flex-1 flex flex-col min-h-0 rounded-md bg-evari-surface overflow-hidden">
+    <section className="flex-1 flex flex-col min-h-0 rounded-panel bg-evari-surface overflow-hidden">
       <header className="flex items-center justify-between px-1 py-2 border-b border-evari-edge/30 text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
         <button
           type="button"
@@ -994,7 +994,7 @@ function PlatformDrawer({
         aria-orientation="horizontal"
         onMouseDown={onResizeStart}
         aria-expanded={open}
-        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors duration-1000 ease-in-out shrink-0 rounded-md bg-evari-surface cursor-row-resize select-none mb-1"
+        className="h-9 px-4 flex items-center justify-between text-xs text-evari-dim hover:text-evari-text transition-colors duration-1000 ease-in-out shrink-0 rounded-panel bg-evari-surface cursor-row-resize select-none mb-1"
       >
         <span className="flex items-center gap-1">
           <button
@@ -1250,7 +1250,7 @@ function ScheduleEditor({
           type="button"
           onClick={handleSave}
           disabled={!dirty || saving}
-          className="w-full mt-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-md bg-evari-surface text-evari-text hover:bg-evari-surfaceSoft disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium transition-colors duration-500 ease-in-out"
+          className="w-full mt-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-panel bg-evari-surface text-evari-text hover:bg-evari-surfaceSoft disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium transition-colors duration-500 ease-in-out"
         >
           {saving ? (
             <Loader2 className="h-3 w-3 animate-spin" />

@@ -497,7 +497,7 @@ function ListActiveView({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter keywords…"
-            className="h-8 w-48 rounded-md bg-evari-surface border border-evari-surfaceSoft px-2.5 text-xs text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:ring-1 focus:ring-evari-accent"
+            className="h-8 w-48 rounded-panel bg-evari-surface border border-evari-surfaceSoft px-2.5 text-xs text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:ring-1 focus:ring-evari-accent"
           />
         </CardHeader>
         <CardContent className="px-0">

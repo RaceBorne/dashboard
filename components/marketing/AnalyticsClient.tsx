@@ -43,7 +43,7 @@ function Kpi({ label, value, hint, tone = 'neutral' }: KpiProps) {
     bad:     'text-evari-danger',
   }[tone];
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-3">
+    <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-3">
       <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">{label}</div>
       <div className={cn('mt-1 text-2xl font-semibold tabular-nums', valueCls)}>{value}</div>
       {hint ? <div className="mt-0.5 text-[11px] text-evari-dimmer">{hint}</div> : null}
@@ -78,7 +78,7 @@ export function AnalyticsClient({ initialSummary, senderMode }: Props) {
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink p-4">
       <div className="mb-3 flex items-center gap-2">
-        <div className="inline-flex rounded-md bg-evari-surface border border-evari-edge/30 p-0.5">
+        <div className="inline-flex rounded-panel bg-evari-surface border border-evari-edge/30 p-0.5">
           {RANGES.map((r) => (
             <button
               key={r}
@@ -119,7 +119,7 @@ export function AnalyticsClient({ initialSummary, senderMode }: Props) {
       </div>
 
       {/* Funnel breakdown */}
-      <div className="mb-3 rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+      <div className="mb-3 rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
         <h2 className="text-sm font-semibold text-evari-text mb-3">Funnel</h2>
         <ol className="space-y-1.5">
           {[
@@ -157,7 +157,7 @@ export function AnalyticsClient({ initialSummary, senderMode }: Props) {
       </div>
 
       {/* Top campaigns */}
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30 overflow-hidden">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30 overflow-hidden">
         <div className="px-3 py-2 border-b border-evari-edge/30 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-evari-text">Top campaigns</h2>
           <Link href="/email/campaigns" className="text-xs text-evari-dim hover:text-evari-text transition-colors">

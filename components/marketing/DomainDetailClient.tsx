@@ -126,7 +126,7 @@ export function DomainDetailClient({ initialStatus }: Props) {
           return (
             <section
               key={c.kind}
-              className="rounded-md bg-evari-surface border border-evari-edge/30 p-4"
+              className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4"
             >
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-evari-text inline-flex items-center gap-2">

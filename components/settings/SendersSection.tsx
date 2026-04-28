@@ -256,7 +256,7 @@ function SenderRow({
   sending: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-md bg-evari-surfaceSoft px-3 py-2.5">
+    <div className="flex items-center gap-3 rounded-panel bg-evari-surfaceSoft px-3 py-2.5">
       {sender.logoUrl ? (
         // Wide brand wordmarks don't fit in a circle — use a fixed-size
         // white rectangle with object-contain so anything from square

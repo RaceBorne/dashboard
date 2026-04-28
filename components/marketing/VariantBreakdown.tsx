@@ -37,7 +37,7 @@ export function VariantBreakdown({ variants }: { variants: VariantStat[] }) {
   const winnerIdx = leadIsMeaningful ? sorted[0].index : null;
 
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 mb-3">
+    <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 mb-3">
       <div className="flex items-center gap-2 mb-3">
         <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-evari-gold/15 text-evari-gold">
           <ChevronUp className="h-4 w-4" />

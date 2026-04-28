@@ -109,7 +109,7 @@ export function TemplatesClient({ initialTemplates }: Props) {
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink p-4">
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30">
         {/* Toolbar */}
         <header className="flex items-center gap-2 p-3 border-b border-evari-edge/20 flex-wrap">
           <div className="flex-1 min-w-[200px] max-w-md flex items-center gap-2 rounded-md bg-evari-ink border border-evari-edge/30 px-2 py-1.5">
@@ -242,7 +242,7 @@ function TemplateCard({ template, busy, onDuplicate, onDelete }: { template: Ema
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
       </button>
       {menuOpen ? (
-        <div className="absolute top-8 right-1.5 z-10 rounded-md bg-evari-surface border border-evari-edge/40 shadow-lg py-1 text-xs min-w-[140px]" onClick={(e) => e.preventDefault()}>
+        <div className="absolute top-8 right-1.5 z-10 rounded-panel bg-evari-surface border border-evari-edge/40 shadow-lg py-1 text-xs min-w-[140px]" onClick={(e) => e.preventDefault()}>
           <button type="button" onClick={() => { setMenuOpen(false); onDuplicate(); }} className="w-full text-left px-3 py-1.5 hover:bg-evari-ink text-evari-text inline-flex items-center gap-2">
             <Copy className="h-3 w-3" /> Duplicate
           </button>
@@ -259,7 +259,7 @@ function CreateModal({ onClose, onCreate, creating }: { onClose: () => void; onC
   const [name, setName] = useState('');
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-evari-text">New template</h3>
           <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>

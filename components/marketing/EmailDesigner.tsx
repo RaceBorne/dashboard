@@ -1497,7 +1497,7 @@ export function EmailDesigner({ initialBrand, value, onChange, onAIDraft, previe
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col flex-1 min-h-0 w-full">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 flex flex-col flex-1 min-h-0 w-full">
       <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
         <h2 className="text-sm font-semibold text-evari-text">Visual editor</h2>
         <div className="flex items-center gap-2">
@@ -2868,7 +2868,7 @@ function VariableMenu({ onPick }: { onPick: (token: string) => void }) {
         <AtSign className="h-3 w-3" /> Insert variable
       </button>
       {open ? (
-        <div className="absolute top-5 right-0 z-20 rounded-md bg-evari-surface border border-evari-edge/40 shadow-lg py-1 min-w-[200px]">
+        <div className="absolute top-5 right-0 z-20 rounded-panel bg-evari-surface border border-evari-edge/40 shadow-lg py-1 min-w-[200px]">
           {VARIABLES.map((v) => (
             <button
               key={v.token}
@@ -2911,7 +2911,7 @@ function AssetPickerModal({ onClose, onPick }: { onClose: () => void; onPick: (u
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6" onClick={onClose}>
-      <div className="w-full max-w-5xl h-[80vh] rounded-md bg-evari-surface border border-evari-edge/40 flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-5xl h-[80vh] rounded-panel bg-evari-surface border border-evari-edge/40 flex flex-col" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center gap-2 px-4 py-3 border-b border-evari-edge/20">
           <h3 className="text-sm font-semibold text-evari-text">Asset library</h3>
           <input

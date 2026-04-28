@@ -277,7 +277,7 @@ export function SeoDrawer({
             </details>
 
             {/* Google preview */}
-            <section className="rounded-md bg-evari-surface p-4 ring-1 ring-evari-edge/40">
+            <section className="rounded-panel bg-evari-surface p-4 ring-1 ring-evari-edge/40">
               <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer mb-2">
                 Google preview
               </div>

@@ -77,7 +77,7 @@ export function MessagingStep({ playId, brief, onEdit }: { playId: string; brief
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-panel">
       <header className="flex items-start gap-2">
         <div className="flex-1">
           <StepTitle substep="Messaging" />
@@ -148,7 +148,7 @@ export function MessagingStep({ playId, brief, onEdit }: { playId: string; brief
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
       <h3 className="text-[13px] font-semibold text-evari-text mb-3">{title}</h3>
       {children}
     </section>

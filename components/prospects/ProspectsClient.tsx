@@ -740,7 +740,7 @@ export function ProspectsClient({ initialLeads }: Props) {
                       setSelectedIds(new Set(filtered.map((l) => l.id)));
                     }
                   }}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70 whitespace-nowrap"
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-panel border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70 whitespace-nowrap"
                   title={
                     filtered.length > 0 && filtered.every((l) => selectedIds.has(l.id))
                       ? 'Deselect all'
@@ -769,7 +769,7 @@ export function ProspectsClient({ initialLeads }: Props) {
                     type="button"
                     onClick={() => setBulkMoveOpen((v) => !v)}
                     disabled={bulkMoveBusy}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70"
+                    className="inline-flex items-center gap-1.5 rounded-panel border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70"
                   >
                     {bulkMoveBusy ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -870,7 +870,7 @@ export function ProspectsClient({ initialLeads }: Props) {
                       // becomes > 0.
                       setSelectedIds(new Set(filtered.map((l) => l.id)));
                     }}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70 whitespace-nowrap"
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-panel border border-evari-line/60 bg-evari-surfaceSoft px-2 py-1 text-[11.5px] font-medium text-evari-text hover:bg-evari-surfaceSoft/70 whitespace-nowrap"
                     title={`Select all ${filtered.length} visible prospects`}
                   >
                     <span className="h-3.5 w-3.5 rounded-[3px] border border-evari-dimmer inline-flex items-center justify-center shrink-0" />
@@ -1104,7 +1104,7 @@ function ProspectPanelActions({
       ) : (
         <div
           aria-disabled="true"
-          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-evari-surfaceSoft px-3 py-2 text-[12.5px] font-medium text-evari-dim cursor-not-allowed select-none"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-panel bg-evari-surfaceSoft px-3 py-2 text-[12.5px] font-medium text-evari-dim cursor-not-allowed select-none"
           title="Add a real (non-inferred) email before promoting."
         >
           <Rocket className="h-3.5 w-3.5" />

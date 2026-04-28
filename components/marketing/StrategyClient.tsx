@@ -157,7 +157,7 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
             <select
               value={brief.playId}
               onChange={(e) => router.push(`/strategy?playId=${e.target.value}`)}
-              className="px-2 py-1.5 rounded-md bg-evari-surface text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+              className="px-2 py-1.5 rounded-panel bg-evari-surface text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
             >
               {plays.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
             </select>
@@ -413,7 +413,7 @@ const INPUT_CLS = 'w-full px-2 py-1.5 rounded-md bg-evari-ink text-evari-text te
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
       <h3 className="text-[13px] font-semibold text-evari-text mb-3">{title}</h3>
       {children}
     </section>

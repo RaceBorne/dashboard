@@ -109,10 +109,10 @@ export function AssetsClient({ initialAssets }: Props) {
               placeholder="Search filename, alt text, or tag"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-md bg-evari-surface text-evari-text text-sm placeholder:text-evari-dimmer border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out"
+              className="w-full pl-9 pr-3 py-2 rounded-panel bg-evari-surface text-evari-text text-sm placeholder:text-evari-dimmer border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition-colors duration-500 ease-in-out"
             />
           </div>
-          <div className="inline-flex rounded-md bg-evari-surface border border-evari-edge/30 p-0.5">
+          <div className="inline-flex rounded-panel bg-evari-surface border border-evari-edge/30 p-0.5">
             {KIND_OPTIONS.map((o) => (
               <button
                 key={o.value}
@@ -162,7 +162,7 @@ export function AssetsClient({ initialAssets }: Props) {
 
         {/* Grid */}
         {filtered.length === 0 ? (
-          <div className="rounded-md bg-evari-surface border border-evari-edge/30 px-3 py-12 text-center text-evari-dimmer text-sm">
+          <div className="rounded-panel bg-evari-surface border border-evari-edge/30 px-3 py-12 text-center text-evari-dimmer text-sm">
             {assets.length === 0 ? 'No assets yet — drop one above to get started.' : 'No assets match that filter.'}
           </div>
         ) : (
@@ -173,7 +173,7 @@ export function AssetsClient({ initialAssets }: Props) {
                   type="button"
                   onClick={() => setSelected(a)}
                   className={cn(
-                    'group relative w-full aspect-square rounded-md overflow-hidden border bg-evari-surface',
+                    'group relative w-full aspect-square rounded-panel overflow-hidden border bg-evari-surface',
                     selected?.id === a.id ? 'border-evari-gold' : 'border-evari-edge/30 hover:border-evari-edge/60',
                   )}
                   title={a.filename}

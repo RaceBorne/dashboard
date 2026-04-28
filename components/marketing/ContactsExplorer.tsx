@@ -113,7 +113,7 @@ export function ContactsExplorer({ initialBundle }: Props) {
   return (
     <div className="flex-1 min-h-0 overflow-hidden bg-evari-ink p-2 flex gap-2">
       {/* ─── LEFT — folder sidebar ─────────────────────────────────────── */}
-      <aside className="w-[220px] shrink-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
+      <aside className="w-[220px] shrink-0 rounded-panel bg-evari-surface border border-evari-edge/30 flex flex-col">
         <div className="px-3 py-2.5 border-b border-evari-edge/20 flex items-center justify-between">
           <h2 className="text-xs font-semibold text-evari-text uppercase tracking-[0.12em]">Folders</h2>
           <button
@@ -146,7 +146,7 @@ export function ContactsExplorer({ initialBundle }: Props) {
       </aside>
 
       {/* ─── MID — contact list ────────────────────────────────────────── */}
-      <section className="flex-1 min-w-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
+      <section className="flex-1 min-w-0 rounded-panel bg-evari-surface border border-evari-edge/30 flex flex-col">
         <header className="px-3 py-2 border-b border-evari-edge/20 flex items-center gap-2">
           <Search className="h-3.5 w-3.5 text-evari-dimmer" />
           <input
@@ -232,7 +232,7 @@ export function ContactsExplorer({ initialBundle }: Props) {
       </section>
 
       {/* ─── RIGHT — detail ────────────────────────────────────────────── */}
-      <aside className="w-[400px] shrink-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
+      <aside className="w-[400px] shrink-0 rounded-panel bg-evari-surface border border-evari-edge/30 flex flex-col">
         {selected ? (
           <ContactDetail
             contact={selected}
@@ -651,7 +651,7 @@ function CreateContactModal({ onClose, onCreated }: { onClose: () => void; onCre
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3"
+        className="w-full max-w-md rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between">
@@ -726,7 +726,7 @@ function BulkTagModal({ op, ids, onClose, onDone }: { op: 'addTag' | 'removeTag'
   }
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-evari-text">
             {isAdd ? `Add ${ids.length} contact${ids.length === 1 ? '' : 's'} to group` : `Remove ${ids.length} contact${ids.length === 1 ? '' : 's'} from group`}
@@ -768,7 +768,7 @@ function NewGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   const [name, setName] = useState('');
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-evari-text">New group</h3>
           <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
@@ -862,7 +862,7 @@ function AddToCampaignModal({ contactIds, onClose, onDone }: { contactIds: strin
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-md max-h-[80vh] rounded-md bg-evari-surface border border-evari-edge/40 flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md max-h-[80vh] rounded-panel bg-evari-surface border border-evari-edge/40 flex flex-col" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between px-4 py-3 border-b border-evari-edge/20">
           <h3 className="text-sm font-semibold text-evari-text">
             Add {contactIds.length} contact{contactIds.length === 1 ? '' : 's'} to campaign

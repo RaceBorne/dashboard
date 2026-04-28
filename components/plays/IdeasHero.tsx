@@ -26,7 +26,7 @@ export function IdeasHero() {
   if (hidden) return null;
 
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-gold/20 p-4 mb-4 relative">
+    <section className="rounded-panel bg-evari-surface border border-evari-gold/20 p-4 mb-4 relative">
       <button type="button" onClick={() => setHidden(true)} className="absolute top-2 right-2 text-evari-dim hover:text-evari-text p-1 rounded transition" title="Hide for this session"><X className="h-3.5 w-3.5" /></button>
       <div className="flex items-start gap-3 mb-3">
         <span className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-evari-gold/15 text-evari-gold shrink-0">

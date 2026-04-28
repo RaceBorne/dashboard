@@ -90,7 +90,7 @@ export function StatisticsClient({ items }: Props) {
         {/* Range selector */}
         <div className="flex items-center justify-end gap-1">
           <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mr-1">Range</span>
-          <div className="inline-flex rounded-md bg-evari-surface border border-evari-edge/30 p-0.5">
+          <div className="inline-flex rounded-panel bg-evari-surface border border-evari-edge/30 p-0.5">
             {(Object.keys(RANGE_LABEL) as RangeKey[]).map((k) => (
               <button
                 key={k}
@@ -116,7 +116,7 @@ export function StatisticsClient({ items }: Props) {
         </div>
 
         {/* Trend chart */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
           <header className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-3.5 w-3.5 text-evari-gold" />
@@ -132,7 +132,7 @@ export function StatisticsClient({ items }: Props) {
         </section>
 
         {/* Top performers */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30">
           <header className="px-3 py-2 border-b border-evari-edge/20">
             <h2 className="text-[13px] font-semibold text-evari-text">Top performers (by open rate)</h2>
           </header>
@@ -182,7 +182,7 @@ export function StatisticsClient({ items }: Props) {
 function Tile({ label, value, sub, icon, accent }: { label: string; value: string; sub: string; icon: React.ReactNode; accent: 'gold' | 'mute' | 'danger' }) {
   const accentCls = accent === 'gold' ? 'text-evari-gold' : accent === 'danger' ? 'text-evari-danger' : 'text-evari-text';
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+    <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
       <div className="flex items-center gap-2 mb-2">
         <span className={cn('inline-flex items-center justify-center h-7 w-7 rounded-md', accent === 'gold' ? 'bg-evari-gold/15' : accent === 'danger' ? 'bg-evari-danger/15' : 'bg-evari-ink/40', accentCls)}>
           {icon}

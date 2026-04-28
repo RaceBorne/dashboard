@@ -53,7 +53,7 @@ export function TargetProfileStep({ playId }: { playId: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-panel">
       <header>
         <StepTitle substep="Target profile" />
         <p className="text-[12px] text-evari-dim mt-0.5">Define the personas, roles and company attributes we need to reach.</p>
@@ -61,7 +61,7 @@ export function TargetProfileStep({ playId }: { playId: string }) {
 
       {/* Is this a good market */}
       <Card title="Is this a good market to pursue?">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-panel">
           <div className="md:col-span-1 flex items-center gap-3">
             <ScoreDonut value={a.icpScore} />
             <div>
@@ -78,7 +78,7 @@ export function TargetProfileStep({ playId }: { playId: string }) {
       </Card>
 
       {/* Decision makers + Seniority mix */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-panel">
         <Card title="Who are the decision makers?">
           <div className="grid grid-cols-2 gap-3 items-center">
             <div className="h-[200px] relative">
@@ -134,7 +134,7 @@ export function TargetProfileStep({ playId }: { playId: string }) {
 
       {/* Ideal company attributes */}
       <Card title="What do our ideal companies look like?">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-panel">
           <Attr label="Industry fit" value={`${a.industryFitPct}%`} sub={a.industries.length > 0 ? a.industries.slice(0, 2).join(', ') : '—'} />
           <Attr label="Company size" value={a.companySizeMin && a.companySizeMax ? `${a.companySizeMin} – ${a.companySizeMax}` : '—'} sub="Employees" />
           <Attr label="Revenue" value={a.revenuePotentialLabel} sub="Annual" />
@@ -150,7 +150,7 @@ export function TargetProfileStep({ playId }: { playId: string }) {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
       <h3 className="text-[13px] font-semibold text-evari-text mb-3">{title}</h3>
       {children}
     </section>

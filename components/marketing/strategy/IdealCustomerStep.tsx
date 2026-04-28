@@ -50,14 +50,14 @@ export function IdealCustomerStep({ playId, brief }: { playId: string; brief: { 
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-panel">
       <header>
         <StepTitle substep="Ideal customer" />
         <p className="text-[12px] text-evari-dim mt-0.5">Define the companies we get the most value from.</p>
       </header>
 
       <Card title="What does an ideal customer look like?">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-panel items-start">
           <div className="md:col-span-1 flex items-center gap-3">
             <ScoreDonut value={a.icpScore} />
             <div>
@@ -72,7 +72,7 @@ export function IdealCustomerStep({ playId, brief }: { playId: string; brief: { 
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-panel">
         <Card title="Company profile">
           <p className="text-[11px] text-evari-dim mb-2">Key characteristics of our best customers.</p>
           <div className="space-y-2">
@@ -106,7 +106,7 @@ export function IdealCustomerStep({ playId, brief }: { playId: string; brief: { 
       </div>
 
       <Card title="Ideal customer summary">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-panel">
           <div className="md:col-span-2 space-y-2">
             <p className="text-[12px] text-evari-text leading-relaxed whitespace-pre-wrap">{a.idealCustomerSummary}</p>
             <div className="flex items-center gap-2 pt-1">
@@ -138,7 +138,7 @@ function pctHint(pct: number): string {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
       <h3 className="text-[13px] font-semibold text-evari-text mb-3">{title}</h3>
       {children}
     </section>

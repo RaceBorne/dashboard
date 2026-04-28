@@ -23,7 +23,7 @@ export function FlowsListClient({ flows }: Props) {
           New flow
         </Link>
       </div>
-      <div className="rounded-md bg-evari-surface border border-evari-edge/30 overflow-hidden">
+      <div className="rounded-panel bg-evari-surface border border-evari-edge/30 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[10px] uppercase tracking-[0.14em] text-evari-dimmer border-b border-evari-edge/30">

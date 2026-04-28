@@ -145,7 +145,7 @@ export function ShortlistClient({ plays, play, initial }: Props) {
           <select
             value={play.id}
             onChange={(e) => router.push(`/shortlist?playId=${e.target.value}`)}
-            className="px-2 py-1.5 rounded-md bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
+            className="px-2 py-1.5 rounded-panel bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
           >
             {plays.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
           </select>
@@ -182,7 +182,7 @@ export function ShortlistClient({ plays, play, initial }: Props) {
         </div>
 
         {/* Table */}
-        <div className="rounded-md bg-evari-surface border border-evari-edge/30 overflow-hidden">
+        <div className="rounded-panel bg-evari-surface border border-evari-edge/30 overflow-hidden">
           <table className="w-full text-[12px]">
             <thead>
               <tr className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer border-b border-evari-edge/30">
@@ -243,7 +243,7 @@ export function ShortlistClient({ plays, play, initial }: Props) {
 
         {/* Bulk actions */}
         {selected.size > 0 ? (
-          <div className="rounded-md bg-evari-surface border border-evari-gold/30 px-3 py-2 flex items-center gap-3">
+          <div className="rounded-panel bg-evari-surface border border-evari-gold/30 px-3 py-2 flex items-center gap-3">
             <span className="text-[12px] text-evari-text font-semibold">{selected.size} selected</span>
             <button type="button" onClick={() => void bulkAction('shortlisted')} disabled={busy === 'shortlisted'} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition">
               {busy === 'shortlisted' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Shortlist

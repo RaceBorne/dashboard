@@ -139,7 +139,7 @@ export function FlowEditor({ mode, flow, initialSteps }: Props) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
           <h2 className="text-sm font-semibold text-evari-text">Setup</h2>
 
           <label className="block">
@@ -173,7 +173,7 @@ export function FlowEditor({ mode, flow, initialSteps }: Props) {
           </label>
         </section>
 
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 flex flex-col min-h-[420px]">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 flex flex-col min-h-[420px]">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-evari-text">Steps (JSON)</h2>
             <span className="text-[10px] text-evari-dimmer">

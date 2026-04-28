@@ -317,7 +317,7 @@ function FileTile({ file, onPick }: { file: MediaFile; onPick: (f: MediaFile) =>
       onClick={() => (isReady ? onPick(file) : undefined)}
       disabled={disabled || isProcessing}
       className={cn(
-        'group text-left rounded-md overflow-hidden bg-evari-surface/40 hover:bg-evari-surface transition-colors',
+        'group text-left rounded-panel overflow-hidden bg-evari-surface/40 hover:bg-evari-surface transition-colors',
         disabled ? 'opacity-40 cursor-not-allowed' : '',
       )}
     >

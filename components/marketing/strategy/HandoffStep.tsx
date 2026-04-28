@@ -92,7 +92,7 @@ export function HandoffStep({ playId, brief, onEdit, onProceed }: { playId: stri
   const dataCoverage = a && a.addressableMarket > 0 ? Math.min(100, Math.round((a.reachableContacts / Math.max(1, a.addressableMarket)) * 100)) : 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-panel">
       <header className="flex items-start gap-2">
         <div className="flex-1">
           <StepTitle substep="Handoff" />
@@ -104,7 +104,7 @@ export function HandoffStep({ playId, brief, onEdit, onProceed }: { playId: stri
       </header>
 
       {/* Readiness banner */}
-      <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] items-center gap-4">
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-evari-success/15 text-evari-success"><CheckCircle2 className="h-5 w-5" /></span>
@@ -126,7 +126,7 @@ export function HandoffStep({ playId, brief, onEdit, onProceed }: { playId: stri
         </div>
       </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-panel">
         <Card icon={<Send className="h-4 w-4" />} title="Campaign blueprint">
           <KV label="Primary objective" value={brief.objective ? brief.objective.split(/[.!?]/)[0] : '—'} />
           <KV label="Target accounts"   value={a ? `${a.addressableMarket.toLocaleString()} companies` : '—'} />
@@ -195,7 +195,7 @@ export function HandoffStep({ playId, brief, onEdit, onProceed }: { playId: stri
 
 function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
       <h3 className="text-[13px] font-semibold text-evari-text mb-3 flex items-center gap-2">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">{icon}</span>
         {title}

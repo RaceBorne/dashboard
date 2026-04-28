@@ -124,7 +124,7 @@ function CompetitorCard({
     >
       <div className="flex items-start gap-2.5">
         {/* Favicon / fallback */}
-        <div className="h-9 w-9 rounded-md bg-evari-surface flex items-center justify-center shrink-0 overflow-hidden">
+        <div className="h-9 w-9 rounded-panel bg-evari-surface flex items-center justify-center shrink-0 overflow-hidden">
           {faviconUrl && !imgErr ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

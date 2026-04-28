@@ -39,7 +39,7 @@ export function EventTimeline({ contactId, initialEvents }: Props) {
   }
 
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 lg:col-span-2">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 lg:col-span-2">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-evari-text inline-flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-evari-dim" />

@@ -188,7 +188,7 @@ function ConnectorCard({
     <button
       type="button"
       onClick={onOpen}
-      className="group w-full text-left rounded-md bg-evari-surface hover:bg-evari-surface/80 transition-colors px-4 py-3.5 flex items-start gap-3"
+      className="group w-full text-left rounded-panel bg-evari-surface hover:bg-evari-surface/80 transition-colors px-4 py-3.5 flex items-start gap-3"
     >
       <div className="h-8 w-8 rounded bg-evari-surfaceSoft/50 inline-flex items-center justify-center shrink-0 mt-0.5">
         <Icon className="h-4 w-4 text-evari-text/80" />
@@ -386,7 +386,7 @@ function ConfigurePanel({
           ) : null}
 
           {connector.setupSteps && connector.setupSteps.length > 0 ? (
-            <div className="rounded-md bg-evari-surface/60 px-3 py-3 space-y-2">
+            <div className="rounded-panel bg-evari-surface/60 px-3 py-3 space-y-2">
               <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer font-medium">
                 How to get these credentials
               </div>

@@ -69,10 +69,10 @@ export function ProductsClient({
             <img
               src={p.featuredImage.url}
               alt={p.featuredImage.altText ?? ''}
-              className="h-9 w-9 rounded-md object-cover bg-evari-surfaceSoft shrink-0"
+              className="h-9 w-9 rounded-panel object-cover bg-evari-surfaceSoft shrink-0"
             />
           ) : (
-            <div className="h-9 w-9 rounded-md bg-evari-surfaceSoft shrink-0" />
+            <div className="h-9 w-9 rounded-panel bg-evari-surfaceSoft shrink-0" />
           )}
           <div className="min-w-0">
             <div className="text-sm text-evari-text truncate">{p.title}</div>
@@ -362,7 +362,7 @@ function ProductDrawer({
             </DrawerSection>
             <DrawerSection title="Description">
               <div
-                className="prose prose-invert prose-sm max-w-none text-sm text-evari-text rounded-md bg-evari-surface p-3 max-h-64 overflow-y-auto"
+                className="prose prose-invert prose-sm max-w-none text-sm text-evari-text rounded-panel bg-evari-surface p-3 max-h-64 overflow-y-auto"
                 dangerouslySetInnerHTML={{ __html: product.descriptionHtml || '<em>No description.</em>' }}
               />
             </DrawerSection>
@@ -459,7 +459,7 @@ function ProductDrawer({
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-md bg-evari-surface p-3">
+    <div className="rounded-panel bg-evari-surface p-3">
       <div className="text-[10px] uppercase tracking-[0.14em] text-evari-dimmer">
         {label}
       </div>

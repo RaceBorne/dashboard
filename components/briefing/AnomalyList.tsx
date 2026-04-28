@@ -36,7 +36,7 @@ export function AnomalyList({ anomalies }: { anomalies: BriefingAnomaly[] }) {
   return (
    <li
    key={a.id}
-   className="rounded-md bg-evari-surface/60 p-4 flex gap-3 items-start relative overflow-hidden"
+   className="rounded-panel bg-evari-surface/60 p-4 flex gap-3 items-start relative overflow-hidden"
    >
    {/* Solid severity stripe on the left — no translucent fills */}
    <span className={cn('absolute left-0 top-0 bottom-0 w-[3px]', STRIPE[a.severity])} />

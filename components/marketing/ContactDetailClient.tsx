@@ -201,7 +201,7 @@ export function ContactDetailClient({ initialContact, allGroups, allTags, initia
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* Identity panel */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
           <h2 className="text-sm font-semibold text-evari-text mb-3">Identity</h2>
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
@@ -260,7 +260,7 @@ export function ContactDetailClient({ initialContact, allGroups, allTags, initia
         </section>
 
         {/* Groups panel */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-evari-text">Groups</h2>
             <span className="text-xs text-evari-dimmer tabular-nums">{groupIds.size} of {groupPalette.length}</span>
@@ -322,7 +322,7 @@ export function ContactDetailClient({ initialContact, allGroups, allTags, initia
         </section>
 
         {/* Tags panel */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 lg:col-span-2">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 lg:col-span-2">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-evari-text">Tags</h2>
             <span className="text-xs text-evari-dimmer tabular-nums">{tagIds.size} of {tagPalette.length}</span>

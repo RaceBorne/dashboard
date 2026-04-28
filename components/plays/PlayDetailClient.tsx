@@ -1333,7 +1333,7 @@ function EmptyState({
   hint: string;
 }) {
   return (
-    <div className="rounded-md bg-evari-surface/60 p-8 text-center">
+    <div className="rounded-panel bg-evari-surface/60 p-8 text-center">
       <div className="text-sm text-evari-dim">{label}</div>
       <div className="text-xs text-evari-dimmer mt-1">{hint}</div>
     </div>

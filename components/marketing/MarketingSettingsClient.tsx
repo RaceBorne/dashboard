@@ -39,7 +39,7 @@ export function MarketingSettingsClient({ initial }: { initial: Settings }) {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
         <header className="flex items-center gap-2 mb-3">
           <span className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-evari-gold/15 text-evari-gold">
             <Clock className="h-4 w-4" />

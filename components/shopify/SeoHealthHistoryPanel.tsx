@@ -375,7 +375,7 @@ function ScoreTooltip({
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-md border border-evari-edge bg-evari-surface px-3 py-2 text-[11px] shadow-lg">
+    <div className="rounded-panel border border-evari-edge bg-evari-surface px-3 py-2 text-[11px] shadow-lg">
       <div className="text-evari-dim tabular-nums">
         {formatFullDate(p.t)}
       </div>

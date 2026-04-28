@@ -236,7 +236,7 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
         </Link>
 
         {/* Hero — list identity + stats + primary action */}
-        <header className="rounded-md bg-evari-surface border border-evari-edge/30 p-5 mb-3">
+        <header className="rounded-panel bg-evari-surface border border-evari-edge/30 p-5 mb-3">
           <div className="flex items-start gap-4">
             <div className="flex-1 min-w-0">
               {/* Inline-editable name */}
@@ -323,7 +323,7 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
         </header>
 
         {/* Tabs + search */}
-        <div className="rounded-md bg-evari-surface border border-evari-edge/30 mb-2">
+        <div className="rounded-panel bg-evari-surface border border-evari-edge/30 mb-2">
           <div className="flex items-stretch border-b border-evari-edge/20">
             <Tab active={tab === 'all'}      onClick={() => setTab('all')}      label="All"      count={counts.all} />
             <Tab active={tab === 'approved'} onClick={() => setTab('approved')} label="Approved" count={counts.approved} accent="gold" />
@@ -422,7 +422,7 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
 
       {/* Sticky bulk action bar — slides up when rows are selected */}
       {selected.size > 0 ? (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 rounded-md bg-evari-surface border border-evari-gold/40 shadow-2xl flex items-center gap-2 px-3 py-2 animate-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 rounded-panel bg-evari-surface border border-evari-gold/40 shadow-2xl flex items-center gap-2 px-3 py-2 animate-in slide-in-from-bottom-4 duration-200">
           <span className="text-[12px] text-evari-text font-medium">
             <strong>{selected.size}</strong> selected
           </span>
@@ -479,7 +479,7 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
 
       {confirmDelete ? (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setConfirmDelete(false)}>
-          <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-panel bg-evari-surface border border-evari-edge/40 p-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-evari-text">Delete &quot;{group.name}&quot;?</h3>
             <p className="text-[12px] text-evari-dim mt-2">
               The list and its {counts.all} membership{counts.all === 1 ? '' : 's'} will be removed. The

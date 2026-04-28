@@ -34,7 +34,7 @@ export function NavigationClient({
       )}
 
       {menus.length === 0 ? (
-        <div className="rounded-md bg-evari-surface p-6 text-sm text-evari-dim italic text-center">
+        <div className="rounded-panel bg-evari-surface p-6 text-sm text-evari-dim italic text-center">
           No menus configured in Shopify yet.
         </div>
       ) : (

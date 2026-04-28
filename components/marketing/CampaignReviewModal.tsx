@@ -210,7 +210,7 @@ export function CampaignReviewModal({ campaignId, onSend, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex items-stretch p-4" onClick={onClose}>
-      <div className="w-full max-w-5xl mx-auto rounded-md bg-evari-surface border border-evari-edge/40 flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-5xl mx-auto rounded-panel bg-evari-surface border border-evari-edge/40 flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <header className="px-4 py-3 border-b border-evari-edge/30 flex items-center gap-3">
           <h2 className="text-sm font-semibold text-evari-text">Review each email</h2>

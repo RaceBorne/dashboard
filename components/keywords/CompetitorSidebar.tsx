@@ -157,7 +157,7 @@ function SidebarItem({
         onClick={onClick}
         className="w-full flex items-center gap-2.5 px-2.5 py-2 pr-9 rounded-md text-left"
       >
-        <div className="h-7 w-7 rounded-md bg-evari-surface flex items-center justify-center shrink-0 overflow-hidden">
+        <div className="h-7 w-7 rounded-panel bg-evari-surface flex items-center justify-center shrink-0 overflow-hidden">
           {list.kind === 'own' ? (
             <User className="h-3.5 w-3.5 text-evari-gold" />
           ) : faviconUrl && !imgErr ? (

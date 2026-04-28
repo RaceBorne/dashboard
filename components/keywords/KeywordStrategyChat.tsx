@@ -283,7 +283,7 @@ export function KeywordStrategyChat({ workspace }: Props) {
           ))
         )}
         {loading ? (
-          <div className="rounded-md p-4 text-sm bg-evari-surface/60 mr-auto max-w-3xl">
+          <div className="rounded-panel p-4 text-sm bg-evari-surface/60 mr-auto max-w-3xl">
             <div className="flex items-center gap-2 text-[11px] text-evari-dimmer">
               <RefreshCw className="h-3 w-3 animate-spin" />
               Thinking…
@@ -383,7 +383,7 @@ function EmptyState({
             disabled={disabled}
             onClick={() => onPickPrompt(s)}
             className={cn(
-              'rounded-md bg-evari-surface/60 hover:bg-evari-surface text-evari-text text-sm px-3 py-2.5 transition-colors text-left',
+              'rounded-panel bg-evari-surface/60 hover:bg-evari-surface text-evari-text text-sm px-3 py-2.5 transition-colors text-left',
               disabled ? 'opacity-60 cursor-not-allowed' : '',
             )}
           >

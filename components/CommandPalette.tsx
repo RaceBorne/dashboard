@@ -155,7 +155,7 @@ export function CommandPalette() {
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/70 flex items-start justify-center pt-24 px-4" onClick={() => setOpen(false)}>
-      <div className="w-full max-w-xl rounded-md bg-evari-surface border border-evari-edge/40 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-xl rounded-panel bg-evari-surface border border-evari-edge/40 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-3 py-2.5 flex items-center gap-2 border-b border-evari-edge/30">
           <Search className="h-4 w-4 text-evari-dim" />
           <input

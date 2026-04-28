@@ -19,7 +19,7 @@ type Tab = 'overview' | 'recipients' | 'links';
 export function CampaignAnalyticsTabs({ analytics }: Props) {
   const [tab, setTab] = useState<Tab>('overview');
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 mt-3">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 mt-3">
       <header className="flex items-center gap-1 border-b border-evari-edge/20 px-2">
         {(['overview', 'recipients', 'links'] as Tab[]).map((t) => (
           <button

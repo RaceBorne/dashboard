@@ -477,7 +477,7 @@ function Step2({
                     onClick={() => onPick(f)}
                     disabled={already}
                     className={cn(
-                      'group relative rounded-md overflow-hidden bg-evari-surface/40 ring-1 ring-transparent transition-all',
+                      'group relative rounded-panel overflow-hidden bg-evari-surface/40 ring-1 ring-transparent transition-all',
                       already
                         ? 'opacity-40 cursor-not-allowed'
                         : 'hover:ring-evari-gold/60 cursor-pointer',
@@ -534,7 +534,7 @@ function Step2({
             picked.map((f, i) => (
               <div
                 key={f.id}
-                className="flex items-center gap-2 p-2 rounded-md bg-evari-surface/40"
+                className="flex items-center gap-2 p-2 rounded-panel bg-evari-surface/40"
               >
                 <GripVertical className="h-3.5 w-3.5 text-evari-dimmer shrink-0" />
                 {f.previewUrl ? (

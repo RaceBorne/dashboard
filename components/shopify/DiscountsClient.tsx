@@ -237,7 +237,7 @@ function CreateDiscountDialog({
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Type">
-              <div className="flex rounded-md bg-evari-surface p-1 ring-1 ring-evari-edge/40">
+              <div className="flex rounded-panel bg-evari-surface p-1 ring-1 ring-evari-edge/40">
                 <SegmentBtn label="% off" active={mode === 'percent'} onClick={() => setMode('percent')} />
                 <SegmentBtn label="£ off" active={mode === 'amount'} onClick={() => setMode('amount')} />
               </div>

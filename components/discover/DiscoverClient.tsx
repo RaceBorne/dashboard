@@ -1362,7 +1362,7 @@ export function DiscoverClient({ plays }: Props) {
                       </span>
                     ) : null}
                     {typeof c.emailCount === 'number' && c.emailCount > 0 ? (
-                      <span className="inline-flex items-center rounded-md bg-evari-surfaceSoft text-evari-dim px-2.5 py-1 text-[11px]">
+                      <span className="inline-flex items-center rounded-panel bg-evari-surfaceSoft text-evari-dim px-2.5 py-1 text-[11px]">
                         {c.emailCount} email{c.emailCount === 1 ? ' address' : ' addresses'}
                       </span>
                     ) : null}

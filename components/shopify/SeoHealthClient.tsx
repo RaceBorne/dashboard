@@ -1303,7 +1303,7 @@ function FixDetail({
         )}
 
         {!isReview && !isHandle && (
-          <div className="rounded-md bg-evari-surface p-3 text-xs text-evari-dim">
+          <div className="rounded-panel bg-evari-surface p-3 text-xs text-evari-dim">
             <Wand2 className="inline h-3 w-3 mr-1 text-evari-gold" />
             Safe-auto fix — Evari will write the value directly. You can roll it back
             from the undo log if needed.

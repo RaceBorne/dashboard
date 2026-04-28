@@ -89,7 +89,7 @@ export function ChannelsStep({ playId, briefChannels, onEdit }: { playId: string
   }).sort((a, b) => b.effectiveness - a.effectiveness);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-panel">
       <header className="flex items-start gap-2">
         <div className="flex-1">
           <StepTitle substep="Channels" />
@@ -155,7 +155,7 @@ export function ChannelsStep({ playId, briefChannels, onEdit }: { playId: string
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4">
+    <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
       <h3 className="text-[13px] font-semibold text-evari-text">{title}</h3>
       {subtitle ? <p className="text-[11px] text-evari-dim mt-0.5 mb-3">{subtitle}</p> : <div className="h-3" />}
       {children}

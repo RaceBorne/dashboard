@@ -266,7 +266,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
         <Stepper current={step} done={(k) => canAdvance(k) && STEPS.findIndex((s) => s.key === k) < STEPS.findIndex((s) => s.key === step)} />
 
         {/* Step body */}
-        <div className="mt-4 rounded-md bg-evari-surface border border-evari-edge/30 p-4 min-h-[420px]">
+        <div className="mt-4 rounded-panel bg-evari-surface border border-evari-edge/30 p-4 min-h-[420px]">
           {step === 'who' ? (
             <WhoStep
               segments={segments}
@@ -386,7 +386,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
 function Stepper({ current, done }: { current: StepKey; done: (k: StepKey) => boolean }) {
   const currentIdx = STEPS.findIndex((s) => s.key === current);
   return (
-    <div className="rounded-md bg-evari-surface border border-evari-edge/30 px-2 py-2">
+    <div className="rounded-panel bg-evari-surface border border-evari-edge/30 px-2 py-2">
       <ol className="flex items-stretch">
         {STEPS.map((s, i) => {
           const isCurrent = s.key === current;

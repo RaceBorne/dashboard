@@ -75,6 +75,11 @@ const config: Config = {
         lg: '12px',
         md: '8px',
         sm: '6px',
+        panel: '30px',
+      },
+      spacing: {
+        panel: '38px',
+        'panel-sm': '24px',
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],

@@ -154,7 +154,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
 
       <div className={cn('grid gap-3', editorMode === 'visual' ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2')}>
         {/* Left: Identity + Audience */}
-        <section className="rounded-md bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 space-y-3">
           <h2 className="text-sm font-semibold text-evari-text">Setup</h2>
 
           <label className="block">
@@ -261,7 +261,7 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
 
         {/* Right (or full-width when visual): body editor — toggle between
             visual block builder and raw HTML */}
-        <section className={cn('rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col', editorMode === 'visual' ? 'min-h-[80vh]' : 'min-h-[400px]')}>
+        <section className={cn('rounded-panel bg-evari-surface border border-evari-edge/30 flex flex-col', editorMode === 'visual' ? 'min-h-[80vh]' : 'min-h-[400px]')}>
           <header className="flex items-center justify-between px-4 py-2 border-b border-evari-edge/20">
             <h2 className="text-sm font-semibold text-evari-text">Body</h2>
             <div className="flex items-center gap-2">
@@ -414,7 +414,7 @@ function TemplatePickerModal({ templates, onClose, onPick }: { templates: EmailT
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="flex-1 min-h-0 overflow-auto rounded-md bg-evari-surface border border-evari-edge/30 p-3">
+        <div className="flex-1 min-h-0 overflow-auto rounded-panel bg-evari-surface border border-evari-edge/30 p-3">
           {visible.length === 0 ? (
             <div className="py-12 text-center text-sm text-evari-dimmer">
               {templates.length === 0
