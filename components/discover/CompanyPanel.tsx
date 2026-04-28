@@ -275,7 +275,7 @@ export function CompanyPanel({
   const emailCount = emails.length;
 
   const body = (
-    <div className="flex h-full flex-col overflow-hidden bg-white">
+    <div className="flex h-full flex-col overflow-hidden bg-evari-ink">
       <div className="flex-1 overflow-y-auto">
         {/* ---------- Header ---------- */}
         <div className="relative px-5 pt-5 pb-4">
@@ -333,7 +333,7 @@ export function CompanyPanel({
           </div>
 
           <div className="flex items-start gap-3 pr-28">
-            <div className="h-14 w-14 rounded-xl border border-evari-line/40 bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1.5">
+            <div className="h-14 w-14 rounded-xl border border-evari-edge/20 bg-evari-ink flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={
@@ -371,7 +371,7 @@ export function CompanyPanel({
                     ? 'bg-evari-surfaceSoft text-evari-dim cursor-wait'
                     : enrichPassCount === 0
                       ? 'bg-evari-gold text-evari-goldInk hover:bg-evari-gold/90'
-                      : 'bg-white border border-evari-line/60 text-evari-text hover:border-evari-accent hover:text-evari-accent',
+                      : 'bg-evari-ink border border-evari-edge/30 text-evari-text hover:border-evari-accent hover:text-evari-accent',
                 )}
               >
                 {loading ? (
@@ -401,7 +401,7 @@ export function CompanyPanel({
 
         {/* ---------- Company details ---------- */}
         {company ? (
-          <div className="border-t border-evari-line/40 px-5 py-4">
+          <div className="px-5 py-4">
             <div className="text-[13px] font-semibold text-evari-text mb-3">Company details</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px] text-evari-dim">
               <div className="space-y-1.5">
@@ -451,7 +451,7 @@ export function CompanyPanel({
                 <button
                   type="button"
                   onClick={() => setKeywordsOpen((v) => !v)}
-                  className="inline-flex items-center gap-1 text-[12px] text-evari-dim hover:text-evari-text border-b border-evari-line/60 pb-0.5"
+                  className="inline-flex items-center gap-1 text-[12px] text-evari-dim hover:text-evari-text border-b border-evari-edge/30 pb-0.5"
                 >
                   Keywords
                   <ChevronDown
@@ -463,7 +463,7 @@ export function CompanyPanel({
                     {company.keywords.map((k) => (
                       <span
                         key={k}
-                        className="inline-flex items-center rounded-full border border-evari-line/60 px-2 py-0.5 text-[12px] text-evari-dim"
+                        className="inline-flex items-center rounded-full border border-evari-edge/30 px-2 py-0.5 text-[12px] text-evari-dim"
                       >
                         {k}
                       </span>
@@ -475,7 +475,7 @@ export function CompanyPanel({
 
             {/* AI-generated synopsis — filled passively on the
                 Prospects / Leads list; may be empty on Discover. */}
-            <div className="mt-4 border-t border-evari-line/40 pt-4">
+            <div className="mt-4 pt-4">
               <div className="text-[13px] font-semibold text-evari-text mb-2">About</div>
               {company.description ? (
                 <p className="text-[12px] leading-relaxed text-evari-dim whitespace-pre-wrap">
@@ -497,7 +497,7 @@ export function CompanyPanel({
 
         {/* ---------- Tabs ---------- */}
         {company ? (
-          <div className="sticky top-0 z-10 border-t border-evari-line/40 bg-white">
+          <div className="sticky top-0 z-10 bg-evari-ink">
             <div className="px-5 flex items-center gap-6">
               {((linkedPlayId
                 ? (['contacts', 'notes', 'strategy'] as const)
@@ -559,7 +559,7 @@ export function CompanyPanel({
                         'inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium shadow-sm',
                         onlyVerified
                           ? 'border-evari-accent bg-evari-accent/10 text-evari-accent'
-                          : 'border-evari-line/60 bg-white text-evari-dim hover:text-evari-text',
+                          : 'border-evari-edge/30 bg-evari-ink text-evari-dim hover:text-evari-text',
                       )}
                       title="Only show verified addresses"
                     >
@@ -573,7 +573,7 @@ export function CompanyPanel({
                         'inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium shadow-sm',
                         nameFilterOpen || nameFilter
                           ? 'border-evari-accent bg-evari-accent/10 text-evari-accent'
-                          : 'border-evari-line/60 bg-white text-evari-dim hover:text-evari-text',
+                          : 'border-evari-edge/30 bg-evari-ink text-evari-dim hover:text-evari-text',
                       )}
                     >
                       <User2 className="h-3 w-3" />
@@ -591,7 +591,7 @@ export function CompanyPanel({
                       value={nameFilter}
                       onChange={(ev) => setNameFilter(ev.target.value)}
                       placeholder="Filter by name, title, or address"
-                      className="w-full rounded-md border border-evari-line/60 bg-white pl-7 pr-2 py-1.5 text-[12px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-evari-accent"
+                      className="w-full rounded-md border border-evari-edge/30 bg-evari-ink pl-7 pr-2 py-1.5 text-[12px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent"
                     />
                   </div>
                 ) : null}
@@ -624,7 +624,7 @@ export function CompanyPanel({
                             'inline-flex items-center justify-center rounded-full px-1.5 text-[12px] font-semibold',
                             active
                               ? 'bg-evari-goldInk/15 text-evari-goldInk'
-                              : 'bg-white text-evari-dim',
+                              : 'bg-evari-ink text-evari-dim',
                           )}
                         >
                           {count}
@@ -664,7 +664,7 @@ export function CompanyPanel({
 
                 {/* Contact list */}
                 {visibleEmails.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-center text-[12px] text-evari-dim">
+                  <div className="rounded-md border border-dashed border-evari-edge/30 p-4 text-center text-[12px] text-evari-dim">
                     {emailCount === 0
                       ? 'No contacts found yet.'
                       : 'No ' +
@@ -672,7 +672,7 @@ export function CompanyPanel({
                         ' contacts in this set.'}
                   </div>
                 ) : (
-                  <div className="rounded-md border border-evari-line/40 overflow-hidden">
+                  <div className="rounded-md border border-evari-edge/20 overflow-hidden">
                     <div
                       className={cn(
                         'grid items-center gap-3 px-3 py-1.5 bg-evari-surfaceSoft/60',
@@ -718,7 +718,7 @@ export function CompanyPanel({
 
             {/* Sources footnote */}
             {company.sources && company.sources.length > 0 ? (
-              <div className="mt-4 pt-3 border-t border-evari-line/40">
+              <div className="mt-4 pt-3">
                 <div className="text-[13px] font-medium text-evari-dim mb-1">Sources</div>
                 <ul className="space-y-0.5">
                   {company.sources.map((u) => (
@@ -743,7 +743,7 @@ export function CompanyPanel({
         {/* Empty state */}
         {!company && !loading ? (
           <div className="p-5">
-            <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-[12px] text-evari-dim">
+            <div className="rounded-md border border-dashed border-evari-edge/30 p-4 text-[12px] text-evari-dim">
               Click &ldquo;Find contacts &amp; details&rdquo; to pull this company&rsquo;s public profile.
               {onEnrich ? (
                 <button
@@ -761,7 +761,7 @@ export function CompanyPanel({
 
         {/* Live enrichment log */}
         {log.length > 0 ? (
-          <div className="px-5 py-3 border-t border-evari-line/40">
+          <div className="px-5 py-3">
             <button
               type="button"
               onClick={() => setLogOpen((v) => !v)}
@@ -792,7 +792,7 @@ export function CompanyPanel({
           onClick={onClose}
           aria-hidden="true"
         />
-        <div className="absolute inset-y-0 right-0 w-full max-w-[520px] bg-white border-l border-evari-line/40 shadow-2xl">
+        <div className="absolute inset-y-0 right-0 w-full max-w-[520px] bg-evari-ink  shadow-2xl">
           {body}
         </div>
       </div>
@@ -866,19 +866,19 @@ function ContactRow({
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
             placeholder="Full name"
-            className="rounded-md border border-evari-line/60 bg-white px-2 py-1.5 text-[12px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-evari-accent"
+            className="rounded-md border border-evari-edge/30 bg-evari-ink px-2 py-1.5 text-[12px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent"
           />
           <input
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
             placeholder="Job title"
-            className="rounded-md border border-evari-line/60 bg-white px-2 py-1.5 text-[12px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-evari-accent"
+            className="rounded-md border border-evari-edge/30 bg-evari-ink px-2 py-1.5 text-[12px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent"
           />
           <input
             value={editAddress}
             onChange={(e) => setEditAddress(e.target.value)}
             placeholder="email@example.com"
-            className="rounded-md border border-evari-line/60 bg-white px-2 py-1.5 font-mono text-[12px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-evari-accent"
+            className="rounded-md border border-evari-edge/30 bg-evari-ink px-2 py-1.5 font-mono text-[12px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent"
           />
           <div className="flex items-center gap-2">
             <button
@@ -897,7 +897,7 @@ function ContactRow({
                 setEditTitle(email.jobTitle ?? '');
                 setEditAddress(email.address);
               }}
-              className="inline-flex items-center gap-1 rounded-md border border-evari-line/60 bg-white px-3 py-1 text-[11.5px] text-evari-dim hover:text-evari-text"
+              className="inline-flex items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink px-3 py-1 text-[11.5px] text-evari-dim hover:text-evari-text"
             >
               Cancel
             </button>
@@ -928,7 +928,7 @@ function ContactRow({
           <span
             className={cn(
               'h-4 w-4 shrink-0 rounded-[3px] border flex items-center justify-center',
-              picked ? 'bg-evari-accent border-evari-accent' : 'border-evari-dimmer bg-white',
+              picked ? 'bg-evari-accent border-evari-accent' : 'border-evari-dimmer bg-evari-ink',
             )}
           >
             {picked ? <Check className="h-3 w-3 text-evari-ink" /> : null}
@@ -1023,7 +1023,7 @@ function ContactRow({
                 onClick={() => setMenuOpen(false)}
                 aria-hidden="true"
               />
-              <div className="absolute right-0 top-7 z-40 w-52 rounded-lg border border-evari-line/40 bg-white shadow-lg py-1 text-[12px]">
+              <div className="absolute right-0 top-7 z-40 w-52 rounded-lg border border-evari-edge/20 bg-evari-ink shadow-lg py-1 text-[12px]">
                 <button
                   type="button"
                   onClick={() => {
@@ -1035,7 +1035,7 @@ function ContactRow({
                   <Pencil className="h-3 w-3" />
                   Edit contact
                 </button>
-                <div className="my-1 border-t border-evari-line/30" />
+                <div className="my-1" />
                 <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-evari-dimmer">
                   Nominate as
                 </div>
@@ -1061,7 +1061,7 @@ function ContactRow({
                     onClick={() => void nominate(null)}
                   />
                 ) : null}
-                <div className="my-1 border-t border-evari-line/30" />
+                <div className="my-1" />
                 <button
                   type="button"
                   onClick={() => void handleDelete()}
@@ -1114,7 +1114,7 @@ function NotesTab({ notes }: { notes?: Props['notes'] }) {
 
   if (!notes) {
     return (
-      <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-center text-[12px] text-evari-dim">
+      <div className="rounded-md border border-dashed border-evari-edge/30 p-4 text-center text-[12px] text-evari-dim">
         Notes live on prospect + lead rows. Open this company from Prospects or Leads to take notes.
       </div>
     );
@@ -1143,13 +1143,13 @@ function NotesTab({ notes }: { notes?: Props['notes'] }) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-evari-line/60 bg-white p-2">
+      <div className="rounded-lg border border-evari-edge/30 bg-evari-ink p-2">
         <textarea
           value={composerText}
           onChange={(e) => setComposerText(e.target.value)}
           placeholder="Add a note — context, next step, dealbreaker…"
           rows={2}
-          className="w-full resize-none px-2 py-1 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          className="w-full resize-none px-2 py-1 text-[13px] text-evari-text placeholder:text-evari-dimmer focus:outline-none"
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault();
@@ -1177,7 +1177,7 @@ function NotesTab({ notes }: { notes?: Props['notes'] }) {
       </div>
 
       {entries.length === 0 ? (
-        <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-center text-[12px] text-evari-dim">
+        <div className="rounded-md border border-dashed border-evari-edge/30 p-4 text-center text-[12px] text-evari-dim">
           No notes yet. First one above.
         </div>
       ) : (
@@ -1185,7 +1185,7 @@ function NotesTab({ notes }: { notes?: Props['notes'] }) {
           {entries.map((n) => (
             <li
               key={n.id}
-              className="rounded-lg border border-evari-line/40 bg-evari-surfaceSoft/50 px-3 py-2"
+              className="rounded-lg border border-evari-edge/20 bg-evari-surfaceSoft/50 px-3 py-2"
             >
               {editingId === n.id ? (
                 <div>
@@ -1193,7 +1193,7 @@ function NotesTab({ notes }: { notes?: Props['notes'] }) {
                     value={editingText}
                     onChange={(e) => setEditingText(e.target.value)}
                     rows={3}
-                    className="w-full resize-none rounded-md border border-evari-line/60 bg-white px-2 py-1.5 text-[13px] text-slate-900 focus:outline-none focus:border-evari-accent"
+                    className="w-full resize-none rounded-md border border-evari-edge/30 bg-evari-ink px-2 py-1.5 text-[13px] text-evari-text focus:outline-none focus:border-evari-accent"
                   />
                   <div className="mt-2 flex items-center gap-2">
                     <button
@@ -1210,7 +1210,7 @@ function NotesTab({ notes }: { notes?: Props['notes'] }) {
                         setEditingId(null);
                         setEditingText('');
                       }}
-                      className="inline-flex items-center gap-1 rounded-md border border-evari-line/60 bg-white px-2.5 py-1 text-[11.5px] text-evari-dim hover:text-evari-text"
+                      className="inline-flex items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink px-2.5 py-1 text-[11.5px] text-evari-dim hover:text-evari-text"
                     >
                       Cancel
                     </button>
@@ -1331,7 +1331,7 @@ function SavePopover({
   return (
     <>
       <div className="fixed inset-0 z-30" onClick={onClose} aria-hidden="true" />
-      <div className="absolute right-0 top-8 z-40 w-72 rounded-lg border border-evari-line/40 bg-white shadow-xl overflow-hidden">
+      <div className="absolute right-0 top-8 z-40 w-72 rounded-lg border border-evari-edge/20 bg-evari-ink shadow-xl overflow-hidden">
         <div className="px-3 py-2 flex items-center gap-2">
           <Folder className="h-3.5 w-3.5 text-evari-dimmer" />
           <span className="text-[12px] font-semibold text-evari-text">Save to folder</span>
@@ -1354,7 +1354,7 @@ function SavePopover({
                   }
                 }}
                 placeholder="New folder name"
-                className="flex-1 min-w-0 rounded-md border border-evari-line/60 bg-white px-2 py-1 text-[12px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-evari-accent"
+                className="flex-1 min-w-0 rounded-md border border-evari-edge/30 bg-evari-ink px-2 py-1 text-[12px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent"
               />
               <button
                 type="button"
@@ -1369,7 +1369,7 @@ function SavePopover({
             <button
               type="button"
               onClick={() => setCreating(true)}
-              className="w-full inline-flex items-center gap-1.5 rounded-md border border-dashed border-evari-line/60 px-2 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dim"
+              className="w-full inline-flex items-center gap-1.5 rounded-md border border-dashed border-evari-edge/30 px-2 py-1.5 text-[12px] text-evari-dim hover:text-evari-text hover:border-evari-dim"
             >
               <FolderPlus className="h-3.5 w-3.5" />
               Create new folder
@@ -1384,7 +1384,7 @@ function SavePopover({
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter folders"
-              className="w-full rounded-md border border-evari-line/60 bg-white pl-6 pr-2 py-1 text-[11.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-evari-accent"
+              className="w-full rounded-md border border-evari-edge/30 bg-evari-ink pl-6 pr-2 py-1 text-[11.5px] text-evari-text placeholder:text-evari-dimmer focus:outline-none focus:border-evari-accent"
             />
           </div>
 
@@ -1486,14 +1486,14 @@ function StrategyTab({
   }
   if (error) {
     return (
-      <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-center text-[12px] text-evari-dim">
+      <div className="rounded-md border border-dashed border-evari-edge/30 p-4 text-center text-[12px] text-evari-dim">
         {error}
       </div>
     );
   }
   if (!play) {
     return (
-      <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-center text-[12px] text-evari-dim">
+      <div className="rounded-md border border-dashed border-evari-edge/30 p-4 text-center text-[12px] text-evari-dim">
         No strategy linked yet.
       </div>
     );
@@ -1557,7 +1557,7 @@ function StrategyTab({
           ) : null}
         </div>
       ) : (
-        <div className="rounded-md border border-dashed border-evari-line/60 p-4 text-center text-[12px] text-evari-dim">
+        <div className="rounded-md border border-dashed border-evari-edge/30 p-4 text-center text-[12px] text-evari-dim">
           This Play doesn’t have a committed strategy yet.
         </div>
       )}
@@ -1645,7 +1645,7 @@ function PersonCard({ person }: { person: CompanyContact }) {
           ? 'bg-amber-500/15 text-amber-700'
           : 'bg-red-500/15 text-red-700';
   return (
-    <div className="rounded-md bg-white border border-evari-line/40 p-3 space-y-2">
+    <div className="rounded-md bg-evari-ink border border-evari-edge/20 p-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-[13px] text-evari-text font-semibold truncate">
@@ -1686,7 +1686,7 @@ function PersonCard({ person }: { person: CompanyContact }) {
         </div>
       ) : null}
       {person.emailCandidates && person.emailCandidates.length > 0 ? (
-        <div className="space-y-1 pt-2 border-t border-evari-line/40">
+        <div className="space-y-1 pt-2">
           {person.emailCandidates.map((c, i) => {
             const isPrimary = c.email === person.primaryEmail;
             const confColor =
