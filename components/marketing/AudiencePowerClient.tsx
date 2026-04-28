@@ -254,26 +254,31 @@ function DraggableEntryRow({ entry, inWorkspace, onRename, onDelete }: { entry: 
   return (
     <li
       ref={setNodeRef}
+      // Whole row is draggable. PointerSensor's 4px activation distance
+      // means a plain click still navigates (handled by the Link below);
+      // any movement past that threshold initiates the drag.
+      {...attributes}
+      {...listeners}
       className={cn(
-        'group flex items-stretch transition-colors',
+        'group flex items-stretch transition-colors touch-none select-none',
         isDragging ? 'opacity-40' : '',
         inWorkspace ? 'bg-evari-gold/5' : 'hover:bg-evari-ink/30',
+        'cursor-grab active:cursor-grabbing',
       )}
     >
-      {/* Drag handle */}
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        className="px-2 flex items-center cursor-grab active:cursor-grabbing text-evari-dimmer hover:text-evari-gold transition-colors touch-none select-none"
-        title="Drag to combine"
-      >
+      {/* Visual grip — just an indicator now, the whole row catches the drag */}
+      <div className="px-2 flex items-center text-evari-dimmer group-hover:text-evari-gold transition-colors pointer-events-none">
         <GripVertical className="h-4 w-4" />
-      </button>
+      </div>
 
       {/* Body */}
       <Link
         href={isSegment ? `/email/segments/${entry.id}` : `/leads?listId=${entry.id}`}
+        // Stop the click from bubbling up to the draggable parent —
+        // dnd-kit's pointer listener doesn't swallow click but the
+        // browser's drag preview will fight with the Link's
+        // navigation if we don't preventDefault on actual drag.
+        // (Safe: a non-drag click still triggers the Link.)
         className="flex-1 min-w-0 px-2 py-2.5 flex items-center gap-2.5"
       >
         <span className={cn('shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md',
@@ -356,6 +361,16 @@ function WorkspacePane({ workspaceIds, allEntries, onRemove, onClear, onCreated 
   // Combine action state
   const [op, setOp] = useState<Op>('union');
   const [name, setName] = useState('');
+  // Auto-name policy: until the operator types into the field, the
+  // suggested name tracks the workspace as a pipe-joined list of
+  // source names ('Yachts | Warm | Pre-launch'). The moment they
+  // type, we lock to whatever they typed (so we don't fight with
+  // their input).
+  const [nameTouched, setNameTouched] = useState(false);
+  const autoName = useMemo(() => items.map((e) => e.name).join(' | '), [items]);
+  useEffect(() => {
+    if (!nameTouched) setName(autoName);
+  }, [autoName, nameTouched]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Subtract requires an explicit base. Default to first item.
@@ -377,6 +392,7 @@ function WorkspacePane({ workspaceIds, allEntries, onRemove, onClear, onCreated 
       const data = await res.json().catch(() => null);
       if (!data?.ok) throw new Error(data?.error ?? 'Combine failed');
       setName('');
+      setNameTouched(false);
       await onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Combine failed');
@@ -490,8 +506,8 @@ function WorkspacePane({ workspaceIds, allEntries, onRemove, onClear, onCreated 
                   <input
                     type="text"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={op === 'union' ? 'Combined warm + cold' : op === 'intersection' ? 'In both warm and active' : 'Warm minus suppressed'}
+                    onChange={(e) => { setName(e.target.value); setNameTouched(true); }}
+                    placeholder={autoName || (op === 'union' ? 'Combined warm + cold' : op === 'intersection' ? 'In both warm and active' : 'Warm minus suppressed')}
                     className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
                   />
                 </label>
