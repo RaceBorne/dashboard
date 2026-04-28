@@ -26,16 +26,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const HAND_SHADOW = [
-  // Light source: low and far away (sun-like). Each layer's dy is much
-  // larger than its blur so the radial blur of drop-shadow can't climb
-  // above the hand's edge. The cast lengthens downward, never up.
-  'drop-shadow(0 4px 1px rgba(0,0,0,0.55))',
-  'drop-shadow(0 10px 3px rgba(0,0,0,0.38))',
-  'drop-shadow(0 20px 6px rgba(0,0,0,0.22))',
-  'drop-shadow(0 32px 10px rgba(0,0,0,0.12))',
-  'drop-shadow(0 48px 14px rgba(0,0,0,0.06))',
-].join(' ');
+// One soft shadow only. Stacking multiple layers reads as several
+// shadows (one for each dy) rather than a single ray-traced falloff.
+// Light source at 12 → positive dy → cast falls toward 6.
+const HAND_SHADOW = 'drop-shadow(0 5px 9px rgba(0,0,0,0.45))';
 
 export function AnalogueClockWidget() {
   const [time, setTime] = useState<{ h: number; m: number; s: number; ms: number } | null>(null);
@@ -74,11 +68,12 @@ export function AnalogueClockWidget() {
         className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
       />
 
-      {/* Layer 1+ — round dial sized 110% of the tile height so it
-          extends slightly beyond the tile edges (clipped by the
-          outer overflow-hidden) for a more prominent face. */}
+      {/* Layer 1+ — round dial sized to 125% of the tile height. The
+          parts that fall outside the tile get clipped by the outer
+          overflow-hidden so the face presents bigger without
+          breaking the tile bounds. */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative" style={{ aspectRatio: '1 / 1', height: '110%' }}>
+        <div className="relative" style={{ aspectRatio: '1 / 1', height: '125%' }}>
           {/* Face — round dial with markings, no hands. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -97,7 +92,7 @@ export function AnalogueClockWidget() {
             className="absolute pointer-events-none select-none"
             style={{
               top: '50%', left: '50%',
-              width: '155%', height: '155%',
+              width: '100%', height: '100%',
               transform: `translate(-50%, -50%) rotate(${hourAngle}deg)`,
               transformOrigin: 'center center',
               filter: HAND_SHADOW,
@@ -113,7 +108,7 @@ export function AnalogueClockWidget() {
             className="absolute pointer-events-none select-none"
             style={{
               top: '50%', left: '50%',
-              width: '180%', height: '180%',
+              width: '115%', height: '115%',
               transform: `translate(-50%, -50%) rotate(${minuteAngle}deg)`,
               transformOrigin: 'center center',
               filter: HAND_SHADOW,
