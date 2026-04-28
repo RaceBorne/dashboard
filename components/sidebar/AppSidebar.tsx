@@ -50,7 +50,8 @@ import { useTheme } from '@/components/theme/ThemeProvider';
 const VENTURE_PREFIXES = ['/ideas', '/plays', '/discover', '/prospects', '/leads', '/conversations'];
 
 const NAV = [
-  { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
+  { href: '/', label: 'Home', icon: LayoutDashboard, group: 'today' },
+  { href: '/briefing', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
   { href: '/ideas', label: 'Ideas', icon: Rocket, group: 'pipeline', child: true },
   { href: '/strategy', label: 'Strategy', icon: ListTodo, group: 'pipeline', child: true },
@@ -273,13 +274,15 @@ export function AppSidebar() {
           </div>
         )}
         {!collapsed ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={logoSrc}
-            alt="Evari"
-            style={{ width: 84, height: 'auto' }}
-            draggable={false}
-          />
+          <Link href="/" aria-label="Home" title="Home" className="inline-flex items-center hover:brightness-110 transition">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logoSrc}
+              alt="Evari"
+              style={{ width: 84, height: 'auto' }}
+              draggable={false}
+            />
+          </Link>
         ) : null}
       </div>
 
