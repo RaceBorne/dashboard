@@ -25,6 +25,7 @@ import { isSuppressed, unsubscribeUrlFor } from './suppressions';
 import { trackEvent } from './events';
 import { appendLeadActivity } from './leads-as-contacts';
 import { findFrequencyCapBreaches } from './settings';
+import { isMultiStep, queueSequenceSteps, type CampaignSequence } from './sequences';
 import { renderEmailDesign } from './email-design';
 import { getBrand } from './brand';
 
@@ -537,6 +538,13 @@ export async function sendCampaign(id: string, opts: { excludeContactIds?: strin
         })
         .eq('id', recipientId);
     }
+  }
+
+  // Queue subsequent sequence steps (waitDays from now). Step 0 has
+  // already shipped above; this only schedules 1..N.
+  const rawSeq = (campaign as { sequence?: CampaignSequence | null }).sequence;
+  if (rawSeq && isMultiStep(rawSeq)) {
+    await queueSequenceSteps(id, rawSeq, new Date());
   }
 
   // Final campaign status

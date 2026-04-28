@@ -36,6 +36,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { CampaignReviewModal } from './CampaignReviewModal';
+import { SequenceEditor } from './SequenceEditor';
 import { LaunchChecksPanel } from './LaunchChecksPanel';
 import { AIDraftButton } from '../ai/AIDraftButton';
 
@@ -103,6 +104,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
   const [name, setName] = useState('');
   const [subject, setSubject] = useState('');
   const [subjectVariants, setSubjectVariants] = useState<string[]>([]);
+  const [sequence, setSequence] = useState<{ steps: Array<{ kind: 'email'; subject: string | null; html: string | null; design: unknown; waitDays: number }> } | null>(null);
   const [previewText, setPreviewText] = useState('');
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
   const [scheduledFor, setScheduledFor] = useState<string>(''); // ISO local datetime
@@ -169,6 +171,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
         name: name.trim(),
         subject: subject.trim(),
         subjectVariants: subjectVariants.map((s) => s.trim()).filter(Boolean),
+        sequence,
         content: '', // legacy plain-HTML body; visual design supersedes
         kind: 'newsletter',
         segmentId: audienceKind === 'segment' ? segmentId || null : null,
@@ -281,6 +284,8 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
             <WhatStep
               templates={templates}
               brand={brand}
+              sequence={sequence}
+              setSequence={setSequence}
               picked={pickedTemplate}
               onPickTemplate={(t) => {
                 setPickedTemplate(t);
@@ -613,17 +618,12 @@ function EmptyAudience({ label, cta }: { label: string; cta: React.ReactNode }) 
 
 // ─── Step 2: WHAT ─────────────────────────────────────────────
 
-function WhatStep({ templates, brand, picked, onPickTemplate, hasDesign }: { templates: EmailTemplate[]; brand: MarketingBrand; picked: EmailTemplate | null; onPickTemplate: (t: EmailTemplate | null) => void; hasDesign: boolean }) {
+function WhatStep({ templates, brand, picked, onPickTemplate, hasDesign, sequence, setSequence }: { templates: EmailTemplate[]; brand: MarketingBrand; picked: EmailTemplate | null; onPickTemplate: (t: EmailTemplate | null) => void; hasDesign: boolean; sequence: { steps: Array<{ kind: 'email'; subject: string | null; html: string | null; design: unknown; waitDays: number }> } | null; setSequence: (s: { steps: Array<{ kind: 'email'; subject: string | null; html: string | null; design: unknown; waitDays: number }> } | null) => void }) {
   return (
     <div>
-      <header className="mb-3 flex items-end justify-between gap-2">
-        <div>
-          <h2 className="text-base font-semibold text-evari-text">Message</h2>
-          <p className="text-[12px] text-evari-dim mt-0.5">Start from a saved template, or build a fresh design from scratch.</p>
-        </div>
-        <Link href="/email/flows/new" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border border-evari-gold/30 bg-evari-gold/5 text-evari-gold hover:bg-evari-gold/15 transition" title="Multi-email follow-up sequence">
-          + Journey builder
-        </Link>
+      <header className="mb-3">
+        <h2 className="text-base font-semibold text-evari-text">Message</h2>
+        <p className="text-[12px] text-evari-dim mt-0.5">Start from a saved template, or build a fresh design from scratch.</p>
       </header>
 
       <ul className="grid grid-cols-3 gap-2 mb-3">
@@ -676,6 +676,8 @@ function WhatStep({ templates, brand, picked, onPickTemplate, hasDesign }: { tem
       ) : (
         <p className="text-[11px] text-evari-dimmer">Pick a tile above to continue.</p>
       )}
+
+      <SequenceEditor value={sequence} onChange={setSequence} />
     </div>
   );
 }

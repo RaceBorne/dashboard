@@ -70,6 +70,8 @@ export function DiscoverClient({ plays }: Props) {
   const [aiStatus, setAiStatus] = useState<string | null>(null);
 
   const [cards, setCards] = useState<DiscoverCard[]>([]);
+
+
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [source, setSource] = useState<'dfs' | 'cache' | 'mixed' | null>(null);
@@ -97,6 +99,24 @@ export function DiscoverClient({ plays }: Props) {
   // Bulk select — mirrors the Save all / Find all people actions on the
   // results header. Checkbox per row; master checkbox toggles the visible set.
   const [companyChecked, setCompanyChecked] = useState<Set<string>>(new Set());
+
+  // Publish stats to the top-of-page DiscoverStatsStrip whenever the
+  // working set changes. Status flips when the searching flag changes.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const enriched = cards.filter((c) => c.enriched).length;
+    const highFit = cards.filter((c) => (c as { fitScore?: number }).fitScore !== undefined && ((c as { fitScore?: number }).fitScore as number) >= 80).length;
+    window.dispatchEvent(new CustomEvent('evari:discover-stats', {
+      detail: {
+        found: cards.length,
+        analysed: enriched,
+        highFit,
+        shortlisted: 0,  // shortlisted count is sourced from /shortlist; left as 0 unless a future read pulls it in
+        status: searching ? 'active' : (cards.length > 0 ? 'done' : 'idle'),
+      },
+    }));
+  }, [cards, searching]);
+
   const [shortlisting, setShortlisting] = useState(false);
 
   // --- Additive rerun + quick-add (#183) -----------------------------------

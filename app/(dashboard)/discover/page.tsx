@@ -1,6 +1,7 @@
 import { TopBar } from '@/components/sidebar/TopBar';
 import { DiscoverClient } from '@/components/discover/DiscoverClient';
 import { DiscoverAIBinding } from '@/components/discover/DiscoverAIBinding';
+import { DiscoverStatsStrip } from '@/components/discover/DiscoverStatsStrip';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { listPlays } from '@/lib/dashboard/repository';
 
@@ -23,6 +24,7 @@ export default async function DiscoverPage() {
         subtitle="Find companies and email addresses beyond the pipeline"
       />
       <DiscoverAIBinding />
+      <div className="px-4 pt-3"><DiscoverStatsStrip /></div>
       <DiscoverClient plays={playOptions} />
     </>
   );

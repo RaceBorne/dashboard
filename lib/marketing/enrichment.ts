@@ -134,6 +134,7 @@ interface AddInput {
   companyName: string;
   fullName: string;
   email?: string | null;
+  emailVerified?: boolean;
   jobTitle?: string | null;
   linkedinUrl?: string | null;
   fitScore?: number | null;
@@ -159,6 +160,7 @@ export async function addEnrichmentContact(input: AddInput): Promise<EnrichmentC
       first_name: firstName,
       last_name: lastName,
       email: input.email ?? null,
+      email_verified: input.emailVerified ?? false,
       job_title: input.jobTitle ?? null,
       linkedin_url: input.linkedinUrl ?? null,
       fit_score: input.fitScore ?? null,

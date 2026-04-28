@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/marketing-followups",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/marketing-sequences",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
