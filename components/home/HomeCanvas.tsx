@@ -35,6 +35,7 @@ interface Tile {
 }
 
 const COLS = 6;
+const ROWS = 5;
 const GRID_GAP = 10; // matches design token spacing.panel = 10px
 const PAGE_GUTTER = 20; // matches spacing.gutter = 20px
 
@@ -48,7 +49,8 @@ const STORAGE_KEY = 'evari.home.tiles.v1';
 export function HomeCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [tiles, setTiles] = useState<Tile[]>(DEFAULTS);
-  const [cellSize, setCellSize] = useState<number>(120);
+  const [cellW, setCellW] = useState<number>(120);
+  const [cellH, setCellH] = useState<number>(120);
   const [hydrated, setHydrated] = useState(false);
 
   // Hydrate from localStorage on mount.
@@ -70,14 +72,20 @@ export function HomeCanvas() {
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tiles)); } catch {}
   }, [tiles, hydrated]);
 
-  // Compute current cell size based on the container width.
+  // Compute cell width and height so 6 columns fit across the inner
+  // width and 5 rows fit down the inner height. Cells stretch to
+  // fill the screen, so they're not perfectly square — the grid is
+  // always 6×5 regardless of viewport aspect ratio.
   const recomputeCellSize = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const inner = rect.width - PAGE_GUTTER * 2;
-    const cell = (inner - GRID_GAP * (COLS - 1)) / COLS;
-    setCellSize(Math.max(40, Math.floor(cell)));
+    const innerW = rect.width  - PAGE_GUTTER * 2;
+    const innerH = rect.height - PAGE_GUTTER * 2;
+    const w = (innerW - GRID_GAP * (COLS - 1)) / COLS;
+    const h = (innerH - GRID_GAP * (ROWS - 1)) / ROWS;
+    setCellW(Math.max(40, Math.floor(w)));
+    setCellH(Math.max(40, Math.floor(h)));
   }, []);
 
   useLayoutEffect(() => { recomputeCellSize(); }, [recomputeCellSize]);
@@ -88,7 +96,7 @@ export function HomeCanvas() {
     return () => window.removeEventListener('resize', onResize);
   }, [recomputeCellSize]);
 
-  const maxRows = useMemo(() => Math.max(8, ...tiles.map((t) => t.row + t.h)), [tiles]);
+
 
   function moveTile(id: string, toCol: number, toRow: number) {
     setTiles((cur) => {
@@ -111,12 +119,13 @@ export function HomeCanvas() {
           </Link>
         </div>
 
-        <Grid cellSize={cellSize} maxRows={maxRows}>
+        <Grid cellW={cellW} cellH={cellH}>
           {tiles.map((t) => (
             <DraggableTile
               key={t.id}
               tile={t}
-              cellSize={cellSize}
+              cellW={cellW}
+              cellH={cellH}
               onDrop={(col, row) => moveTile(t.id, col, row)}
             />
           ))}
@@ -126,15 +135,17 @@ export function HomeCanvas() {
   );
 }
 
-function Grid({ cellSize, maxRows, children }: { cellSize: number; maxRows: number; children: React.ReactNode }) {
-  const totalH = maxRows * cellSize + (maxRows - 1) * GRID_GAP;
+function Grid({ cellW, cellH, children }: { cellW: number; cellH: number; children: React.ReactNode }) {
+  const totalW = COLS * cellW + (COLS - 1) * GRID_GAP;
+  const totalH = ROWS * cellH + (ROWS - 1) * GRID_GAP;
   return (
     <div
-      className="relative w-full"
+      className="relative"
       style={{
+        width: `${totalW}px`,
         height: `${totalH}px`,
         backgroundImage: `linear-gradient(to right, rgb(var(--evari-edge) / 0.20) 1px, transparent 1px), linear-gradient(to bottom, rgb(var(--evari-edge) / 0.20) 1px, transparent 1px)`,
-        backgroundSize: `${cellSize + GRID_GAP}px ${cellSize + GRID_GAP}px`,
+        backgroundSize: `${cellW + GRID_GAP}px ${cellH + GRID_GAP}px`,
         backgroundPosition: '0 0',
       }}
     >
@@ -143,16 +154,16 @@ function Grid({ cellSize, maxRows, children }: { cellSize: number; maxRows: numb
   );
 }
 
-function DraggableTile({ tile, cellSize, onDrop }: { tile: Tile; cellSize: number; onDrop: (col: number, row: number) => void }) {
+function DraggableTile({ tile, cellW, cellH, onDrop }: { tile: Tile; cellW: number; cellH: number; onDrop: (col: number, row: number) => void }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
   const startRef = useRef<{ pointerX: number; pointerY: number } | null>(null);
 
   // Position from grid coords.
-  const baseLeft = tile.col * (cellSize + GRID_GAP);
-  const baseTop  = tile.row * (cellSize + GRID_GAP);
-  const width  = tile.w * cellSize + (tile.w - 1) * GRID_GAP;
-  const height = tile.h * cellSize + (tile.h - 1) * GRID_GAP;
+  const baseLeft = tile.col * (cellW + GRID_GAP);
+  const baseTop  = tile.row * (cellH + GRID_GAP);
+  const width  = tile.w * cellW + (tile.w - 1) * GRID_GAP;
+  const height = tile.h * cellH + (tile.h - 1) * GRID_GAP;
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -167,9 +178,8 @@ function DraggableTile({ tile, cellSize, onDrop }: { tile: Tile; cellSize: numbe
   };
   const onPointerUp = (e: React.PointerEvent) => {
     if (!startRef.current || !drag) { startRef.current = null; setDrag(null); return; }
-    const stride = cellSize + GRID_GAP;
-    const colDelta = Math.round(drag.dx / stride);
-    const rowDelta = Math.round(drag.dy / stride);
+    const colDelta = Math.round(drag.dx / (cellW + GRID_GAP));
+    const rowDelta = Math.round(drag.dy / (cellH + GRID_GAP));
     onDrop(tile.col + colDelta, tile.row + rowDelta);
     startRef.current = null;
     setDrag(null);
@@ -218,7 +228,7 @@ function DraggableTile({ tile, cellSize, onDrop }: { tile: Tile; cellSize: numbe
 function clampToGrid(col: number, row: number, w: number, h: number) {
   return {
     col: Math.max(0, Math.min(COLS - w, col)),
-    row: Math.max(0, row),
+    row: Math.max(0, Math.min(ROWS - h, row)),
   };
 }
 
