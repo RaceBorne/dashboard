@@ -13,10 +13,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { Loader2, Minimize2, Moon, RotateCcw, Send, Settings, Sparkles, Sun, X } from 'lucide-react';
-
-import { useTheme } from '@/components/theme/ThemeProvider';
+import { Loader2, Minimize2, RotateCcw, Send, Sparkles, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -157,7 +154,6 @@ interface Message {
 
 export function AIAssistantPane() {
   const { surface, scopeId, context, suggestions, open, setOpen, pendingPrompt, consumePending } = useAIPane();
-  const { theme, setTheme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -317,28 +313,6 @@ export function AIAssistantPane() {
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
         </button>
       </form>
-      {/* Footer — single row mirrored on the sidebar. Lozenge sized
-          to match the input above, gear sized to match the send
-          button, so the row reads as a deliberate pair. */}
-      <div className="px-3 py-2 border-t border-evari-edge/30 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
-          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-        >
-          {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-          {theme === 'dark' ? 'Light' : 'Dark'}
-        </button>
-        <Link
-          href="/settings"
-          aria-label="System settings"
-          title="System"
-          className="ml-auto inline-flex items-center justify-center h-8 w-8 rounded-md bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
-        >
-          <Settings className="h-3.5 w-3.5" />
-        </Link>
-      </div>
       </>)}
     </aside>
   );
