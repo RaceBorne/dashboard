@@ -87,7 +87,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
     : (segments.length > 0 ? 'segment' : 'group');
   const [audienceKind, setAudienceKind] = useState<AudienceKind>(seedAudienceKind);
   const [segmentId, setSegmentId] = useState<string>('');
-  const [groupId, setGroupId] = useState<string>('');
+  const [groupIds, setGroupIds] = useState<string[]>([]);
   const [recipientEmails, setRecipientEmails] = useState<string[]>(initialRecipientEmails);
 
   // --- Template state ---
@@ -117,7 +117,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
   // --- Validation ---
   const audienceReady =
     (audienceKind === 'segment' && !!segmentId) ||
-    (audienceKind === 'group' && !!groupId) ||
+    (audienceKind === 'group' && groupIds.length > 0) ||
     (audienceKind === 'custom' && recipientEmails.length > 0);
   const templateReady = !!emailDesign && (emailDesign.blocks?.length ?? 0) > 0;
   const detailsReady = name.trim().length > 0 && subject.trim().length > 0
@@ -146,11 +146,15 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
       return s ? `Segment: ${s.name}` : 'No segment picked';
     }
     if (audienceKind === 'group') {
-      const g = groups.find((x) => x.id === groupId);
-      return g ? `List: ${g.name}` : 'No list picked';
+      if (groupIds.length === 0) return 'No list picked';
+      if (groupIds.length === 1) {
+        const g = groups.find((x) => x.id === groupIds[0]);
+        return g ? `List: ${g.name}` : 'No list picked';
+      }
+      return `${groupIds.length} lists (combined)`;
     }
     return `${recipientEmails.length} custom address${recipientEmails.length === 1 ? '' : 'es'}`;
-  }, [audienceKind, segmentId, groupId, recipientEmails, segments, groups]);
+  }, [audienceKind, segmentId, groupIds, recipientEmails, segments, groups]);
 
   // --- Save the campaign as a draft. Used both before sending a test
   //     and before the final send. Idempotent — only creates once. ---
@@ -164,7 +168,8 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
         content: '', // legacy plain-HTML body; visual design supersedes
         kind: 'newsletter',
         segmentId: audienceKind === 'segment' ? segmentId || null : null,
-        groupId:   audienceKind === 'group'   ? groupId   || null : null,
+        groupId:   null,
+        groupIds:  audienceKind === 'group'   ? groupIds : null,
         recipientEmails: audienceKind === 'custom' ? recipientEmails : null,
         emailDesign,
       };
@@ -263,8 +268,8 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
               setAudienceKind={setAudienceKind}
               segmentId={segmentId}
               setSegmentId={setSegmentId}
-              groupId={groupId}
-              setGroupId={setGroupId}
+              groupIds={groupIds}
+              setGroupIds={setGroupIds}
               recipientEmails={recipientEmails}
               setRecipientEmails={setRecipientEmails}
             />
@@ -417,10 +422,18 @@ function WhoStep(props: {
   audienceKind: AudienceKind;
   setAudienceKind: (k: AudienceKind) => void;
   segmentId: string; setSegmentId: (s: string) => void;
-  groupId: string;   setGroupId: (s: string) => void;
+  groupIds: string[]; setGroupIds: (xs: string[]) => void;
   recipientEmails: string[]; setRecipientEmails: (xs: string[]) => void;
 }) {
-  const { segments, groups, audienceKind, setAudienceKind, segmentId, setSegmentId, groupId, setGroupId, recipientEmails, setRecipientEmails } = props;
+  const { segments, groups, audienceKind, setAudienceKind, segmentId, setSegmentId, groupIds, setGroupIds, recipientEmails, setRecipientEmails } = props;
+  function toggleGroup(id: string) {
+    if (groupIds.includes(id)) setGroupIds(groupIds.filter((x) => x !== id));
+    else setGroupIds([...groupIds, id]);
+  }
+  const totalSendable = groupIds.reduce((sum, id) => {
+    const g = groups.find((x) => x.id === id);
+    return sum + (g?.sendableCount ?? 0);
+  }, 0);
   return (
     <div>
       <header className="mb-3">
@@ -461,18 +474,25 @@ function WhoStep(props: {
         ) : (
           <div className="space-y-3">
             <ul className="grid grid-cols-2 gap-2">
-              {groups.map((g) => (
+              {groups.map((g) => {
+                const selected = groupIds.includes(g.id);
+                return (
                 <li key={g.id}>
                   <button
                     type="button"
-                    onClick={() => setGroupId(g.id)}
+                    onClick={() => toggleGroup(g.id)}
                     className={cn(
-                      'w-full text-left rounded-md border p-3 transition-colors',
-                      groupId === g.id ? 'border-evari-gold bg-evari-gold/10' : 'border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40',
+                      'w-full text-left rounded-md border p-3 transition-colors relative',
+                      selected ? 'border-evari-gold bg-evari-gold/10' : 'border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40',
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-[13px] font-semibold text-evari-text truncate flex-1 min-w-0">{g.name}</div>
+                      <div className="text-[13px] font-semibold text-evari-text truncate flex-1 min-w-0 flex items-center gap-2">
+                        <span className={cn('inline-flex items-center justify-center h-4 w-4 rounded-sm border', selected ? 'bg-evari-gold border-evari-gold text-evari-goldInk' : 'border-evari-edge/50')}>
+                          {selected ? <CheckIconTick /> : null}
+                        </span>
+                        <span className="truncate">{g.name}</span>
+                      </div>
                       <div className="shrink-0 inline-flex items-center gap-1 text-[10px] font-mono tabular-nums text-evari-gold bg-evari-gold/10 px-1.5 py-0.5 rounded">
                         <Users className="h-3 w-3" /> {g.sendableCount}
                       </div>
@@ -486,9 +506,23 @@ function WhoStep(props: {
                     ) : null}
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
-            {groupId ? <ListPreview groupId={groupId} /> : null}
+            {groupIds.length > 0 ? (
+              <div className="rounded-md border border-evari-edge/30 bg-evari-ink/30 p-3 text-[12px]">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-evari-dim">Combined audience (deduped at send)</span>
+                  <span className="font-mono tabular-nums text-evari-gold">~{totalSendable}</span>
+                </div>
+                {groupIds.length > 1 ? (
+                  <p className="text-[11px] text-evari-dimmer">
+                    A contact in multiple selected lists is sent once, not once per list.
+                  </p>
+                ) : null}
+                {groupIds.length === 1 ? <ListPreview groupId={groupIds[0]} /> : null}
+              </div>
+            ) : null}
           </div>
         )
       ) : audienceKind === 'segment' ? (
@@ -849,6 +883,14 @@ void ImageIcon; // exported for parity with other modules
  * Same component shape as DirectComposer's preview — kept inline
  * here rather than imported so the two flows stay independent.
  */
+function CheckIconTick() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3 stroke-current" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 8 7 12 13 4" />
+    </svg>
+  );
+}
+
 function ListPreview({ groupId }: { groupId: string }) {
   const [members, setMembers] = useState<ListMember[] | null>(null);
   const [loading, setLoading] = useState(true);

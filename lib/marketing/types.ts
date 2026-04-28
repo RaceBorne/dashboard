@@ -120,6 +120,8 @@ export interface Campaign {
   kind: CampaignKind;
   segmentId: string | null;
   groupId: string | null;
+  /** Multi-list audience — union of memberships. Newer than groupId; when set, sends use it. */
+  groupIds: string[] | null;
   /** Ad-hoc recipient list (emails) when audience is a custom selection. */
   recipientEmails: string[] | null;
   /** Phase 14 visual design — when set, supersedes the legacy `content` HTML at send time. */

@@ -23,15 +23,16 @@ export async function PATCH(
   const { id } = await params;
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
-  const allowed = ['name', 'subject', 'content', 'segmentId', 'groupId', 'recipientEmails', 'emailDesign', 'status', 'scheduledFor', 'kind'] as const;
+  const allowed = ['name', 'subject', 'content', 'segmentId', 'groupId', 'groupIds', 'recipientEmails', 'emailDesign', 'status', 'scheduledFor', 'kind'] as const;
   const patch: Record<string, unknown> = {};
   for (const k of allowed) {
     if (k in body) patch[k] = body[k];
   }
-  // Audience exclusivity — selecting a segment clears the group and
-  // vice versa, so a campaign always targets one source.
-  if ('segmentId' in patch && patch.segmentId) patch.groupId = null;
-  if ('groupId' in patch && patch.groupId) patch.segmentId = null;
+  // Audience exclusivity — selecting any one source clears the others
+  // so a campaign always targets exactly one audience kind.
+  if ('segmentId' in patch && patch.segmentId) { patch.groupId = null; patch.groupIds = null; }
+  if ('groupId' in patch && patch.groupId) { patch.segmentId = null; patch.groupIds = null; }
+  if ('groupIds' in patch && Array.isArray(patch.groupIds) && (patch.groupIds as unknown[]).length > 0) { patch.segmentId = null; patch.groupId = null; }
   const campaign = await updateCampaign(id, patch as Parameters<typeof updateCampaign>[1] & { status?: CampaignStatus });
   if (!campaign) return NextResponse.json({ ok: false, error: 'Update failed' }, { status: 500 });
   return NextResponse.json({ ok: true, campaign });

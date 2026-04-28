@@ -24,6 +24,7 @@ import { sendOne } from './sender';
 import { isSuppressed, unsubscribeUrlFor } from './suppressions';
 import { trackEvent } from './events';
 import { appendLeadActivity } from './leads-as-contacts';
+import { findFrequencyCapBreaches } from './settings';
 import { renderEmailDesign } from './email-design';
 import { getBrand } from './brand';
 
@@ -63,6 +64,7 @@ interface CampaignRow {
   kind: CampaignKind | null;
   segment_id: string | null;
   group_id: string | null;
+  group_ids: string[] | null;
   recipient_emails: string[] | null;
   email_design: import('./types').EmailDesign | null;
   scheduled_for: string | null;
@@ -80,6 +82,7 @@ function rowToCampaign(row: CampaignRow): Campaign {
     status: row.status,
     segmentId: row.segment_id,
     groupId: row.group_id,
+    groupIds: row.group_ids,
     recipientEmails: row.recipient_emails,
     kind: (row.kind ?? 'newsletter') as CampaignKind,
     emailDesign: row.email_design,
@@ -127,6 +130,7 @@ export async function createCampaign(input: {
   content: string;
   segmentId?: string | null;
   groupId?: string | null;
+  groupIds?: string[] | null;
   recipientEmails?: string[] | null;
     kind?: CampaignKind;
   emailDesign?: import('./types').EmailDesign | null;
@@ -141,6 +145,7 @@ export async function createCampaign(input: {
       content: input.content,
       segment_id: input.segmentId ?? null,
       group_id: input.groupId ?? null,
+      group_ids: input.groupIds && input.groupIds.length > 0 ? input.groupIds : null,
       recipient_emails: input.recipientEmails && input.recipientEmails.length > 0 ? input.recipientEmails : null,
       kind: input.kind ?? 'newsletter',
       email_design: input.emailDesign ?? null,
@@ -162,6 +167,7 @@ export async function updateCampaign(
     content: string;
     segmentId: string | null;
     groupId: string | null;
+    groupIds: string[] | null;
     recipientEmails: string[] | null;
     status: CampaignStatus;
     scheduledFor: string | null;
@@ -177,6 +183,7 @@ export async function updateCampaign(
   if ('content' in patch && patch.content !== undefined) dbPatch.content = patch.content;
   if ('segmentId' in patch) dbPatch.segment_id = patch.segmentId;
   if ('groupId' in patch) dbPatch.group_id = patch.groupId;
+  if ('groupIds' in patch) dbPatch.group_ids = patch.groupIds && patch.groupIds.length > 0 ? patch.groupIds : null;
   if ('status' in patch && patch.status) dbPatch.status = patch.status;
   if ('scheduledFor' in patch) dbPatch.scheduled_for = patch.scheduledFor;
   if (Object.keys(dbPatch).length === 0) return getCampaign(id);
@@ -269,18 +276,28 @@ async function resolveRecipientIds(campaign: Campaign): Promise<string[]> {
     const ev = await evaluateSegment(campaign.segmentId);
     return ev?.contactIds ?? [];
   }
-  if (campaign.groupId) {
+  // Prefer groupIds (multi-list union) over the legacy single groupId.
+  const audienceGroups: string[] = [];
+  if (campaign.groupIds && campaign.groupIds.length > 0) audienceGroups.push(...campaign.groupIds);
+  else if (campaign.groupId) audienceGroups.push(campaign.groupId);
+  if (audienceGroups.length > 0) {
     const sb = createSupabaseAdmin();
     if (!sb) return [];
     const { data, error } = await sb
       .from('dashboard_mkt_contact_groups')
       .select('contact_id')
-      .eq('group_id', campaign.groupId);
+      .in('group_id', audienceGroups);
     if (error) {
       console.error('[marketing.resolveRecipientIds group]', error);
       return [];
     }
-    return (data ?? []).map((r) => (r as { contact_id: string }).contact_id);
+    // Dedupe — a contact in two selected lists shouldn't get the email twice.
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (const r of (data ?? []) as Array<{ contact_id: string }>) {
+      if (!seen.has(r.contact_id)) { seen.add(r.contact_id); ids.push(r.contact_id); }
+    }
+    return ids;
   }
   // Custom recipient list — emails passed in directly (typically from the
   // contacts bulk-action 'Send campaign' flow). Resolve to contact ids by
@@ -343,6 +360,7 @@ export async function sendCampaign(id: string, opts: { excludeContactIds?: strin
   const hasAudience =
     Boolean(campaign.segmentId) ||
     Boolean(campaign.groupId) ||
+    Boolean(campaign.groupIds && campaign.groupIds.length > 0) ||
     Boolean(campaign.recipientEmails && campaign.recipientEmails.length > 0);
   if (!hasAudience) {
     return { ok: false, attempted: 0, sent: 0, suppressed: 0, failed: 0, error: 'No segment, group or recipient list selected' };
@@ -369,6 +387,12 @@ export async function sendCampaign(id: string, opts: { excludeContactIds?: strin
   // Filter out non-active contacts up front — we never send to
   // unsubscribed/suppressed users regardless of segment results.
   const sendable = contacts.filter((c) => c.status === 'active');
+
+  // Frequency cap — drop any contact who'd cross the per-window cap with
+  // this send. Tracked separately from suppressed/failed so the report
+  // tells the truth about why someone wasn't reached.
+  const breaches = await findFrequencyCapBreaches(sendable.map((c) => c.id));
+  const breachSet = new Set(breaches.map((b) => b.contactId));
 
   let attempted = 0;
   let sent = 0;
@@ -423,6 +447,16 @@ export async function sendCampaign(id: string, opts: { excludeContactIds?: strin
     if (excludeSet.has(contact.id)) {
       // Held by reviewer — skip entirely. No recipient row created,
       // no count against attempted/suppressed/failed.
+      continue;
+    }
+    if (breachSet.has(contact.id)) {
+      // Frequency cap — count against suppressed so the operator sees
+      // someone got dropped, but don't actually send.
+      suppressedCount += 1;
+      await sb
+        .from('dashboard_mkt_campaign_recipients')
+        .update({ status: 'suppressed', error: 'Frequency cap exceeded' })
+        .eq('id', recipientId);
       continue;
     }
     // Hand off to the sender abstraction. Direct-message campaigns

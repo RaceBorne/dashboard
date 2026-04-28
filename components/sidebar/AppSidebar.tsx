@@ -75,6 +75,7 @@ const NAV = [
   { href: '/email/domains', label: 'Domains', icon: Globe, group: 'setup' },
   { href: '/email/suppressions', label: 'Suppressions', icon: Ban, group: 'setup' },
   { href: '/email/assets', label: 'Assets', icon: Image, group: 'setup' },
+  { href: '/email/settings', label: 'Email settings', icon: Settings, group: 'setup' },
   { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'setup' },
   { href: '/shopify', label: 'Shopify', icon: ShoppingBag, group: 'setup' },
   { href: '/wireframe', label: 'Wireframe', icon: Network, group: 'system' },

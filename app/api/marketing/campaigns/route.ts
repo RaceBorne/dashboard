@@ -30,12 +30,15 @@ export async function POST(req: Request) {
   }
   const segmentId = typeof body?.segmentId === 'string' ? body.segmentId : null;
   const groupId = typeof body?.groupId === 'string' ? body.groupId : null;
+  const groupIds = Array.isArray(body?.groupIds)
+    ? (body.groupIds as unknown[]).filter((x) => typeof x === 'string') as string[]
+    : null;
   const recipientEmails = Array.isArray(body?.recipientEmails)
     ? (body.recipientEmails as unknown[]).filter((x) => typeof x === 'string') as string[]
     : null;
   const emailDesign = body?.emailDesign && typeof body.emailDesign === 'object' ? (body.emailDesign as import('@/lib/marketing/types').EmailDesign) : null;
   const kind = (typeof body?.kind === 'string' && (body.kind === 'newsletter' || body.kind === 'direct')) ? body.kind : 'newsletter';
-  const campaign = await createCampaign({ name, subject, content, segmentId, groupId, recipientEmails, emailDesign, kind });
+  const campaign = await createCampaign({ name, subject, content, segmentId, groupId, groupIds, recipientEmails, emailDesign, kind });
   if (!campaign) return NextResponse.json({ ok: false, error: 'create failed' }, { status: 500 });
   return NextResponse.json({ ok: true, campaign });
 }

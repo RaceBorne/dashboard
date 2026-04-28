@@ -23,6 +23,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCampaign, applyMerge } from '@/lib/marketing/campaigns';
 import { isSuppressed } from '@/lib/marketing/suppressions';
+import { findFrequencyCapBreaches } from '@/lib/marketing/settings';
 import { evaluateSegment } from '@/lib/marketing/segments';
 import { getBrand } from '@/lib/marketing/brand';
 import { renderEmailDesign } from '@/lib/marketing/email-design';
@@ -52,14 +53,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (campaign.segmentId) {
     const ev = await evaluateSegment(campaign.segmentId);
     recipientIds = ev?.contactIds ?? [];
-  } else if (campaign.groupId) {
+  } else if ((campaign.groupIds && campaign.groupIds.length > 0) || campaign.groupId) {
+    const groups = campaign.groupIds && campaign.groupIds.length > 0 ? campaign.groupIds : [campaign.groupId as string];
     const { data } = await sb
       .from('dashboard_mkt_contact_groups')
       .select('contact_id')
-      .eq('group_id', campaign.groupId)
+      .in('group_id', groups)
       // Approved-only when reading membership (sends ignore pending).
       .eq('status', 'approved');
-    recipientIds = ((data ?? []) as Array<{ contact_id: string }>).map((r) => r.contact_id);
+    const seen = new Set<string>();
+    for (const r of (data ?? []) as Array<{ contact_id: string }>) {
+      if (!seen.has(r.contact_id)) { seen.add(r.contact_id); recipientIds.push(r.contact_id); }
+    }
   } else if (campaign.recipientEmails && campaign.recipientEmails.length > 0) {
     const lowered = campaign.recipientEmails.map((e) => e.toLowerCase());
     const { data } = await sb
@@ -78,6 +83,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .in('id', recipientIds);
   const rows = (contacts ?? []) as ContactRow[];
 
+  // Frequency cap breaches — keyed by contact id for the per-row check below.
+  const breaches = await findFrequencyCapBreaches(rows.map((r) => r.id));
+  const breachMap = new Map(breaches.map((b) => [b.contactId, b.recentCount] as const));
+
   // Pre-compute the body once. Visual designs render via the email
   // pipeline; legacy plain-HTML campaigns use content as-is.
   const baseHtml = campaign.emailDesign
@@ -94,6 +103,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     let excludedReason: string | undefined;
     if (r.status !== 'active') excludedReason = `Contact status is ${r.status}`;
     if (await isSuppressed(r.email)) excludedReason = 'On suppression list';
+    if (breachMap.has(r.id)) excludedReason = `Frequency cap (${breachMap.get(r.id)} sends in window)`;
     const merged = applyMerge(baseHtml, { firstName: r.first_name, lastName: r.last_name, email: r.email, company: r.company });
     const subject = applyMerge(campaign.subject, { firstName: r.first_name, lastName: r.last_name, email: r.email, company: r.company });
     out.push({
