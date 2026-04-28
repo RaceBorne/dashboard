@@ -26,6 +26,7 @@ import {
   Star,
   Target,
   Trash2,
+  Upload,
   Users,
   X,
   Zap,
@@ -111,6 +112,14 @@ const DEFAULTS: Tile[] = [
 ];
 
 const STORAGE_KEY = 'evari.home.tiles.v3';
+const PREFS_KEY = 'evari.home.prefs.v1';
+
+interface HomePrefs {
+  showGrid: boolean;
+  glass: boolean;
+  bgImage: string | null; // data URL
+}
+const DEFAULT_PREFS: HomePrefs = { showGrid: true, glass: false, bgImage: null };
 
 function sizeOf(t: { w: number; h: number }): Size {
   return `${t.w}x${t.h}` as Size;
@@ -124,6 +133,7 @@ function applySize(t: Tile, size: Size): Tile {
 
 export function HomeCanvas() {
   const [tiles, setTiles] = useState<Tile[]>(DEFAULTS);
+  const [prefs, setPrefs] = useState<HomePrefs>(DEFAULT_PREFS);
   const [hydrated, setHydrated] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -136,6 +146,13 @@ export function HomeCanvas() {
         if (Array.isArray(parsed) && parsed.length > 0) setTiles(parsed);
       }
     } catch {}
+    try {
+      const raw = window.localStorage.getItem(PREFS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<HomePrefs>;
+        setPrefs((cur) => ({ ...cur, ...parsed }));
+      }
+    } catch {}
     setHydrated(true);
   }, []);
 
@@ -143,6 +160,11 @@ export function HomeCanvas() {
     if (!hydrated || typeof window === 'undefined') return;
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tiles)); } catch {}
   }, [tiles, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || typeof window === 'undefined') return;
+    try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
+  }, [prefs, hydrated]);
 
   const moveTile = useCallback((id: string, toCol: number, toRow: number) => {
     setTiles((cur) => {
@@ -188,7 +210,10 @@ export function HomeCanvas() {
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-evari-ink overflow-hidden text-evari-text">
+    <div
+      className="fixed inset-0 bg-evari-ink overflow-hidden text-evari-text"
+      style={prefs.bgImage ? { backgroundImage: `url(${prefs.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+    >
       {/* Top-right exit pill */}
       <Link
         href="/briefing"
@@ -209,6 +234,7 @@ export function HomeCanvas() {
 
       <GridSurface
         tiles={tiles}
+        prefs={prefs}
         onMove={moveTile}
         onResize={resizeTile}
       />
@@ -216,6 +242,8 @@ export function HomeCanvas() {
       {editorOpen ? (
         <EditDrawer
           tiles={tiles}
+          prefs={prefs}
+          onPrefs={(patch) => setPrefs((cur) => ({ ...cur, ...patch }))}
           onClose={() => setEditorOpen(false)}
           onSetWidget={setWidget}
           onSetSize={(id, size) => { const [w, h] = size.split('x').map(Number); resizeTile(id, w, h); }}
@@ -229,8 +257,9 @@ export function HomeCanvas() {
 
 // ─── grid surface ────────────────────────────────────────────────
 
-function GridSurface({ tiles, onMove, onResize }: {
+function GridSurface({ tiles, prefs, onMove, onResize }: {
   tiles: Tile[];
+  prefs: HomePrefs;
   onMove: (id: string, col: number, row: number) => void;
   onResize: (id: string, w: number, h: number) => void;
 }) {
@@ -264,11 +293,13 @@ function GridSurface({ tiles, onMove, onResize }: {
         gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
         gridTemplateRows:    `repeat(${ROWS}, minmax(0, 1fr))`,
         gap: `${GRID_GAP}px`,
-        backgroundImage:
-          `linear-gradient(to right, rgb(var(--evari-edge) / 0.20) 1px, transparent 1px),`
-          + ` linear-gradient(to bottom, rgb(var(--evari-edge) / 0.20) 1px, transparent 1px)`,
-        backgroundSize: `calc((100% + ${GRID_GAP}px) / ${COLS}) calc((100% + ${GRID_GAP}px) / ${ROWS})`,
-        backgroundPosition: '0 0',
+        ...(prefs.showGrid ? {
+          backgroundImage:
+            `linear-gradient(to right, rgb(var(--evari-edge) / 0.20) 1px, transparent 1px),`
+            + ` linear-gradient(to bottom, rgb(var(--evari-edge) / 0.20) 1px, transparent 1px)`,
+          backgroundSize: `calc((100% + ${GRID_GAP}px) / ${COLS}) calc((100% + ${GRID_GAP}px) / ${ROWS})`,
+          backgroundPosition: '0 0',
+        } : {}),
       }}
     >
       {tiles.map((t) => (
@@ -277,6 +308,7 @@ function GridSurface({ tiles, onMove, onResize }: {
           tile={t}
           cellW={cellW}
           cellH={cellH}
+          glass={prefs.glass}
           onDrop={(col, row) => onMove(t.id, col, row)}
           onResizeDrop={(w, h) => onResize(t.id, w, h)}
         />
@@ -287,10 +319,11 @@ function GridSurface({ tiles, onMove, onResize }: {
 
 // ─── tile ────────────────────────────────────────────────────────
 
-function DraggableTile({ tile, cellW, cellH, onDrop, onResizeDrop }: {
+function DraggableTile({ tile, cellW, cellH, glass, onDrop, onResizeDrop }: {
   tile: Tile;
   cellW: number;
   cellH: number;
+  glass: boolean;
   onDrop: (col: number, row: number) => void;
   onResizeDrop: (w: number, h: number) => void;
 }) {
@@ -371,7 +404,8 @@ function DraggableTile({ tile, cellW, cellH, onDrop, onResizeDrop }: {
         onPointerUp={onPointerUp}
         onPointerCancel={() => { setDrag(null); startRef.current = null; }}
         className={cn(
-          'h-full w-full rounded-panel border bg-evari-surface p-5 select-none cursor-grab active:cursor-grabbing transition-shadow',
+          'h-full w-full rounded-panel border p-5 select-none cursor-grab active:cursor-grabbing transition-shadow',
+          glass ? 'bg-evari-surface/40 backdrop-blur-md backdrop-saturate-150' : 'bg-evari-surface',
           widget.accent === 'gold' ? 'border-evari-edge/40 hover:border-evari-gold/50' :
           widget.accent === 'teal' ? 'border-evari-edge/40 hover:border-[#4AA39C]/50' :
                                      'border-evari-edge/40 hover:border-evari-text/40',
@@ -442,8 +476,10 @@ function ClockBody() {
 
 // ─── edit drawer ─────────────────────────────────────────────────
 
-function EditDrawer({ tiles, onClose, onSetWidget, onSetSize, onDelete, onAdd }: {
+function EditDrawer({ tiles, prefs, onPrefs, onClose, onSetWidget, onSetSize, onDelete, onAdd }: {
   tiles: Tile[];
+  prefs: HomePrefs;
+  onPrefs: (patch: Partial<HomePrefs>) => void;
   onClose: () => void;
   onSetWidget: (id: string, w: WidgetId) => void;
   onSetSize: (id: string, size: Size) => void;
@@ -466,6 +502,9 @@ function EditDrawer({ tiles, onClose, onSetWidget, onSetSize, onDelete, onAdd }:
         </header>
 
         <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+          {/* Display options */}
+          <DisplaySection prefs={prefs} onPrefs={onPrefs} />
+
           {/* Add a tile */}
           <section className="rounded-panel border border-evari-edge/40 bg-evari-ink/30 p-3">
             <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-2">Add a tile</div>
@@ -511,6 +550,84 @@ function EditDrawer({ tiles, onClose, onSetWidget, onSetSize, onDelete, onAdd }:
         </div>
       </aside>
     </div>
+  );
+}
+
+function DisplaySection({ prefs, onPrefs }: { prefs: HomePrefs; onPrefs: (patch: Partial<HomePrefs>) => void }) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [drop, setDrop] = useState(false);
+
+  function handleFile(file: File | null) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') onPrefs({ bgImage: reader.result });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <section className="rounded-panel border border-evari-edge/40 bg-evari-ink/30 p-3 space-y-3">
+      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Display</div>
+
+      <ToggleRow label="Show grid lines" sub="Faint guides behind the tiles." value={prefs.showGrid} onChange={(v) => onPrefs({ showGrid: v })} />
+      <ToggleRow label="Glass effect" sub="Translucent tiles with backdrop blur." value={prefs.glass} onChange={(v) => onPrefs({ glass: v })} />
+
+      {/* Background image */}
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1.5">Background image</div>
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDrop(true); }}
+          onDragLeave={() => setDrop(false)}
+          onDrop={(e) => { e.preventDefault(); setDrop(false); handleFile(e.dataTransfer.files?.[0] ?? null); }}
+          className={cn('rounded-panel border-2 border-dashed p-3 text-center transition cursor-pointer',
+            drop ? 'border-evari-gold bg-evari-gold/10' : 'border-evari-edge/50 bg-evari-ink/40 hover:border-evari-gold/40')}
+          onClick={() => inputRef.current?.click()}
+        >
+          {prefs.bgImage ? (
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={prefs.bgImage} alt="" className="h-12 w-20 object-cover rounded-panel border border-evari-edge/40" />
+              <div className="flex-1 text-left">
+                <div className="text-[12px] text-evari-text font-semibold">Background set</div>
+                <div className="text-[10px] text-evari-dim">Drop a new image to replace, or remove.</div>
+              </div>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onPrefs({ bgImage: null }); }} className="text-evari-dim hover:text-evari-danger p-1 rounded transition" title="Remove background"><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1">
+              <Upload className="h-5 w-5 text-evari-dim" />
+              <div className="text-[12px] text-evari-text font-semibold">Drop an image here</div>
+              <div className="text-[10px] text-evari-dim">or click to choose a file</div>
+            </div>
+          )}
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ToggleRow({ label, sub, value, onChange }: { label: string; sub?: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button type="button" onClick={() => onChange(!value)} className="w-full flex items-center gap-3 text-left">
+      <div className="flex-1 min-w-0">
+        <div className="text-[12px] text-evari-text font-semibold">{label}</div>
+        {sub ? <div className="text-[10px] text-evari-dim">{sub}</div> : null}
+      </div>
+      <span className={cn('inline-flex h-5 w-9 rounded-full border transition shrink-0',
+        value ? 'bg-evari-gold border-evari-gold justify-end' : 'bg-evari-ink border-evari-edge/40 justify-start')}>
+        <span className={cn('h-4 w-4 rounded-full m-0.5 transition',
+          value ? 'bg-evari-goldInk' : 'bg-evari-dim')} />
+      </span>
+    </button>
   );
 }
 
