@@ -21,6 +21,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+const HAND_SHADOW = [
+  'drop-shadow(0 1px 0.75px rgba(0,0,0,0.55))',
+  'drop-shadow(0 3px 5px rgba(0,0,0,0.30))',
+  'drop-shadow(0 8px 14px rgba(0,0,0,0.16))',
+].join(' ');
+
 const SECOND_SHADOW = [
   'drop-shadow(0 1px 0.75px rgba(0,0,0,0.55))',   // sharp contact shadow at the source
   'drop-shadow(0 3px 4px rgba(0,0,0,0.32))',      // mid falloff
@@ -42,12 +48,16 @@ export function AnalogueClockWidget() {
   }, []);
 
   const seconds = (time?.s ?? 0) + (time?.ms ?? 0) / 1000;
+  const minutes = (time?.m ?? 0) + seconds / 60;
+  const hours   = ((time?.h ?? 0) % 12) + minutes / 60;
   const secondAngle = seconds * 6;
+  const minuteAngle = minutes * 6;
+  const hourAngle   = hours * 30;
 
   return (
     <div className="absolute inset-0 overflow-hidden rounded-panel">
       {/* Inner stage — scales the clock down so the dial sits with breathing room. */}
-      <div className="absolute" style={{ inset: '12%' }}>
+      <div className="absolute" style={{ inset: '10%' }}>
       {/* Dial face — single PNG asset, no SVG markings. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -55,6 +65,38 @@ export function AnalogueClockWidget() {
         alt=""
         draggable={false}
         className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
+      />
+
+      {/* Hour hand — live, follows local time. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/clock/hour-hand.png"
+        alt=""
+        draggable={false}
+        className="absolute pointer-events-none select-none"
+        style={{
+          top: '50%', left: '50%',
+          width: '116%', height: '116%',
+          transform: `translate(-50%, -50%) rotate(${hourAngle}deg)`,
+          transformOrigin: 'center center',
+          filter: HAND_SHADOW,
+        }}
+      />
+
+      {/* Minute hand — live, follows local time. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/clock/min-hand.png"
+        alt=""
+        draggable={false}
+        className="absolute pointer-events-none select-none"
+        style={{
+          top: '50%', left: '50%',
+          width: '116%', height: '116%',
+          transform: `translate(-50%, -50%) rotate(${minuteAngle}deg)`,
+          transformOrigin: 'center center',
+          filter: HAND_SHADOW,
+        }}
       />
 
       {/* Second hand — bigger, continuous sweep, soft drop shadow. */}
