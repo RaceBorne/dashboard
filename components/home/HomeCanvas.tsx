@@ -94,7 +94,7 @@ const WIDGET_ORDER: WidgetId[] = [
 
 // ─── data model ──────────────────────────────────────────────────
 
-type Size = '1x1' | '1x2' | '2x1' | '2x2';
+type Size = `${number}x${number}`;
 
 interface Tile {
   id: string;
@@ -158,8 +158,8 @@ export function HomeCanvas() {
     setTiles((cur) => {
       const tile = cur.find((t) => t.id === id);
       if (!tile) return cur;
-      const cw = Math.max(1, Math.min(2, w));
-      const ch = Math.max(1, Math.min(2, h));
+      const cw = Math.max(1, Math.min(COLS, w));
+      const ch = Math.max(1, Math.min(ROWS, h));
       // Try original col/row first; if it overflows or collides, find nearest free.
       const clamped = clamp(tile.col, tile.row, cw, ch);
       const colliders = cur.some((t) => t.id !== id && clamped.col < t.col + t.w && clamped.col + cw > t.col && clamped.row < t.row + t.h && clamped.row + ch > t.row);
@@ -336,8 +336,8 @@ function DraggableTile({ tile, cellW, cellH, onDrop, onResizeDrop }: {
     if (!resizeStartRef.current || !resize) { resizeStartRef.current = null; setResize(null); return; }
     const wDelta = Math.round(resize.dx / (cellW + GRID_GAP));
     const hDelta = Math.round(resize.dy / (cellH + GRID_GAP));
-    const newW = Math.max(1, Math.min(2, tile.w + wDelta));
-    const newH = Math.max(1, Math.min(2, tile.h + hDelta));
+    const newW = Math.max(1, Math.min(COLS, tile.w + wDelta));
+    const newH = Math.max(1, Math.min(ROWS, tile.h + hDelta));
     onResizeDrop(newW, newH);
     resizeStartRef.current = null;
     setResize(null);
@@ -349,8 +349,8 @@ function DraggableTile({ tile, cellW, cellH, onDrop, onResizeDrop }: {
   const Icon = widget.icon;
 
   // Live preview width/height while resizing.
-  const previewW = resizing ? Math.max(1, Math.min(2, tile.w + Math.round((resize?.dx ?? 0) / (cellW + GRID_GAP)))) : tile.w;
-  const previewH = resizing ? Math.max(1, Math.min(2, tile.h + Math.round((resize?.dy ?? 0) / (cellH + GRID_GAP)))) : tile.h;
+  const previewW = resizing ? Math.max(1, Math.min(COLS, tile.w + Math.round((resize?.dx ?? 0) / (cellW + GRID_GAP)))) : tile.w;
+  const previewH = resizing ? Math.max(1, Math.min(ROWS, tile.h + Math.round((resize?.dy ?? 0) / (cellH + GRID_GAP)))) : tile.h;
 
   return (
     <div
@@ -514,21 +514,33 @@ function EditDrawer({ tiles, onClose, onSetWidget, onSetSize, onDelete, onAdd }:
   );
 }
 
-function SizePicker({ value, onChange, compact }: { value: Size; onChange: (s: Size) => void; compact?: boolean }) {
-  const sizes: Size[] = ['1x1', '1x2', '2x1', '2x2'];
+function SizePicker({ value, onChange }: { value: Size; onChange: (s: Size) => void; compact?: boolean }) {
+  // Interactive 6×5 mini-grid: click a cell at (c, r) to set size to (c+1)×(r+1).
+  // Hover to preview the size that would be applied.
+  const [hover, setHover] = useState<{ c: number; r: number } | null>(null);
+  const [vw, vh] = value.split('x').map(Number) as [number, number];
+  const aw = hover ? hover.c + 1 : vw;
+  const ah = hover ? hover.r + 1 : vh;
   return (
-    <div className={cn('grid gap-1', compact ? 'grid-cols-4' : 'grid-cols-4')}>
-      {sizes.map((s) => (
-        <button
-          key={s}
-          type="button"
-          onClick={() => onChange(s)}
-          className={cn('px-2 py-1 rounded-panel text-[11px] font-mono tabular-nums border transition',
-            value === s ? 'bg-evari-gold text-evari-goldInk border-evari-gold' : 'bg-evari-ink text-evari-dim border-evari-edge/40 hover:border-evari-gold/40')}
-        >
-          {s.replace('x', '×')}
-        </button>
-      ))}
+    <div className="flex items-center gap-2">
+      <div className="inline-grid" style={{ gridTemplateColumns: `repeat(${COLS}, 14px)`, gridTemplateRows: `repeat(${ROWS}, 14px)`, gap: 2 }} onMouseLeave={() => setHover(null)}>
+        {Array.from({ length: ROWS }).map((_, r) =>
+          Array.from({ length: COLS }).map((_, c) => {
+            const inside = c < aw && r < ah;
+            return (
+              <button
+                key={`${c}-${r}`}
+                type="button"
+                onMouseEnter={() => setHover({ c, r })}
+                onClick={() => onChange(`${c + 1}x${r + 1}` as Size)}
+                className={cn('rounded-[3px] border transition',
+                  inside ? 'bg-evari-gold border-evari-gold' : 'bg-evari-ink border-evari-edge/40 hover:border-evari-gold/40')}
+              />
+            );
+          })
+        )}
+      </div>
+      <span className="font-mono tabular-nums text-[11px] text-evari-dim">{aw} × {ah}</span>
     </div>
   );
 }
