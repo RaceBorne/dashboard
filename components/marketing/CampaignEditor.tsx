@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, LayoutGrid, Loader2, Send, Trash2, X } from 'lucide-react';
@@ -371,19 +372,22 @@ export function CampaignEditor({ mode, campaign, groups, segments, initialStats,
           This campaign has already been {campaign?.status} — fields are read-only. Duplicate it to send again.
         </p>
       ) : null}
-    {templatePickerOpen && templates ? (
-      <TemplatePickerModal
-        templates={templates}
-        onClose={() => setTemplatePickerOpen(false)}
-        onPick={(t) => {
-          // Deep-copy so subsequent edits don't mutate the source template.
-          const cloned = JSON.parse(JSON.stringify(t.design)) as EmailDesign;
-          setEmailDesign(cloned);
-          setEditorMode('visual');
-          setTemplatePickerOpen(false);
-        }}
-      />
-    ) : null}
+    {templatePickerOpen && templates && typeof document !== 'undefined'
+      ? createPortal(
+          <TemplatePickerModal
+            templates={templates}
+            onClose={() => setTemplatePickerOpen(false)}
+            onPick={(t) => {
+              // Deep-copy so subsequent edits don't mutate the source template.
+              const cloned = JSON.parse(JSON.stringify(t.design)) as EmailDesign;
+              setEmailDesign(cloned);
+              setEditorMode('visual');
+              setTemplatePickerOpen(false);
+            }}
+          />,
+          document.body,
+        )
+      : null}
     </div>
   );
 }
@@ -394,7 +398,7 @@ function TemplatePickerModal({ templates, onClose, onPick }: { templates: EmailT
   const [search, setSearch] = useState('');
   const visible = templates.filter((t) => !search.trim() || t.name.toLowerCase().includes(search.trim().toLowerCase()));
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex flex-col" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] bg-black/70 flex flex-col" onClick={onClose}>
       <div className="flex-1 min-h-0 flex flex-col p-6" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center gap-3 mb-3">
           <h3 className="text-base font-semibold text-evari-text">Pick a template</h3>
