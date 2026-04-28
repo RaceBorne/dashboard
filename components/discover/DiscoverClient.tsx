@@ -97,6 +97,7 @@ export function DiscoverClient({ plays }: Props) {
   // Bulk select — mirrors the Save all / Find all people actions on the
   // results header. Checkbox per row; master checkbox toggles the visible set.
   const [companyChecked, setCompanyChecked] = useState<Set<string>>(new Set());
+  const [shortlisting, setShortlisting] = useState(false);
 
   // --- Additive rerun + quick-add (#183) -----------------------------------
   const [expanding, setExpanding] = useState(false);
@@ -923,6 +924,33 @@ export function DiscoverClient({ plays }: Props) {
     }
   }
 
+
+  async function sendSelectedCompaniesToShortlist() {
+    if (!playId || companyChecked.size === 0) return;
+    setShortlisting(true);
+    try {
+      const candidates = Array.from(companyChecked).map((domain) => {
+        const card = cards.find((c) => c.domain === domain);
+        const enriched = companyByDomain.get(domain) ?? null;
+        return {
+          domain,
+          name: card?.name ?? domain,
+          industry: card?.category ?? null,
+          employeeBand: card?.employeeBand ?? null,
+          location: card?.hqLabel ?? null,
+          description: enriched?.description ?? null,
+        };
+      });
+      await fetch('/api/shortlist/' + encodeURIComponent(playId), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ candidates }),
+      });
+      setCompanyChecked(new Set());
+    } finally {
+      setShortlisting(false);
+    }
+  }
   const selectedCard = selected ? cards.find((c) => c.domain === selected) ?? null : null;
   const cachedCompany = selected ? companyByDomain.get(selected) ?? null : null;
   // Paint the panel even before enrichment lands by synthesising a
@@ -1128,20 +1156,36 @@ export function DiscoverClient({ plays }: Props) {
               so the 'I've picked my row, now what?' action is right
               there in the operator's field of view. */}
           {companyChecked.size > 0 && playId ? (
-            <button
-              type="button"
-              onClick={() => void sendSelectedCompaniesToProspects()}
-              disabled={sending}
-              className="inline-flex items-center gap-1.5 rounded-full bg-evari-gold px-3 py-1.5 text-[11.5px] font-semibold text-evari-goldInk hover:bg-evari-gold/90 whitespace-nowrap shrink-0 disabled:opacity-60"
-              title={'Save ' + companyChecked.size + ' companies to the Prospects folder for this venture'}
-            >
-              {sending ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Mail className="h-3 w-3" />
-              )}
-              Send {companyChecked.size} to Prospects
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => void sendSelectedCompaniesToShortlist()}
+                disabled={shortlisting}
+                className="inline-flex items-center gap-1.5 rounded-full bg-evari-gold/15 text-evari-gold px-3 py-1.5 text-[11.5px] font-semibold hover:bg-evari-gold/25 whitespace-nowrap shrink-0 disabled:opacity-60 border border-evari-gold/30"
+                title={'Score ' + companyChecked.size + ' companies and send to the Shortlist for this idea'}
+              >
+                {shortlisting ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3 w-3" />
+                )}
+                Add {companyChecked.size} to Shortlist
+              </button>
+              <button
+                type="button"
+                onClick={() => void sendSelectedCompaniesToProspects()}
+                disabled={sending}
+                className="inline-flex items-center gap-1.5 rounded-full bg-evari-gold px-3 py-1.5 text-[11.5px] font-semibold text-evari-goldInk hover:bg-evari-gold/90 whitespace-nowrap shrink-0 disabled:opacity-60"
+                title={'Save ' + companyChecked.size + ' companies to the Prospects folder for this venture'}
+              >
+                {sending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Mail className="h-3 w-3" />
+                )}
+                Send {companyChecked.size} to Prospects
+              </button>
+            </>
           ) : null}
         </div>
 

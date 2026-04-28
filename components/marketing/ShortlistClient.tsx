@@ -56,6 +56,24 @@ export function ShortlistClient({ plays, play, initial }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
 
+  async function huntContacts(id: string) {
+    setBusy(`hunt:${id}`);
+    try {
+      const res = await fetch(`/api/shortlist/${play.id}/hunt-contacts`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ shortlistId: id }),
+      });
+      const json = await res.json();
+      if (json?.ok) {
+        // Optionally route to the enrichment page so the operator can review immediately.
+        router.push(`/enrichment?playId=${play.id}`);
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+
   useAISurface({
     surface: 'shortlist',
     scopeId: play.id,
@@ -200,15 +218,22 @@ export function ShortlistClient({ plays, play, initial }: Props) {
                   </td>
                   <td className="py-2 px-3 text-evari-dim max-w-[260px] truncate">{e.fitReason ?? '—'}</td>
                   <td className="py-2 px-3">
-                    {e.status === 'shortlisted' ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-evari-gold"><Bookmark className="h-3 w-3 fill-evari-gold" /> Shortlisted</span>
-                    ) : e.status === 'low_fit' ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-evari-dim"><TrendingDown className="h-3 w-3" /> Low fit</span>
-                    ) : (
-                      <button type="button" onClick={() => { setSelected(new Set([e.id])); void bulkAction('shortlisted'); }} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-evari-gold/10 text-evari-gold hover:bg-evari-gold/20 transition">
-                        <Bookmark className="h-3 w-3" /> Add
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {e.status === 'shortlisted' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-evari-gold"><Bookmark className="h-3 w-3 fill-evari-gold" /> Shortlisted</span>
+                      ) : e.status === 'low_fit' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-evari-dim"><TrendingDown className="h-3 w-3" /> Low fit</span>
+                      ) : (
+                        <button type="button" onClick={() => { setSelected(new Set([e.id])); void bulkAction('shortlisted'); }} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-evari-gold/10 text-evari-gold hover:bg-evari-gold/20 transition">
+                          <Bookmark className="h-3 w-3" /> Add
+                        </button>
+                      )}
+                      {e.status === 'shortlisted' ? (
+                        <button type="button" onClick={() => void huntContacts(e.id)} disabled={busy === `hunt:${e.id}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-evari-text/5 text-evari-text border border-evari-edge/30 hover:border-evari-gold/40 hover:text-evari-gold transition disabled:opacity-50">
+                          {busy === `hunt:${e.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Hunt contacts
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}

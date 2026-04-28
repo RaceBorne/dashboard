@@ -98,6 +98,40 @@ export function EnrichmentClient({ plays, play, initial, summary }: Props) {
     setItems((cur) => cur.map((c) => c.id === id ? { ...c, status } : c).filter((c) => c.status !== 'archived'));
   }
 
+  const [promoteFor, setPromoteFor] = useState<string | null>(null);
+  const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
+  const [pickedGroup, setPickedGroup] = useState<string>('');
+  const [promoteBusy, setPromoteBusy] = useState(false);
+
+  async function openPromote(id: string) {
+    setPromoteFor(id);
+    if (groups.length === 0) {
+      try {
+        const res = await fetch('/api/marketing/groups', { cache: 'no-store' });
+        const json = await res.json();
+        if (Array.isArray(json?.groups)) setGroups(json.groups.map((g: { id: string; name: string }) => ({ id: g.id, name: g.name })));
+      } catch {}
+    }
+  }
+  async function confirmPromote() {
+    if (!promoteFor) return;
+    setPromoteBusy(true);
+    try {
+      const res = await fetch(`/api/enrichment/${play.id}/promote`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [promoteFor], groupId: pickedGroup || null }),
+      });
+      const json = await res.json();
+      if (json?.ok) {
+        setItems((cur) => cur.filter((c) => c.id !== promoteFor));
+        setPromoteFor(null);
+        setPickedGroup('');
+      }
+    } finally {
+      setPromoteBusy(false);
+    }
+  }
+
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
       <div className="max-w-6xl mx-auto px-4 py-4 space-y-3">
@@ -257,6 +291,11 @@ export function EnrichmentClient({ plays, play, initial, summary }: Props) {
                     <CheckCircle2 className="h-3.5 w-3.5" /> Mark ready to engage
                   </button>
                 ) : null}
+                {selected.email ? (
+                  <button type="button" onClick={() => void openPromote(selected.id)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-text/10 text-evari-text border border-evari-edge/30 hover:border-evari-gold/40 hover:bg-evari-gold/10 transition">
+                    <Send className="h-3.5 w-3.5" /> Promote to audience
+                  </button>
+                ) : null}
                 {selected.status !== 'needs_review' ? (
                   <button type="button" onClick={() => void setStatus(selected.id, 'needs_review')} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition">
                     <TriangleAlert className="h-3.5 w-3.5" /> Send to review
@@ -273,6 +312,29 @@ export function EnrichmentClient({ plays, play, initial, summary }: Props) {
           )}
         </div>
       </div>
+    {promoteFor ? (
+      <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setPromoteFor(null)}>
+        <div className="w-full max-w-md rounded-md bg-evari-surface border border-evari-edge/40 p-4" onClick={(e) => e.stopPropagation()}>
+          <h3 className="text-[14px] font-semibold text-evari-text mb-1">Promote to audience</h3>
+          <p className="text-[12px] text-evari-dim mb-3">Creates a marketing contact and optionally adds them to a list.</p>
+          <label className="block mb-2">
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Add to list (optional)</span>
+            <select
+              value={pickedGroup}
+              onChange={(e) => setPickedGroup(e.target.value)}
+              className="w-full px-2 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
+            >
+              <option value="">No list, just create contact</option>
+              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </label>
+          <div className="flex items-center gap-2 mt-3">
+            <button type="button" onClick={confirmPromote} disabled={promoteBusy} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition">Promote</button>
+            <button type="button" onClick={() => setPromoteFor(null)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition">Cancel</button>
+          </div>
+        </div>
+      </div>
+    ) : null}
     </div>
   );
 }

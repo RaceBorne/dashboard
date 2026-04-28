@@ -23,6 +23,8 @@ import dns from 'node:dns/promises';
 
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCampaign } from './campaigns';
+import { evaluateSegment } from './segments';
+import { isSuppressed } from './suppressions';
 
 export type CheckStatus = 'pass' | 'warn' | 'fail';
 
@@ -137,10 +139,62 @@ export async function runComplianceChecks(campaignId: string): Promise<Complianc
   ];
 
   const text = `${campaign.subject ?? ''}\n\n${campaign.content ?? ''}`;
+  const audience = await resolveAudienceStats(campaign);
   return [
     ...dnsChecks,
     checkSpamTriggers(text),
     checkLinkSafety(campaign.content ?? ''),
-    await checkListHygiene(0, 0), // placeholder until plumbed to audience resolver; safe default
+    await checkListHygiene(audience.contactCount, audience.suppressed),
   ];
+}
+
+
+interface AudienceStats { contactCount: number; suppressed: number }
+
+async function resolveAudienceStats(campaign: { id: string; segmentId: string | null; groupId: string | null; groupIds: string[] | null; recipientEmails: string[] | null }): Promise<AudienceStats> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return { contactCount: 0, suppressed: 0 };
+
+  // Reuse the same audience resolution logic the send pipeline uses.
+  let recipientIds: string[] = [];
+  if (campaign.segmentId) {
+    const ev = await evaluateSegment(campaign.segmentId);
+    recipientIds = ev?.contactIds ?? [];
+  } else if ((campaign.groupIds && campaign.groupIds.length > 0) || campaign.groupId) {
+    const groups = campaign.groupIds && campaign.groupIds.length > 0 ? campaign.groupIds : [campaign.groupId as string];
+    const { data } = await sb
+      .from('dashboard_mkt_contact_groups')
+      .select('contact_id')
+      .in('group_id', groups)
+      .eq('status', 'approved');
+    const seen = new Set<string>();
+    for (const r of (data ?? []) as Array<{ contact_id: string }>) {
+      if (!seen.has(r.contact_id)) { seen.add(r.contact_id); recipientIds.push(r.contact_id); }
+    }
+  } else if (campaign.recipientEmails && campaign.recipientEmails.length > 0) {
+    const lowered = campaign.recipientEmails.map((e) => e.toLowerCase());
+    const { data } = await sb
+      .from('dashboard_mkt_contacts')
+      .select('id, email')
+      .in('email', lowered);
+    recipientIds = ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
+  }
+  if (recipientIds.length === 0) return { contactCount: 0, suppressed: 0 };
+
+  const { data: contacts } = await sb
+    .from('dashboard_mkt_contacts')
+    .select('email')
+    .in('id', recipientIds);
+  const emails = ((contacts ?? []) as Array<{ email: string }>).map((c) => c.email);
+
+  let suppressed = 0;
+  // Run lookups in parallel batches to keep the route fast.
+  const batches: string[][] = [];
+  const BATCH = 20;
+  for (let i = 0; i < emails.length; i += BATCH) batches.push(emails.slice(i, i + BATCH));
+  for (const batch of batches) {
+    const flags = await Promise.all(batch.map((e) => isSuppressed(e)));
+    for (const f of flags) if (f) suppressed++;
+  }
+  return { contactCount: emails.length, suppressed };
 }
