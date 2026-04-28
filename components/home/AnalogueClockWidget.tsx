@@ -21,7 +21,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const HAND_SHADOW = 'drop-shadow(2px 3px 4px rgba(0,0,0,0.32))';
 const SECOND_SHADOW = 'drop-shadow(1px 2px 2.5px rgba(0,0,0,0.28))';
 
 export function AnalogueClockWidget() {
@@ -39,10 +38,6 @@ export function AnalogueClockWidget() {
   }, []);
 
   const seconds = (time?.s ?? 0) + (time?.ms ?? 0) / 1000;
-  const minutes = (time?.m ?? 0) + seconds / 60;
-  const hours   = ((time?.h ?? 0) % 12) + minutes / 60;
-  const hourAngle   = hours * 30;
-  const minuteAngle = minutes * 6;
   const secondAngle = seconds * 6;
 
   return (
@@ -56,39 +51,7 @@ export function AnalogueClockWidget() {
         className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
       />
 
-      {/* Hour hand. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/clock/hour-hand.png"
-        alt=""
-        draggable={false}
-        className="absolute pointer-events-none select-none"
-        style={{
-          top: '50%', left: '50%',
-          width: '100%', height: '100%',
-          transform: `translate(-50%, -50%) rotate(${hourAngle}deg)`,
-          transformOrigin: 'center center',
-          filter: HAND_SHADOW,
-        }}
-      />
-
-      {/* Minute hand. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/clock/min-hand.png"
-        alt=""
-        draggable={false}
-        className="absolute pointer-events-none select-none"
-        style={{
-          top: '50%', left: '50%',
-          width: '100%', height: '100%',
-          transform: `translate(-50%, -50%) rotate(${minuteAngle}deg)`,
-          transformOrigin: 'center center',
-          filter: HAND_SHADOW,
-        }}
-      />
-
-      {/* Second hand — continuous sweep, soft drop shadow. */}
+      {/* Second hand — bigger, continuous sweep, soft drop shadow. */}
       <svg
         viewBox="0 0 600 600"
         preserveAspectRatio="xMidYMid meet"
@@ -96,7 +59,10 @@ export function AnalogueClockWidget() {
         style={{ filter: SECOND_SHADOW }}
       >
         <g style={{ transform: `rotate(${secondAngle}deg)`, transformOrigin: '300px 300px' }}>
-          <line x1="300" y1="320" x2="300" y2="120" stroke="#B91C1C" strokeWidth="1.8" strokeLinecap="round" />
+          {/* Tail below the pivot for visual balance, longer hand above. */}
+          <line x1="300" y1="360" x2="300" y2="60" stroke="#B91C1C" strokeWidth="4" strokeLinecap="round" />
+          {/* Pivot cap. */}
+          <circle cx="300" cy="300" r="6" fill="#B91C1C" />
         </g>
       </svg>
     </div>
