@@ -38,6 +38,7 @@ import { HandoffStep as HandoffStepDashboard } from './strategy/HandoffStep';
 import { BriefSummaryStep } from './strategy/BriefSummaryStep';
 import { BriefEditorDrawer, type BriefSection } from './strategy/BriefEditorDrawer';
 import { StrategyTimeline, STRATEGY_STEPS } from './strategy/StrategyTimeline';
+import { SpitballPanel } from './strategy/SpitballPanel';
 import { useSearchParams } from 'next/navigation';
 
 interface Brief {
@@ -93,6 +94,22 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorSection, setEditorSection] = useState<BriefSection>('overview');
+  // Spitball panel: opens automatically when ?kickoff=1 is in the URL
+  // (the path after creating a new idea), or manually via the Spitball
+  // button in the header. `kickoff` flag drives the auto-opener.
+  const kickoffFlag = searchParams?.get('kickoff') === '1';
+  const [spitballOpen, setSpitballOpen] = useState<boolean>(kickoffFlag);
+  const [kickoffOnOpen, setKickoffOnOpen] = useState<boolean>(kickoffFlag);
+  // Strip kickoff=1 from the URL after first paint so a refresh doesn't
+  // re-arm the opener. We keep the panel open via local state.
+  useEffect(() => {
+    if (!kickoffFlag) return;
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('kickoff');
+    window.history.replaceState(null, '', url.toString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [savingAt, setSavingAt] = useState<number | null>(null);
   const saveTimer = useRef<number | null>(null);
 
@@ -144,6 +161,14 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
     setBrief({ ...brief, handoffStatus: 'handed_off' });
     router.push(`/discover?playId=${brief.playId}`);
   }
+  // Open the Spitball manually. Re-arming kickoff=true means the user
+  // gets the opener every time they re-open it, even after the initial
+  // creation flow, which is what they want for refining an existing
+  // idea.
+  function openSpitball() {
+    setKickoffOnOpen(true);
+    setSpitballOpen(true);
+  }
 
   if (!brief) return null;
 
@@ -165,6 +190,14 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
               {savingAt && Date.now() - savingAt < 2000 ? (
                 <span className="text-[10px] text-evari-success inline-flex items-center gap-1"><Check className="h-3 w-3" /> Saved</span>
               ) : null}
+              <button
+                type="button"
+                onClick={openSpitball}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold hover:bg-evari-gold/25 border border-evari-gold/30 transition"
+                title="Spitball with Claude, then commit"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Spitball
+              </button>
               <button
                 type="button"
                 onClick={handoff}
@@ -197,6 +230,15 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
         initialSection={editorSection}
         brief={brief}
         set={set}
+      />
+
+      <SpitballPanel
+        playId={brief.playId}
+        playTitle={play.title}
+        pitch={play.brief}
+        open={spitballOpen}
+        kickoff={kickoffOnOpen}
+        onClose={() => { setSpitballOpen(false); setKickoffOnOpen(false); }}
       />
     </div>
   );

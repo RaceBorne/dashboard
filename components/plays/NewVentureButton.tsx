@@ -94,7 +94,12 @@ export function NewVentureButton() {
       });
       setOpen(false);
       reset();
-      router.push(`/ideas/${body.id}`);
+      // Hand straight off to Strategy with kickoff=1. The Strategy page
+      // detects the flag, mounts the Spitball, and auto-fires the first
+      // turn so Claude is already engaging by the time the page paints.
+      // The /ideas/[id] detail page is still reachable as a resume target
+      // from the Ideas list.
+      router.push(`/strategy?playId=${body.id}&kickoff=1`);
       router.refresh();
       // Let the rail and any other venture-listeners know a new one exists.
       try {

@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay } from '@/lib/dashboard/repository';
+import { autoScanForPlay } from '@/lib/brand/autoScan';
 import type { Play, PlayStrategy } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -121,6 +123,21 @@ export async function POST(
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
+
+  // Kick off the discovery auto-scan in the background. The user is
+  // about to be routed to /discover and will see candidates trickle in
+  // as DataForSEO returns. Non-blocking — any error is logged, not
+  // surfaced, because the strategy commit itself already succeeded.
+  after(async () => {
+    try {
+      const adminAfter = createSupabaseAdmin();
+      if (!adminAfter) return;
+      await autoScanForPlay(adminAfter, next);
+    } catch (err) {
+      console.warn('[commit-strategy] autoScan kickoff failed', err);
+    }
+  });
+
   return NextResponse.json({ ok: true, play: next });
 }
 

@@ -15,7 +15,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Sparkles } from 'lucide-react';
 import { Bookmark, ChevronRight, Filter, Loader2, MoreHorizontal, Pencil, Plus, Save, Search, SlidersHorizontal } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -114,6 +115,14 @@ export function DiscoveryDashboard({ plays, play }: Props) {
     } finally { setBusy(null); }
   }
 
+  // Just-arrived banner — flagged when the user lands here from the
+  // Spitball commit. Fades out once the play row reports any
+  // candidates, so the user gets a "still searching" message until the
+  // first match shows up.
+  const searchParams = useSearchParams();
+  const justArrived = searchParams?.get('autoScanned') === '1';
+  const stillScanning = justArrived && rows !== null && rows.length === 0;
+
   if (!stats || rows === null) {
     return (
       <div className="flex items-center justify-center py-20 text-evari-dim text-[12px]">
@@ -124,6 +133,14 @@ export function DiscoveryDashboard({ plays, play }: Props) {
 
   return (
     <div className="space-y-panel">
+      {(justArrived || stillScanning) && (
+        <section className="rounded-panel bg-evari-gold/10 border border-evari-gold/30 px-3 py-2 text-[12px] text-evari-gold flex items-center gap-2">
+          <Sparkles className="h-4 w-4" />
+          {stillScanning
+            ? 'Strategy locked. Searching for companies, results will appear here as they arrive.'
+            : `Strategy locked. ${rows.length} ${rows.length === 1 ? 'candidate' : 'candidates'} found so far.`}
+        </section>
+      )}
       {/* Header */}
       <header className="flex items-center gap-2">
         <div className="flex-1">
