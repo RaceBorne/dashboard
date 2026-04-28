@@ -73,7 +73,7 @@ export function CampaignReport({ campaign, analytics, audienceLabel, recipientCo
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
-      <div className="max-w-6xl mx-auto px-4 py-4">
+      <div className="max-w-6xl mx-auto px-gutter py-4">
         <Link href="/email/campaigns" className="inline-flex items-center gap-1 text-xs text-evari-dim hover:text-evari-text transition-colors mb-3">
           <ChevronLeft className="h-3.5 w-3.5" /> All campaigns
         </Link>

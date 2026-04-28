@@ -86,7 +86,7 @@ export function StatisticsClient({ items }: Props) {
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
-      <div className="max-w-6xl mx-auto px-4 py-4 space-y-3">
+      <div className="max-w-6xl mx-auto px-gutter py-4 space-y-3">
         {/* Range selector */}
         <div className="flex items-center justify-end gap-1">
           <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mr-1">Range</span>

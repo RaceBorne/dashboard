@@ -80,6 +80,7 @@ const config: Config = {
       spacing: {
         panel: '10px',
         'panel-sm': '6px',
+        gutter: '20px',
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],

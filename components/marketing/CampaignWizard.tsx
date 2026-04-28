@@ -254,7 +254,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
-      <div className="max-w-5xl mx-auto px-4 py-4">
+      <div className="max-w-5xl mx-auto px-gutter py-4">
         {/* Top: back link */}
         <div className="mb-3">
           <Link href="/email/campaigns" className="inline-flex items-center gap-1 text-xs text-evari-dim hover:text-evari-text transition-colors">

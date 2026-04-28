@@ -79,7 +79,7 @@ export function IdeasClient({ plays, counts }: Props) {
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
-      <div className="max-w-5xl mx-auto px-4 py-5 space-y-4">
+      <div className="max-w-5xl mx-auto px-gutter py-5 space-y-4">
         <IdeasHero />
         {/* Header row */}
         <div className="flex items-center gap-2">

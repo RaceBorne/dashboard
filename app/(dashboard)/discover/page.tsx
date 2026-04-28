@@ -35,7 +35,7 @@ export default async function DiscoverPage({
       <TopBar title="Discovery" subtitle={`From idea: ${play!.title}`} />
       <div className="flex-1 min-h-0 flex flex-col bg-evari-ink relative">
         <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="h-full max-w-[1240px] 2xl:max-w-[1380px] mx-auto px-4 sm:px-6 2xl:px-10 py-5 pb-28 overflow-y-auto">
+          <div className="h-full max-w-[1240px] 2xl:max-w-[1380px] mx-auto px-gutter py-5 pb-28 overflow-y-auto">
             <DiscoveryDashboard
               plays={plays.map((p) => ({ id: p.id, title: p.title }))}
               play={{ id: play!.id, title: play!.title }}

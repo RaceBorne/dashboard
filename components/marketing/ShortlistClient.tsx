@@ -139,7 +139,7 @@ export function ShortlistClient({ plays, play, initial }: Props) {
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
-      <div className="max-w-6xl mx-auto px-4 py-4 space-y-3">
+      <div className="max-w-6xl mx-auto px-gutter py-4 space-y-3">
         {/* Header */}
         <div className="flex items-center gap-2">
           <select
