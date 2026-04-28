@@ -49,7 +49,7 @@ const VENTURE_PREFIXES = ['/ventures', '/plays', '/discover', '/prospects', '/le
 const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
-  { href: '/ventures', label: 'Prospecting', icon: Rocket, group: 'pipeline' },
+  { href: '/ventures', label: 'Ideas', icon: Rocket, group: 'pipeline', child: true },
   { href: '/strategy', label: 'Strategy', icon: ListTodo, group: 'pipeline', child: true },
   { href: '/discover', label: 'Discover', icon: Search, group: 'pipeline', child: true },
   { href: '/shortlist', label: 'Shortlist', icon: Star, group: 'pipeline', child: true },
