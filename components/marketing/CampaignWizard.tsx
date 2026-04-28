@@ -1,0 +1,791 @@
+'use client';
+
+/**
+ * Campaign creation wizard. Four discrete steps with a header
+ * progress bar so the operator always knows where they are and
+ * what's next:
+ *
+ *   1. WHO   — pick a list / segment, or build a custom recipient list
+ *   2. WHAT  — pick a saved template (visual cards) or start from blank
+ *   3. WHEN  — campaign name, subject line, optional schedule
+ *   4. SEND  — review summary, send a test, then send the campaign
+ *
+ * Replaces the old single-page CampaignEditor on /email/campaigns/new.
+ * Edit mode for existing campaigns continues to use the original
+ * full-form editor (which is fine for editing — too many fields for
+ * a wizard once the campaign exists).
+ */
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  ChevronLeft,
+  Clock,
+  Image as ImageIcon,
+  Loader2,
+  Mail,
+  Plus,
+  Send,
+  Sparkles,
+  Users,
+} from 'lucide-react';
+
+import { cn } from '@/lib/utils';
+import type {
+  Campaign,
+  EmailDesign,
+  Group,
+  MarketingBrand,
+  Segment,
+} from '@/lib/marketing/types';
+import { DEFAULT_EMAIL_DESIGN } from '@/lib/marketing/types';
+import type { EmailTemplate } from '@/lib/marketing/templates';
+import { renderEmailDesignWithStub } from '@/lib/marketing/email-design';
+
+interface Props {
+  groups: Group[];
+  segments: Segment[];
+  templates: EmailTemplate[];
+  brand: MarketingBrand;
+  /** Optional pre-loaded recipient emails — typically from
+   *  /campaigns/new?ids=… coming off the Contacts bulk action. */
+  initialRecipientEmails?: string[];
+}
+
+type AudienceKind = 'segment' | 'group' | 'custom';
+type StepKey = 'who' | 'what' | 'when' | 'send';
+
+const STEPS: Array<{ key: StepKey; label: string; sub: string }> = [
+  { key: 'who',  label: 'Who',  sub: 'Pick your audience' },
+  { key: 'what', label: 'What', sub: 'Choose your email' },
+  { key: 'when', label: 'When', sub: 'Name + subject + schedule' },
+  { key: 'send', label: 'Send', sub: 'Review and ship' },
+];
+
+export function CampaignWizard({ groups, segments, templates, brand, initialRecipientEmails = [] }: Props) {
+  const router = useRouter();
+  const [step, setStep] = useState<StepKey>('who');
+
+  // --- Audience state ---
+  const seedAudienceKind: AudienceKind = initialRecipientEmails.length > 0
+    ? 'custom'
+    : (segments.length > 0 ? 'segment' : 'group');
+  const [audienceKind, setAudienceKind] = useState<AudienceKind>(seedAudienceKind);
+  const [segmentId, setSegmentId] = useState<string>('');
+  const [groupId, setGroupId] = useState<string>('');
+  const [recipientEmails, setRecipientEmails] = useState<string[]>(initialRecipientEmails);
+
+  // --- Template state ---
+  // null = blank; otherwise a saved template's design is cloned in.
+  const [pickedTemplate, setPickedTemplate] = useState<EmailTemplate | null>(null);
+  const [emailDesign, setEmailDesign] = useState<EmailDesign | null>(
+    initialRecipientEmails.length > 0 ? { ...DEFAULT_EMAIL_DESIGN, blocks: [...DEFAULT_EMAIL_DESIGN.blocks] } : null,
+  );
+
+  // --- Details state ---
+  const [name, setName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [previewText, setPreviewText] = useState('');
+  const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
+  const [scheduledFor, setScheduledFor] = useState<string>(''); // ISO local datetime
+
+  // --- Send state ---
+  const [testEmail, setTestEmail] = useState('');
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [savedCampaign, setSavedCampaign] = useState<Campaign | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ attempted: number; sent: number; suppressed: number; failed: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // --- Validation ---
+  const audienceReady =
+    (audienceKind === 'segment' && !!segmentId) ||
+    (audienceKind === 'group' && !!groupId) ||
+    (audienceKind === 'custom' && recipientEmails.length > 0);
+  const templateReady = !!emailDesign && (emailDesign.blocks?.length ?? 0) > 0;
+  const detailsReady = name.trim().length > 0 && subject.trim().length > 0
+    && (scheduleMode === 'now' || (scheduleMode === 'later' && scheduledFor.length > 0));
+
+  function canAdvance(from: StepKey): boolean {
+    if (from === 'who')  return audienceReady;
+    if (from === 'what') return templateReady;
+    if (from === 'when') return detailsReady;
+    return true;
+  }
+
+  function next() {
+    const i = STEPS.findIndex((s) => s.key === step);
+    if (i < STEPS.length - 1 && canAdvance(step)) setStep(STEPS[i + 1]!.key);
+  }
+  function back() {
+    const i = STEPS.findIndex((s) => s.key === step);
+    if (i > 0) setStep(STEPS[i - 1]!.key);
+  }
+
+  // --- Audience preview text (shown in summary + chip) ---
+  const audienceLabel = useMemo(() => {
+    if (audienceKind === 'segment') {
+      const s = segments.find((x) => x.id === segmentId);
+      return s ? `Segment: ${s.name}` : 'No segment picked';
+    }
+    if (audienceKind === 'group') {
+      const g = groups.find((x) => x.id === groupId);
+      return g ? `List: ${g.name}` : 'No list picked';
+    }
+    return `${recipientEmails.length} custom address${recipientEmails.length === 1 ? '' : 'es'}`;
+  }, [audienceKind, segmentId, groupId, recipientEmails, segments, groups]);
+
+  // --- Save the campaign as a draft. Used both before sending a test
+  //     and before the final send. Idempotent — only creates once. ---
+  async function ensureSaved(): Promise<Campaign | null> {
+    if (savedCampaign) return savedCampaign;
+    setError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        name: name.trim(),
+        subject: subject.trim(),
+        content: '', // legacy plain-HTML body; visual design supersedes
+        segmentId: audienceKind === 'segment' ? segmentId || null : null,
+        groupId:   audienceKind === 'group'   ? groupId   || null : null,
+        recipientEmails: audienceKind === 'custom' ? recipientEmails : null,
+        emailDesign,
+      };
+      if (scheduleMode === 'later' && scheduledFor) {
+        payload.scheduledFor = new Date(scheduledFor).toISOString();
+        payload.status = 'scheduled';
+      }
+      const res = await fetch('/api/marketing/campaigns', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) throw new Error(data.error ?? 'Save failed');
+      setSavedCampaign(data.campaign as Campaign);
+      return data.campaign as Campaign;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+      return null;
+    }
+  }
+
+  async function sendTest() {
+    if (!testEmail.trim() || testSending) return;
+    setTestSending(true); setTestResult(null); setError(null);
+    try {
+      const c = await ensureSaved();
+      if (!c) return;
+      // Render with includeFooter so the test mirrors a real send.
+      const html = emailDesign ? renderEmailDesignWithStub(emailDesign, brand) : '';
+      const res = await fetch('/api/marketing/templates/preview-send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: testEmail.trim(), html, subject: `[Test] ${subject}`, skipBrandFooter: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) throw new Error(data.error ?? 'Test send failed');
+      setTestResult(`Test sent to ${testEmail.trim()}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Test failed');
+    } finally {
+      setTestSending(false);
+    }
+  }
+
+  async function sendNow() {
+    if (sending) return;
+    setSending(true); setError(null); setSendResult(null);
+    try {
+      const c = await ensureSaved();
+      if (!c) return;
+      const res = await fetch(`/api/marketing/campaigns/${c.id}/send`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok && !data.attempted) throw new Error(data.error ?? 'Send failed');
+      setSendResult({
+        attempted: data.attempted ?? 0,
+        sent: data.sent ?? 0,
+        suppressed: data.suppressed ?? 0,
+        failed: data.failed ?? 0,
+      });
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Send failed');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
+      <div className="max-w-5xl mx-auto px-4 py-4">
+        {/* Top: back link */}
+        <div className="mb-3">
+          <Link href="/email/campaigns" className="inline-flex items-center gap-1 text-xs text-evari-dim hover:text-evari-text transition-colors">
+            <ChevronLeft className="h-3.5 w-3.5" /> All campaigns
+          </Link>
+        </div>
+
+        {/* Step bar */}
+        <Stepper current={step} done={(k) => canAdvance(k) && STEPS.findIndex((s) => s.key === k) < STEPS.findIndex((s) => s.key === step)} />
+
+        {/* Step body */}
+        <div className="mt-4 rounded-md bg-evari-surface border border-evari-edge/30 p-4 min-h-[420px]">
+          {step === 'who' ? (
+            <WhoStep
+              segments={segments}
+              groups={groups}
+              audienceKind={audienceKind}
+              setAudienceKind={setAudienceKind}
+              segmentId={segmentId}
+              setSegmentId={setSegmentId}
+              groupId={groupId}
+              setGroupId={setGroupId}
+              recipientEmails={recipientEmails}
+              setRecipientEmails={setRecipientEmails}
+            />
+          ) : step === 'what' ? (
+            <WhatStep
+              templates={templates}
+              brand={brand}
+              picked={pickedTemplate}
+              onPickTemplate={(t) => {
+                setPickedTemplate(t);
+                setEmailDesign(t ? { ...t.design, blocks: [...t.design.blocks] } : { ...DEFAULT_EMAIL_DESIGN, blocks: [...DEFAULT_EMAIL_DESIGN.blocks] });
+              }}
+              hasDesign={templateReady}
+            />
+          ) : step === 'when' ? (
+            <WhenStep
+              name={name} setName={setName}
+              subject={subject} setSubject={setSubject}
+              previewText={previewText} setPreviewText={setPreviewText}
+              scheduleMode={scheduleMode} setScheduleMode={setScheduleMode}
+              scheduledFor={scheduledFor} setScheduledFor={setScheduledFor}
+            />
+          ) : (
+            <SendStep
+              audienceLabel={audienceLabel}
+              templateLabel={pickedTemplate?.name ?? 'Custom design'}
+              name={name}
+              subject={subject}
+              previewText={previewText}
+              scheduleMode={scheduleMode}
+              scheduledFor={scheduledFor}
+              testEmail={testEmail} setTestEmail={setTestEmail}
+              onTest={sendTest}
+              testSending={testSending}
+              testResult={testResult}
+              onSend={sendNow}
+              sending={sending}
+              sendResult={sendResult}
+            />
+          )}
+        </div>
+
+        {/* Step nav (hidden once a real send has completed). */}
+        {sendResult ? (
+          <div className="mt-4 flex items-center justify-between">
+            <Link href="/email/campaigns" className="inline-flex items-center gap-1 text-[12px] text-evari-dim hover:text-evari-text">
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to all campaigns
+            </Link>
+            {savedCampaign ? (
+              <Link
+                href={`/email/campaigns/${savedCampaign.id}`}
+                className="inline-flex items-center gap-1 text-[12px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1.5 rounded"
+              >
+                Open campaign report <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            ) : null}
+          </div>
+        ) : (
+          <div className="mt-4 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={back}
+              disabled={step === 'who'}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] text-evari-dim hover:text-evari-text disabled:opacity-30 disabled:hover:text-evari-dim transition-colors"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </button>
+            {error ? <span className="text-[11px] text-evari-danger">{error}</span> : null}
+            {step !== 'send' ? (
+              <button
+                type="button"
+                onClick={next}
+                disabled={!canAdvance(step)}
+                className={cn(
+                  'inline-flex items-center gap-1 px-4 py-1.5 text-[12px] font-semibold rounded-md transition-all',
+                  canAdvance(step)
+                    ? 'bg-evari-gold text-evari-goldInk hover:brightness-110'
+                    : 'bg-evari-ink/60 text-evari-dimmer cursor-not-allowed',
+                )}
+              >
+                Next <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Header progress bar — four steps. Current step is highlighted gold,
+ * completed steps show a check icon, future steps stay dim.
+ */
+function Stepper({ current, done }: { current: StepKey; done: (k: StepKey) => boolean }) {
+  const currentIdx = STEPS.findIndex((s) => s.key === current);
+  return (
+    <div className="rounded-md bg-evari-surface border border-evari-edge/30 px-2 py-2">
+      <ol className="flex items-stretch">
+        {STEPS.map((s, i) => {
+          const isCurrent = s.key === current;
+          const isPast = i < currentIdx;
+          const isFuture = i > currentIdx;
+          return (
+            <li key={s.key} className="flex-1 flex items-center min-w-0">
+              <div
+                className={cn(
+                  'flex items-center gap-2 px-3 py-1.5 rounded-md w-full min-w-0 transition-all',
+                  isCurrent ? 'bg-evari-gold/15' : '',
+                )}
+              >
+                <span
+                  className={cn(
+                    'shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full text-[11px] font-mono font-semibold',
+                    isCurrent ? 'bg-evari-gold text-evari-goldInk' :
+                    isPast    ? 'bg-evari-success/20 text-evari-success' :
+                                'bg-evari-ink/60 text-evari-dimmer',
+                  )}
+                >
+                  {isPast ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className={cn('text-[12px] font-semibold truncate', isCurrent ? 'text-evari-text' : isFuture ? 'text-evari-dimmer' : 'text-evari-dim')}>
+                    {s.label}
+                  </div>
+                  <div className={cn('text-[10px] truncate', isCurrent ? 'text-evari-dim' : 'text-evari-dimmer')}>{s.sub}</div>
+                </div>
+              </div>
+              {i < STEPS.length - 1 ? <div className="shrink-0 w-3 h-px bg-evari-edge/40 mx-0.5" /> : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+// ─── Step 1: WHO ──────────────────────────────────────────────
+
+function WhoStep(props: {
+  segments: Segment[];
+  groups: Group[];
+  audienceKind: AudienceKind;
+  setAudienceKind: (k: AudienceKind) => void;
+  segmentId: string; setSegmentId: (s: string) => void;
+  groupId: string;   setGroupId: (s: string) => void;
+  recipientEmails: string[]; setRecipientEmails: (xs: string[]) => void;
+}) {
+  const { segments, groups, audienceKind, setAudienceKind, segmentId, setSegmentId, groupId, setGroupId, recipientEmails, setRecipientEmails } = props;
+  return (
+    <div>
+      <header className="mb-3">
+        <h2 className="text-base font-semibold text-evari-text">Who should receive this campaign?</h2>
+        <p className="text-[12px] text-evari-dim mt-0.5">Pick a saved list, a smart segment, or paste a custom set of addresses.</p>
+      </header>
+
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <KindCard
+          active={audienceKind === 'group'}
+          onClick={() => setAudienceKind('group')}
+          icon={<Users className="h-4 w-4" />}
+          title="List"
+          sub={`${groups.length} saved`}
+        />
+        <KindCard
+          active={audienceKind === 'segment'}
+          onClick={() => setAudienceKind('segment')}
+          icon={<Sparkles className="h-4 w-4" />}
+          title="Segment"
+          sub={`${segments.length} saved`}
+        />
+        <KindCard
+          active={audienceKind === 'custom'}
+          onClick={() => setAudienceKind('custom')}
+          icon={<Mail className="h-4 w-4" />}
+          title="Custom emails"
+          sub="Paste / add"
+        />
+      </div>
+
+      {audienceKind === 'group' ? (
+        groups.length === 0 ? (
+          <EmptyAudience
+            label="You don't have any lists yet"
+            cta={<Link href="/leads" className="inline-flex items-center gap-1 text-[12px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded">Build a list on /leads <ArrowRight className="h-3.5 w-3.5" /></Link>}
+          />
+        ) : (
+          <ul className="grid grid-cols-2 gap-2">
+            {groups.map((g) => (
+              <li key={g.id}>
+                <button
+                  type="button"
+                  onClick={() => setGroupId(g.id)}
+                  className={cn(
+                    'w-full text-left rounded-md border p-3 transition-colors',
+                    groupId === g.id ? 'border-evari-gold bg-evari-gold/10' : 'border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40',
+                  )}
+                >
+                  <div className="text-[13px] font-semibold text-evari-text truncate">{g.name}</div>
+                  {g.description ? <div className="text-[11px] text-evari-dim truncate mt-0.5">{g.description}</div> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : audienceKind === 'segment' ? (
+        segments.length === 0 ? (
+          <EmptyAudience
+            label="You don't have any segments yet"
+            cta={<Link href="/email/audience" className="inline-flex items-center gap-1 text-[12px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded">Build a segment <ArrowRight className="h-3.5 w-3.5" /></Link>}
+          />
+        ) : (
+          <ul className="grid grid-cols-2 gap-2">
+            {segments.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  onClick={() => setSegmentId(s.id)}
+                  className={cn(
+                    'w-full text-left rounded-md border p-3 transition-colors',
+                    segmentId === s.id ? 'border-evari-gold bg-evari-gold/10' : 'border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40',
+                  )}
+                >
+                  <div className="text-[13px] font-semibold text-evari-text truncate">{s.name}</div>
+                  <div className="text-[11px] text-evari-dim mt-0.5">{(s.rules.rules.length ?? 0)} rule{s.rules.rules.length === 1 ? '' : 's'}</div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : (
+        <div>
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">
+              Recipient emails ({recipientEmails.length})
+            </span>
+            <textarea
+              className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] font-mono border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none min-h-[140px]"
+              placeholder="alice@example.com&#10;bob@example.com"
+              value={recipientEmails.join('\n')}
+              onChange={(e) => {
+                const next = e.target.value
+                  .split(/[\n,]+/)
+                  .map((x) => x.trim().toLowerCase())
+                  .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
+                setRecipientEmails([...new Set(next)]);
+              }}
+            />
+            <span className="text-[10px] text-evari-dimmer mt-0.5 block">One per line or comma-separated. Invalid addresses are dropped silently.</span>
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KindCard({ active, onClick, icon, title, sub }: { active: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded-md border px-3 py-3 text-left transition-colors',
+        active ? 'border-evari-gold bg-evari-gold/10' : 'border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40',
+      )}
+    >
+      <div className={cn('inline-flex items-center justify-center h-7 w-7 rounded-md mb-2', active ? 'bg-evari-gold/30 text-evari-gold' : 'bg-evari-ink text-evari-dim')}>
+        {icon}
+      </div>
+      <div className="text-[12px] font-semibold text-evari-text">{title}</div>
+      <div className="text-[10px] text-evari-dimmer mt-0.5">{sub}</div>
+    </button>
+  );
+}
+
+function EmptyAudience({ label, cta }: { label: string; cta: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-dashed border-evari-edge/40 px-4 py-6 text-center">
+      <p className="text-[12px] text-evari-dim mb-3">{label}</p>
+      {cta}
+    </div>
+  );
+}
+
+// ─── Step 2: WHAT ─────────────────────────────────────────────
+
+function WhatStep({ templates, brand, picked, onPickTemplate, hasDesign }: { templates: EmailTemplate[]; brand: MarketingBrand; picked: EmailTemplate | null; onPickTemplate: (t: EmailTemplate | null) => void; hasDesign: boolean }) {
+  return (
+    <div>
+      <header className="mb-3">
+        <h2 className="text-base font-semibold text-evari-text">Choose your email</h2>
+        <p className="text-[12px] text-evari-dim mt-0.5">Start from a saved template, or build a fresh design from scratch.</p>
+      </header>
+
+      <ul className="grid grid-cols-3 gap-2 mb-3">
+        {/* Blank tile always first. */}
+        <li>
+          <button
+            type="button"
+            onClick={() => onPickTemplate(null)}
+            className={cn(
+              'w-full rounded-md border overflow-hidden transition-colors text-left',
+              hasDesign && picked === null ? 'border-evari-gold' : 'border-evari-edge/30 hover:border-evari-gold/40',
+            )}
+          >
+            <div className={cn('aspect-[4/3] flex flex-col items-center justify-center gap-2', hasDesign && picked === null ? 'bg-evari-gold/10' : 'bg-evari-ink/40')}>
+              <Plus className="h-7 w-7 text-evari-dim" />
+              <span className="text-[12px] text-evari-dim font-medium">Start from blank</span>
+            </div>
+            <div className="px-2 py-1.5">
+              <div className="text-[12px] font-semibold text-evari-text">Blank</div>
+              <div className="text-[10px] text-evari-dimmer">Build the design now</div>
+            </div>
+          </button>
+        </li>
+        {templates.map((t) => (
+          <li key={t.id}>
+            <button
+              type="button"
+              onClick={() => onPickTemplate(t)}
+              className={cn(
+                'w-full rounded-md border overflow-hidden transition-colors text-left',
+                picked?.id === t.id ? 'border-evari-gold' : 'border-evari-edge/30 hover:border-evari-gold/40',
+              )}
+            >
+              <div className={cn('aspect-[4/3] overflow-hidden', picked?.id === t.id ? 'bg-evari-gold/10' : 'bg-evari-ink/40')}>
+                <TemplateThumb template={t} brand={brand} />
+              </div>
+              <div className="px-2 py-1.5">
+                <div className="text-[12px] font-semibold text-evari-text truncate">{t.name}</div>
+                <div className="text-[10px] text-evari-dimmer truncate">{t.design.blocks.length} block{t.design.blocks.length === 1 ? '' : 's'}</div>
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {hasDesign ? (
+        <div className="text-[11px] text-evari-success inline-flex items-center gap-1">
+          <CheckCircle2 className="h-3.5 w-3.5" /> {picked ? `'${picked.name}' loaded.` : 'Blank design ready.'} You can fine-tune the email content from the campaign report after sending, or open the template editor before scheduling.
+        </div>
+      ) : (
+        <p className="text-[11px] text-evari-dimmer">Pick a tile above to continue.</p>
+      )}
+    </div>
+  );
+}
+
+function TemplateThumb({ template, brand }: { template: EmailTemplate; brand: MarketingBrand }) {
+  // Render the template into an iframe srcDoc so it shows exactly as
+  // the recipient will see it. Scaled down to fit the card.
+  const html = useMemo(() => renderEmailDesignWithStub(template.design, brand), [template.design, brand]);
+  return (
+    <div className="w-full h-full relative bg-evari-ink overflow-hidden">
+      <iframe
+        title={template.name}
+        srcDoc={html}
+        scrolling="no"
+        className="absolute top-0 left-0 origin-top-left pointer-events-none"
+        style={{ width: '600px', height: '450px', transform: 'scale(0.4)' }}
+      />
+    </div>
+  );
+}
+
+// ─── Step 3: WHEN ─────────────────────────────────────────────
+
+function WhenStep(props: {
+  name: string; setName: (s: string) => void;
+  subject: string; setSubject: (s: string) => void;
+  previewText: string; setPreviewText: (s: string) => void;
+  scheduleMode: 'now' | 'later'; setScheduleMode: (s: 'now' | 'later') => void;
+  scheduledFor: string; setScheduledFor: (s: string) => void;
+}) {
+  const { name, setName, subject, setSubject, previewText, setPreviewText, scheduleMode, setScheduleMode, scheduledFor, setScheduledFor } = props;
+  return (
+    <div className="space-y-4 max-w-xl">
+      <header>
+        <h2 className="text-base font-semibold text-evari-text">Name, subject, schedule</h2>
+        <p className="text-[12px] text-evari-dim mt-0.5">The internal name is yours; the subject + preview are what recipients see in their inbox.</p>
+      </header>
+
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Internal name</span>
+        <input
+          className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+          placeholder="Spring 856 launch"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </label>
+
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Subject line</span>
+        <input
+          className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+          placeholder="The 856 is here"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+        />
+      </label>
+
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Preview text (optional)</span>
+        <input
+          className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+          placeholder="The line that shows in the inbox after the subject"
+          value={previewText}
+          onChange={(e) => setPreviewText(e.target.value)}
+        />
+      </label>
+
+      <div>
+        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Schedule</span>
+        <div className="flex gap-2 mb-2">
+          <button
+            type="button"
+            onClick={() => setScheduleMode('now')}
+            className={cn(
+              'flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md text-[12px] font-medium border transition-colors',
+              scheduleMode === 'now' ? 'bg-evari-gold/10 border-evari-gold text-evari-text' : 'bg-evari-ink/30 border-evari-edge/30 text-evari-dim hover:text-evari-text',
+            )}
+          >
+            <Send className="h-3.5 w-3.5" /> Send now
+          </button>
+          <button
+            type="button"
+            onClick={() => setScheduleMode('later')}
+            className={cn(
+              'flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md text-[12px] font-medium border transition-colors',
+              scheduleMode === 'later' ? 'bg-evari-gold/10 border-evari-gold text-evari-text' : 'bg-evari-ink/30 border-evari-edge/30 text-evari-dim hover:text-evari-text',
+            )}
+          >
+            <Clock className="h-3.5 w-3.5" /> Schedule for later
+          </button>
+        </div>
+        {scheduleMode === 'later' ? (
+          <input
+            type="datetime-local"
+            className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none font-mono"
+            value={scheduledFor}
+            onChange={(e) => setScheduledFor(e.target.value)}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 4: SEND ─────────────────────────────────────────────
+
+function SendStep(props: {
+  audienceLabel: string;
+  templateLabel: string;
+  name: string;
+  subject: string;
+  previewText: string;
+  scheduleMode: 'now' | 'later';
+  scheduledFor: string;
+  testEmail: string; setTestEmail: (s: string) => void;
+  onTest: () => void; testSending: boolean; testResult: string | null;
+  onSend: () => void; sending: boolean; sendResult: { attempted: number; sent: number; suppressed: number; failed: number } | null;
+}) {
+  const { audienceLabel, templateLabel, name, subject, previewText, scheduleMode, scheduledFor, testEmail, setTestEmail, onTest, testSending, testResult, onSend, sending, sendResult } = props;
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <header>
+        <h2 className="text-base font-semibold text-evari-text">Review and send</h2>
+        <p className="text-[12px] text-evari-dim mt-0.5">Confirm the details, fire a test to yourself, then send.</p>
+      </header>
+
+      <ul className="rounded-md border border-evari-edge/30 divide-y divide-evari-edge/15">
+        <SummaryRow label="Audience"  value={audienceLabel} />
+        <SummaryRow label="Template"  value={templateLabel} />
+        <SummaryRow label="Name"      value={name || <em className="text-evari-dimmer">Not set</em>} />
+        <SummaryRow label="Subject"   value={subject || <em className="text-evari-dimmer">Not set</em>} />
+        {previewText ? <SummaryRow label="Preview" value={previewText} /> : null}
+        <SummaryRow
+          label="Schedule"
+          value={scheduleMode === 'now' ? 'Send immediately' : (scheduledFor ? new Date(scheduledFor).toLocaleString() : 'Not set')}
+        />
+      </ul>
+
+      {/* Test send */}
+      <div className="rounded-md border border-evari-edge/30 p-3 bg-evari-ink/30">
+        <div className="text-[12px] font-semibold text-evari-text mb-1.5">Send a test first</div>
+        <div className="flex gap-1.5">
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            className="flex-1 px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none font-mono"
+          />
+          <button
+            type="button"
+            onClick={onTest}
+            disabled={testSending || !testEmail.trim()}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-ink text-evari-text border border-evari-edge/30 hover:border-evari-gold/40 disabled:opacity-50 transition-colors"
+          >
+            {testSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+            Test
+          </button>
+        </div>
+        {testResult ? <p className="text-[11px] text-evari-success mt-1.5">{testResult}</p> : null}
+      </div>
+
+      {/* Final send */}
+      {sendResult ? (
+        <div className="rounded-md border border-evari-success/40 bg-evari-success/10 p-4">
+          <div className="text-[13px] font-semibold text-evari-success inline-flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" /> Send complete
+          </div>
+          <ul className="mt-2 space-y-0.5 text-[12px] text-evari-text">
+            <li>Attempted: <strong className="font-mono tabular-nums">{sendResult.attempted}</strong></li>
+            <li>Delivered: <strong className="font-mono tabular-nums">{sendResult.sent}</strong></li>
+            <li>Suppressed: <strong className="font-mono tabular-nums text-evari-dim">{sendResult.suppressed}</strong></li>
+            <li>Failed: <strong className={cn('font-mono tabular-nums', sendResult.failed > 0 ? 'text-evari-danger' : 'text-evari-dim')}>{sendResult.failed}</strong></li>
+          </ul>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onSend}
+          disabled={sending}
+          className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-md text-[13px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
+        >
+          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {sending ? 'Sending…' : scheduleMode === 'now' ? 'Send campaign now' : 'Schedule campaign'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <li className="flex items-center gap-3 px-3 py-2 text-[12px]">
+      <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer w-20 shrink-0">{label}</span>
+      <span className="text-evari-text flex-1 truncate">{value}</span>
+    </li>
+  );
+}
+
+void useEffect; // keep import in case of follow-up auto-save
+void ImageIcon; // exported for parity with other modules

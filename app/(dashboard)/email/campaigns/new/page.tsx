@@ -3,7 +3,7 @@ import { listGroups } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
 import { getBrand } from '@/lib/marketing/brand';
 import { listTemplates } from '@/lib/marketing/templates';
-import { CampaignEditor } from '@/components/marketing/CampaignEditor';
+import { CampaignWizard } from '@/components/marketing/CampaignWizard';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import type { Lead } from '@/lib/types';
 
@@ -14,9 +14,8 @@ interface PageProps { searchParams: Promise<{ ids?: string }> }
 
 /**
  * Resolves the optional ?ids=lead_a,lead_b,... deep-link from the
- * contacts bulk-action 'Send campaign' button into a list of emails
- * the editor pre-populates as the audience. Falls back to the
- * standard group/segment picker if no ids are provided.
+ * Contacts bulk-action 'Send campaign' button into a list of emails
+ * the wizard pre-populates as the audience.
  */
 async function loadEmailsForLeadIds(ids: string[]): Promise<string[]> {
   if (ids.length === 0) return [];
@@ -50,16 +49,15 @@ export default async function NewCampaignPage({ searchParams }: PageProps) {
       <TopBar
         title="New campaign"
         subtitle={customEmails.length > 0
-          ? `Email · Pre-loaded with ${customEmails.length} recipient${customEmails.length === 1 ? '' : 's'} from Contacts`
-          : 'Email · Broadcasts'}
+          ? `Email · Pre-loaded with ${customEmails.length} recipient${customEmails.length === 1 ? '' : 's'}`
+          : 'Email · Four-step wizard'}
       />
-      <CampaignEditor
-        mode="new"
+      <CampaignWizard
         groups={groups}
         segments={segments}
-        initialRecipientEmails={customEmails}
-        brand={brand}
         templates={templates}
+        brand={brand}
+        initialRecipientEmails={customEmails}
       />
     </>
   );
