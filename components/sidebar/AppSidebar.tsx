@@ -162,16 +162,16 @@ export function AppSidebar() {
     }
   }, [collapsed, hydrated, openGroups]);
 
-  // Arrow-key shortcut. Left → collapse, Right → expand. Skip while
-  // the user is typing so filter boxes, edit fields, etc. still work.
+  // Arrow-key shortcut. Left toggles the sidebar fully open/closed
+  // (matches the X close button behaviour). Right is reserved for the
+  // AI pane on the other side. Skip while the user is typing so filter
+  // boxes, edit fields, etc. still work.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (isTypingTarget(e.target)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'ArrowLeft') {
-        setCollapsed(true);
-      } else if (e.key === 'ArrowRight') {
-        setCollapsed(false);
+        setHidden((h) => !h);
       }
     }
     window.addEventListener('keydown', onKey);

@@ -63,6 +63,28 @@ export function AIPaneProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem('evari-ai-pane-open', open ? '1' : '0');
   }, [open]);
 
+  // Right-arrow shortcut toggles the AI pane open/closed. Mirrors the
+  // ArrowLeft handler in AppSidebar. Skip while typing so input fields
+  // still work.
+  useEffect(() => {
+    function isTypingTarget(t: EventTarget | null): boolean {
+      if (!(t instanceof HTMLElement)) return false;
+      const tag = t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      if (t.isContentEditable) return true;
+      return false;
+    }
+    function onKey(e: KeyboardEvent) {
+      if (isTypingTarget(e.target)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'ArrowRight') {
+        setOpen((o) => !o);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const setSurface = useCallback((s: string, sid?: string | null, ctx?: Record<string, unknown> | null) => {
     setSurfaceState(s);
     setScopeId(sid ?? null);
