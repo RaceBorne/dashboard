@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation';
 import {
   Filter,
   Loader2,
+  Pencil,
   Plus,
   Search,
   Star,
+  Trash2,
   X,
 } from 'lucide-react';
 
@@ -32,6 +34,40 @@ export function AudienceClient({ initialBundle }: Props) {
   const [filter, setFilter] = useState<TypeFilter>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [creatingList, setCreatingList] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<AudienceEntry | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AudienceEntry | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  async function renameList(entry: AudienceEntry, name: string) {
+    setActionBusy(true);
+    try {
+      const res = await fetch(`/api/marketing/groups/${entry.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.ok) {
+        setRenameTarget(null);
+        await refresh();
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function deleteList(entry: AudienceEntry) {
+    setActionBusy(true);
+    try {
+      const res = await fetch(`/api/marketing/groups/${entry.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (data?.ok) {
+        setDeleteTarget(null);
+        await refresh();
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -125,10 +161,11 @@ export function AudienceClient({ initialBundle }: Props) {
                 <th className="px-3 py-2 text-left w-24">Type</th>
                 <th className="px-3 py-2 text-right w-28">Members</th>
                 <th className="px-3 py-2 text-left w-44">Updated</th>
+                <th className="w-20" />
               </tr>
             </thead>
             <tbody className="divide-y divide-evari-edge/10">
-              {visible.map((e) => <AudienceRow key={`${e.kind}-${e.id}`} entry={e} />)}
+              {visible.map((e) => <AudienceRow key={`${e.kind}-${e.id}`} entry={e} onRename={setRenameTarget} onDelete={setDeleteTarget} busy={actionBusy} />)}
             </tbody>
           </table>
         )}
@@ -137,14 +174,32 @@ export function AudienceClient({ initialBundle }: Props) {
       {createOpen ? (
         <CreateModal onClose={() => setCreateOpen(false)} onCreateList={createList} creatingList={creatingList} />
       ) : null}
+
+      {renameTarget ? (
+        <RenameModal
+          entry={renameTarget}
+          busy={actionBusy}
+          onClose={() => setRenameTarget(null)}
+          onSave={(name) => renameList(renameTarget!, name)}
+        />
+      ) : null}
+
+      {deleteTarget ? (
+        <DeleteModal
+          entry={deleteTarget}
+          busy={actionBusy}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => deleteList(deleteTarget!)}
+        />
+      ) : null}
     </div>
   );
 }
 
-function AudienceRow({ entry }: { entry: AudienceEntry }) {
-  const href = entry.kind === 'group' ? '/email/contacts' : `/email/segments/${entry.id}`;
+function AudienceRow({ entry, onRename, onDelete, busy }: { entry: AudienceEntry; onRename: (entry: AudienceEntry) => void; onDelete: (entry: AudienceEntry) => void; busy: boolean }) {
+  const href = entry.kind === 'group' ? `/email/audience/${entry.id}` : `/email/segments/${entry.id}`;
   return (
-    <tr className="hover:bg-evari-ink/30 transition-colors">
+    <tr className="group hover:bg-evari-ink/30 transition-colors">
       <td className="px-3 py-2">
         <Link href={href} className="inline-flex items-center gap-2 text-evari-text hover:text-evari-gold transition-colors">
           <Star className={cn('h-3.5 w-3.5', entry.kind === 'group' ? 'text-evari-gold' : 'text-evari-dimmer')} />
@@ -156,6 +211,30 @@ function AudienceRow({ entry }: { entry: AudienceEntry }) {
       <td className="px-3 py-2 text-right text-evari-text font-mono tabular-nums">{entry.members.toLocaleString()}</td>
       <td className="px-3 py-2 text-evari-dimmer font-mono tabular-nums text-[11px]">
         {new Date(entry.updatedAt).toLocaleString()}
+      </td>
+      <td className="px-3 py-2 w-20">
+        {entry.kind === 'group' ? (
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-1">
+            <button
+              type="button"
+              onClick={() => onRename(entry)}
+              disabled={busy}
+              title="Rename list"
+              className="p-1 rounded text-evari-dim hover:text-evari-text hover:bg-evari-ink/60 disabled:opacity-50"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(entry)}
+              disabled={busy}
+              title="Delete list"
+              className="p-1 rounded text-evari-dim hover:text-evari-danger hover:bg-evari-danger/10 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
       </td>
     </tr>
   );
@@ -223,6 +302,71 @@ function CreateModal({ onClose, onCreateList, creatingList }: { onClose: () => v
             </Link>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function RenameModal({ entry, busy, onClose, onSave }: { entry: AudienceEntry; busy: boolean; onClose: () => void; onSave: (name: string) => void }) {
+  const [name, setName] = useState(entry.name);
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-evari-text">Rename list</h3>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
+        </header>
+        <label className="block">
+          <span className="block text-[10px] uppercase tracking-[0.1em] text-evari-dimmer mb-0.5">Name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onSave(name.trim()); }}
+            className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+          />
+        </label>
+        <footer className="flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="text-[11px] text-evari-dim hover:text-evari-text px-3 py-1 rounded">Cancel</button>
+          <button
+            type="button"
+            disabled={busy || !name.trim() || name.trim() === entry.name}
+            onClick={() => onSave(name.trim())}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            Save
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function DeleteModal({ entry, busy, onClose, onConfirm }: { entry: AudienceEntry; busy: boolean; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-evari-text">Delete &quot;{entry.name}&quot;?</h3>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
+        </header>
+        <p className="text-[12px] text-evari-dim">
+          The list and its {entry.members} membership{entry.members === 1 ? '' : 's'} will be removed. The
+          underlying contacts stay — they&apos;re still on any other lists they belong to.
+        </p>
+        <footer className="flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="text-[11px] text-evari-dim hover:text-evari-text px-3 py-1 rounded">Cancel</button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-danger text-white px-3 py-1 rounded disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            Delete
+          </button>
+        </footer>
       </div>
     </div>
   );
