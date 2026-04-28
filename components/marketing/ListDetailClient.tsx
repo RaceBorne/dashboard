@@ -608,7 +608,7 @@ function MemberRow({ member, selected, onOpen, onToggle, onPromote, onRemove }: 
 
 type AddTab = 'manual' | 'csv' | 'leads';
 
-function AddMembersPanel({ groupId, onClose, onDone }: { groupId: string; onClose: () => void; onDone: (msg: string) => Promise<void> | void }) {
+export function AddMembersPanel({ groupId, onClose, onDone }: { groupId: string; onClose: () => void; onDone: (msg: string) => Promise<void> | void }) {
   const [tab, setTab] = useState<AddTab>('manual');
   return (
     <>

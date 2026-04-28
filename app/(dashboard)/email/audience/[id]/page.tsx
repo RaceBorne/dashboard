@@ -1,23 +1,12 @@
-import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
-import { TopBar } from '@/components/sidebar/TopBar';
-import { getGroup, listMembers } from '@/lib/marketing/groups';
-import { ListDetailClient } from '@/components/marketing/ListDetailClient';
-
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
-export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
+/**
+ * /email/audience/[id] — list detail. Redirects to /leads?listId=<id>
+ * so the operator works with members in the SAME UI as /leads. The
+ * gold banner on the scoped /leads view exposes list-management
+ * actions (rename, delete, add members) so nothing is lost.
+ */
+export default async function ListDetailRedirect({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [group, members] = await Promise.all([getGroup(id), listMembers(id)]);
-  if (!group) notFound();
-  return (
-    <>
-      <TopBar
-        title={group.name}
-        subtitle={`Email · List · ${members.length} member${members.length === 1 ? '' : 's'}`}
-      />
-      <ListDetailClient group={group} initialMembers={members} />
-    </>
-  );
+  redirect(`/leads?listId=${encodeURIComponent(id)}`);
 }

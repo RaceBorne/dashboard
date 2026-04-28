@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { AddMembersPanel } from '@/components/marketing/ListDetailClient';
 import {
   Search as SearchIcon,
   X,
@@ -89,6 +90,13 @@ export function LeadsClient({ initialLeads, scopedTo }: Props) {
   // (used by the /prospects redirect that bounces here).
   const initialTier = (searchParams?.get('tier') as 'all' | 'lead' | 'prospect' | null) ?? 'all';
   const [tierFilter, setTierFilter] = useState<'all' | 'lead' | 'prospect'>(initialTier === 'lead' || initialTier === 'prospect' ? initialTier : 'all');
+
+  // Scoped-mode local state (only used when scopedTo is set).
+  const [scopeAddOpen, setScopeAddOpen] = useState(false);
+  const [scopeRenameOpen, setScopeRenameOpen] = useState(false);
+  const [scopeDeleteOpen, setScopeDeleteOpen] = useState(false);
+  const [scopeBusy, setScopeBusy] = useState(false);
+  const [scopeName, setScopeName] = useState(scopedTo?.listName ?? '');
 
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [activeFolder, setActiveFolder] = useState<string | null>(null); // null = All
@@ -660,23 +668,113 @@ export function LeadsClient({ initialLeads, scopedTo }: Props) {
   return (
     <div className={STAGE_WRAPPER_CLASSNAME_FIXED_HEIGHT}>
       {scopedTo ? (
-        <div className="shrink-0 mb-3 rounded-md bg-evari-gold/10 border border-evari-gold/40 px-3 py-2 flex items-center gap-3">
+        <div className="shrink-0 mb-3 rounded-md bg-evari-gold/10 border border-evari-gold/40 px-3 py-2 flex items-center gap-2">
           <a href="/email/audience" className="text-[11px] text-evari-dim hover:text-evari-text inline-flex items-center gap-1">
             ← All lists
           </a>
-          <div className="flex-1 text-[12.5px]">
-            <span className="text-evari-dim">Showing the people in </span>
+          <div className="flex-1 text-[12.5px] min-w-0">
+            <span className="text-evari-dim">List </span>
             <strong className="text-evari-text">{scopedTo.listName}</strong>
-            <span className="text-evari-dim"> only.</span>
+            <span className="text-evari-dim"> · {leads.length} member{leads.length === 1 ? '' : 's'}</span>
             {scopedTo.unpromotedCount > 0 ? (
               <span className="text-evari-warn ml-2">
-                {scopedTo.unpromotedCount} contact{scopedTo.unpromotedCount === 1 ? '' : 's'} on this list don&apos;t have a lead record yet — open them from the list page to promote.
+                · {scopedTo.unpromotedCount} unpromoted
               </span>
             ) : null}
           </div>
-          <a href={`/email/audience/${scopedTo.listId}`} className="text-[11px] font-semibold text-evari-gold hover:underline whitespace-nowrap">
-            Manage list →
-          </a>
+          {/* Inline list-management actions — same place /leads operates,
+              no separate page needed. */}
+          <button
+            type="button"
+            onClick={() => setScopeAddOpen(true)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-evari-ink text-evari-text border border-evari-edge/40 hover:border-evari-gold/60 transition"
+            title="Add members"
+          >
+            + Add members
+          </button>
+          <button
+            type="button"
+            onClick={() => setScopeRenameOpen(true)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-evari-ink text-evari-text border border-evari-edge/40 hover:border-evari-gold/60 transition"
+            title="Rename list"
+          >
+            Rename
+          </button>
+          <button
+            type="button"
+            onClick={() => setScopeDeleteOpen(true)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-evari-ink text-evari-text border border-evari-edge/40 hover:border-evari-danger/60 hover:text-evari-danger transition"
+            title="Delete list"
+          >
+            Delete
+          </button>
+        </div>
+      ) : null}
+
+      {/* Scoped-mode management modals */}
+      {scopedTo && scopeAddOpen ? (
+        <AddMembersPanel
+          groupId={scopedTo.listId}
+          onClose={() => setScopeAddOpen(false)}
+          onDone={async () => { setScopeAddOpen(false); window.location.reload(); }}
+        />
+      ) : null}
+      {scopedTo && scopeRenameOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !scopeBusy && setScopeRenameOpen(false)}>
+          <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-evari-text">Rename list</h3>
+            <input
+              autoFocus
+              value={scopeName}
+              onChange={(e) => setScopeName(e.target.value)}
+              className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+            />
+            <footer className="flex items-center justify-end gap-2">
+              <button type="button" onClick={() => !scopeBusy && setScopeRenameOpen(false)} className="text-[11px] text-evari-dim hover:text-evari-text px-3 py-1 rounded">Cancel</button>
+              <button
+                type="button"
+                disabled={scopeBusy || !scopeName.trim() || scopeName.trim() === scopedTo.listName}
+                onClick={async () => {
+                  setScopeBusy(true);
+                  try {
+                    const res = await fetch(`/api/marketing/groups/${scopedTo.listId}`, {
+                      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name: scopeName.trim() }),
+                    });
+                    const data = await res.json().catch(() => null);
+                    if (data?.ok) { setScopeRenameOpen(false); window.location.reload(); }
+                  } finally { setScopeBusy(false); }
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded disabled:opacity-50"
+              >Save</button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
+      {scopedTo && scopeDeleteOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !scopeBusy && setScopeDeleteOpen(false)}>
+          <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-evari-text">Delete &quot;{scopedTo.listName}&quot;?</h3>
+            <p className="text-[12px] text-evari-dim">
+              The list and its memberships are removed. The underlying contacts (and their lead records) stay — they remain on any other lists they belong to.
+            </p>
+            <footer className="flex items-center justify-end gap-2">
+              <button type="button" onClick={() => !scopeBusy && setScopeDeleteOpen(false)} className="text-[11px] text-evari-dim hover:text-evari-text px-3 py-1 rounded">Cancel</button>
+              <button
+                type="button"
+                disabled={scopeBusy}
+                onClick={async () => {
+                  setScopeBusy(true);
+                  try {
+                    const res = await fetch(`/api/marketing/groups/${scopedTo.listId}`, { method: 'DELETE' });
+                    const data = await res.json().catch(() => null);
+                    if (data?.ok) window.location.href = '/email/audience';
+                  } finally { setScopeBusy(false); }
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-danger text-white px-3 py-1 rounded disabled:opacity-50"
+              >Delete list</button>
+            </footer>
+          </div>
         </div>
       ) : null}
       {scopedTo ? null : <FunnelRibbon stage="leads" playId={playId ?? ''} />}
