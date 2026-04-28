@@ -221,16 +221,14 @@ export function CampaignsListClient({ campaigns: initialCampaigns, statsMap, gro
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Link>
-                        {c.status === 'sent' || c.status === 'sending' ? null : (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(c)}
-                            title="Delete campaign"
-                            className="p-1.5 rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-danger/10 transition-colors"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(c)}
+                          title="Delete campaign"
+                          className="p-1.5 rounded text-evari-dimmer hover:text-evari-danger hover:bg-evari-danger/10 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
