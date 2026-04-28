@@ -119,8 +119,11 @@ interface HomePrefs {
   showGrid: boolean;
   glass: boolean;
   bgImage: string | null; // data URL
+  // Seconds of inactivity before the homepage fades to a dim screensaver
+  // overlay. Fade-in itself always takes 2s. 0 disables the behaviour.
+  idleFadeSeconds: number;
 }
-const DEFAULT_PREFS: HomePrefs = { showGrid: true, glass: false, bgImage: null };
+const DEFAULT_PREFS: HomePrefs = { showGrid: true, glass: false, bgImage: null, idleFadeSeconds: 60 };
 
 function sizeOf(t: { w: number; h: number }): Size {
   return `${t.w}x${t.h}` as Size;
@@ -190,6 +193,36 @@ export function HomeCanvas() {
     }, 400);
     return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
   }, [tiles, prefs, hydrated]);
+
+  // Idle fade. After `prefs.idleFadeSeconds` of no activity (mouse,
+  // keyboard, touch, scroll), an overlay fades in over 2 seconds. Any
+  // activity dismisses it instantly. 0 disables.
+  const [faded, setFaded] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const seconds = prefs.idleFadeSeconds;
+    if (!seconds || seconds <= 0) {
+      setFaded(false);
+      return;
+    }
+    let timer: number | null = null;
+    const reset = () => {
+      if (faded) setFaded(false);
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => setFaded(true), seconds * 1000);
+    };
+    const events: Array<keyof WindowEventMap> = [
+      'pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'touchmove',
+    ];
+    events.forEach((ev) => window.addEventListener(ev, reset, { passive: true }));
+    reset();
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      events.forEach((ev) => window.removeEventListener(ev, reset));
+    };
+    // We deliberately re-init on `faded` so the timer restarts after a
+    // dismissal. Listing it keeps the effect cycle clean.
+  }, [prefs.idleFadeSeconds, faded]);
 
   const moveTile = useCallback((id: string, toCol: number, toRow: number) => {
     setTiles((cur) => {
@@ -278,6 +311,18 @@ export function HomeCanvas() {
           onAdd={addTile}
         />
       ) : null}
+
+      {/* Idle fade overlay. Sits above tiles but below the editor
+          (z-30 vs z-40). When triggered, fades to opaque over 2s; any
+          activity flips `faded` → false and the overlay fades back. */}
+      <div
+        aria-hidden={!faded}
+        className={cn(
+          'pointer-events-none absolute inset-0 z-20 bg-black transition-opacity ease-linear',
+          faded ? 'opacity-100' : 'opacity-0',
+        )}
+        style={{ transitionDuration: '2000ms' }}
+      />
     </div>
   );
 }
@@ -598,6 +643,10 @@ function DisplaySection({ prefs, onPrefs }: { prefs: HomePrefs; onPrefs: (patch:
       <ToggleRow label="Show grid lines" sub="Faint guides behind the tiles." value={prefs.showGrid} onChange={(v) => onPrefs({ showGrid: v })} />
       <ToggleRow label="Glass effect" sub="Translucent tiles with backdrop blur." value={prefs.glass} onChange={(v) => onPrefs({ glass: v })} />
 
+      {/* Idle fade. Number of seconds of inactivity before the homepage
+          dims. The 2s fade-in itself is fixed. 0 = off. */}
+      <IdleFadeRow seconds={prefs.idleFadeSeconds} onChange={(n) => onPrefs({ idleFadeSeconds: n })} />
+
       {/* Background image */}
       <div>
         <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1.5">Background image</div>
@@ -636,6 +685,33 @@ function DisplaySection({ prefs, onPrefs }: { prefs: HomePrefs; onPrefs: (patch:
         </div>
       </div>
     </section>
+  );
+}
+
+function IdleFadeRow({ seconds, onChange }: { seconds: number; onChange: (n: number) => void }) {
+  // Common presets plus an explicit "Off". Keeps the UI a clean select
+  // instead of an open-ended numeric input. Any of these values can be
+  // overridden by editing the persisted prefs directly if needed.
+  const OPTIONS: Array<{ value: number; label: string }> = [
+    { value: 0,   label: 'Off' },
+    { value: 10,  label: '10 seconds' },
+    { value: 30,  label: '30 seconds' },
+    { value: 60,  label: '1 minute' },
+    { value: 180, label: '3 minutes' },
+    { value: 300, label: '5 minutes' },
+  ];
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1.5">Idle fade</div>
+      <select
+        value={seconds}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full px-2 py-1.5 rounded-panel bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
+      >
+        {OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <div className="text-[10px] text-evari-dim mt-1">After this much inactivity, the homepage fades to a dim screen over 2 seconds. Any input dismisses it.</div>
+    </div>
   );
 }
 
