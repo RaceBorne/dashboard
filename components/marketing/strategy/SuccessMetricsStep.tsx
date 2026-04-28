@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, Pencil } from 'lucide-react';
+import { StepTitle } from './StepTitle';
 
 interface Brief {
   successMetrics: { name: string; target?: string }[] | null;
@@ -62,7 +63,7 @@ export function SuccessMetricsStep({ playId, brief, onEdit }: { playId: string; 
     <div className="space-y-4">
       <header className="flex items-start gap-2">
         <div className="flex-1">
-          <h2 className="text-[20px] font-bold text-evari-text">Success metrics</h2>
+          <StepTitle substep="Success metrics" />
           <p className="text-[12px] text-evari-dim mt-0.5">Define how we will measure success and track performance.</p>
         </div>
         <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition">

@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { CheckCircle2, FileText, Loader2, Pencil, Send, Users } from 'lucide-react';
+import { StepTitle } from './StepTitle';
 
 import { humaniseChannel } from './BriefEditorDrawer';
 import { cn } from '@/lib/utils';
@@ -94,7 +95,7 @@ export function HandoffStep({ playId, brief, onEdit, onProceed }: { playId: stri
     <div className="space-y-4">
       <header className="flex items-start gap-2">
         <div className="flex-1">
-          <h2 className="text-[20px] font-bold text-evari-text">Handoff</h2>
+          <StepTitle substep="Handoff" />
           <p className="text-[12px] text-evari-dim mt-0.5">Your strategy is ready to execute. Review the plan, confirm, and move into execution.</p>
         </div>
         <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition">

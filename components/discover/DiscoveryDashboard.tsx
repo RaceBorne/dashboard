@@ -20,6 +20,7 @@ import { Bookmark, ChevronRight, Filter, Loader2, MoreHorizontal, Pencil, Plus, 
 
 import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
+import { StepTitle } from '@/components/marketing/strategy/StepTitle';
 
 interface Row {
   id: string;
@@ -126,7 +127,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
       {/* Header */}
       <header className="flex items-center gap-2">
         <div className="flex-1">
-          <h1 className="text-[20px] font-bold text-evari-text">Discovery</h1>
+          <StepTitle substep="Discovery" />
           <p className="text-[12px] text-evari-dim">Find and validate companies that match your ideal customer profile.</p>
         </div>
         <select

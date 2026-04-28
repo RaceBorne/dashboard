@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, Pencil } from 'lucide-react';
+import { StepTitle } from './StepTitle';
 
 import { cn } from '@/lib/utils';
 
@@ -91,7 +92,7 @@ export function ChannelsStep({ playId, briefChannels, onEdit }: { playId: string
     <div className="space-y-4">
       <header className="flex items-start gap-2">
         <div className="flex-1">
-          <h2 className="text-[20px] font-bold text-evari-text">Channels</h2>
+          <StepTitle substep="Channels" />
           <p className="text-[12px] text-evari-dim mt-0.5">Select the channels that will reach and engage our ideal customers.</p>
         </div>
         <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition">

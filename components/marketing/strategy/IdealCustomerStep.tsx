@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import { StepTitle } from './StepTitle';
 
 import { cn } from '@/lib/utils';
 import { AIDraftButton } from '@/components/ai/AIDraftButton';
@@ -51,7 +52,7 @@ export function IdealCustomerStep({ playId, brief }: { playId: string; brief: { 
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-[20px] font-bold text-evari-text">Ideal customer</h2>
+        <StepTitle substep="Ideal customer" />
         <p className="text-[12px] text-evari-dim mt-0.5">Define the companies we get the most value from.</p>
       </header>
 

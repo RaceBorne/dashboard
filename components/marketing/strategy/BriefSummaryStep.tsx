@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, Mail, MessageSquare, Pencil, Send, Target, TrendingUp, Users } from 'lucide-react';
+import { StepTitle } from './StepTitle';
 
 import { humaniseChannel } from './BriefEditorDrawer';
 import { cn } from '@/lib/utils';
@@ -60,7 +61,7 @@ export function BriefSummaryStep({ playId, brief, onEdit }: { playId: string; br
     <div className="space-y-4">
       <header className="flex items-start gap-2">
         <div className="flex-1">
-          <h2 className="text-[20px] font-bold text-evari-text">Brief</h2>
+          <StepTitle substep="Brief" />
           <p className="text-[12px] text-evari-dim mt-0.5">A summary of your go-to-market strategy. Review and share with your team.</p>
         </div>
         <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-text text-evari-ink hover:brightness-110 transition">

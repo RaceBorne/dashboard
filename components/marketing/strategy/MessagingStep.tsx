@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Compass, MessageCircle, Pencil, ShieldCheck, Sparkles, Target, TrendingUp, Trophy } from 'lucide-react';
+import { StepTitle } from './StepTitle';
 
 import { cn } from '@/lib/utils';
 
@@ -79,7 +80,7 @@ export function MessagingStep({ playId, brief, onEdit }: { playId: string; brief
     <div className="space-y-4">
       <header className="flex items-start gap-2">
         <div className="flex-1">
-          <h2 className="text-[20px] font-bold text-evari-text">Messaging</h2>
+          <StepTitle substep="Messaging" />
           <p className="text-[12px] text-evari-dim mt-0.5">Craft the core message and key proof points that resonate with your ideal customers.</p>
         </div>
         <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition">
