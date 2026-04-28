@@ -36,6 +36,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { CampaignReviewModal } from './CampaignReviewModal';
+import { AIDraftButton } from '../ai/AIDraftButton';
 
 interface AIFlag { severity: 'info' | 'warn' | 'error'; kind: string; message: string }
 interface HeldPayload {
@@ -712,15 +713,23 @@ function WhenStep(props: {
         />
       </label>
 
-      <label className="block">
-        <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Subject line</span>
+      <div className="block">
+        <div className="flex items-center justify-between mb-0.5">
+          <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Subject line</span>
+          <AIDraftButton
+            field="subject"
+            value={subject}
+            context={`Campaign name: ${name || '(unnamed)'}.`}
+            onApply={setSubject}
+          />
+        </div>
         <input
           className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
           placeholder="The 856 is here"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
         />
-      </label>
+      </div>
 
       <label className="block">
         <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Preview text (optional)</span>

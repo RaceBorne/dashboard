@@ -34,6 +34,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { CampaignReviewModal } from './CampaignReviewModal';
+import { AIDraftButton } from '../ai/AIDraftButton';
 
 interface AIFlag { severity: 'info' | 'warn' | 'error'; kind: string; message: string }
 interface HeldPayload {
@@ -467,18 +468,24 @@ function WriteStep({ name, setName, subject, setSubject, body, setBody, includeG
           <input className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" placeholder="Follow-up to launch list" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
 
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Subject line</span>
+        <div className="block">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Subject line</span>
+            <AIDraftButton field="subject" value={subject} context={`Direct message · audience: ${name}`} onApply={setSubject} />
+          </div>
           <input className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" placeholder="Quick question about your build" value={subject} onChange={(e) => setSubject(e.target.value)} />
-        </label>
+        </div>
 
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={includeGreeting} onChange={(e) => setIncludeGreeting(e.target.checked)} className="accent-evari-gold cursor-pointer" />
           <span className="text-[12px] text-evari-text">Auto-prepend &quot;Hi {`{{firstName}}`},&quot;</span>
         </label>
 
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Message body</span>
+        <div className="block">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Message body</span>
+            <AIDraftButton field="body" value={body} context={`Direct message. Subject: ${subject}. Internal name: ${name}.`} onApply={setBody} />
+          </div>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -486,7 +493,7 @@ function WriteStep({ name, setName, subject, setSubject, body, setBody, includeG
             className="w-full min-h-[280px] px-2.5 py-2 rounded-md bg-evari-ink text-evari-text text-[13px] leading-relaxed border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
           />
           <span className="text-[10px] text-evari-dimmer mt-0.5 block">Blank line = paragraph break. {`{{firstName}}`} merges per recipient.</span>
-        </label>
+        </div>
       </div>
 
       {/* Live preview pane */}
