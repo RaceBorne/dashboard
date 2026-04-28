@@ -13,7 +13,10 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Loader2, Minimize2, Send, Sparkles, X } from 'lucide-react';
+import Link from 'next/link';
+import { Loader2, Minimize2, Moon, RotateCcw, Send, Settings, Sparkles, Sun, X } from 'lucide-react';
+
+import { useTheme } from '@/components/theme/ThemeProvider';
 
 import { cn } from '@/lib/utils';
 
@@ -154,11 +157,21 @@ interface Message {
 
 export function AIAssistantPane() {
   const { surface, scopeId, context, suggestions, open, setOpen, pendingPrompt, consumePending } = useAIPane();
+  const { theme, setTheme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Refresh: wipe the visible conversation. Persisted thread on the
+  // server is left alone for now — wiring a server-side reset can come
+  // later when we decide whether the icon should fork a fresh thread
+  // or hard-delete the current one.
+  function refreshConversation() {
+    setMessages([]);
+    setInput('');
+  }
 
   // Load thread when surface changes.
   useEffect(() => {
@@ -232,6 +245,15 @@ export function AIAssistantPane() {
         {collapsed ? null : (
           <>
             <h3 className="text-[12px] font-semibold text-evari-text flex-1">AI Assistant</h3>
+            <button
+              type="button"
+              onClick={refreshConversation}
+              className="text-evari-dim hover:text-evari-text p-1 rounded transition"
+              title="Refresh conversation"
+              aria-label="Refresh conversation"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
             <button type="button" onClick={() => setCollapsed(true)} className="text-evari-dim hover:text-evari-text p-1 rounded transition" title="Minimise">
               <Minimize2 className="h-3.5 w-3.5" />
             </button>
@@ -295,7 +317,30 @@ export function AIAssistantPane() {
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
         </button>
       </form>
-      <div className="px-3 pb-2 text-[10px] text-evari-dimmer">AI responses may be inaccurate.</div>
+      <div className="border-t border-evari-edge/30">
+        <div className="h-9 px-3 flex items-center gap-2 text-[11px] text-evari-dimmer leading-tight">
+          <span className="h-1.5 w-1.5 rounded-full bg-evari-success" />
+          <span className="flex-1 truncate">Supabase + integrations</span>
+        </div>
+        <div className="h-9 px-3 flex items-center gap-2 border-t border-evari-edge/20">
+          <button
+            type="button"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+          <Link
+            href="/settings"
+            className="ml-auto inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
+            title="System"
+          >
+            <Settings className="h-3 w-3" /> System
+          </Link>
+        </div>
+      </div>
       </>)}
     </aside>
   );

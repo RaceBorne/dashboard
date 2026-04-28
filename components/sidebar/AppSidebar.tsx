@@ -43,12 +43,6 @@ import {
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme/ThemeProvider';
 
-// Pages that live inside the pipeline — used to keep the Pipeline link
-// highlighted across every stage page, not only /plays.
-// Every URL that counts as “inside the Ventures module”. Used to keep
-// the Ventures sidebar entry highlighted across every stage page.
-const VENTURE_PREFIXES = ['/ideas', '/plays', '/discover', '/prospects', '/leads', '/conversations'];
-
 const NAV = [
   { href: '/', label: 'Home', icon: LayoutDashboard, group: 'today' },
   { href: '/briefing', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
@@ -323,19 +317,25 @@ export function AppSidebar() {
               )}
             >
               {items.map((item) => {
+                // Highlight rule: per-item exact + nested match for
+                // every link, so only one entry can be active at a
+                // time. (Earlier versions lit every Prospecting child
+                // whenever any venture URL was open — that's wrong;
+                // operators want to see exactly which stage they're
+                // looking at.)
                 const active =
-                  item.group === 'pipeline'
-                    ? VENTURE_PREFIXES.some((px) => pathname === px || pathname.startsWith(px + '/') || pathname.startsWith(px + '?'))
-                    : item.href === '/'
-                      ? pathname === '/'
-                      : item.href === '/social'
-                        ? // Calendar: exact match only, so it doesn't
-                          // stay active on /social/instagram etc.
-                          pathname === '/social' ||
-                          pathname.startsWith('/social?') ||
-                          pathname === '/social/new' ||
-                          pathname.startsWith('/social/new/')
-                        : pathname.startsWith(item.href);
+                  item.href === '/'
+                    ? pathname === '/'
+                    : item.href === '/social'
+                      ? // Calendar: exact match only, so it doesn't
+                        // stay active on /social/instagram etc.
+                        pathname === '/social' ||
+                        pathname.startsWith('/social?') ||
+                        pathname === '/social/new' ||
+                        pathname.startsWith('/social/new/')
+                      : pathname === item.href ||
+                        pathname.startsWith(item.href + '/') ||
+                        pathname.startsWith(item.href + '?');
                 const Icon = item.icon;
                 const navCount =
                   item.href === '/tasks' && openTaskCount && openTaskCount > 0
@@ -516,26 +516,37 @@ export function AppSidebar() {
         );
       })()}
 
-      {/* Footer */}
+      {/* Footer — two stacked rows of equal height. Mirrors the AI
+          pane footer on the opposite side so they read as a matched
+          pair. Row 1: connection status. Row 2: theme toggle + System
+          link. */}
       {!collapsed ? (
-        <div className="px-4 py-3 text-[11px] text-evari-dimmer leading-tight">
-          <button
-            type="button"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="mb-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
-            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          >
-            {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
-            {theme === 'dark' ? 'Light' : 'Dark'}
-          </button>
-          <div className="flex items-center gap-2">
+        <div className="border-t border-evari-edge/20">
+          <div className="h-9 px-4 flex items-center gap-2 text-[11px] text-evari-dimmer leading-tight">
             <span className="h-1.5 w-1.5 rounded-full bg-evari-success" />
-            <span>Supabase + integrations</span>
+            <span className="flex-1 truncate">Supabase + integrations</span>
           </div>
-          <div className="mt-1 text-evari-dimmer/80 font-mono">v0.1.0</div>
+          <div className="h-9 px-4 flex items-center gap-2 border-t border-evari-edge/20">
+            <button
+              type="button"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
+              title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+              {theme === 'dark' ? 'Light' : 'Dark'}
+            </button>
+            <Link
+              href="/settings"
+              className="ml-auto inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
+              title="System"
+            >
+              <Settings className="h-3 w-3" /> System
+            </Link>
+          </div>
         </div>
       ) : (
-        <div className="py-3 flex flex-col items-center gap-2">
+        <div className="py-3 flex flex-col items-center gap-2 border-t border-evari-edge/20">
           <button
             type="button"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
