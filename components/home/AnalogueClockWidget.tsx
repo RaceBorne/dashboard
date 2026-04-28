@@ -27,11 +27,14 @@
 import { useEffect, useRef, useState } from 'react';
 
 const HAND_SHADOW = [
-  'drop-shadow(0 0.5px 0.5px rgba(0,0,0,0.65))', // ambient occlusion at the contact line
-  'drop-shadow(0 1.5px 2px rgba(0,0,0,0.45))',   // tight near-cast
-  'drop-shadow(0 4px 6px rgba(0,0,0,0.30))',     // mid falloff
-  'drop-shadow(0 9px 14px rgba(0,0,0,0.18))',    // outer falloff
-  'drop-shadow(0 16px 24px rgba(0,0,0,0.10))',   // long-throw soft tail
+  // Light source: low and far away (sun-like). Each layer's dy is much
+  // larger than its blur so the radial blur of drop-shadow can't climb
+  // above the hand's edge. The cast lengthens downward, never up.
+  'drop-shadow(0 4px 1px rgba(0,0,0,0.55))',
+  'drop-shadow(0 10px 3px rgba(0,0,0,0.38))',
+  'drop-shadow(0 20px 6px rgba(0,0,0,0.22))',
+  'drop-shadow(0 32px 10px rgba(0,0,0,0.12))',
+  'drop-shadow(0 48px 14px rgba(0,0,0,0.06))',
 ].join(' ');
 
 export function AnalogueClockWidget() {
@@ -72,9 +75,10 @@ export function AnalogueClockWidget() {
       />
 
       {/* Layer 1+ — round dial inside a centred square so it stays
-          circular on any tile aspect ratio, with 10% breathing room. */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative aspect-square h-[80%] w-[80%] max-h-[80%] max-w-[80%]" style={{ aspectRatio: '1 / 1' }}>
+          circular on any tile aspect ratio, with 35px clear space at
+          the top and bottom of the tile. */}
+      <div className="absolute inset-0 flex items-center justify-center" style={{ paddingTop: 35, paddingBottom: 35 }}>
+        <div className="relative h-full" style={{ aspectRatio: '1 / 1' }}>
           {/* Face — round dial with markings, no hands. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
