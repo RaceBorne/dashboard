@@ -65,6 +65,44 @@ export async function listLeadsAllTiers(supabase: SupabaseClient | null): Promis
   return (data as { payload: Lead }[]).map((r) => r.payload).sort(byLastTouchLead);
 }
 
+/**
+ * Lead rows for every contact who is a member of the given marketing
+ * group. Walks: dashboard_mkt_contact_groups -> dashboard_mkt_contacts
+ * (by contact_id) -> dashboard_leads (by lead_id). Contacts without a
+ * lead_id (legacy manual / CSV adds before the auto-promote feature)
+ * are returned as a separate count so the UI can prompt the operator
+ * to promote them.
+ */
+export async function listLeadsForGroup(
+  supabase: SupabaseClient | null,
+  groupId: string,
+): Promise<{ leads: Lead[]; unpromotedContactCount: number }> {
+  if (!supabase) return { leads: [], unpromotedContactCount: 0 };
+  // Step 1: contact ids for this group.
+  const { data: cg } = await supabase
+    .from('dashboard_mkt_contact_groups')
+    .select('contact_id')
+    .eq('group_id', groupId);
+  const contactIds = ((cg ?? []) as Array<{ contact_id: string }>).map((r) => r.contact_id);
+  if (contactIds.length === 0) return { leads: [], unpromotedContactCount: 0 };
+  // Step 2: lead ids on those contacts.
+  const { data: contacts } = await supabase
+    .from('dashboard_mkt_contacts')
+    .select('id, lead_id')
+    .in('id', contactIds);
+  const rows = (contacts ?? []) as Array<{ id: string; lead_id: string | null }>;
+  const leadIds = rows.map((r) => r.lead_id).filter((x): x is string => !!x);
+  const unpromotedContactCount = rows.length - leadIds.length;
+  if (leadIds.length === 0) return { leads: [], unpromotedContactCount };
+  // Step 3: lead rows.
+  const { data: leadRows } = await supabase
+    .from('dashboard_leads')
+    .select('payload')
+    .in('id', leadIds);
+  const leads = ((leadRows ?? []) as Array<{ payload: Lead }>).map((r) => r.payload).sort(byLastTouchLead);
+  return { leads, unpromotedContactCount };
+}
+
 export async function getLead(
   supabase: SupabaseClient | null,
   id: string,

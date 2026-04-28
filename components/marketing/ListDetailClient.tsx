@@ -306,10 +306,18 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[13px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[13px] font-semibold bg-evari-ink text-evari-text border border-evari-edge/40 hover:border-evari-gold/60 transition"
               >
                 <UserPlus className="h-3.5 w-3.5" /> Add members
               </button>
+              {/* Open the same chrome /leads uses, scoped to this list. Operator
+                  works with members in the interface they already know. */}
+              <a
+                href={`/leads?listId=${encodeURIComponent(group.id)}`}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[13px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
+              >
+                Open in Leads UI →
+              </a>
             </div>
           </div>
         </header>

@@ -70,11 +70,17 @@ const STAGE_LABEL: Record<LeadStage, string> = {
 
 const UNCATEGORISED = 'Uncategorised';
 
+export interface LeadsClientScopedTo { listId: string; listName: string; unpromotedCount: number }
+
 interface Props {
   initialLeads: Lead[];
+  /** When the page is filtered to a specific marketing list. The
+   *  client surfaces a 'Filtering: <list name>' banner with a back
+   *  link to /email/audience/<id> so the operator never feels lost. */
+  scopedTo?: LeadsClientScopedTo | null;
 }
 
-export function LeadsClient({ initialLeads }: Props) {
+export function LeadsClient({ initialLeads, scopedTo }: Props) {
   const searchParams = useSearchParams();
   const deepLinkId = searchParams?.get('id') ?? null;
   const playId = searchParams?.get('playId') ?? null;
@@ -653,10 +659,30 @@ export function LeadsClient({ initialLeads }: Props) {
 
   return (
     <div className={STAGE_WRAPPER_CLASSNAME_FIXED_HEIGHT}>
-      <FunnelRibbon stage="leads" playId={playId ?? ''} />
+      {scopedTo ? (
+        <div className="shrink-0 mb-3 rounded-md bg-evari-gold/10 border border-evari-gold/40 px-3 py-2 flex items-center gap-3">
+          <a href="/email/audience" className="text-[11px] text-evari-dim hover:text-evari-text inline-flex items-center gap-1">
+            ← All lists
+          </a>
+          <div className="flex-1 text-[12.5px]">
+            <span className="text-evari-dim">Showing the people in </span>
+            <strong className="text-evari-text">{scopedTo.listName}</strong>
+            <span className="text-evari-dim"> only.</span>
+            {scopedTo.unpromotedCount > 0 ? (
+              <span className="text-evari-warn ml-2">
+                {scopedTo.unpromotedCount} contact{scopedTo.unpromotedCount === 1 ? '' : 's'} on this list don&apos;t have a lead record yet — open them from the list page to promote.
+              </span>
+            ) : null}
+          </div>
+          <a href={`/email/audience/${scopedTo.listId}`} className="text-[11px] font-semibold text-evari-gold hover:underline whitespace-nowrap">
+            Manage list →
+          </a>
+        </div>
+      ) : null}
+      {scopedTo ? null : <FunnelRibbon stage="leads" playId={playId ?? ''} />}
       <div className="flex gap-4 flex-1 min-h-0">
-      {/* Column 1: projects rail */}
-      <ProjectRail activePlayId={playId} />
+      {/* Column 1: projects rail — hidden in scoped mode since the scope IS the project */}
+      {scopedTo ? null : <ProjectRail activePlayId={playId} />}
 
       {/* Columns 2 + 3 — always 50/50 */}
       <div className="flex-1 min-w-0 h-full flex gap-4">
