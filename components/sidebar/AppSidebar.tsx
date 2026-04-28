@@ -240,15 +240,6 @@ export function AppSidebar() {
           collapsed ? 'px-2 justify-center' : 'px-3 justify-between',
         )}
       >
-        {!collapsed ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={logoSrc}
-            alt="Evari"
-            style={{ width: 84, height: 'auto' }}
-            draggable={false}
-          />
-        ) : null}
         {collapsed ? (
           <button
             type="button"
@@ -281,6 +272,15 @@ export function AppSidebar() {
             </button>
           </div>
         )}
+        {!collapsed ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={logoSrc}
+            alt="Evari"
+            style={{ width: 84, height: 'auto' }}
+            draggable={false}
+          />
+        ) : null}
       </div>
 
       {/* Navigation */}
