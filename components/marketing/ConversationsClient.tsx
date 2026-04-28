@@ -9,6 +9,7 @@ import {
   Loader2,
   Mail,
   Search,
+  Send,
   ShieldAlert,
 } from 'lucide-react';
 
@@ -153,7 +154,23 @@ export function ConversationsClient({ initialConversations, initialCounts }: Pro
       {/* RIGHT — detail */}
       <aside className="w-[480px] shrink-0 rounded-md bg-evari-surface border border-evari-edge/30 flex flex-col">
         {selected ? (
-          <ConversationDetail conversation={selected} onStatus={(s) => setStatus(selected.id, s)} />
+          <ConversationDetail
+            conversation={selected}
+            onStatus={(s) => setStatus(selected.id, s)}
+            onReplied={(next) => {
+              setConversations((cs) => cs.map((c) => (c.id === next.id ? next : c)));
+              // Bump inbox counts so the 'replied' folder ticks up.
+              setCounts((curr) => {
+                const prev = conversations.find((c) => c.id === next.id)?.status;
+                const out = { ...curr };
+                if (prev && prev !== next.status) {
+                  out[prev] = Math.max(0, (out[prev] ?? 1) - 1);
+                  out[next.status] = (out[next.status] ?? 0) + 1;
+                }
+                return out;
+              });
+            }}
+          />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-evari-dimmer text-sm gap-2">
             <Mail className="h-8 w-8 opacity-40" />
@@ -199,12 +216,36 @@ function ConversationRow({ conversation, active, onClick }: { conversation: Conv
   );
 }
 
-function ConversationDetail({ conversation, onStatus }: { conversation: Conversation; onStatus: (s: ConversationStatus) => void }) {
+function ConversationDetail({ conversation, onStatus, onReplied }: { conversation: Conversation; onStatus: (s: ConversationStatus) => void; onReplied: (next: Conversation) => void }) {
   const [busy, setBusy] = useState<ConversationStatus | null>(null);
+  const [replyDraft, setReplyDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
+  const [justSent, setJustSent] = useState(false);
   async function go(s: ConversationStatus) {
     setBusy(s);
     await onStatus(s);
     setBusy(null);
+  }
+  async function sendReply() {
+    if (!replyDraft.trim() || sending) return;
+    setSending(true); setReplyError(null); setJustSent(false);
+    try {
+      const res = await fetch(`/api/marketing/conversations/${conversation.id}/reply`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: replyDraft.trim().replace(/\n/g, '<br/>') }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!data?.ok) throw new Error(data?.error ?? 'Send failed');
+      onReplied(data.conversation as Conversation);
+      setReplyDraft('');
+      setJustSent(true);
+      setTimeout(() => setJustSent(false), 3000);
+    } catch (e) {
+      setReplyError(e instanceof Error ? e.message : 'Send failed');
+    } finally {
+      setSending(false);
+    }
   }
   const body = conversation.strippedText || conversation.textBody || '';
   return (
@@ -249,6 +290,41 @@ function ConversationDetail({ conversation, onStatus }: { conversation: Conversa
           <pre className="whitespace-pre-wrap font-sans text-sm text-evari-text leading-relaxed">{body || '(empty body)'}</pre>
         )}
       </div>
+
+      {/* Reply composer — sends via /api/marketing/conversations/<id>/reply,
+          which calls sendOne (Postmark when configured, stub-logs in dev)
+          and marks the conversation as 'replied' on success. */}
+      <footer className="border-t border-evari-edge/30 p-3 bg-evari-ink/30">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] text-evari-dim">
+            Reply to <strong className="text-evari-text">{conversation.fromName || conversation.fromEmail}</strong>
+          </span>
+          {justSent ? <span className="text-[11px] text-evari-success inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Sent</span> : null}
+        </div>
+        <textarea
+          value={replyDraft}
+          onChange={(e) => setReplyDraft(e.target.value)}
+          placeholder={`Write your reply…`}
+          disabled={sending}
+          className="w-full min-h-[110px] px-2 py-1.5 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none disabled:opacity-60"
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendReply();
+          }}
+        />
+        {replyError ? <p className="text-[11px] text-evari-danger mt-1">{replyError}</p> : null}
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-[10px] text-evari-dimmer">⌘↵ to send</span>
+          <button
+            type="button"
+            disabled={sending || !replyDraft.trim()}
+            onClick={sendReply}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1.5 rounded disabled:opacity-50 hover:brightness-110 transition"
+          >
+            {sending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+            {sending ? 'Sending' : 'Send reply'}
+          </button>
+        </div>
+      </footer>
     </>
   );
 }
