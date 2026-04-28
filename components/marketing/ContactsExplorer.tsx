@@ -138,9 +138,9 @@ export function ContactsExplorer({ initialBundle }: Props) {
           type="button"
           onClick={() => setShowNewGroup(true)}
           className="flex items-center gap-1.5 px-3 py-2 border-t border-evari-edge/20 text-[11px] text-evari-dim hover:text-evari-text hover:bg-evari-ink/40 transition-colors"
-          title="Create a tag-based marketing group"
+          title="Create a tag-based marketing list"
         >
-          <TagIcon className="h-3 w-3" /> New group
+          <TagIcon className="h-3 w-3" /> New list
         </button>
       </aside>
 
@@ -202,14 +202,14 @@ export function ContactsExplorer({ initialBundle }: Props) {
                 onClick={() => setBulkOp('addTag')}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-evari-ink/60 text-evari-text hover:bg-black/40 transition-colors"
               >
-                <TagIcon className="h-3 w-3" /> Add to group
+                <TagIcon className="h-3 w-3" /> Add to list
               </button>
               <button
                 type="button"
                 onClick={() => setBulkOp('removeTag')}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] bg-evari-ink/60 text-evari-text hover:bg-black/40 transition-colors"
               >
-                <X className="h-3 w-3" /> Remove from group
+                <X className="h-3 w-3" /> Remove from list
               </button>
               <a
                 href={`/email/campaigns/new?ids=${Array.from(checked).join(',')}`}
@@ -250,6 +250,8 @@ export function ContactsExplorer({ initialBundle }: Props) {
         <BulkTagModal
           op={bulkOp}
           ids={Array.from(checked)}
+          allLists={folders.filter((f) => f.kind === 'tag').map((f) => ({ name: f.label, count: f.count }))}
+          selectedTags={Array.from(checked).flatMap((id) => contacts.find((c) => c.id === id)?.tags ?? [])}
           onClose={() => setBulkOp(null)}
           onDone={async () => { setBulkOp(null); setChecked(new Set()); await refresh(); }}
         />
@@ -685,18 +687,30 @@ function CreateContactModal({ onClose, onCreated }: { onClose: () => void; onCre
 
 // ─── Bulk-tag modal ────────────────────────────────────────────
 
-function BulkTagModal({ op, ids, onClose, onDone }: { op: 'addTag' | 'removeTag'; ids: string[]; onClose: () => void; onDone: () => Promise<void> }) {
+function BulkTagModal({ op, ids, allLists, selectedTags, onClose, onDone }: { op: 'addTag' | 'removeTag'; ids: string[]; allLists: { name: string; count: number }[]; selectedTags: string[]; onClose: () => void; onDone: () => Promise<void> }) {
   const [tag, setTag] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isAdd = op === 'addTag';
-  async function submit() {
-    if (!tag.trim()) { setError('Group name required'); return; }
+  // For Remove: only show the lists the currently-checked contacts
+  // actually belong to (intersection isn't useful when they vary, so
+  // show the UNION — any list at least one selected contact is on).
+  const removeOptions = useMemo(() => {
+    const set = new Set(selectedTags);
+    return allLists.filter((l) => set.has(l.name));
+  }, [allLists, selectedTags]);
+  // For Add: every existing list is fair game, sorted by member count.
+  const addOptions = useMemo(() => [...allLists].sort((a, b) => b.count - a.count), [allLists]);
+  const options = isAdd ? addOptions : removeOptions;
+
+  async function submit(value: string) {
+    const v = value.trim();
+    if (!v) { setError('List name required'); return; }
     setSaving(true); setError(null);
     try {
       const res = await fetch('/api/marketing/contacts/leads/bulk', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, op, value: tag.trim() }),
+        body: JSON.stringify({ ids, op, value: v }),
       });
       const data = await res.json().catch(() => ({}));
       if (!data.ok) throw new Error(data.error ?? 'Bulk update failed');
@@ -707,45 +721,77 @@ function BulkTagModal({ op, ids, onClose, onDone }: { op: 'addTag' | 'removeTag'
       setSaving(false);
     }
   }
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-evari-text">
-            {isAdd ? `Add ${ids.length} contact${ids.length === 1 ? '' : 's'} to group` : `Remove ${ids.length} contact${ids.length === 1 ? '' : 's'} from group`}
+            {isAdd
+              ? `Add ${ids.length} contact${ids.length === 1 ? '' : 's'} to list`
+              : `Remove ${ids.length} contact${ids.length === 1 ? '' : 's'} from list`}
           </h3>
           <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
         </header>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.1em] text-evari-dimmer mb-0.5">Group name</span>
-          <input
-            value={tag}
-            onChange={(e) => setTag(e.target.value)}
-            placeholder="VIP / Newsletter / Beta…"
-            className="w-full px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
-            autoFocus
-            onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
-          />
-        </label>
+
+        {options.length > 0 ? (
+          <div className="space-y-1">
+            <span className="block text-[10px] uppercase tracking-[0.1em] text-evari-dimmer">{isAdd ? 'Pick a list' : 'Lists these contacts are on'}</span>
+            <ul className="max-h-[260px] overflow-y-auto rounded-md border border-evari-edge/30 divide-y divide-evari-edge/15">
+              {options.map((l) => (
+                <li key={l.name}>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => submit(l.name)}
+                    className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left text-[12px] text-evari-text hover:bg-evari-ink/40 disabled:opacity-50"
+                  >
+                    <span className="truncate">{l.name}</span>
+                    <span className="text-[10px] text-evari-dim font-mono tabular-nums shrink-0">{l.count}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : !isAdd ? (
+          <p className="text-[11px] text-evari-dimmer">None of the selected contacts are on a list yet.</p>
+        ) : null}
+
+        {isAdd ? (
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-[0.1em] text-evari-dimmer mb-0.5">{options.length > 0 ? 'Or create a new list' : 'New list name'}</span>
+            <div className="flex items-center gap-1">
+              <input
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                placeholder="VIP / Newsletter / Beta…"
+                className="flex-1 px-2 py-1 rounded bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+                autoFocus={options.length === 0}
+                onKeyDown={(e) => { if (e.key === 'Enter' && tag.trim()) submit(tag); }}
+              />
+              <button
+                type="button"
+                disabled={saving || !tag.trim()}
+                onClick={() => submit(tag)}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                {saving ? 'Saving' : 'Add'}
+              </button>
+            </div>
+          </label>
+        ) : null}
+
         {error ? <p className="text-[11px] text-evari-danger">{error}</p> : null}
         <footer className="flex items-center justify-end gap-2">
           <button type="button" onClick={onClose} className="text-[11px] text-evari-dim hover:text-evari-text px-3 py-1 rounded">Cancel</button>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={submit}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold bg-evari-gold text-evari-goldInk px-3 py-1 rounded disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-            {saving ? 'Saving' : isAdd ? 'Add' : 'Remove'}
-          </button>
         </footer>
       </div>
     </div>
   );
 }
 
-// ─── New group modal ──────────────────────────────────────────
+// ─── New list modal ───────────────────────────────────────────
 
 function NewGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated: (name: string) => void }) {
   const [name, setName] = useState('');
@@ -753,14 +799,14 @@ function NewGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-sm rounded-md bg-evari-surface border border-evari-edge/40 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-evari-text">New group</h3>
+          <h3 className="text-sm font-semibold text-evari-text">New list</h3>
           <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text"><X className="h-4 w-4" /></button>
         </header>
         <p className="text-[11px] text-evari-dimmer">
-          Groups in Evari are tag-based. The folder will appear as soon as you add at least one contact to it via the bulk &ldquo;Add to group&rdquo; action.
+          Lists in Evari are tag-based. The folder will appear as soon as you add at least one contact to it via the bulk &ldquo;Add to list&rdquo; action.
         </p>
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.1em] text-evari-dimmer mb-0.5">Group name</span>
+          <span className="block text-[10px] uppercase tracking-[0.1em] text-evari-dimmer mb-0.5">List name</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
