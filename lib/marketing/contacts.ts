@@ -95,6 +95,21 @@ export async function listContacts(opts: {
   return (data ?? []).map(rowToContact);
 }
 
+export async function getContactByEmail(email: string): Promise<Contact | null> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from('dashboard_mkt_contacts')
+    .select('*')
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle();
+  if (error) {
+    console.error('[marketing.getContactByEmail]', error);
+    return null;
+  }
+  return data ? rowToContact(data as ContactRow) : null;
+}
+
 export async function getContact(id: string): Promise<Contact | null> {
   const sb = createSupabaseAdmin();
   if (!sb) return null;
