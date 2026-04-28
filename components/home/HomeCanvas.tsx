@@ -137,6 +137,9 @@ export function HomeCanvas() {
   const [hydrated, setHydrated] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
 
+  // Hydrate: localStorage paints instantly, Supabase replaces it once the
+  // request lands. This means the home looks right on refresh even before
+  // the network round-trip completes.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -154,17 +157,38 @@ export function HomeCanvas() {
       }
     } catch {}
     setHydrated(true);
+
+    // Pull authoritative state from Supabase. If it differs from what we
+    // painted from localStorage, replace silently.
+    void (async () => {
+      try {
+        const res = await fetch('/api/home/canvas', { cache: 'no-store' });
+        const json = await res.json();
+        if (json?.ok && json.state) {
+          if (Array.isArray(json.state.tiles)) setTiles(json.state.tiles);
+          if (json.state.prefs) setPrefs((cur) => ({ ...cur, ...json.state.prefs }));
+        }
+      } catch {}
+    })();
   }, []);
 
+  // Persist to localStorage immediately on any change (fast paint next time)
+  // and to Supabase via a debounced POST (cross-device).
+  const saveTimer = useRef<number | null>(null);
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return;
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tiles)); } catch {}
-  }, [tiles, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated || typeof window === 'undefined') return;
     try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
-  }, [prefs, hydrated]);
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      void fetch('/api/home/canvas', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tiles, prefs }),
+      }).catch(() => {});
+    }, 400);
+    return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
+  }, [tiles, prefs, hydrated]);
 
   const moveTile = useCallback((id: string, toCol: number, toRow: number) => {
     setTiles((cur) => {
