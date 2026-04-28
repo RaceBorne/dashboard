@@ -431,12 +431,14 @@ function DraggableTile({ tile, cellW, cellH, glass, onDrop, onResizeDrop }: {
         onPointerUp={onPointerUp}
         onPointerCancel={() => { setDrag(null); startRef.current = null; }}
         className={cn(
-          'h-full w-full rounded-panel border select-none cursor-grab active:cursor-grabbing transition-shadow overflow-hidden',
-          tile.widget === 'clock' ? 'p-0' : 'p-5',
-          glass ? 'bg-evari-surface/40 backdrop-blur-md backdrop-saturate-150' : 'bg-evari-surface',
-          widget.accent === 'gold' ? 'border-evari-edge/40 hover:border-evari-gold/50' :
-          widget.accent === 'teal' ? 'border-evari-edge/40 hover:border-[#4AA39C]/50' :
-                                     'border-evari-edge/40 hover:border-evari-text/40',
+          'h-full w-full rounded-panel select-none cursor-grab active:cursor-grabbing transition-shadow overflow-hidden',
+          tile.widget === 'clock' ? 'p-0 border-0 bg-transparent' : 'p-5 border',
+          tile.widget === 'clock' ? '' : (glass ? 'bg-evari-surface/40 backdrop-blur-md backdrop-saturate-150' : 'bg-evari-surface'),
+          tile.widget === 'clock' ? '' : (
+            widget.accent === 'gold' ? 'border-evari-edge/40 hover:border-evari-gold/50' :
+            widget.accent === 'teal' ? 'border-evari-edge/40 hover:border-[#4AA39C]/50' :
+                                       'border-evari-edge/40 hover:border-evari-text/40'
+          ),
           dragging || resizing ? 'shadow-2xl' : 'shadow-md',
         )}
       >
