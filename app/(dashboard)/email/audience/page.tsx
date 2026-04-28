@@ -1,6 +1,6 @@
 import { TopBar } from '@/components/sidebar/TopBar';
 import { loadAudienceBundle } from '@/lib/marketing/audience';
-import { AudienceClient } from '@/components/marketing/AudienceClient';
+import { AudiencePowerClient } from '@/components/marketing/AudiencePowerClient';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -13,7 +13,7 @@ export default async function AudiencePage() {
         title="Lists & Segments"
         subtitle={`Email · ${bundle.totals.lists} list${bundle.totals.lists === 1 ? '' : 's'} · ${bundle.totals.segments} segment${bundle.totals.segments === 1 ? '' : 's'}`}
       />
-      <AudienceClient initialBundle={bundle} />
+      <AudiencePowerClient initialBundle={bundle} />
     </>
   );
 }
