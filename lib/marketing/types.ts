@@ -103,12 +103,21 @@ export type CampaignStatus =
   | 'sent'
   | 'failed';
 
+export type CampaignKind = 'newsletter' | 'direct';
+
 export interface Campaign {
   id: string;
   name: string;
   subject: string;
   content: string;
   status: CampaignStatus;
+  /**
+   * 'newsletter' = designed, branded broadcast (visual block builder).
+   * 'direct'     = personal text-based message (greeting + body +
+   *                signature + footer). Default 'newsletter' on legacy
+   *                rows so the analytics splits never see a NULL.
+   */
+  kind: CampaignKind;
   segmentId: string | null;
   groupId: string | null;
   /** Ad-hoc recipient list (emails) when audience is a custom selection. */

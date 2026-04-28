@@ -28,6 +28,7 @@ import { renderEmailDesign } from './email-design';
 import { getBrand } from './brand';
 import type {
   Campaign,
+  CampaignKind,
   CampaignStatus,
   RecipientStatus,
   SendResult,
@@ -39,6 +40,7 @@ interface CampaignRow {
   subject: string;
   content: string;
   status: CampaignStatus;
+  kind: CampaignKind | null;
   segment_id: string | null;
   group_id: string | null;
   recipient_emails: string[] | null;
@@ -59,6 +61,7 @@ function rowToCampaign(row: CampaignRow): Campaign {
     segmentId: row.segment_id,
     groupId: row.group_id,
     recipientEmails: row.recipient_emails,
+    kind: (row.kind ?? 'newsletter') as CampaignKind,
     emailDesign: row.email_design,
     scheduledFor: row.scheduled_for,
     sentAt: row.sent_at,
@@ -105,6 +108,7 @@ export async function createCampaign(input: {
   segmentId?: string | null;
   groupId?: string | null;
   recipientEmails?: string[] | null;
+    kind?: CampaignKind;
   emailDesign?: import('./types').EmailDesign | null;
 }): Promise<Campaign | null> {
   const sb = createSupabaseAdmin();
@@ -118,6 +122,7 @@ export async function createCampaign(input: {
       segment_id: input.segmentId ?? null,
       group_id: input.groupId ?? null,
       recipient_emails: input.recipientEmails && input.recipientEmails.length > 0 ? input.recipientEmails : null,
+      kind: input.kind ?? 'newsletter',
       email_design: input.emailDesign ?? null,
     })
     .select('*')
@@ -146,6 +151,7 @@ export async function updateCampaign(
   if (!sb) return null;
   const dbPatch: Record<string, unknown> = {};
   if ('recipientEmails' in patch) dbPatch.recipient_emails = patch.recipientEmails && patch.recipientEmails.length > 0 ? patch.recipientEmails : null;
+  if ('kind' in patch) dbPatch.kind = patch.kind;
   if ('name' in patch && patch.name) dbPatch.name = patch.name.trim();
   if ('subject' in patch && patch.subject !== undefined) dbPatch.subject = patch.subject;
   if ('content' in patch && patch.content !== undefined) dbPatch.content = patch.content;

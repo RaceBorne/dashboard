@@ -150,6 +150,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
         name: name.trim(),
         subject: subject.trim(),
         content: '', // legacy plain-HTML body; visual design supersedes
+        kind: 'newsletter',
         segmentId: audienceKind === 'segment' ? segmentId || null : null,
         groupId:   audienceKind === 'group'   ? groupId   || null : null,
         recipientEmails: audienceKind === 'custom' ? recipientEmails : null,

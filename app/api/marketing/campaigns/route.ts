@@ -34,7 +34,8 @@ export async function POST(req: Request) {
     ? (body.recipientEmails as unknown[]).filter((x) => typeof x === 'string') as string[]
     : null;
   const emailDesign = body?.emailDesign && typeof body.emailDesign === 'object' ? (body.emailDesign as import('@/lib/marketing/types').EmailDesign) : null;
-  const campaign = await createCampaign({ name, subject, content, segmentId, groupId, recipientEmails, emailDesign });
+  const kind = (typeof body?.kind === 'string' && (body.kind === 'newsletter' || body.kind === 'direct')) ? body.kind : 'newsletter';
+  const campaign = await createCampaign({ name, subject, content, segmentId, groupId, recipientEmails, emailDesign, kind });
   if (!campaign) return NextResponse.json({ ok: false, error: 'create failed' }, { status: 500 });
   return NextResponse.json({ ok: true, campaign });
 }

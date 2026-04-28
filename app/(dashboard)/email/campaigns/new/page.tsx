@@ -3,14 +3,14 @@ import { listGroups } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
 import { getBrand } from '@/lib/marketing/brand';
 import { listTemplates } from '@/lib/marketing/templates';
-import { CampaignWizard } from '@/components/marketing/CampaignWizard';
+import { CampaignKindChooser } from '@/components/marketing/CampaignKindChooser';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import type { Lead } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-interface PageProps { searchParams: Promise<{ ids?: string }> }
+interface PageProps { searchParams: Promise<{ ids?: string; kind?: string }> }
 
 /**
  * Resolves the optional ?ids=lead_a,lead_b,... deep-link from the
@@ -52,12 +52,13 @@ export default async function NewCampaignPage({ searchParams }: PageProps) {
           ? `Email · Pre-loaded with ${customEmails.length} recipient${customEmails.length === 1 ? '' : 's'}`
           : 'Email · Four-step wizard'}
       />
-      <CampaignWizard
+      <CampaignKindChooser
         groups={groups}
         segments={segments}
         templates={templates}
         brand={brand}
         initialRecipientEmails={customEmails}
+        seedKind={(sp as { kind?: string }).kind === 'direct' || (sp as { kind?: string }).kind === 'newsletter' ? (sp as { kind?: 'direct' | 'newsletter' }).kind ?? null : null}
       />
     </>
   );
