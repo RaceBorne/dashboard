@@ -62,7 +62,7 @@ const NAV = [
   { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'marketing' },
   { href: '/email', label: 'Email', icon: Mail, group: 'marketing' },
   { href: '/email/conversations', label: 'Conversations', icon: Mail, group: 'marketing', child: true },
-  { href: '/email/audience', label: 'Lists & Segments', icon: Users, group: 'marketing', child: true },
+  { href: '/email/audience', label: 'Audience', icon: Users, group: 'marketing', child: true },
   { href: '/email/templates', label: 'Templates', icon: Image, group: 'marketing', child: true },
   { href: '/email/campaigns', label: 'Campaigns', icon: Send, group: 'marketing', child: true },
   { href: '/email/statistics', label: 'Statistics', icon: TrendingUp, group: 'marketing', child: true },
