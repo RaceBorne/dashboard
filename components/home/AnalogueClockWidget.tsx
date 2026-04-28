@@ -1,36 +1,37 @@
 'use client';
 
 /**
- * Analogue clock — uses the supplied PNG asset pack only:
+ * Analogue clock — built strictly from the supplied PNG asset pack:
  *
- *   /clock/dial.png       — full dial face (gradient + ticks +
- *                           numerals + RACEBORNE text + 3 stamp,
- *                           all baked into the image).
- *   /clock/hour-hand.png  — hour hand.
- *   /clock/min-hand.png   — minute hand.
+ *   /clock/background.png — yellow gradient, full-tile bleed.
+ *   /clock/face.png       — round dial face (gradient + ticks +
+ *                           numerals + RACEBORNE text + 3 stamp).
+ *                           No hands baked in.
+ *   /clock/hour-hand.png  — black hour hand.
+ *   /clock/min-hand.png   — red minute hand with yellow centre dot.
  *
- * The only programmatic element is a thin second hand drawn in SVG,
- * since the asset pack does not include one.
+ * The face is held to a square inside the tile so it stays round on
+ * any tile aspect ratio. There's 10% breathing room from the face's
+ * outer edge to the tile's inner edge on the limiting axis.
  *
- * Each hand carries a soft drop-shadow filter — light source upper-
- * left, deliberately understated.
+ * Hands rotate to local time (Date methods are timezone- and DST-
+ * aware automatically). The second hand sweeps continuously like a
+ * Rolex via requestAnimationFrame with millisecond precision.
  *
- * Continuous Rolex-style sweep on the second hand via
- * requestAnimationFrame with millisecond-precise rotation.
+ * Each hand carries a 5-layer drop-shadow stack so the falloff reads
+ * as ray-traced — sharp dark contact at the source, fading out to
+ * a wide soft outer cast. All shadows are dy-positive, putting the
+ * apparent light source at 12 o'clock.
  */
 
 import { useEffect, useRef, useState } from 'react';
 
 const HAND_SHADOW = [
-  'drop-shadow(0 1px 0.75px rgba(0,0,0,0.55))',
-  'drop-shadow(0 3px 5px rgba(0,0,0,0.30))',
-  'drop-shadow(0 8px 14px rgba(0,0,0,0.16))',
-].join(' ');
-
-const SECOND_SHADOW = [
-  'drop-shadow(0 1px 0.75px rgba(0,0,0,0.55))',   // sharp contact shadow at the source
-  'drop-shadow(0 3px 4px rgba(0,0,0,0.32))',      // mid falloff
-  'drop-shadow(0 7px 12px rgba(0,0,0,0.18))',     // soft outer falloff
+  'drop-shadow(0 0.5px 0.5px rgba(0,0,0,0.65))', // ambient occlusion at the contact line
+  'drop-shadow(0 1.5px 2px rgba(0,0,0,0.45))',   // tight near-cast
+  'drop-shadow(0 4px 6px rgba(0,0,0,0.30))',     // mid falloff
+  'drop-shadow(0 9px 14px rgba(0,0,0,0.18))',    // outer falloff
+  'drop-shadow(0 16px 24px rgba(0,0,0,0.10))',   // long-throw soft tail
 ].join(' ');
 
 export function AnalogueClockWidget() {
@@ -39,8 +40,13 @@ export function AnalogueClockWidget() {
 
   useEffect(() => {
     function tick() {
-      const now = new Date();
-      setTime({ h: now.getHours(), m: now.getMinutes(), s: now.getSeconds(), ms: now.getMilliseconds() });
+      const now = new Date();                              // browser local time
+      setTime({
+        h: now.getHours(),                                 // 0..23 in user's locale
+        m: now.getMinutes(),
+        s: now.getSeconds(),
+        ms: now.getMilliseconds(),
+      });
       rafRef.current = requestAnimationFrame(tick);
     }
     rafRef.current = requestAnimationFrame(tick);
@@ -50,69 +56,79 @@ export function AnalogueClockWidget() {
   const seconds = (time?.s ?? 0) + (time?.ms ?? 0) / 1000;
   const minutes = (time?.m ?? 0) + seconds / 60;
   const hours   = ((time?.h ?? 0) % 12) + minutes / 60;
-  const secondAngle = seconds * 6;
-  const minuteAngle = minutes * 6;
   const hourAngle   = hours * 30;
+  const minuteAngle = minutes * 6;
+  const secondAngle = seconds * 6;
 
   return (
     <div className="absolute inset-0 overflow-hidden rounded-panel">
-      {/* Inner stage — scales the clock down so the dial sits with breathing room. */}
-      <div className="absolute" style={{ inset: '10%' }}>
-      {/* Dial face — single PNG asset, no SVG markings. */}
+      {/* Layer 0 — background.png fills the entire tile, edge to edge. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/clock/dial.png"
+        src="/clock/background.png"
         alt=""
         draggable={false}
         className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
       />
 
-      {/* Hour hand — live, follows local time. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/clock/hour-hand.png"
-        alt=""
-        draggable={false}
-        className="absolute pointer-events-none select-none"
-        style={{
-          top: '50%', left: '50%',
-          width: '116%', height: '116%',
-          transform: `translate(-50%, -50%) rotate(${hourAngle}deg)`,
-          transformOrigin: 'center center',
-          filter: HAND_SHADOW,
-        }}
-      />
+      {/* Layer 1+ — round dial inside a centred square so it stays
+          circular on any tile aspect ratio, with 10% breathing room. */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="relative aspect-square h-[80%] w-[80%] max-h-[80%] max-w-[80%]" style={{ aspectRatio: '1 / 1' }}>
+          {/* Face — round dial with markings, no hands. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/clock/face.png"
+            alt=""
+            draggable={false}
+            className="absolute inset-0 h-full w-full object-contain pointer-events-none select-none"
+          />
 
-      {/* Minute hand — live, follows local time. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/clock/min-hand.png"
-        alt=""
-        draggable={false}
-        className="absolute pointer-events-none select-none"
-        style={{
-          top: '50%', left: '50%',
-          width: '116%', height: '116%',
-          transform: `translate(-50%, -50%) rotate(${minuteAngle}deg)`,
-          transformOrigin: 'center center',
-          filter: HAND_SHADOW,
-        }}
-      />
+          {/* Hour hand. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/clock/hour-hand.png"
+            alt=""
+            draggable={false}
+            className="absolute pointer-events-none select-none"
+            style={{
+              top: '50%', left: '50%',
+              width: '100%', height: '100%',
+              transform: `translate(-50%, -50%) rotate(${hourAngle}deg)`,
+              transformOrigin: 'center center',
+              filter: HAND_SHADOW,
+            }}
+          />
 
-      {/* Second hand — bigger, continuous sweep, soft drop shadow. */}
-      <svg
-        viewBox="0 0 600 600"
-        preserveAspectRatio="xMidYMid meet"
-        className="absolute inset-0 h-full w-full pointer-events-none"
-        style={{ filter: SECOND_SHADOW }}
-      >
-        <g style={{ transform: `rotate(${secondAngle}deg)`, transformOrigin: '300px 300px' }}>
-          {/* Tail below the pivot for visual balance, longer hand above. */}
-          <line x1="300" y1="360" x2="300" y2="60" stroke="#B91C1C" strokeWidth="4" strokeLinecap="round" />
-          {/* Pivot cap. */}
-          <circle cx="300" cy="300" r="6" fill="#B91C1C" />
-        </g>
-      </svg>
+          {/* Minute hand. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/clock/min-hand.png"
+            alt=""
+            draggable={false}
+            className="absolute pointer-events-none select-none"
+            style={{
+              top: '50%', left: '50%',
+              width: '100%', height: '100%',
+              transform: `translate(-50%, -50%) rotate(${minuteAngle}deg)`,
+              transformOrigin: 'center center',
+              filter: HAND_SHADOW,
+            }}
+          />
+
+          {/* Second hand — continuous Rolex sweep, same shadow stack. */}
+          <svg
+            viewBox="0 0 600 600"
+            preserveAspectRatio="xMidYMid meet"
+            className="absolute inset-0 h-full w-full pointer-events-none"
+            style={{ filter: HAND_SHADOW }}
+          >
+            <g style={{ transform: `rotate(${secondAngle}deg)`, transformOrigin: '300px 300px' }}>
+              <line x1="300" y1="370" x2="300" y2="80" stroke="#B91C1C" strokeWidth="3.5" strokeLinecap="round" />
+              <circle cx="300" cy="300" r="6" fill="#B91C1C" />
+            </g>
+          </svg>
+        </div>
       </div>
     </div>
   );
