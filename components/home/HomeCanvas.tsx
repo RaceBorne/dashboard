@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { AnalogueClockWidget } from './AnalogueClockWidget';
 
 const COLS = 6;
 const ROWS = 5;
@@ -430,7 +431,8 @@ function DraggableTile({ tile, cellW, cellH, glass, onDrop, onResizeDrop }: {
         onPointerUp={onPointerUp}
         onPointerCancel={() => { setDrag(null); startRef.current = null; }}
         className={cn(
-          'h-full w-full rounded-panel border p-5 select-none cursor-grab active:cursor-grabbing transition-shadow',
+          'h-full w-full rounded-panel border select-none cursor-grab active:cursor-grabbing transition-shadow overflow-hidden',
+          tile.widget === 'clock' ? 'p-0' : 'p-5',
           glass ? 'bg-evari-surface/40 backdrop-blur-md backdrop-saturate-150' : 'bg-evari-surface',
           widget.accent === 'gold' ? 'border-evari-edge/40 hover:border-evari-gold/50' :
           widget.accent === 'teal' ? 'border-evari-edge/40 hover:border-[#4AA39C]/50' :
@@ -438,28 +440,28 @@ function DraggableTile({ tile, cellW, cellH, glass, onDrop, onResizeDrop }: {
           dragging || resizing ? 'shadow-2xl' : 'shadow-md',
         )}
       >
-        <div className="h-full w-full flex flex-col justify-between pointer-events-none">
-          <span className={cn(
-            'inline-flex items-center justify-center h-9 w-9 rounded-panel',
-            widget.accent === 'gold' ? 'bg-evari-gold/15 text-evari-gold' :
-            widget.accent === 'teal' ? 'bg-[#4AA39C]/15 text-[#7CCFC2]' :
-                                       'bg-evari-ink/40 text-evari-dim',
-          )}>
-            <Icon className="h-5 w-5" />
-          </span>
-          <div>
-            {widget.id === 'clock' ? <ClockBody /> : (
-              <>
-                {widget.href ? (
-                  <Link href={widget.href} className="text-[20px] font-bold text-evari-text leading-tight hover:text-evari-gold transition pointer-events-auto">{widget.label}</Link>
-                ) : (
-                  <div className="text-[20px] font-bold text-evari-text leading-tight">{widget.label}</div>
-                )}
-                {widget.subtitle ? <div className="text-[11px] text-evari-dim mt-0.5">{widget.subtitle}</div> : null}
-              </>
-            )}
+        {widget.id === 'clock' ? (
+          <AnalogueClockWidget />
+        ) : (
+          <div className="h-full w-full flex flex-col justify-between pointer-events-none">
+            <span className={cn(
+              'inline-flex items-center justify-center h-9 w-9 rounded-panel',
+              widget.accent === 'gold' ? 'bg-evari-gold/15 text-evari-gold' :
+              widget.accent === 'teal' ? 'bg-[#4AA39C]/15 text-[#7CCFC2]' :
+                                         'bg-evari-ink/40 text-evari-dim',
+            )}>
+              <Icon className="h-5 w-5" />
+            </span>
+            <div>
+              {widget.href ? (
+                <Link href={widget.href} className="text-[20px] font-bold text-evari-text leading-tight hover:text-evari-gold transition pointer-events-auto">{widget.label}</Link>
+              ) : (
+                <div className="text-[20px] font-bold text-evari-text leading-tight">{widget.label}</div>
+              )}
+              {widget.subtitle ? <div className="text-[11px] text-evari-dim mt-0.5">{widget.subtitle}</div> : null}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Resize handle at bottom-right corner. */}
@@ -478,24 +480,6 @@ function DraggableTile({ tile, cellW, cellH, glass, onDrop, onResizeDrop }: {
           <line x1="8" y1="9" x2="9" y2="8" stroke="currentColor" strokeWidth="1" />
         </svg>
       </div>
-    </div>
-  );
-}
-
-function ClockBody() {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-    const id = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  if (!now) return <div className="text-[20px] font-bold text-evari-text">--:--</div>;
-  const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const date = now.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
-  return (
-    <div>
-      <div className="text-[28px] font-bold text-evari-text leading-none tabular-nums">{time}</div>
-      <div className="text-[11px] text-evari-dim mt-1">{date}</div>
     </div>
   );
 }
