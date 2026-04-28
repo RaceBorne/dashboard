@@ -151,7 +151,7 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
     <div className="flex-1 min-h-0 flex flex-col bg-evari-ink relative">
       {/* Scaling viewport — caps width at xl breakpoints, scales slightly at 2xl. */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        <div className="h-full max-w-[1100px] 2xl:max-w-[1240px] mx-auto px-gutter py-5 pb-28 overflow-y-auto">
+        <div className="h-full px-gutter py-5 pb-28 overflow-y-auto">
           {/* Header */}
           <div className="flex items-center gap-2 mb-4">
             <select

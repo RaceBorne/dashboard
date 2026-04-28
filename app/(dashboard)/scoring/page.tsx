@@ -11,7 +11,7 @@ export default async function ScoringPage() {
     <>
       <TopBar title="Fit scoring" subtitle="Setup · How candidates get ranked across Discovery and Shortlist" />
       <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
-        <div className="max-w-3xl mx-auto px-gutter py-6">
+        <div className="px-gutter py-6">
           <ScoringRubricClient initial={criteria} />
         </div>
       </div>

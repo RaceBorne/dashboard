@@ -56,7 +56,7 @@ export function StrategyTimeline(props: InternalProps | ExternalProps) {
 
   return (
     <nav className="absolute left-0 right-0 bottom-0 z-10 bg-evari-ink border-t border-evari-edge/30 px-4 py-3">
-      <div className="max-w-[1240px] 2xl:max-w-[1380px] mx-auto px-gutter">
+      <div className="px-gutter">
         <div className={cn('grid gap-2 items-end', stepsToShow.length === 7 ? 'grid-cols-7' : 'grid-cols-8')}>
           {stepsToShow.map((s, i) => {
             const active = s.key === activeKey;

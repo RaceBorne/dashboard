@@ -64,7 +64,7 @@ export function CampaignKindChooser({ groups, segments, templates, brand, initia
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
-      <div className="max-w-4xl mx-auto px-gutter py-8">
+      <div className="px-gutter py-8">
         <Link href="/email/campaigns" className="inline-flex items-center gap-1 text-xs text-evari-dim hover:text-evari-text transition-colors mb-6">
           <ChevronLeft className="h-3.5 w-3.5" /> All campaigns
         </Link>

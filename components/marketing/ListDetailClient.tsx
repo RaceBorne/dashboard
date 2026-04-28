@@ -229,7 +229,7 @@ export function ListDetailClient({ group: initialGroup, initialMembers }: Props)
 
   return (
     <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
-      <div className="max-w-6xl mx-auto px-gutter py-4">
+      <div className="px-gutter py-4">
         {/* Back link */}
         <Link href="/email/audience" className="inline-flex items-center gap-1 text-xs text-evari-dim hover:text-evari-text transition-colors mb-3">
           <ChevronLeft className="h-3.5 w-3.5" /> All lists
