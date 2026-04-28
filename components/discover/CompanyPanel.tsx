@@ -333,7 +333,7 @@ export function CompanyPanel({
           </div>
 
           <div className="flex items-start gap-3 pr-28">
-            <div className="h-14 w-14 rounded-xl border border-evari-edge/20 bg-evari-ink flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1.5">
+            <div className="h-14 w-14 rounded-xl overflow-hidden shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={
@@ -341,7 +341,7 @@ export function CompanyPanel({
                   `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
                 }
                 alt=""
-                className="max-h-full max-w-full object-contain"
+                className="h-full w-full object-cover"
               />
             </div>
             <div className="min-w-0 flex-1 pt-0.5">
