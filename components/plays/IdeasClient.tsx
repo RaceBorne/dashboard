@@ -100,7 +100,7 @@ export function IdeasClient({ plays, counts }: Props) {
             <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-evari-surface border border-evari-edge/40 text-evari-dim hover:text-evari-text hover:border-evari-gold/40 transition" title="Filters">
               <Filter className="h-3.5 w-3.5" />
             </button>
-            <Link href="/ventures?new=1" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition">
+            <Link href="/ideas?new=1" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition">
               <Plus className="h-3.5 w-3.5" /> New idea
             </Link>
           </div>

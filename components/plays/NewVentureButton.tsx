@@ -94,7 +94,7 @@ export function NewVentureButton() {
       });
       setOpen(false);
       reset();
-      router.push(`/ventures/${body.id}`);
+      router.push(`/ideas/${body.id}`);
       router.refresh();
       // Let the rail and any other venture-listeners know a new one exists.
       try {

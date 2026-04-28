@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
  *   - POST /api/plays with { title, brief: pitch }
  *   - Background PATCH /api/plays/{id} with { strategyShort: pitch } so
  *     Discover / CompanyPanel can read it without a round-trip
- *   - router.push(`/ventures/${id}`) + refresh + dispatch
+ *   - router.push(`/ideas/${id}`) + refresh + dispatch
  *     'evari:plays-dirty' so the rail refetches.
  */
 export function VentureHero() {
@@ -70,7 +70,7 @@ export function VentureHero() {
       } catch {
         // non-fatal
       }
-      router.push(`/ventures/${body.id}`);
+      router.push(`/ideas/${body.id}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

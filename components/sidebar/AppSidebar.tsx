@@ -44,12 +44,12 @@ import { useTheme } from '@/components/theme/ThemeProvider';
 // highlighted across every stage page, not only /plays.
 // Every URL that counts as “inside the Ventures module”. Used to keep
 // the Ventures sidebar entry highlighted across every stage page.
-const VENTURE_PREFIXES = ['/ventures', '/plays', '/discover', '/prospects', '/leads', '/conversations'];
+const VENTURE_PREFIXES = ['/ideas', '/plays', '/discover', '/prospects', '/leads', '/conversations'];
 
 const NAV = [
   { href: '/', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
-  { href: '/ventures', label: 'Ideas', icon: Rocket, group: 'pipeline', child: true },
+  { href: '/ideas', label: 'Ideas', icon: Rocket, group: 'pipeline', child: true },
   { href: '/strategy', label: 'Strategy', icon: ListTodo, group: 'pipeline', child: true },
   { href: '/discover', label: 'Discover', icon: Search, group: 'pipeline', child: true },
   { href: '/shortlist', label: 'Shortlist', icon: Star, group: 'pipeline', child: true },

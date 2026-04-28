@@ -76,11 +76,11 @@ interface StageDef {
 }
 
 const STAGES: StageDef[] = [
-  { key: 'ventures', label: 'Ideas', href: () => '/ventures' },
+  { key: 'ventures', label: 'Ideas', href: () => '/ideas' },
   {
     key: 'strategy',
     label: 'Strategy',
-    href: (id) => (id ? `/ventures/${id}` : '/ventures'),
+    href: (id) => (id ? `/ideas/${id}` : '/ideas'),
   },
   {
     key: 'discovery',

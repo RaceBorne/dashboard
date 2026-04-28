@@ -20,7 +20,7 @@ export default async function ShortlistPage({
         <div className="flex-1 flex items-center justify-center bg-evari-ink p-8">
           <div className="rounded-md bg-evari-surface border border-evari-edge/30 p-6 max-w-md text-center">
             <p className="text-[13px] text-evari-text mb-3">Start with an idea, then run Discovery to populate a shortlist.</p>
-            <Link href="/ventures" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition">Go to Ideas</Link>
+            <Link href="/ideas" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition">Go to Ideas</Link>
           </div>
         </div>
       </>

@@ -170,7 +170,7 @@ export function PlayRow({ play, counts }: Props) {
           </div>
         ) : (
           <Link
-            href={'/ventures/' + play.id}
+            href={'/ideas/' + play.id}
             className="flex-1 min-w-0 rounded-md"
           >
             <div className="flex items-start justify-between gap-3 mb-1.5">

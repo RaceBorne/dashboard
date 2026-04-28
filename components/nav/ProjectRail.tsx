@@ -16,7 +16,7 @@
  *
  * History — "+ New project" footer removed (#165).
  *   The footer used to host a "+ New project" button that called
- *   `window.location.href = '/ventures'`. Two problems with that:
+ *   `window.location.href = '/ideas'`. Two problems with that:
  *     1) Hard reload via window.location.href (not Next.js soft routing)
  *        meant the user dropped onto /ventures with a fresh document load
  *        — which paints briefly with no cached chunks and looks "broken"
@@ -157,7 +157,7 @@ export function ProjectRail({ activePlayId, className }: Props) {
 
   function projectHref(id: string): string {
     if (currentStagePath) return currentStagePath + '?playId=' + id;
-    return '/ventures/' + id;
+    return '/ideas/' + id;
   }
 
   return (
