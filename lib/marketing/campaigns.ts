@@ -65,6 +65,7 @@ interface CampaignRow {
   segment_id: string | null;
   group_id: string | null;
   group_ids: string[] | null;
+  subject_variants: string[] | null;
   recipient_emails: string[] | null;
   email_design: import('./types').EmailDesign | null;
   scheduled_for: string | null;
@@ -83,6 +84,7 @@ function rowToCampaign(row: CampaignRow): Campaign {
     segmentId: row.segment_id,
     groupId: row.group_id,
     groupIds: row.group_ids,
+    subjectVariants: row.subject_variants,
     recipientEmails: row.recipient_emails,
     kind: (row.kind ?? 'newsletter') as CampaignKind,
     emailDesign: row.email_design,
@@ -131,6 +133,7 @@ export async function createCampaign(input: {
   segmentId?: string | null;
   groupId?: string | null;
   groupIds?: string[] | null;
+  subjectVariants?: string[] | null;
   recipientEmails?: string[] | null;
     kind?: CampaignKind;
   emailDesign?: import('./types').EmailDesign | null;
@@ -146,6 +149,7 @@ export async function createCampaign(input: {
       segment_id: input.segmentId ?? null,
       group_id: input.groupId ?? null,
       group_ids: input.groupIds && input.groupIds.length > 0 ? input.groupIds : null,
+      subject_variants: input.subjectVariants && input.subjectVariants.length > 0 ? input.subjectVariants : null,
       recipient_emails: input.recipientEmails && input.recipientEmails.length > 0 ? input.recipientEmails : null,
       kind: input.kind ?? 'newsletter',
       email_design: input.emailDesign ?? null,
@@ -168,6 +172,7 @@ export async function updateCampaign(
     segmentId: string | null;
     groupId: string | null;
     groupIds: string[] | null;
+    subjectVariants: string[] | null;
     recipientEmails: string[] | null;
     status: CampaignStatus;
     scheduledFor: string | null;
@@ -184,6 +189,7 @@ export async function updateCampaign(
   if ('segmentId' in patch) dbPatch.segment_id = patch.segmentId;
   if ('groupId' in patch) dbPatch.group_id = patch.groupId;
   if ('groupIds' in patch) dbPatch.group_ids = patch.groupIds && patch.groupIds.length > 0 ? patch.groupIds : null;
+  if ('subjectVariants' in patch) dbPatch.subject_variants = patch.subjectVariants && patch.subjectVariants.length > 0 ? patch.subjectVariants : null;
   if ('status' in patch && patch.status) dbPatch.status = patch.status;
   if ('scheduledFor' in patch) dbPatch.scheduled_for = patch.scheduledFor;
   if (Object.keys(dbPatch).length === 0) return getCampaign(id);
@@ -471,7 +477,17 @@ export async function sendCampaign(id: string, opts: { excludeContactIds?: strin
     // in BOTH the body and the subject before each send so each
     // recipient gets their own personalised version.
     const mergedHtml    = applyMerge(renderedHtml, contact as { firstName?: string | null; lastName?: string | null; email?: string | null; company?: string | null });
-    const mergedSubject = applyMerge(campaign.subject, contact as { firstName?: string | null; lastName?: string | null; email?: string | null; company?: string | null });
+    // Subject A/B: when variants exist, deterministically pick one per contact id.
+    const variants = campaign.subjectVariants && campaign.subjectVariants.length > 0 ? campaign.subjectVariants : null;
+    let variantIdx: number | null = null;
+    let variantSubject = campaign.subject;
+    if (variants) {
+      let h = 0;
+      for (let i = 0; i < contact.id.length; i++) h = ((h << 5) - h) + contact.id.charCodeAt(i);
+      variantIdx = Math.abs(h) % variants.length;
+      variantSubject = variants[variantIdx] ?? campaign.subject;
+    }
+    const mergedSubject = applyMerge(variantSubject, contact as { firstName?: string | null; lastName?: string | null; email?: string | null; company?: string | null });
     const res = await sendOne({
       to: contact.email,
       subject: mergedSubject,
@@ -491,6 +507,7 @@ export async function sendCampaign(id: string, opts: { excludeContactIds?: strin
           message_id: res.messageId ?? null,
           sent_at: nowIso,
           error: null,
+          assigned_variant: variantIdx,
         })
         .eq('id', recipientId);
       // Log a campaign_sent event so flows / segments can react

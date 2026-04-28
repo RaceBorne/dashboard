@@ -101,6 +101,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
   // --- Details state ---
   const [name, setName] = useState('');
   const [subject, setSubject] = useState('');
+  const [subjectVariants, setSubjectVariants] = useState<string[]>([]);
   const [previewText, setPreviewText] = useState('');
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
   const [scheduledFor, setScheduledFor] = useState<string>(''); // ISO local datetime
@@ -166,6 +167,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
       const payload: Record<string, unknown> = {
         name: name.trim(),
         subject: subject.trim(),
+        subjectVariants: subjectVariants.map((s) => s.trim()).filter(Boolean),
         content: '', // legacy plain-HTML body; visual design supersedes
         kind: 'newsletter',
         segmentId: audienceKind === 'segment' ? segmentId || null : null,
@@ -289,6 +291,7 @@ export function CampaignWizard({ groups, segments, templates, brand, initialReci
             <WhenStep
               name={name} setName={setName}
               subject={subject} setSubject={setSubject}
+              subjectVariants={subjectVariants} setSubjectVariants={setSubjectVariants}
               previewText={previewText} setPreviewText={setPreviewText}
               scheduleMode={scheduleMode} setScheduleMode={setScheduleMode}
               scheduledFor={scheduledFor} setScheduledFor={setScheduledFor}
@@ -691,11 +694,12 @@ function TemplateThumb({ template, brand }: { template: EmailTemplate; brand: Ma
 function WhenStep(props: {
   name: string; setName: (s: string) => void;
   subject: string; setSubject: (s: string) => void;
+  subjectVariants: string[]; setSubjectVariants: (xs: string[]) => void;
   previewText: string; setPreviewText: (s: string) => void;
   scheduleMode: 'now' | 'later'; setScheduleMode: (s: 'now' | 'later') => void;
   scheduledFor: string; setScheduledFor: (s: string) => void;
 }) {
-  const { name, setName, subject, setSubject, previewText, setPreviewText, scheduleMode, setScheduleMode, scheduledFor, setScheduledFor } = props;
+  const { name, setName, subject, setSubject, subjectVariants, setSubjectVariants, previewText, setPreviewText, scheduleMode, setScheduleMode, scheduledFor, setScheduledFor } = props;
   return (
     <div className="space-y-4 max-w-xl">
       <header>
@@ -729,6 +733,7 @@ function WhenStep(props: {
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
         />
+        <SubjectVariantsEditor variants={subjectVariants} setVariants={setSubjectVariants} />
       </div>
 
       <label className="block">
@@ -766,12 +771,15 @@ function WhenStep(props: {
           </button>
         </div>
         {scheduleMode === 'later' ? (
-          <input
-            type="datetime-local"
-            className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none font-mono"
-            value={scheduledFor}
-            onChange={(e) => setScheduledFor(e.target.value)}
-          />
+          <>
+            <input
+              type="datetime-local"
+              className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none font-mono"
+              value={scheduledFor}
+              onChange={(e) => setScheduledFor(e.target.value)}
+            />
+            <SendTimeHint scheduledFor={scheduledFor} setScheduledFor={setScheduledFor} />
+          </>
         ) : null}
       </div>
     </div>
@@ -892,6 +900,105 @@ void ImageIcon; // exported for parity with other modules
  * Same component shape as DirectComposer's preview — kept inline
  * here rather than imported so the two flows stay independent.
  */
+function SendTimeHint({ scheduledFor, setScheduledFor }: { scheduledFor: string; setScheduledFor: (s: string) => void }) {
+  const [rec, setRec] = useState<{ peakHour: number; totalOpens: number } | null>(null);
+  useEffect(() => {
+    fetch('/api/marketing/send-time', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => { if (d?.recommendation) setRec({ peakHour: d.recommendation.peakHour, totalOpens: d.recommendation.totalOpens }); })
+      .catch(() => {});
+  }, []);
+  if (!rec) return null;
+  // What hour did the operator pick (UTC, since the rec is UTC)?
+  let scheduledHour: number | null = null;
+  if (scheduledFor) {
+    const d = new Date(scheduledFor);
+    if (!isNaN(d.getTime())) scheduledHour = d.getUTCHours();
+  }
+  // Window: peak hour ± 1.
+  const inWindow = scheduledHour !== null && Math.abs(scheduledHour - rec.peakHour) <= 1;
+  const labelHour = (h: number) => `${String(h).padStart(2, '0')}:00 UTC`;
+  function applyPeak() {
+    const d = scheduledFor ? new Date(scheduledFor) : new Date();
+    if (isNaN(d.getTime())) return;
+    d.setUTCHours(rec!.peakHour, 0, 0, 0);
+    // Convert back to local datetime-local string.
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    setScheduledFor(`${yyyy}-${mm}-${dd}T${hh}:${mi}`);
+  }
+  return (
+    <div className={'mt-1.5 rounded-md text-[11px] px-2 py-1.5 ' + (inWindow ? 'bg-evari-success/10 text-evari-success' : 'bg-evari-warn/10 text-evari-warn')}>
+      {inWindow
+        ? `Good window: your audience opens most around ${labelHour(rec.peakHour)} (${rec.totalOpens} opens analysed).`
+        : (
+          <>
+            Heads up: your audience opens most around {labelHour(rec.peakHour)}, you've picked {scheduledHour !== null ? labelHour(scheduledHour) : 'no time yet'}.{' '}
+            <button type="button" onClick={applyPeak} className="underline hover:text-evari-text transition">Use peak hour</button>
+          </>
+        )}
+    </div>
+  );
+}
+
+function SubjectVariantsEditor({ variants, setVariants }: { variants: string[]; setVariants: (xs: string[]) => void }) {
+  const enabled = variants.length > 0;
+  function add() {
+    if (variants.length >= 4) return;
+    setVariants([...variants, '']);
+  }
+  function remove(i: number) {
+    const next = variants.slice();
+    next.splice(i, 1);
+    setVariants(next);
+  }
+  function setAt(i: number, v: string) {
+    const next = variants.slice();
+    next[i] = v;
+    setVariants(next);
+  }
+  return (
+    <div className="mt-2">
+      {!enabled ? (
+        <button
+          type="button"
+          onClick={() => setVariants([''])}
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-evari-dim hover:text-evari-gold transition border border-evari-edge/30 hover:border-evari-gold/40 bg-evari-ink/30"
+        >
+          + A/B test the subject
+        </button>
+      ) : (
+        <div className="rounded-md border border-evari-gold/30 bg-evari-gold/5 p-2 space-y-1.5">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-evari-gold">
+            <span>Subject A/B variants ({variants.length})</span>
+            <button type="button" onClick={() => setVariants([])} className="text-evari-dim hover:text-evari-text normal-case tracking-normal">Remove A/B</button>
+          </div>
+          <p className="text-[11px] text-evari-dim">Recipients are split evenly across variants. The original subject above is variant A; rows below are B, C, D.</p>
+          {variants.map((v, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-[10px] text-evari-dimmer w-6">{String.fromCharCode(66 + i)}</span>
+              <input
+                value={v}
+                onChange={(e) => setAt(i, e.target.value)}
+                placeholder={`Subject variant ${String.fromCharCode(66 + i)}`}
+                className="flex-1 px-2 py-1 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+              />
+              <button type="button" onClick={() => remove(i)} className="text-[11px] text-evari-dim hover:text-evari-danger transition">Remove</button>
+            </div>
+          ))}
+          {variants.length < 4 ? (
+            <button type="button" onClick={add} className="text-[11px] text-evari-gold hover:text-evari-text">+ Add another variant</button>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CheckIconTick() {
   return (
     <svg viewBox="0 0 16 16" className="h-3 w-3 stroke-current" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

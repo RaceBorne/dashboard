@@ -31,6 +31,7 @@ import type { Campaign } from '@/lib/marketing/types';
 import type { CampaignAnalytics } from '@/lib/marketing/campaign-analytics';
 import { CampaignAnalyticsTabs } from './CampaignAnalyticsTabs';
 import { HoldingPenPanel } from './HoldingPenPanel';
+import { VariantBreakdown } from './VariantBreakdown';
 
 interface Props {
   campaign: Campaign;
@@ -154,6 +155,9 @@ export function CampaignReport({ campaign, analytics, audienceLabel, recipientCo
             icon={<AlertCircle className="h-4 w-4" />}
           />
         </div>
+
+        {/* A/B subject test, when present */}
+        {analytics?.variants && analytics.variants.length >= 2 ? <VariantBreakdown variants={analytics.variants} /> : null}
 
         {/* Holding pen — recipients held back during pre-flight review */}
         <HoldingPenPanel campaignId={campaign.id} />

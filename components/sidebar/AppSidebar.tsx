@@ -60,6 +60,7 @@ const NAV = [
   { href: '/social/linkedin', label: 'LinkedIn', icon: Linkedin, group: 'broadcast', child: true },
   { href: '/journals', label: 'Journals', icon: FileText, group: 'broadcast', child: true },
   { href: '/email', label: 'Email', icon: Mail, group: 'marketing' },
+  { href: '/people', label: 'People', icon: Users, group: 'marketing', child: true },
   { href: '/email/conversations', label: 'Conversations', icon: Mail, group: 'marketing', child: true },
   { href: '/email/audience', label: 'Audience', icon: Users, group: 'marketing', child: true },
   { href: '/email/templates', label: 'Templates', icon: Image, group: 'marketing', child: true },

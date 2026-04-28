@@ -185,6 +185,27 @@ async function evaluateRule(rule: SegmentRule): Promise<Set<string>> {
         return new Set();
       }
       const cutoff = new Date(Date.now() - rule.days * 24 * 60 * 60 * 1000).toISOString();
+
+      if (rule.op === 'not_occurred_in_last_days') {
+        // Contacts who have NOT had this event in the window — needs the
+        // universe of all contacts minus those who did.
+        const [allRes, occurredRes] = await Promise.all([
+          sb.from('dashboard_mkt_contacts').select('id').eq('status', 'active'),
+          sb.from('dashboard_mkt_events').select('contact_id').eq('type', rule.eventType).gte('created_at', cutoff),
+        ]);
+        if (allRes.error || occurredRes.error) {
+          console.error('[marketing.evaluateRule event !]', allRes.error ?? occurredRes.error);
+          return new Set();
+        }
+        const occurred = new Set((occurredRes.data ?? []).map((r) => (r as { contact_id: string }).contact_id));
+        const out = new Set<string>();
+        for (const c of allRes.data ?? []) {
+          const id = (c as { id: string }).id;
+          if (!occurred.has(id)) out.add(id);
+        }
+        return out;
+      }
+
       const { data, error } = await sb
         .from('dashboard_mkt_events')
         .select('contact_id')
@@ -196,6 +217,38 @@ async function evaluateRule(rule: SegmentRule): Promise<Set<string>> {
       }
       // De-dupe — a single contact will usually have many matching events
       return new Set((data ?? []).map((r) => (r as { contact_id: string }).contact_id));
+    }
+    case 'send_count': {
+      if (!Number.isFinite(rule.n) || rule.n < 0 || !Number.isFinite(rule.days) || rule.days <= 0) return new Set();
+      const cutoff = new Date(Date.now() - rule.days * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await sb
+        .from('dashboard_mkt_campaign_recipients')
+        .select('contact_id, sent_at')
+        .gte('sent_at', cutoff)
+        .in('status', ['sent', 'delivered', 'opened', 'clicked']);
+      if (error) {
+        console.error('[marketing.evaluateRule send_count]', error);
+        return new Set();
+      }
+      const counts = new Map<string, number>();
+      for (const r of (data ?? []) as Array<{ contact_id: string }>) {
+        counts.set(r.contact_id, (counts.get(r.contact_id) ?? 0) + 1);
+      }
+      const out = new Set<string>();
+      if (rule.op === 'gte') {
+        for (const [id, n] of counts) if (n >= rule.n) out.add(id);
+      } else {
+        // For 'lte' we also need the universe of contacts so a contact with
+        // 0 sends can match 'lte 0'. Pull active contacts and treat unknown
+        // contact_id as having 0 sends.
+        const { data: allContacts } = await sb.from('dashboard_mkt_contacts').select('id').eq('status', 'active');
+        for (const c of allContacts ?? []) {
+          const id = (c as { id: string }).id;
+          const n = counts.get(id) ?? 0;
+          if (n <= rule.n) out.add(id);
+        }
+      }
+      return out;
     }
     default: {
       // Future rule types land here. Returning empty set is the safe

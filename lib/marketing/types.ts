@@ -74,6 +74,20 @@ export type SegmentRule =
       op: 'occurred_in_last_days';
       eventType: string;
       days: number;
+    }
+  | {
+      // Behavioural — contact has NOT had this event type in the last N days.
+      type: 'event';
+      op: 'not_occurred_in_last_days';
+      eventType: string;
+      days: number;
+    }
+  | {
+      // Send count gate — contact has been emailed at least N times in window.
+      type: 'send_count';
+      op: 'gte' | 'lte';
+      n: number;
+      days: number;
     };
 
 export interface SegmentRuleSet {
@@ -122,6 +136,8 @@ export interface Campaign {
   groupId: string | null;
   /** Multi-list audience — union of memberships. Newer than groupId; when set, sends use it. */
   groupIds: string[] | null;
+  /** Optional A/B test on the subject line. When set + non-empty, recipients are split across variants. */
+  subjectVariants: string[] | null;
   /** Ad-hoc recipient list (emails) when audience is a custom selection. */
   recipientEmails: string[] | null;
   /** Phase 14 visual design — when set, supersedes the legacy `content` HTML at send time. */

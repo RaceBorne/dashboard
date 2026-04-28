@@ -13,9 +13,20 @@
 
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 
+export interface VariantStat {
+  index: number;
+  subject: string;
+  delivered: number;
+  opened: number;
+  clicked: number;
+  bounced: number;
+  recipients: number;
+}
+
 export interface RecipientActivity {
   id: string;
   contactId: string;
+  assignedVariant?: number | null;
   email: string | null;
   fullName: string | null;
   status: string;
@@ -65,6 +76,7 @@ export interface CampaignAnalytics {
   links: { url: string; uniqueClicks: number; totalClicks: number }[];
   peopleClicked: number;
   totalClicks: number;
+  variants?: VariantStat[];
 }
 
 export async function getCampaignAnalytics(campaignId: string, htmlBody: string): Promise<CampaignAnalytics | null> {
@@ -75,7 +87,7 @@ export async function getCampaignAnalytics(campaignId: string, htmlBody: string)
   const { data: rRows, error: rErr } = await sb
     .from('dashboard_mkt_campaign_recipients')
     .select(`
-      id, contact_id, status,
+      id, contact_id, status, assigned_variant,
       sent_at, delivered_at, opened_at, clicked_at, bounced_at, error,
       contact:dashboard_mkt_contacts ( email, first_name, last_name )
     `)
@@ -89,6 +101,7 @@ export async function getCampaignAnalytics(campaignId: string, htmlBody: string)
     id: string;
     contact_id: string;
     status: string;
+    assigned_variant: number | null;
     sent_at: string | null;
     delivered_at: string | null;
     opened_at: string | null;
@@ -103,6 +116,7 @@ export async function getCampaignAnalytics(campaignId: string, htmlBody: string)
     return {
       id: r.id,
       contactId: r.contact_id,
+      assignedVariant: r.assigned_variant ?? null,
       email: contact?.email ?? null,
       fullName: [contact?.first_name, contact?.last_name].filter(Boolean).join(' ') || null,
       status: r.status,
@@ -238,6 +252,34 @@ export async function getCampaignAnalytics(campaignId: string, htmlBody: string)
   // or never set), falling back to the recipients projection.
   const peopleClicked = distinctClickContacts.size > 0 ? distinctClickContacts.size : clicked;
 
+  // Per-variant stats for subject A/B tests. Read campaign.subject_variants
+  // separately so the report can label each variant with its actual subject.
+  let variants: VariantStat[] | undefined;
+  const { data: campRow } = await sb
+    .from('dashboard_mkt_campaigns')
+    .select('subject_variants, subject')
+    .eq('id', campaignId)
+    .maybeSingle();
+  const variantSubjects = (campRow as { subject_variants: string[] | null; subject: string } | null)?.subject_variants;
+  const baseSubject = (campRow as { subject_variants: string[] | null; subject: string } | null)?.subject ?? '';
+  if (variantSubjects && variantSubjects.length > 0) {
+    variants = variantSubjects.map((sub, i) => ({
+      index: i,
+      subject: sub || baseSubject,
+      delivered: 0, opened: 0, clicked: 0, bounced: 0, recipients: 0,
+    }));
+    for (const r of recipients) {
+      const idx = r.assignedVariant ?? null;
+      if (idx === null || idx < 0 || idx >= variants.length) continue;
+      const v = variants[idx];
+      v.recipients++;
+      if (r.deliveredAt) v.delivered++;
+      if (r.openedAt) v.opened++;
+      if (r.clickedAt) v.clicked++;
+      if (r.bouncedAt) v.bounced++;
+    }
+  }
+
   return {
     totals: { total, delivered, bounced, skipped, opened, clicked, unsubscribed, spamComplaints },
     rates,
@@ -246,5 +288,6 @@ export async function getCampaignAnalytics(campaignId: string, htmlBody: string)
     links,
     peopleClicked,
     totalClicks: totalClicks > 0 ? totalClicks : clicked,
+    variants,
   };
 }
