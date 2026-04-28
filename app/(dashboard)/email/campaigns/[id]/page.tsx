@@ -8,34 +8,63 @@ import { getCampaignAnalytics } from '@/lib/marketing/campaign-analytics';
 import { getBrand } from '@/lib/marketing/brand';
 import { listTemplates } from '@/lib/marketing/templates';
 import { CampaignEditor } from '@/components/marketing/CampaignEditor';
-import { CampaignAnalyticsTabs } from '@/components/marketing/CampaignAnalyticsTabs';
+import { CampaignReport } from '@/components/marketing/CampaignReport';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function CampaignEditPage({
+export default async function CampaignDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [campaign, groups, segments, stats, brand, templates] = await Promise.all([
-    getCampaign(id),
+  const campaign = await getCampaign(id);
+  if (!campaign) notFound();
+
+  const isSentLike = campaign.status === 'sent' || campaign.status === 'sending' || campaign.status === 'failed';
+
+  // Sent / sending / failed campaigns are read-only — render the
+  // analytics report instead of the editor. Drafts + scheduled keep
+  // the editor for active iteration.
+  if (isSentLike) {
+    const [groups, segments, stats, analytics] = await Promise.all([
+      listGroups(),
+      listSegments(),
+      getCampaignStats(id),
+      getCampaignAnalytics(id, campaign.content),
+    ]);
+    const audienceLabel = campaign.segmentId
+      ? (segments.find((s) => s.id === campaign.segmentId)?.name ?? 'Segment')
+      : campaign.groupId
+        ? (groups.find((g) => g.id === campaign.groupId)?.name ?? 'List')
+        : campaign.recipientEmails && campaign.recipientEmails.length > 0
+          ? `Custom (${campaign.recipientEmails.length})`
+          : 'No audience';
+    return (
+      <>
+        <TopBar title={campaign.name || 'Untitled campaign'} subtitle={`Email · ${campaign.kind === 'direct' ? 'Direct message' : 'Newsletter'} · Report`} />
+        <CampaignReport
+          campaign={campaign}
+          analytics={analytics}
+          audienceLabel={audienceLabel}
+          recipientCount={stats.total}
+        />
+      </>
+    );
+  }
+
+  // Draft / scheduled — keep the existing editor flow.
+  const [groups, segments, stats, brand, templates] = await Promise.all([
     listGroups(),
     listSegments(),
     getCampaignStats(id),
     getBrand(),
     listTemplates(),
   ]);
-  if (!campaign) notFound();
-  // Only fetch analytics for sent / sending campaigns — drafts have nothing to show.
-  const showAnalytics = campaign.status === 'sent' || campaign.status === 'sending';
-  const analytics = showAnalytics
-    ? await getCampaignAnalytics(campaign.id, campaign.content)
-    : null;
   return (
     <>
-      <TopBar title={campaign.name || 'Untitled campaign'} subtitle="Email · Broadcasts" />
+      <TopBar title={campaign.name || 'Untitled campaign'} subtitle={`Email · ${campaign.kind === 'direct' ? 'Direct message' : 'Newsletter'} · Edit`} />
       <CampaignEditor
         mode="edit"
         campaign={campaign}
@@ -45,11 +74,6 @@ export default async function CampaignEditPage({
         brand={brand}
         templates={templates}
       />
-      {analytics ? (
-        <div className="px-4 pb-4">
-          <CampaignAnalyticsTabs analytics={analytics} />
-        </div>
-      ) : null}
     </>
   );
 }
