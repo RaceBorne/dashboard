@@ -205,11 +205,7 @@ export function AppSidebar() {
   const systemTriggerRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (!openGroups.has('system')) return;
-    function onDown(e: MouseEvent) {
-      const t = e.target as Node | null;
-      if (!t) return;
-      if (systemPanelRef.current?.contains(t)) return;
-      if (systemTriggerRef.current?.contains(t)) return;
+    function close() {
       setOpenGroups((prev) => {
         if (!prev.has('system')) return prev;
         const next = new Set(prev);
@@ -217,8 +213,28 @@ export function AppSidebar() {
         return next;
       });
     }
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
+    function onPointer(e: PointerEvent | MouseEvent) {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (systemPanelRef.current?.contains(t)) return;
+      if (systemTriggerRef.current?.contains(t)) return;
+      close();
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') close();
+    }
+    // pointerdown covers mouse, pen and touch in one go; mousedown is
+    // a belt-and-braces fallback for any input type that doesn't fire
+    // pointer events. Both run before click, so the panel is gone by
+    // the time the click handler on whatever-was-clicked fires.
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [openGroups]);
 
   // Group items
