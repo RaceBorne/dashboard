@@ -109,7 +109,7 @@ export async function POST(
     .join('\n');
 
   const task =
-    'Help Craig develop this play. You already know everything about Evari and who buys the 856 — never ask him who our customer is or what our wedge is. Your job is strategy + research. If you need real companies, call find_business_listings. If you need fresh public info (competitors, news, market sizing, customer terminology), call web_search. Then fold what you find back into a concrete next-step answer. Keep replies punchy and decision-oriented. Markdown ok.';
+    'Help Craig develop this play. You already know everything about Evari and who buys the 856, never ask him who our customer is or what our wedge is. Your job is strategy + research. If you need real companies, call find_business_listings. If you need fresh public info (competitors, news, market sizing, customer terminology), call web_search. Then fold what you find back into a concrete next-step answer. Reply in plain prose paragraphs, never markdown: no headings, no **bold**, no ## hashes, no bullet points, no numbered lists. The Spitball UI prints text raw, so any markdown shows as literal characters and looks broken. Keep replies punchy and decision-oriented. No em-dashes, ever; use commas or full stops.';
 
   const now = new Date().toISOString();
   const userMsg: PlayChatMessage = {

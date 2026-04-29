@@ -46,20 +46,46 @@ interface Props {
 // knows Evari and the customer (loaded server-side via brand brief);
 // this just tells it to convert the pitch directly into a draft
 // strategy without asking the user any clarifying questions.
+//
+// IMPORTANT: ask for plain prose, not markdown. The Spitball renderer
+// shows raw text with whitespace-pre-wrap, so any markdown syntax
+// (## headers, **bold**, - bullets) appears literally on screen.
 const DRAFT_PROMPT = [
-  "Draft a complete prospecting strategy for this idea. Don't ask me clarifying questions, you already know Evari and our customer. Use the pitch as ground truth.",
+  "Draft a prospecting strategy for this idea. Don't ask me clarifying questions, you already know Evari and our customer. Use the pitch as ground truth.",
   '',
-  'Format the reply as markdown with these sections, in order:',
+  'Reply in two short paragraphs of plain prose. No headings. No bold. No bullet points. No markdown syntax of any kind. No em-dashes (use commas or full stops).',
   '',
-  '**Hypothesis** — one sentence, why this segment, why now.',
-  '**Sector & geography** — the slice we are hunting in.',
-  '**Target persona** — the exact role/title we email, with seniority.',
-  '**Messaging angles** — three distinct one-liners.',
-  '**Success metrics** — two or three measurable outcomes for the first 90 days.',
-  '**Disqualifiers** — when not to pursue an otherwise-matching lead.',
+  'First paragraph: who we are hunting and why, the role we email, and the angle that opens the conversation. Second paragraph: how we will know it is working in the first 90 days, and the kind of lead we should walk away from.',
   '',
-  'Tight sentences. No filler. No em-dashes.',
+  'Tight sentences. No filler. Calm, direct, founder-to-strategist tone.',
 ].join('\n');
+
+/**
+ * Render-time scrub for legacy chat content. Old responses in the DB
+ * were authored when the prompt asked for markdown sections, so they
+ * arrive with literal `## Heading` and `**bold**` runs that the
+ * whitespace-pre-wrap renderer prints raw. We strip the common syntax
+ * (headings, bold, italic, list markers) so existing conversations
+ * read like the new plain-prose output. Safe to run on new replies
+ * too: if there is no markdown, nothing changes.
+ */
+function stripMarkdown(text: string): string {
+  return text
+    // ATX headings (e.g. "## Heading" or "## **Heading**")
+    .replace(/^#{1,6}\s+\**(.+?)\**\s*$/gm, '$1')
+    // bold and italic emphasis
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/(^|\W)_([^_]+)_(?=\W|$)/g, '$1$2')
+    // bullet markers at the start of a line
+    .replace(/^\s*[-*]\s+/gm, '')
+    // numbered list markers
+    .replace(/^\s*\d+\.\s+/gm, '')
+    // horizontal rules
+    .replace(/^---+\s*$/gm, '')
+    // collapse 3+ blank lines that result from heading removal
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose, compact }: Props) {
   const router = useRouter();
@@ -296,7 +322,7 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
                   ? 'bg-evari-gold/15 text-evari-text'
                   : 'bg-evari-surface text-evari-text border border-evari-edge/30',
               )}>
-                {m.content}
+                {stripMarkdown(m.content)}
               </div>
             </div>
           ))}
