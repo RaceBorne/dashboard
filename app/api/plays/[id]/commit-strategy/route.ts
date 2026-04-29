@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
-import { after } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay } from '@/lib/dashboard/repository';
-import { autoScanForPlay } from '@/lib/brand/autoScan';
 import type { Play, PlayStrategy } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// after() keeps the lambda alive so autoScan (AI plan + DataForSEO
-// fetch) can finish. Need headroom: AI ~5s + DataForSEO ~5s + DB writes.
-export const maxDuration = 60;
+// Strategy commit is JUST the AI structuring pass plus a DB write.
+// The discovery auto-scan runs in a separate /auto-scan endpoint that
+// the client awaits after this resolves — that's more reliable than
+// `after()` on Vercel.
+export const maxDuration = 30;
 
 interface ChatEntry {
   role: 'user' | 'assistant';
@@ -126,31 +126,6 @@ export async function POST(
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
-
-  // Kick off the discovery auto-scan in the background. The user is
-  // about to be routed to /discover and will see candidates trickle in
-  // as DataForSEO returns. Non-blocking — any error is logged, not
-  // surfaced, because the strategy commit itself already succeeded.
-  after(async () => {
-    console.log('[commit-strategy] autoScan kickoff start id=' + id);
-    try {
-      const adminAfter = createSupabaseAdmin();
-      if (!adminAfter) {
-        console.warn('[commit-strategy] autoScan: no admin client');
-        return;
-      }
-      const result = await autoScanForPlay(adminAfter, next);
-      console.log(
-        '[commit-strategy] autoScan done id=' + id +
-        ' inserted=' + result.inserted +
-        ' found=' + result.found +
-        ' agent=' + result.agent +
-        (result.skipReason ? ' skip=' + result.skipReason : ''),
-      );
-    } catch (err) {
-      console.warn('[commit-strategy] autoScan kickoff failed id=' + id, err);
-    }
-  });
 
   return NextResponse.json({ ok: true, play: next });
 }

@@ -168,31 +168,48 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
     }
   }, [busy, messages, playId]);
 
+  // Two-stage flow: lock the strategy, then run the auto-scan
+  // synchronously. The button label changes mid-flow so the user can
+  // see progress. Routing happens once both stages finish.
+  const [commitStage, setCommitStage] = useState<'idle' | 'locking' | 'scanning'>('idle');
   const commit = useCallback(async () => {
-    if (committing) return;
+    if (commitStage !== 'idle') return;
     setCommitting(true);
+    setCommitStage('locking');
     try {
       const history = messages.map(({ role, content }) => ({ role, content }));
-      const res = await fetch(`/api/plays/${playId}/commit-strategy`, {
+      const lockRes = await fetch(`/api/plays/${playId}/commit-strategy`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ history }),
       });
-      const json = await res.json();
-      if (!json?.ok) {
+      const lockJson = await lockRes.json();
+      if (!lockJson?.ok) {
         setMessages((cur) => [
           ...cur,
           {
             id: 'err-' + Date.now(),
             role: 'assistant',
             content:
-              'Commit failed: ' + (json?.error ?? 'unknown error') +
-              '. You can try again, or hand off to Discovery without committing.',
+              'Commit failed: ' + (lockJson?.error ?? 'unknown error') +
+              '. You can try again, or hand off without committing.',
           },
         ]);
+        setCommitStage('idle');
         setCommitting(false);
         return;
       }
+
+      // Strategy is locked. Now fire the auto-scan synchronously so
+      // candidates land before we route the user to Discover.
+      setCommitStage('scanning');
+      try {
+        await fetch(`/api/plays/${playId}/auto-scan`, { method: 'POST' });
+      } catch {
+        // Non-fatal: the user can still go to Discover and add
+        // companies manually if the scan fails.
+      }
+
       router.push(`/discover?playId=${playId}&autoScanned=1`);
     } catch (err) {
       setMessages((cur) => [
@@ -204,9 +221,10 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
             'Commit failed: ' + (err instanceof Error ? err.message : String(err)),
         },
       ]);
+      setCommitStage('idle');
       setCommitting(false);
     }
-  }, [committing, messages, playId, router]);
+  }, [commitStage, messages, playId, router]);
 
   if (!open) return null;
 
@@ -296,8 +314,10 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
               )}
               title="Lock the strategy and start finding companies"
             >
-              {committing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {committing ? 'Locking…' : 'Lock strategy & start discovery'}
+              {commitStage !== 'idle' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {commitStage === 'locking' ? 'Locking strategy…' :
+               commitStage === 'scanning' ? 'Finding companies…' :
+               'Lock strategy & start discovery'}
             </button>
           </form>
         </div>
