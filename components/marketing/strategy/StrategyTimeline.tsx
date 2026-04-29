@@ -17,13 +17,10 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 export const STRATEGY_STEPS = [
-  { key: 'brief',     label: 'Brief' },
-  { key: 'target',    label: 'Target profile' },
-  { key: 'ideal',     label: 'Ideal customer' },
-  { key: 'channels',  label: 'Channels' },
-  { key: 'messaging', label: 'Messaging' },
-  { key: 'metrics',   label: 'Success metrics' },
-  { key: 'handoff',   label: 'Handoff' },
+  { key: 'market',   label: 'Market analysis' },
+  { key: 'target',   label: 'Target' },
+  { key: 'synopsis', label: 'Synopsis' },
+  { key: 'handoff',  label: 'Handoff' },
 ] as const;
 
 export type StrategyStepKey = typeof STRATEGY_STEPS[number]['key'];
@@ -57,7 +54,7 @@ export function StrategyTimeline(props: InternalProps | ExternalProps) {
   return (
     <nav className="absolute left-0 right-0 bottom-0 z-10 bg-evari-ink border-t border-evari-edge/30 px-4 py-3">
       <div className="px-gutter">
-        <div className={cn('grid gap-2 items-end', stepsToShow.length === 7 ? 'grid-cols-7' : 'grid-cols-8')}>
+        <div className={cn('grid gap-2 items-end', stepsToShow.length === 4 ? 'grid-cols-4' : 'grid-cols-5')}>
           {stepsToShow.map((s, i) => {
             const active = s.key === activeKey;
             const past = i < activeIdx;

@@ -30,12 +30,9 @@ import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
 import { AIDraftButton } from '@/components/ai/AIDraftButton';
 import { TargetProfileStep } from './strategy/TargetProfileStep';
-import { IdealCustomerStep } from './strategy/IdealCustomerStep';
-import { ChannelsStep as ChannelsStepDashboard } from './strategy/ChannelsStep';
-import { MessagingStep as MessagingStepDashboard } from './strategy/MessagingStep';
-import { SuccessMetricsStep } from './strategy/SuccessMetricsStep';
 import { HandoffStep as HandoffStepDashboard } from './strategy/HandoffStep';
 import { BriefSummaryStep } from './strategy/BriefSummaryStep';
+import { SynopsisStep } from './strategy/SynopsisStep';
 import { BriefEditorDrawer, type BriefSection } from './strategy/BriefEditorDrawer';
 import { StrategyTimeline, STRATEGY_STEPS } from './strategy/StrategyTimeline';
 import { SpitballPanel } from './strategy/SpitballPanel';
@@ -61,16 +58,27 @@ interface Brief {
 }
 
 const STEPS = [
-  { key: 'brief',     label: 'Brief' },
-  { key: 'target',    label: 'Target profile' },
-  { key: 'ideal',     label: 'Ideal customer' },
-  { key: 'channels',  label: 'Channels' },
-  { key: 'messaging', label: 'Messaging' },
-  { key: 'metrics',   label: 'Success metrics' },
-  { key: 'handoff',   label: 'Handoff' },
+  { key: 'market',   label: 'Market analysis' },
+  { key: 'target',   label: 'Target' },
+  { key: 'synopsis', label: 'Synopsis' },
+  { key: 'handoff',  label: 'Handoff' },
 ] as const;
 
 type StepKey = typeof STEPS[number]['key'];
+
+// Map old query-param values onto the new four-stage flow so existing
+// links and bookmarks land on the right stage.
+const LEGACY_STEP_MAP: Record<string, StepKey> = {
+  brief:     'market',
+  market:    'market',
+  target:    'target',
+  ideal:     'target',
+  channels:  'target',
+  messaging: 'target',
+  metrics:   'synopsis',
+  synopsis:  'synopsis',
+  handoff:   'handoff',
+};
 
 const CHANNEL_OPTIONS = ['email', 'linkedin', 'website', 'social', 'phone', 'event'];
 
@@ -84,11 +92,13 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
   const router = useRouter();
   const [brief, setBrief] = useState<Brief | null>(initialBrief);
   const searchParams = useSearchParams();
-  const initialStep = (searchParams?.get('step') ?? 'brief') as StepKey;
-  const [step, setStep] = useState<StepKey>(STRATEGY_STEPS.find((s) => s.key === initialStep) ? initialStep : 'brief');
+  const initialStep = (LEGACY_STEP_MAP[searchParams?.get('step') ?? 'market'] ?? 'market') as StepKey;
+  const [step, setStep] = useState<StepKey>(STRATEGY_STEPS.find((s) => s.key === initialStep) ? initialStep : 'market');
   useEffect(() => {
-    const q = searchParams?.get('step') as StepKey | null;
-    if (q && STRATEGY_STEPS.find((s) => s.key === q) && q !== step) setStep(q);
+    const q = searchParams?.get('step');
+    if (!q) return;
+    const mapped = LEGACY_STEP_MAP[q];
+    if (mapped && mapped !== step) setStep(mapped);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
@@ -237,13 +247,10 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
           {/* Seven-step rail (only when Spitball is closed). */}
           {spitballOpen ? null : (
             <SlideContainer step={step} direction={direction}>
-              {step === 'brief'     ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} playTitle={play.title} pitch={play.brief} /> : null}
-              {step === 'target'    ? <TargetProfileStep playId={brief.playId} /> : null}
-              {step === 'ideal'     ? <IdealCustomerStep playId={brief.playId} brief={{ idealCustomer: brief.idealCustomer, set }} /> : null}
-              {step === 'channels'  ? <ChannelsStepDashboard playId={brief.playId} briefChannels={brief.channels} onEdit={() => openEditor('channels')} /> : null}
-              {step === 'messaging' ? <MessagingStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('messaging')} /> : null}
-              {step === 'metrics'   ? <SuccessMetricsStep playId={brief.playId} brief={brief} onEdit={() => openEditor('metrics')} /> : null}
-              {step === 'handoff'   ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} /> : null}
+              {step === 'market'   ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} playTitle={play.title} pitch={play.brief} /> : null}
+              {step === 'target'   ? <TargetProfileStep playId={brief.playId} /> : null}
+              {step === 'synopsis' ? <SynopsisStep playId={brief.playId} playTitle={play.title} pitch={play.brief} brief={brief} onEdit={() => openEditor('overview')} /> : null}
+              {step === 'handoff'  ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} /> : null}
             </SlideContainer>
           )}
         </div>
