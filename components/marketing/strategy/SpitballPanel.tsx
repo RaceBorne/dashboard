@@ -61,30 +61,80 @@ const DRAFT_PROMPT = [
 ].join('\n');
 
 /**
- * Render-time scrub for legacy chat content. Old responses in the DB
- * were authored when the prompt asked for markdown sections, so they
- * arrive with literal `## Heading` and `**bold**` runs that the
- * whitespace-pre-wrap renderer prints raw. We strip the common syntax
- * (headings, bold, italic, list markers) so existing conversations
- * read like the new plain-prose output. Safe to run on new replies
- * too: if there is no markdown, nothing changes.
+ * Render chat content with light markdown awareness:
+ *   - `## **Title**` or `## Title` lines render as a semibold heading
+ *   - inline `**bold**` becomes a <strong> span
+ *   - `---` horizontal rules and bullet/number markers are dropped, the
+ *     trailing text kept as a plain line
+ *   - everything else is plain text, line by line
+ *
+ * The model occasionally insists on emitting markdown despite the
+ * prompt asking for prose. This converts those cases into clean
+ * styled output so the user never sees raw `##` or `**` characters.
  */
-function stripMarkdown(text: string): string {
-  return text
-    // ATX headings (e.g. "## Heading" or "## **Heading**")
-    .replace(/^#{1,6}\s+\**(.+?)\**\s*$/gm, '$1')
-    // bold and italic emphasis
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/(^|\W)_([^_]+)_(?=\W|$)/g, '$1$2')
-    // bullet markers at the start of a line
-    .replace(/^\s*[-*]\s+/gm, '')
-    // numbered list markers
-    .replace(/^\s*\d+\.\s+/gm, '')
-    // horizontal rules
-    .replace(/^---+\s*$/gm, '')
-    // collapse 3+ blank lines that result from heading removal
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+function renderInline(text: string, baseKey: number): React.ReactNode[] {
+  // Split on **...** spans and render each as <strong>.
+  const parts = text.split(/(\*\*[^*\n]+\*\*)/g);
+  return parts
+    .filter((p) => p !== '')
+    .map((p, i) => {
+      const m = p.match(/^\*\*([^*\n]+)\*\*$/);
+      if (m) return <strong key={`${baseKey}-${i}`} className="font-semibold text-evari-text">{m[1]}</strong>;
+      return <span key={`${baseKey}-${i}`}>{p}</span>;
+    });
+}
+
+function renderRich(text: string): React.ReactNode[] {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const out: React.ReactNode[] = [];
+  let i = 0;
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    i++;
+
+    // Horizontal rule, drop entirely.
+    if (/^---+$/.test(line)) continue;
+
+    // Blank line, render a small vertical gap.
+    if (line.trim() === '') {
+      out.push(<div key={`s-${i}`} className="h-2" />);
+      continue;
+    }
+
+    // ATX heading: "## Title" or "## **Title**" up to six hashes.
+    const heading = line.match(/^#{1,6}\s+(.+)$/);
+    if (heading) {
+      const cleaned = heading[1].replace(/^\*\*(.+?)\*\*$/, '$1');
+      out.push(
+        <div key={`h-${i}`} className="font-semibold text-evari-text mt-2 mb-0.5">
+          {renderInline(cleaned, i)}
+        </div>,
+      );
+      continue;
+    }
+
+    // Bullet list marker: "- foo" or "* foo".
+    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
+    if (bullet) {
+      out.push(
+        <div key={`b-${i}`}>{renderInline(bullet[1], i)}</div>,
+      );
+      continue;
+    }
+
+    // Numbered list marker: "1. foo".
+    const numbered = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (numbered) {
+      out.push(
+        <div key={`n-${i}`}>{renderInline(numbered[1], i)}</div>,
+      );
+      continue;
+    }
+
+    // Plain line.
+    out.push(<div key={`p-${i}`}>{renderInline(line, i)}</div>);
+  }
+  return out;
 }
 
 export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose, compact }: Props) {
@@ -317,12 +367,12 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
           {messages.map((m) => (
             <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
               <div className={cn(
-                'rounded-panel px-3 py-2 text-[13px] max-w-[85%] whitespace-pre-wrap break-words leading-relaxed',
+                'rounded-panel px-3 py-2 text-[13px] max-w-[85%] break-words leading-relaxed',
                 m.role === 'user'
                   ? 'bg-evari-gold/15 text-evari-text'
                   : 'bg-evari-surface text-evari-text border border-evari-edge/30',
               )}>
-                {stripMarkdown(m.content)}
+                {renderRich(m.content)}
               </div>
             </div>
           ))}
