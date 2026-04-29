@@ -134,7 +134,7 @@ export function IdeasClient({ plays, counts }: Props) {
               ))}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-auto pt-3">
+            <div className="flex-1 min-h-0 overflow-auto pt-3 no-scrollbar">
               {filtered.length === 0 ? (
                 <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-10 text-center text-[13px] text-evari-dim">
                   {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet. Use the panel on the right to create one.'}
