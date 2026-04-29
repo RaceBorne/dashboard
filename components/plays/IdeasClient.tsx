@@ -17,8 +17,7 @@ import { Search, Filter, Star } from 'lucide-react';
 
 import type { Play } from '@/lib/types';
 import { IdeaCard } from './IdeaCard';
-import { IdeasHero } from './IdeasHero';
-import { NewVentureButton } from './NewVentureButton';
+import { NewIdeaPanel } from './NewIdeaPanel';
 import { cn } from '@/lib/utils';
 
 type Bucket = 'all' | 'favourites' | 'drafts' | 'in_progress' | 'archived';
@@ -78,14 +77,13 @@ export function IdeasClient({ plays, counts }: Props) {
   }, [plays, active, search]);
 
   return (
-    // Page is split into a frozen top section (hero + header + tabs)
-    // and a scrollable rows region. Only the row list moves; the hero
-    // and search/tabs stay pinned so the operator never loses context.
+    // Two-column layout. Left column is the existing list of
+    // opportunities (search + tabs + scrollable cards). Right column
+    // is an inline 'new opportunity' panel that submits straight into
+    // /strategy?playId=X&kickoff=1.
     <div className="flex-1 min-h-0 flex flex-col bg-evari-ink">
-      <div className="shrink-0 px-gutter pt-5 pb-3 space-y-4">
-        <IdeasHero />
-        {/* Header row */}
-        <div className="flex items-center gap-2">
+      <div className="shrink-0 px-gutter pt-5 pb-3">
+        <div className="flex items-end gap-2">
           <div className="flex-1 min-w-0">
             <h1 className="text-[20px] font-bold text-evari-text">Ideas</h1>
             <p className="text-[12px] text-evari-dim">Capture, develop and organise new targeting concepts.</p>
@@ -103,47 +101,52 @@ export function IdeasClient({ plays, counts }: Props) {
             <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-panel bg-evari-surface border border-evari-edge/40 text-evari-dim hover:text-evari-text hover:border-evari-gold/40 transition" title="Filters">
               <Filter className="h-3.5 w-3.5" />
             </button>
-            <NewVentureButton />
           </div>
-        </div>
-
-        {/* Tabs — last frozen element. Border underneath sits flush
-            with the scroll region so the rows appear to slide under it. */}
-        <div className="flex items-center gap-1 border-b border-evari-edge/30">
-          {BUCKETS.map((b) => (
-            <button
-              key={b.key}
-              type="button"
-              onClick={() => setActive(b.key)}
-              className={cn('inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium border-b-2 transition',
-                active === b.key
-                  ? 'border-evari-gold text-evari-text'
-                  : 'border-transparent text-evari-dim hover:text-evari-text')}
-            >
-              {b.key === 'favourites' ? <Star className="h-3 w-3" /> : null}
-              <span>{b.label}</span>
-              <span className={cn('inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded text-[10px] font-mono tabular-nums',
-                active === b.key ? 'bg-evari-gold/15 text-evari-gold' : 'bg-evari-ink/40 text-evari-dim')}>
-                {counts_by_bucket[b.key]}
-              </span>
-            </button>
-          ))}
         </div>
       </div>
 
-      {/* Scrollable list region. */}
+      {/* Scrollable two-column body. */}
       <div className="flex-1 min-h-0 overflow-auto px-gutter pb-5">
-        {filtered.length === 0 ? (
-          <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-10 text-center text-[13px] text-evari-dim">
-            {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet.'}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-panel">
+          {/* LEFT: tabs + ideas list */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1 border-b border-evari-edge/30 mb-3 sticky top-0 bg-evari-ink z-10">
+              {BUCKETS.map((b) => (
+                <button
+                  key={b.key}
+                  type="button"
+                  onClick={() => setActive(b.key)}
+                  className={cn('inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium border-b-2 transition',
+                    active === b.key
+                      ? 'border-evari-gold text-evari-text'
+                      : 'border-transparent text-evari-dim hover:text-evari-text')}
+                >
+                  {b.key === 'favourites' ? <Star className="h-3 w-3" /> : null}
+                  <span>{b.label}</span>
+                  <span className={cn('inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded text-[10px] font-mono tabular-nums',
+                    active === b.key ? 'bg-evari-gold/15 text-evari-gold' : 'bg-evari-ink/40 text-evari-dim')}>
+                    {counts_by_bucket[b.key]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-10 text-center text-[13px] text-evari-dim">
+                {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet. Use the panel on the right to create one.'}
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {filtered.map((p) => (
+                  <IdeaCard key={p.id} play={p} />
+                ))}
+              </ul>
+            )}
           </div>
-        ) : (
-          <ul className="space-y-2 pt-3">
-            {filtered.map((p) => (
-              <IdeaCard key={p.id} play={p} />
-            ))}
-          </ul>
-        )}
+
+          {/* RIGHT: inline new-opportunity panel */}
+          <NewIdeaPanel />
+        </div>
       </div>
     </div>
   );
