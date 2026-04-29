@@ -10,7 +10,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import {
-  Award, Bike, Briefcase, Building2, Car, Crown, Heart, MoreHorizontal,
+  Award, Bike, Briefcase, Building2, Car, Crown, Heart,
   Plane, Rocket, ShieldCheck, Sparkles, Star, Stethoscope, Trees,
   Trophy, Users, Utensils,
 } from 'lucide-react';
@@ -127,15 +127,6 @@ export function IdeaCard({ play, onTogglePin }: { play: Play; onTogglePin?: (id:
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          className="self-start text-evari-dim hover:text-evari-text p-1 rounded transition opacity-0 group-hover:opacity-100"
-          title="More"
-          aria-label="More actions"
-        >
-          <MoreHorizontal className="h-3.5 w-3.5" />
-        </button>
       </Link>
     </li>
   );

@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
-import { Bookmark, ChevronRight, Filter, Loader2, MoreHorizontal, Pencil, Plus, Save, Search, SlidersHorizontal } from 'lucide-react';
+import { Bookmark, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Search } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
@@ -226,23 +226,10 @@ export function DiscoveryDashboard({ plays, play }: Props) {
               className="w-full pl-8 pr-2 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
             />
           </div>
-          <FilterChip label="Industry" value="All" />
-          <FilterChip label="Company size" value="—" />
-          <FilterChip label="Revenue" value="—" />
-          <FilterChip label="Location" value="—" />
-          <button type="button" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition">
-            <Filter className="h-3.5 w-3.5" /> More filters
-          </button>
-          <button type="button" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-gold border border-evari-gold/30 hover:bg-evari-gold/10 transition">
-            <Save className="h-3.5 w-3.5" /> Save view
-          </button>
         </div>
         <div className="flex items-center justify-between text-[11px] text-evari-dim">
           <span>{stats.companiesFound.toLocaleString()} companies <button onClick={() => setSearch('')} className="text-evari-gold hover:underline">Clear all</button></span>
-          <span className="inline-flex items-center gap-2">
-            <button type="button" className="inline-flex items-center gap-1 hover:text-evari-text transition"><SlidersHorizontal className="h-3 w-3" /> Columns</button>
-            <span>Sort: <span className="text-evari-text">Fit score</span></span>
-          </span>
+          <span>Sort: <span className="text-evari-text">Fit score</span></span>
         </div>
       </section>
 
@@ -265,7 +252,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
           </thead>
           <tbody>
             {visible.length === 0 ? (
-              <tr><td colSpan={10} className="text-center py-12 text-evari-dim">No companies in Discovery yet. Click <Link href={`/discover/search?playId=${play.id}`} className="text-evari-gold hover:underline">Add companies</Link> to find some.</td></tr>
+              <tr><td colSpan={10} className="text-center py-12 text-evari-dim">No companies in Discovery yet. Use the Find companies button above to run an auto-scan.</td></tr>
             ) : visible.map((r) => (
               <tr key={r.id} className="border-t border-evari-edge/20 hover:bg-evari-ink/30 group">
                 <td className="px-3"><input type="checkbox" className="accent-evari-gold" /></td>
@@ -334,15 +321,6 @@ function Stat({ label, value, sub, accent }: { label: string; value: string; sub
       <div className="text-[11px] text-evari-dim mb-1">{label}</div>
       <div className={cn('text-[26px] font-bold tabular-nums', accent ? 'text-evari-gold' : 'text-evari-text')}>{value}</div>
       {sub ? <div className="text-[11px] text-evari-dim">{sub}</div> : null}
-    </div>
-  );
-}
-
-function FilterChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] border border-evari-edge/40 bg-evari-ink text-evari-text">
-      <span className="text-evari-dim">{label}</span>
-      <span>{value}</span>
     </div>
   );
 }

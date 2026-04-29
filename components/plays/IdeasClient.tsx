@@ -13,7 +13,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Search, Filter, Star } from 'lucide-react';
+import { Search, Star } from 'lucide-react';
 
 import type { Play } from '@/lib/types';
 import { IdeaCard } from './IdeaCard';
@@ -98,9 +98,6 @@ export function IdeasClient({ plays, counts }: Props) {
                 className="pl-7 pr-2 py-1.5 rounded-panel bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none w-56"
               />
             </div>
-            <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-panel bg-evari-surface border border-evari-edge/40 text-evari-dim hover:text-evari-text hover:border-evari-gold/40 transition" title="Filters">
-              <Filter className="h-3.5 w-3.5" />
-            </button>
           </div>
         </div>
       </div>
