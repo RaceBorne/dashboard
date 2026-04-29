@@ -158,6 +158,23 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
     setDirection(nextIdx >= curIdx ? 'forward' : 'backward');
     setStep(next);
   }
+  // 'Next' button advances through the seven steps in order. On the
+  // last step (Handoff) it routes to Discovery instead, since Discovery
+  // is the natural next surface after the strategy is committed.
+  function nextStep() {
+    const curIdx = STEPS.findIndex((s) => s.key === step);
+    if (curIdx < 0) return;
+    if (curIdx >= STEPS.length - 1) {
+      handoff();
+      return;
+    }
+    go(STEPS[curIdx + 1].key);
+  }
+  const isLastStep = step === 'handoff';
+  const currentStepIdx = STEPS.findIndex((s) => s.key === step);
+  const nextLabel = isLastStep
+    ? 'Hand off to Discovery'
+    : 'Next: ' + (STEPS[currentStepIdx + 1]?.label ?? '');
 
   function handoff() {
     if (!brief) return;
@@ -203,12 +220,16 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
               >
                 <Sparkles className="h-3.5 w-3.5" /> {spitballOpen ? 'Show brief' : 'Spitball'}
               </button>
+              {/* Big Next button — advances through the seven steps,
+                  and on Handoff it commits and routes to Discovery. */}
               <button
                 type="button"
-                onClick={handoff}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-text text-evari-ink hover:brightness-110 transition"
+                onClick={nextStep}
+                disabled={spitballOpen}
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-md text-[13px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
+                title={isLastStep ? 'Commit and start finding companies' : 'Move to the next step'}
               >
-                Hand off to Discovery <ChevronRight className="h-3.5 w-3.5" />
+                {nextLabel} <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
