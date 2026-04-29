@@ -98,11 +98,10 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
   // (the path after creating a new idea), or manually via the Spitball
   // button in the header. `kickoff` flag drives the auto-opener.
   const kickoffFlag = searchParams?.get('kickoff') === '1';
-  // Spitball is the default surface on Strategy: it's where the user
-  // talks to Claude and converts the conversation into a committed
-  // strategy. The seven-step rail is reachable behind it via the
-  // 'Show brief' toggle in the header.
-  const [spitballOpen, setSpitballOpen] = useState<boolean>(true);
+  // The seven-step rail is the default surface. Spitball auto-opens
+  // ONLY in kickoff mode (just-created idea). For existing ideas the
+  // user clicks the Spitball button in the header to engage Claude.
+  const [spitballOpen, setSpitballOpen] = useState<boolean>(kickoffFlag);
   const [kickoffOnOpen, setKickoffOnOpen] = useState<boolean>(kickoffFlag);
   // Strip kickoff=1 from the URL after first paint so a refresh doesn't
   // re-arm the opener. We keep the panel open via local state.

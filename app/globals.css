@@ -1225,3 +1225,34 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   padding-right: 4px;
 }
+
+/* --------------------------------------------------------------------------
+   Strategy document print layout. The Handoff step renders a printable
+   "Strategy document" inside .strategy-doc; when the user hits Print,
+   we want the rest of the chrome (sidebar, AI pane, top bar, bottom
+   timeline) hidden and the document rendered on white with black ink.
+   -------------------------------------------------------------------- */
+@media print {
+  /* Hide app chrome */
+  aside,
+  .print\:hidden {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .strategy-doc,
+  .strategy-doc * {
+    color: black !important;
+    background: white !important;
+    border-color: #ccc !important;
+  }
+  .strategy-doc {
+    box-shadow: none !important;
+  }
+  /* Avoid splitting sections across pages where possible */
+  .strategy-doc section {
+    page-break-inside: avoid;
+  }
+}
