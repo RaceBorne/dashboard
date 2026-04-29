@@ -107,7 +107,7 @@ export function IdeasClient({ plays, counts }: Props) {
 
       {/* Scrollable two-column body. */}
       <div className="flex-1 min-h-0 overflow-auto px-gutter pb-5">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-panel">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-panel">
           {/* LEFT: tabs + ideas list */}
           <div className="min-w-0">
             <div className="flex items-center gap-1 border-b border-evari-edge/30 mb-3 sticky top-0 bg-evari-ink z-10">

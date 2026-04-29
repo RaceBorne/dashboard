@@ -58,7 +58,7 @@ export function NewIdeaPanel() {
   }
 
   return (
-    <aside className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 flex flex-col gap-3 sticky top-3">
+    <aside className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4 flex flex-col gap-3">
       <header className="flex items-start gap-2">
         <span className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-evari-gold/15 text-evari-gold shrink-0">
           <Sparkles className="h-4 w-4" />
