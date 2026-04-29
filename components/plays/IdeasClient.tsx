@@ -105,12 +105,15 @@ export function IdeasClient({ plays, counts }: Props) {
         </div>
       </div>
 
-      {/* Scrollable two-column body. */}
-      <div className="flex-1 min-h-0 overflow-auto px-gutter pb-5">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-panel">
-          {/* LEFT: tabs + ideas list */}
-          <div className="min-w-0">
-            <div className="flex items-center gap-1 border-b border-evari-edge/30 mb-3 sticky top-0 bg-evari-ink z-10">
+      {/* Two-column body. The grid itself doesn't scroll; the LEFT
+          column scrolls its cards internally, the RIGHT column stays
+          fixed alongside (sticky position keeps the panel pinned even
+          when the parent content is taller). */}
+      <div className="flex-1 min-h-0 px-gutter pb-5 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-panel h-full">
+          {/* LEFT: tabs at top, scrollable cards list below. */}
+          <div className="min-w-0 flex flex-col min-h-0">
+            <div className="flex items-center gap-1 border-b border-evari-edge/30 shrink-0">
               {BUCKETS.map((b) => (
                 <button
                   key={b.key}
@@ -131,21 +134,33 @@ export function IdeasClient({ plays, counts }: Props) {
               ))}
             </div>
 
-            {filtered.length === 0 ? (
-              <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-10 text-center text-[13px] text-evari-dim">
-                {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet. Use the panel on the right to create one.'}
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {filtered.map((p) => (
-                  <IdeaCard key={p.id} play={p} />
-                ))}
-              </ul>
-            )}
+            <div className="flex-1 min-h-0 overflow-auto pt-3">
+              {filtered.length === 0 ? (
+                <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-10 text-center text-[13px] text-evari-dim">
+                  {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet. Use the panel on the right to create one.'}
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {filtered.map((p) => (
+                    <IdeaCard key={p.id} play={p} />
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
-          {/* RIGHT: inline new-opportunity panel */}
-          <NewIdeaPanel />
+          {/* RIGHT: opportunity panel. Top aligned with first card row
+              by skipping the tabs height (~41px). Panel itself is a
+              capped-height column that ends before the bottom of the
+              page; cards scrolling on the left don't move it. */}
+          <div className="min-w-0 hidden lg:block pt-[41px]">
+            <NewIdeaPanel />
+          </div>
+
+          {/* On narrow viewports the panel sits BELOW the list. */}
+          <div className="lg:hidden">
+            <NewIdeaPanel />
+          </div>
         </div>
       </div>
     </div>
