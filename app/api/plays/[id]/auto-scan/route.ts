@@ -36,13 +36,18 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'Play not found' }, { status: 404 });
   }
 
-  // Idempotency: don't double-run if a scan is already in flight.
-  // 'running' means we're partway through a previous call, 'done' with
-  // a recent finishedAt (< 60s) means we just finished. In either case
-  // skip and report the existing status.
+  // Idempotency: only skip if a scan is genuinely in flight RIGHT
+  // now. Vercel kills lambdas mid-flight when a previous deployment
+  // didn't have maxDuration set, leaving rows stuck at status='running'
+  // forever. Treat anything older than 90 seconds as stale and retry.
   const stamp = play.autoScan ?? { status: 'pending' };
-  if (stamp.status === 'running') {
-    return NextResponse.json({ ok: true, skipped: 'already-running', autoScan: stamp });
+  if (stamp.status === 'running' && stamp.startedAt) {
+    const startedMs = new Date(stamp.startedAt).getTime();
+    const ageMs = Date.now() - startedMs;
+    if (ageMs < 90_000) {
+      return NextResponse.json({ ok: true, skipped: 'already-running', autoScan: stamp });
+    }
+    console.warn('[auto-scan] reclaiming stale running scan id=' + id + ' age=' + Math.round(ageMs / 1000) + 's');
   }
 
   console.log('[auto-scan] start id=' + id);
