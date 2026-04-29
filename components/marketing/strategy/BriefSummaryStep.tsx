@@ -12,6 +12,7 @@ import { StepTitle } from './StepTitle';
 
 import { humaniseChannel } from './BriefEditorDrawer';
 import { SpitballPanel } from './SpitballPanel';
+import { ChipPicker } from './ChipPicker';
 import { cn } from '@/lib/utils';
 
 interface Brief {
@@ -48,12 +49,74 @@ function priorityFor(channel: string, picked: string[]): 'High' | 'Medium' | 'Lo
   return 'Low';
 }
 
-export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch }: { playId: string; brief: Brief; onEdit: () => void; playTitle: string; pitch: string }) {
+export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPatch }: { playId: string; brief: Brief; onEdit: () => void; playTitle: string; pitch: string; onPatch: (patch: Partial<Brief>) => void }) {
   const [a, setA] = useState<Analytics | null>(null);
   useEffect(() => {
     fetch(`/api/strategy/${playId}/analytics`, { cache: 'no-store' })
       .then((r) => r.json()).then((d) => setA(d?.analytics ?? null)).catch(() => setA(null));
   }, [playId]);
+
+  // Chip suggestions for this stage. Loaded once per play; the AI
+  // tailors options to the pitch + idea. Fallback static options ship
+  // from the API if the gateway is offline.
+  const [chips, setChips] = useState<{ industries: string[]; geographies: string[]; companySizes: string[]; revenues: string[] } | null>(null);
+  const [chipsLoading, setChipsLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setChipsLoading(true);
+    fetch(`/api/strategy/${playId}/chips`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ stage: 'market', playTitle, pitch }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        if (d?.ok) {
+          setChips({
+            industries:   Array.isArray(d.industries)   ? d.industries   : [],
+            geographies:  Array.isArray(d.geographies)  ? d.geographies  : [],
+            companySizes: Array.isArray(d.companySizes) ? d.companySizes : [],
+            revenues:     Array.isArray(d.revenues)     ? d.revenues     : [],
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setChipsLoading(false); });
+    return () => { cancelled = true; };
+  }, [playId, playTitle, pitch]);
+
+  // Helpers for chip-picked sizing/revenue, which live as min/max
+  // numeric fields on the brief but as discrete bands in the chips UI.
+  const sizeBand =
+    brief.companySizeMin && brief.companySizeMax
+      ? `${brief.companySizeMin}-${brief.companySizeMax} employees`
+      : null;
+  const revenueBand =
+    brief.revenueMin && brief.revenueMax ? `${brief.revenueMin}-${brief.revenueMax}` : null;
+  function applySizeBand(picked: string[]) {
+    const last = picked[picked.length - 1];
+    if (!last) {
+      onPatch({ companySizeMin: null, companySizeMax: null });
+      return;
+    }
+    const m = last.match(/(\d+)\s*-\s*(\d+)/);
+    if (m) onPatch({ companySizeMin: Number(m[1]), companySizeMax: Number(m[2]) });
+    else if (/(\d+)\+/.test(last)) {
+      const n = Number(last.match(/(\d+)\+/)![1]);
+      onPatch({ companySizeMin: n, companySizeMax: 9999 });
+    }
+  }
+  function applyRevenueBand(picked: string[]) {
+    const last = picked[picked.length - 1];
+    if (!last) {
+      onPatch({ revenueMin: null, revenueMax: null });
+      return;
+    }
+    const m = last.match(/(£[^-\s]+)\s*-\s*(£[^\s]+)/);
+    if (m) onPatch({ revenueMin: m[1], revenueMax: m[2] });
+    else onPatch({ revenueMin: last, revenueMax: last });
+  }
 
   const valueProp = brief.objective?.trim() ?? 'Add an objective on the Brief editor.';
   const oneLiner = valueProp.split(/[.!?]/)[0].trim() + '.';
@@ -74,9 +137,53 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch }: { 
           Claude on the right. Right column takes full row height so
           the chat fills the depth. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-panel">
-        {/* LEFT: stacked structured cards */}
+        {/* LEFT: chip-pick questions. Each ChipPicker is one stage
+            question: pick options to lock in your market. Custom
+            options can be added inline. The brief patches back to
+            Supabase via the parent's onPatch callback. */}
         <div className="flex flex-col gap-panel">
-          <Card icon={<Users className="h-4 w-4" />} title="Target market">
+          <ChipPicker
+            title="Sector"
+            hint="Which industries are we targeting?"
+            options={chips?.industries ?? []}
+            selected={brief.industries}
+            onChange={(next) => onPatch({ industries: next })}
+            loading={chipsLoading}
+          />
+
+          <ChipPicker
+            title="Geography"
+            hint="Where are these companies based?"
+            options={chips?.geographies ?? []}
+            selected={brief.geography ? [brief.geography] : []}
+            onChange={(next) => onPatch({ geography: next[next.length - 1] ?? null })}
+            max={1}
+            loading={chipsLoading}
+          />
+
+          <ChipPicker
+            title="Company size"
+            hint="Headcount band of the businesses we want to reach."
+            options={chips?.companySizes ?? []}
+            selected={sizeBand ? [sizeBand] : []}
+            onChange={applySizeBand}
+            max={1}
+            loading={chipsLoading}
+          />
+
+          <ChipPicker
+            title="Revenue"
+            hint="Annual revenue band."
+            options={chips?.revenues ?? []}
+            selected={revenueBand ? [revenueBand] : []}
+            onChange={applyRevenueBand}
+            max={1}
+            loading={chipsLoading}
+          />
+
+          {/* Snapshot of analytics derived from picks above, plus
+              ideal customer prose if Claude has filled it in. */}
+          <Card icon={<Users className="h-4 w-4" />} title="Snapshot">
             {a === null ? <Loading /> : (
               <div className="grid grid-cols-3 gap-3">
                 <Stat label="ICP fit score" value={String(a.icpScore)} sub={a.icpBand.replace('_', ' ')} accent />
@@ -84,43 +191,8 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch }: { 
                 <Stat label="Revenue potential" value={a.revenuePotentialLabel} sub="Annual" />
               </div>
             )}
-          </Card>
-
-          <Card icon={<Send className="h-4 w-4" />} title="Channels">
-            {brief.channels.length === 0 ? (
-              <div className="text-[11px] text-evari-dim">No channels selected. Open Channels to set them.</div>
-            ) : (
-              <ul className="divide-y divide-evari-edge/20">
-                {PRIORITY_ORDER.filter((c) => brief.channels.includes(c)).map((c) => (
-                  <li key={c} className="flex items-center justify-between py-2 text-[12px]">
-                    <span className="text-evari-text">{humaniseChannel(c)}</span>
-                    <PriorityPill p={priorityFor(c, brief.channels)} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card icon={<Target className="h-4 w-4" />} title="Ideal customer">
-            <KV label="Industry"     value={brief.industries.length > 0 ? brief.industries.join(', ') : '—'} />
-            <KV label="Company size" value={brief.companySizeMin && brief.companySizeMax ? `${brief.companySizeMin} – ${brief.companySizeMax} employees` : '—'} />
-            <KV label="Revenue"      value={brief.revenueMin && brief.revenueMax ? `${brief.revenueMin} – ${brief.revenueMax}` : '—'} />
-            <KV label="Location"     value={brief.geography || '—'} />
             {brief.idealCustomer && brief.idealCustomer.trim().length > 0 ? (
-              <p className="mt-2 pt-2 border-t border-evari-edge/20 text-[12px] text-evari-text leading-relaxed">{brief.idealCustomer}</p>
-            ) : null}
-          </Card>
-
-          <Card icon={<MessageSquare className="h-4 w-4" />} title="Messaging">
-            <KV label="Value proposition" value={valueProp} multiline />
-            <KV label="One-liner" value={oneLiner} multiline />
-            <KV label="Tone of voice" value="Credible, human, relevant, concise, helpful" />
-            {brief.messaging && brief.messaging.length > 0 ? (
-              <ol className="mt-2 pt-2 border-t border-evari-edge/20 space-y-1 text-[12px] text-evari-text list-decimal list-inside marker:text-evari-dim">
-                {brief.messaging.map((m, i) => (
-                  <li key={i}><span className="font-semibold">{m.angle}</span>{m.line ? <span className="text-evari-dim"> — {m.line}</span> : null}</li>
-                ))}
-              </ol>
+              <p className="mt-3 pt-3 border-t border-evari-edge/20 text-[12px] text-evari-text leading-relaxed">{brief.idealCustomer}</p>
             ) : null}
           </Card>
         </div>
