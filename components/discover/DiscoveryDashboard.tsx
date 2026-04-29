@@ -181,9 +181,26 @@ export function DiscoveryDashboard({ plays, play }: Props) {
         <Link href={`/strategy?playId=${encodeURIComponent(play.id)}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition">
           <Pencil className="h-3.5 w-3.5" /> Edit strategy
         </Link>
-        <Link href={`/discover/search?playId=${encodeURIComponent(play.id)}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition">
-          <Plus className="h-3.5 w-3.5" /> Add companies
-        </Link>
+        <button
+          type="button"
+          onClick={async () => {
+            setBusy('autoscan');
+            try {
+              await fetch(`/api/plays/${play.id}/auto-scan`, { method: 'POST' });
+              await load();
+            } finally {
+              setBusy(null);
+            }
+          }}
+          disabled={busy === 'autoscan'}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-60 disabled:cursor-wait transition"
+        >
+          {busy === 'autoscan' ? (
+            <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Finding companies…</>
+          ) : (
+            <><Plus className="h-3.5 w-3.5" /> Find companies</>
+          )}
+        </button>
       </header>
 
       {/* Stats strip */}
