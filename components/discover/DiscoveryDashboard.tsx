@@ -88,6 +88,30 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   }
   useEffect(() => { void load(); }, [play.id]);
 
+  // When the user lands here from a fresh commit (autoScan running in
+  // the background), poll every 3s for up to 90s so candidates appear
+  // as they're inserted by autoScanForPlay. Stops polling once any rows
+  // show up, the user navigates, or the timeout elapses.
+  const searchParamsForPoll = useSearchParams();
+  const arrivingFromCommit = searchParamsForPoll?.get('autoScanned') === '1';
+  useEffect(() => {
+    if (!arrivingFromCommit) return;
+    if (rows === null) return;       // initial load not done yet
+    if (rows.length > 0) return;     // already populated, no need to poll
+    let cancelled = false;
+    let attempts = 0;
+    const id = setInterval(() => {
+      attempts++;
+      if (attempts > 30 || cancelled) {
+        clearInterval(id);
+        return;
+      }
+      void load();
+    }, 3000);
+    return () => { cancelled = true; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrivingFromCommit, rows?.length, play.id]);
+
   const filtered = useMemo(() => {
     if (!rows) return [];
     if (!search.trim()) return rows;

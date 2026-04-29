@@ -8,6 +8,9 @@ import type { Play, PlayStrategy } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// after() keeps the lambda alive so autoScan (AI plan + DataForSEO
+// fetch) can finish. Need headroom: AI ~5s + DataForSEO ~5s + DB writes.
+export const maxDuration = 60;
 
 interface ChatEntry {
   role: 'user' | 'assistant';
@@ -129,12 +132,23 @@ export async function POST(
   // as DataForSEO returns. Non-blocking — any error is logged, not
   // surfaced, because the strategy commit itself already succeeded.
   after(async () => {
+    console.log('[commit-strategy] autoScan kickoff start id=' + id);
     try {
       const adminAfter = createSupabaseAdmin();
-      if (!adminAfter) return;
-      await autoScanForPlay(adminAfter, next);
+      if (!adminAfter) {
+        console.warn('[commit-strategy] autoScan: no admin client');
+        return;
+      }
+      const result = await autoScanForPlay(adminAfter, next);
+      console.log(
+        '[commit-strategy] autoScan done id=' + id +
+        ' inserted=' + result.inserted +
+        ' found=' + result.found +
+        ' agent=' + result.agent +
+        (result.skipReason ? ' skip=' + result.skipReason : ''),
+      );
     } catch (err) {
-      console.warn('[commit-strategy] autoScan kickoff failed', err);
+      console.warn('[commit-strategy] autoScan kickoff failed id=' + id, err);
     }
   });
 
