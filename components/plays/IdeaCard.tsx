@@ -90,12 +90,13 @@ export function IdeaCard({ play, onTogglePin }: { play: Play; onTogglePin?: (id:
           <Icon className="h-5 w-5" />
         </div>
 
-        {/* Title + brief + tags. Brief wraps to 2 lines; we lose the
-            aggressive single-line truncate so the operator can read
-            the pitch without hovering for a tooltip. */}
+        {/* Card body. Vertical flow: title row (with star + status),
+            then 2-line brief, then a compact footer row with owner +
+            timestamp. No more separate right metadata column so the
+            card holds up at narrow widths. */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-[14px] font-semibold text-evari-text truncate">{play.title}</h3>
+            <h3 className="text-[14px] font-semibold text-evari-text truncate flex-1 min-w-0">{play.title}</h3>
             <button
               type="button"
               onClick={togglePin}
@@ -105,29 +106,27 @@ export function IdeaCard({ play, onTogglePin }: { play: Play; onTogglePin?: (id:
             >
               <Star className={cn('h-3.5 w-3.5', pinned ? 'fill-evari-gold' : '')} />
             </button>
+            <StatusPill tone={status.tone} label={status.label} />
           </div>
+
           {play.brief ? (
-            <p className="text-[12px] text-evari-dim mt-0.5 leading-snug line-clamp-2">{play.brief}</p>
+            <p className="text-[12px] text-evari-dim mt-1 leading-snug line-clamp-2">{play.brief}</p>
           ) : null}
-          {play.tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {play.tags.slice(0, 4).map((t) => (
-                <span key={t} className="px-1.5 py-0.5 rounded text-[10px] bg-evari-ink/40 text-evari-dim">{t}</span>
-              ))}
-            </div>
-          ) : null}
+
+          <div className="mt-2 flex items-center gap-2 text-[11px] text-evari-dim">
+            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-evari-ink/40 text-[9px] font-semibold uppercase shrink-0">{initials}</span>
+            <span className="truncate flex-1 min-w-0">{ownerName}</span>
+            <span className="text-[10px] text-evari-dimmer tabular-nums shrink-0">{timeAgo(play.updatedAt)}</span>
+            {play.tags.length > 0 ? (
+              <span className="hidden md:inline-flex flex-wrap gap-1 ml-auto">
+                {play.tags.slice(0, 2).map((t) => (
+                  <span key={t} className="px-1.5 py-0.5 rounded text-[10px] bg-evari-ink/40 text-evari-dim">{t}</span>
+                ))}
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        {/* Right metadata column. Status / last touched / owner sit
-            stacked on the right edge of the card. */}
-        <div className="shrink-0 flex flex-col items-end gap-1.5 text-right">
-          <StatusPill tone={status.tone} label={status.label} />
-          <div className="text-[10px] text-evari-dimmer tabular-nums">{timeAgo(play.updatedAt)}</div>
-          <div className="inline-flex items-center gap-1.5 text-[11px] text-evari-dim">
-            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-evari-ink/40 text-[9px] font-semibold uppercase">{initials}</span>
-            <span className="truncate max-w-[120px]">{ownerName}</span>
-          </div>
-        </div>
         <button
           type="button"
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
