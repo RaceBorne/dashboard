@@ -59,7 +59,7 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
   // Chip suggestions for this stage. Loaded once per play; the AI
   // tailors options to the pitch + idea. Fallback static options ship
   // from the API if the gateway is offline.
-  const [chips, setChips] = useState<{ industries: string[]; geographies: string[]; companySizes: string[]; revenues: string[] } | null>(null);
+  const [chips, setChips] = useState<{ industries: string[]; geographies: string[]; companySizes: string[]; revenues: string[]; channels: string[]; audience: string[] } | null>(null);
   const [chipsLoading, setChipsLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +78,8 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
             geographies:  Array.isArray(d.geographies)  ? d.geographies  : [],
             companySizes: Array.isArray(d.companySizes) ? d.companySizes : [],
             revenues:     Array.isArray(d.revenues)     ? d.revenues     : [],
+            channels:     Array.isArray(d.channels)     ? d.channels     : [],
+            audience:     Array.isArray(d.audience)     ? d.audience     : [],
           });
         }
       })
@@ -178,6 +180,24 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
             selected={revenueBand ? [revenueBand] : []}
             onChange={applyRevenueBand}
             max={1}
+            loading={chipsLoading}
+          />
+
+          <ChipPicker
+            title="Channels"
+            hint="How we reach this audience."
+            options={chips?.channels ?? []}
+            selected={brief.channels}
+            onChange={(next) => onPatch({ channels: next })}
+            loading={chipsLoading}
+          />
+
+          <ChipPicker
+            title="Target audience"
+            hint="The roles we email."
+            options={chips?.audience ?? []}
+            selected={brief.targetAudience}
+            onChange={(next) => onPatch({ targetAudience: next })}
             loading={chipsLoading}
           />
 

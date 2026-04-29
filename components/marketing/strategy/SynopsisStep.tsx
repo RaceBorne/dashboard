@@ -41,22 +41,25 @@ export function SynopsisStep({ playId, playTitle, pitch, brief, onEdit }: Props)
   const [aiSynopsis, setAiSynopsis] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  async function generate() {
     setLoading(true);
-    fetch(`/api/strategy/${playId}/synopsis`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ brief, pitch, playTitle }),
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled) return;
-        if (d?.ok && typeof d.synopsis === 'string') setAiSynopsis(d.synopsis);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    try {
+      const res = await fetch(`/api/strategy/${playId}/synopsis`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ brief, pitch, playTitle }),
+      });
+      const d = await res.json();
+      if (d?.ok && typeof d.synopsis === 'string') setAiSynopsis(d.synopsis);
+    } catch {
+      // fallback prose covers it
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void generate();
     // Regenerate when major fields change. We deliberately don't fire
     // on every keystroke; the brief editor debounces so this fires at
     // most every ~1s while editing.
@@ -84,12 +87,24 @@ export function SynopsisStep({ playId, playTitle, pitch, brief, onEdit }: Props)
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-panel">
         {/* LEFT: AI-generated synopsis */}
         <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-5 min-h-[600px]">
-          <h3 className="text-[13px] font-semibold text-evari-text mb-3 flex items-center gap-2">
-            <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            Strategy synopsis
-          </h3>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-[13px] font-semibold text-evari-text flex items-center gap-2 flex-1">
+              <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              Strategy synopsis
+            </h3>
+            <button
+              type="button"
+              onClick={() => void generate()}
+              disabled={loading}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 disabled:opacity-50 transition"
+              title="Ask Claude to write a fresh synopsis"
+            >
+              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+              Regenerate
+            </button>
+          </div>
           {loading ? (
             <div className="flex items-center gap-2 text-[12px] text-evari-dim">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Claude is synthesising the brief…

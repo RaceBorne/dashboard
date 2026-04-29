@@ -318,6 +318,16 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   );
 }
 
+function BannerStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-[0.12em] text-evari-gold/60">{label}</div>
+      <div className="text-[14px] font-bold text-evari-gold tabular-nums">{value}</div>
+      {sub ? <div className="text-[10px] text-evari-gold/70">{sub}</div> : null}
+    </div>
+  );
+}
+
 function Stat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
     <div>

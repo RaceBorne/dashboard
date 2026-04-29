@@ -26,6 +26,8 @@ interface MarketChips {
   geographies: string[];
   companySizes: string[];
   revenues: string[];
+  channels: string[];
+  audience: string[];
 }
 
 interface TargetChips {
@@ -73,6 +75,15 @@ const STATIC_MARKET: MarketChips = {
     '£5M-£20M',
     '£20M-£100M',
     '£100M+',
+  ],
+  channels: ['email', 'linkedin_organic', 'linkedin_paid', 'phone', 'event', 'website'],
+  audience: [
+    'Owner / Founder',
+    'Managing Director',
+    'Marketing Director',
+    'Head of Sales',
+    'Operations Director',
+    'Procurement Lead',
   ],
 };
 
@@ -148,7 +159,9 @@ function buildMarketPrompt(body: Body): string {
     '  "industries":   string[],   // sectors to target',
     '  "geographies":  string[],   // UK regions / cities most relevant',
     '  "companySizes": string[],   // employee bands like "11-50 employees"',
-    '  "revenues":     string[]    // annual revenue bands like "£1M-£5M"',
+    '  "revenues":     string[],   // annual revenue bands like "£1M-£5M"',
+    '  "channels":     string[],   // ALWAYS pick from: email, linkedin_organic, linkedin_paid, phone, event, website',
+    '  "audience":     string[]    // exact roles to email, e.g. "Marketing Director"',
     '}',
     '',
     'Tailor the chips to the idea above. Output raw JSON, no prose, no markdown fences. No em-dashes.',
@@ -189,6 +202,8 @@ function parseChips(raw: string, stage: 'market' | 'target'): MarketChips | Targ
         geographies:  arr('geographies').length  ? arr('geographies')  : STATIC_MARKET.geographies,
         companySizes: arr('companySizes').length ? arr('companySizes') : STATIC_MARKET.companySizes,
         revenues:     arr('revenues').length     ? arr('revenues')     : STATIC_MARKET.revenues,
+        channels:     arr('channels').length     ? arr('channels')     : STATIC_MARKET.channels,
+        audience:     arr('audience').length     ? arr('audience')     : STATIC_MARKET.audience,
       };
     }
     return {
