@@ -80,7 +80,7 @@ const STAGES: StageDef[] = [
   {
     key: 'strategy',
     label: 'Strategy',
-    href: (id) => (id ? `/ideas/${id}` : '/ideas'),
+    href: (id) => (id ? `/strategy?playId=${id}` : '/strategy'),
   },
   {
     key: 'discovery',

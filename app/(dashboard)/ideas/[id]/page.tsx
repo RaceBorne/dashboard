@@ -1,21 +1,14 @@
-import { notFound } from 'next/navigation';
-import { TopBar } from '@/components/sidebar/TopBar';
-import { createSupabaseAdmin } from '@/lib/supabase/admin';
-import { getPlay } from '@/lib/dashboard/repository';
-import { PlayDetailClient } from '@/components/plays/PlayDetailClient';
+import { redirect } from 'next/navigation';
 
-export default async function VentureDetailPage({
+/**
+ * Idea detail page is now folded into /strategy?playId=. Redirect any
+ * legacy bookmarks / direct URLs to the canonical strategy surface.
+ */
+export const dynamic = 'force-dynamic';
+
+export default async function IdeaIdRedirect({
   params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+}: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const play = await getPlay(createSupabaseAdmin(), id);
-  if (!play) notFound();
-  return (
-    <>
-      <TopBar title={play.title} subtitle={'Strategy · ' + play.stage} />
-      <PlayDetailClient play={play} />
-    </>
-  );
+  redirect('/strategy?playId=' + encodeURIComponent(id));
 }
