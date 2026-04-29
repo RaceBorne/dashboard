@@ -33,7 +33,18 @@ const PIE_COLORS = ['var(--evari-gold-rgb-comma, #FEC700)', '#7CCFC2', '#4AA39C'
 const GOLD = '#FEC700';
 const TEALS = ['#7CCFC2', '#4AA39C', '#2F7B7C', '#1F555F'];
 
-export function TargetProfileStep({ playId }: { playId: string }) {
+interface BriefShape {
+  industries: string[];
+  geography: string | null;
+  companySizeMin: number | null;
+  companySizeMax: number | null;
+  revenueMin: string | null;
+  revenueMax: string | null;
+  channels: string[];
+  targetAudience: string[];
+}
+
+export function TargetProfileStep({ playId, brief }: { playId: string; brief?: BriefShape }) {
   const [a, setA] = useState<Analytics | null>(null);
   useEffect(() => {
     fetch(`/api/strategy/${playId}/analytics`, { cache: 'no-store' })
@@ -147,6 +158,25 @@ export function TargetProfileStep({ playId }: { playId: string }) {
 }
 
 // ─── tiny components ────────────────────────────────────────
+
+function PickColumn({ label, values }: { label: string; values: string[] }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">{label}</div>
+      {values.length === 0 ? (
+        <span className="text-[11px] text-evari-dimmer italic">not set</span>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {values.map((v) => (
+            <span key={v} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] bg-evari-gold/15 text-evari-gold">
+              {v}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (

@@ -186,10 +186,48 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
     ? 'Hand off to Discovery'
     : 'Next: ' + (STEPS[currentStepIdx + 1]?.label ?? '');
 
-  function handoff() {
+  // Handoff is a multi-stage operation, not just navigation. We must
+  // (1) persist the latest brief incl. handoffStatus, (2) lock the
+  // structured strategy via commit-strategy, (3) populate Discover via
+  // auto-scan, then (4) route to Discover. Each stage updates UI so
+  // the user sees progress instead of a frozen button.
+  type HandoffStage = 'idle' | 'persisting' | 'committing' | 'scanning';
+  const [handoffStage, setHandoffStage] = useState<HandoffStage>('idle');
+  async function handoff() {
     if (!brief) return;
-    setBrief({ ...brief, handoffStatus: 'handed_off' });
-    router.push(`/discover?playId=${brief.playId}`);
+    if (handoffStage !== 'idle') return;
+    const next = { ...brief, handoffStatus: 'handed_off' as const };
+    setBrief(next);
+    setHandoffStage('persisting');
+    try {
+      // 1. Persist brief (including handoffStatus). Skip the debounce —
+      // we want this to land before we proceed.
+      await fetch(`/api/strategy/${next.playId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(next),
+      }).catch(() => {});
+
+      // 2. Lock the structured strategy.
+      setHandoffStage('committing');
+      await fetch(`/api/plays/${next.playId}/commit-strategy`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }).catch(() => {});
+
+      // 3. Run the auto-scan synchronously so Discover populates.
+      setHandoffStage('scanning');
+      await fetch(`/api/plays/${next.playId}/auto-scan`, {
+        method: 'POST',
+      }).catch(() => {});
+
+      // 4. Route to Discover with the autoScanned flag so the banner
+      // shows.
+      router.push(`/discover?playId=${next.playId}&autoScanned=1`);
+    } catch {
+      setHandoffStage('idle');
+    }
   }
   // Open the Spitball manually. Re-arming kickoff=true means the user
   // gets the opener every time they re-open it, even after the initial
@@ -248,9 +286,9 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
           {spitballOpen ? null : (
             <SlideContainer step={step} direction={direction}>
               {step === 'market'   ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} playTitle={play.title} pitch={play.brief} onPatch={(patch) => setBrief((cur) => cur ? { ...cur, ...patch } : cur)} /> : null}
-              {step === 'target'   ? <TargetProfileStep playId={brief.playId} /> : null}
+              {step === 'target'   ? <TargetProfileStep playId={brief.playId} brief={brief} /> : null}
               {step === 'synopsis' ? <SynopsisStep playId={brief.playId} playTitle={play.title} pitch={play.brief} brief={brief} onEdit={() => openEditor('overview')} /> : null}
-              {step === 'handoff'  ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} /> : null}
+              {step === 'handoff'  ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} stage={handoffStage} /> : null}
             </SlideContainer>
           )}
         </div>

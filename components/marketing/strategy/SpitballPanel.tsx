@@ -70,19 +70,41 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const kickoffFired = useRef(false);
 
-  // Auto-draft the strategy on first mount. Fires a real Claude call
-  // with the hidden DRAFT_PROMPT so the user lands on a populated
-  // page with a real first-pass strategy instead of a list of
-  // questions. The hidden prompt is persisted into the chat history
-  // server-side so subsequent refinement turns have full context.
+  // On mount: fetch the play's existing chat history. If there's a
+  // conversation already saved, show it. If not, fire DRAFT_PROMPT so
+  // Claude generates a first-pass strategy. This means navigating
+  // back to Brief doesn't wipe earlier conversation — the chat
+  // continues where the user left it.
   useEffect(() => {
     if (!open) return;
     if (kickoffFired.current) return;
-    if (messages.length > 0) return;
     kickoffFired.current = true;
     void (async () => {
       setBusy(true);
       try {
+        // 1. Pull the saved chat from the play row.
+        const histRes = await fetch(`/api/plays/${playId}`, { cache: 'no-store' });
+        const histJson = await histRes.json().catch(() => ({}));
+        const playChat: Array<{ id?: string; role: 'user' | 'assistant'; content: string }> =
+          histJson?.ok && histJson.play && Array.isArray(histJson.play.chat)
+            ? histJson.play.chat
+            : [];
+
+        // Filter out the synthetic DRAFT_PROMPT user turn so the user
+        // never sees the hidden seed.
+        const visible = playChat.filter((m) => !(m.role === 'user' && m.content.startsWith("Draft a complete prospecting strategy")));
+
+        if (visible.length > 0) {
+          setMessages(visible.map((m, i) => ({
+            id: m.id ?? 'h-' + i,
+            role: m.role,
+            content: m.content,
+          })));
+          setBusy(false);
+          return;
+        }
+
+        // 2. No saved chat. Auto-draft the strategy.
         const res = await fetch(`/api/plays/${playId}/chat`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -99,7 +121,7 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
               id: 'a-err',
               role: 'assistant',
               content:
-                'Could not draft a strategy. Type a refinement below or click Lock strategy to commit what we have.',
+                'Could not draft a strategy. Type a refinement below or hand off without committing.',
             },
           ]);
         }
@@ -109,14 +131,14 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
             id: 'a-err',
             role: 'assistant',
             content:
-              'Network error drafting the strategy. Type a refinement below or click Lock strategy to retry.',
+              'Network error loading or drafting the conversation. Try again or refresh.',
           },
         ]);
       } finally {
         setBusy(false);
       }
     })();
-  }, [open, messages.length, playId]);
+  }, [open, playId]);
 
   // Stick to bottom on new messages.
   useEffect(() => {

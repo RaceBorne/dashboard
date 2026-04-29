@@ -81,7 +81,15 @@ function sequenceFromBrief(brief: Brief): SequenceStep[] {
   return out;
 }
 
-export function HandoffStep({ playId, brief, onEdit, onProceed }: { playId: string; brief: Brief; onEdit: () => void; onProceed: () => void }) {
+type HandoffStage = 'idle' | 'persisting' | 'committing' | 'scanning';
+
+export function HandoffStep({ playId, brief, onEdit, onProceed, stage = 'idle' }: { playId: string; brief: Brief; onEdit: () => void; onProceed: () => void; stage?: HandoffStage }) {
+  const proceedLabel =
+    stage === 'persisting' ? 'Saving brief…' :
+    stage === 'committing' ? 'Locking strategy…' :
+    stage === 'scanning'   ? 'Finding companies…' :
+                             'Proceed to Discovery';
+  const inFlight = stage !== 'idle';
   const [a, setA] = useState<Analytics | null>(null);
   const docRef = useRef<HTMLDivElement | null>(null);
 
@@ -282,9 +290,11 @@ export function HandoffStep({ playId, brief, onEdit, onProceed }: { playId: stri
           <button
             type="button"
             onClick={onProceed}
-            className="inline-flex items-center gap-1 px-4 py-2.5 rounded-md text-[13px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
+            disabled={inFlight}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-[13px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-60 disabled:cursor-wait transition"
           >
-            Proceed to Discovery
+            {inFlight ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {proceedLabel}
           </button>
         </div>
       </section>
