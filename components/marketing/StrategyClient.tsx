@@ -237,7 +237,7 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
           {/* Seven-step rail (only when Spitball is closed). */}
           {spitballOpen ? null : (
             <SlideContainer step={step} direction={direction}>
-              {step === 'brief'     ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} /> : null}
+              {step === 'brief'     ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} playTitle={play.title} pitch={play.brief} /> : null}
               {step === 'target'    ? <TargetProfileStep playId={brief.playId} /> : null}
               {step === 'ideal'     ? <IdealCustomerStep playId={brief.playId} brief={{ idealCustomer: brief.idealCustomer, set }} /> : null}
               {step === 'channels'  ? <ChannelsStepDashboard playId={brief.playId} briefChannels={brief.channels} onEdit={() => openEditor('channels')} /> : null}

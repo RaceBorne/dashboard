@@ -11,6 +11,7 @@ import { Loader2, Mail, MessageSquare, Pencil, Send, Target, TrendingUp, Users }
 import { StepTitle } from './StepTitle';
 
 import { humaniseChannel } from './BriefEditorDrawer';
+import { SpitballPanel } from './SpitballPanel';
 import { cn } from '@/lib/utils';
 
 interface Brief {
@@ -47,7 +48,7 @@ function priorityFor(channel: string, picked: string[]): 'High' | 'Medium' | 'Lo
   return 'Low';
 }
 
-export function BriefSummaryStep({ playId, brief, onEdit }: { playId: string; brief: Brief; onEdit: () => void }) {
+export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch }: { playId: string; brief: Brief; onEdit: () => void; playTitle: string; pitch: string }) {
   const [a, setA] = useState<Analytics | null>(null);
   useEffect(() => {
     fetch(`/api/strategy/${playId}/analytics`, { cache: 'no-store' })
@@ -69,44 +70,74 @@ export function BriefSummaryStep({ playId, brief, onEdit }: { playId: string; br
         </button>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-panel">
-        <Card icon={<Users className="h-4 w-4" />} title="Target market">
-          {a === null ? <Loading /> : (
-            <div className="grid grid-cols-3 gap-3">
-              <Stat label="ICP fit score" value={String(a.icpScore)} sub={a.icpBand.replace('_', ' ')} accent />
-              <Stat label="Market size" value={a.addressableMarket.toLocaleString()} sub="Addressable companies" />
-              <Stat label="Revenue potential" value={a.revenuePotentialLabel} sub="Annual" />
-            </div>
-          )}
-        </Card>
+      {/* Two-column row: structured brief on the left, Spitball with
+          Claude on the right. Right column takes full row height so
+          the chat fills the depth. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-panel">
+        {/* LEFT: stacked structured cards */}
+        <div className="flex flex-col gap-panel">
+          <Card icon={<Users className="h-4 w-4" />} title="Target market">
+            {a === null ? <Loading /> : (
+              <div className="grid grid-cols-3 gap-3">
+                <Stat label="ICP fit score" value={String(a.icpScore)} sub={a.icpBand.replace('_', ' ')} accent />
+                <Stat label="Market size" value={a.addressableMarket.toLocaleString()} sub="Addressable companies" />
+                <Stat label="Revenue potential" value={a.revenuePotentialLabel} sub="Annual" />
+              </div>
+            )}
+          </Card>
 
-        <Card icon={<Target className="h-4 w-4" />} title="Ideal customer">
-          <KV label="Industry"     value={brief.industries.length > 0 ? brief.industries.join(', ') : '—'} />
-          <KV label="Company size" value={brief.companySizeMin && brief.companySizeMax ? `${brief.companySizeMin} – ${brief.companySizeMax} employees` : '—'} />
-          <KV label="Revenue"      value={brief.revenueMin && brief.revenueMax ? `${brief.revenueMin} – ${brief.revenueMax}` : '—'} />
-          <KV label="Location"     value={brief.geography || '—'} />
-        </Card>
+          <Card icon={<Send className="h-4 w-4" />} title="Channels">
+            {brief.channels.length === 0 ? (
+              <div className="text-[11px] text-evari-dim">No channels selected. Open Channels to set them.</div>
+            ) : (
+              <ul className="divide-y divide-evari-edge/20">
+                {PRIORITY_ORDER.filter((c) => brief.channels.includes(c)).map((c) => (
+                  <li key={c} className="flex items-center justify-between py-2 text-[12px]">
+                    <span className="text-evari-text">{humaniseChannel(c)}</span>
+                    <PriorityPill p={priorityFor(c, brief.channels)} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
 
-        <Card icon={<Send className="h-4 w-4" />} title="Channels">
-          {brief.channels.length === 0 ? (
-            <div className="text-[11px] text-evari-dim">No channels selected. Open Channels to set them.</div>
-          ) : (
-            <ul className="divide-y divide-evari-edge/20">
-              {PRIORITY_ORDER.filter((c) => brief.channels.includes(c)).map((c) => (
-                <li key={c} className="flex items-center justify-between py-2 text-[12px]">
-                  <span className="text-evari-text">{humaniseChannel(c)}</span>
-                  <PriorityPill p={priorityFor(c, brief.channels)} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+          <Card icon={<Target className="h-4 w-4" />} title="Ideal customer">
+            <KV label="Industry"     value={brief.industries.length > 0 ? brief.industries.join(', ') : '—'} />
+            <KV label="Company size" value={brief.companySizeMin && brief.companySizeMax ? `${brief.companySizeMin} – ${brief.companySizeMax} employees` : '—'} />
+            <KV label="Revenue"      value={brief.revenueMin && brief.revenueMax ? `${brief.revenueMin} – ${brief.revenueMax}` : '—'} />
+            <KV label="Location"     value={brief.geography || '—'} />
+            {brief.idealCustomer && brief.idealCustomer.trim().length > 0 ? (
+              <p className="mt-2 pt-2 border-t border-evari-edge/20 text-[12px] text-evari-text leading-relaxed">{brief.idealCustomer}</p>
+            ) : null}
+          </Card>
 
-        <Card icon={<MessageSquare className="h-4 w-4" />} title="Messaging">
-          <KV label="Value proposition" value={valueProp} multiline />
-          <KV label="One-liner" value={oneLiner} multiline />
-          <KV label="Tone of voice" value="Credible, human, relevant, concise, helpful" />
-        </Card>
+          <Card icon={<MessageSquare className="h-4 w-4" />} title="Messaging">
+            <KV label="Value proposition" value={valueProp} multiline />
+            <KV label="One-liner" value={oneLiner} multiline />
+            <KV label="Tone of voice" value="Credible, human, relevant, concise, helpful" />
+            {brief.messaging && brief.messaging.length > 0 ? (
+              <ol className="mt-2 pt-2 border-t border-evari-edge/20 space-y-1 text-[12px] text-evari-text list-decimal list-inside marker:text-evari-dim">
+                {brief.messaging.map((m, i) => (
+                  <li key={i}><span className="font-semibold">{m.angle}</span>{m.line ? <span className="text-evari-dim"> — {m.line}</span> : null}</li>
+                ))}
+              </ol>
+            ) : null}
+          </Card>
+        </div>
+
+        {/* RIGHT: Spitball with Claude, full column depth. Compact mode
+            so it doesn't compete with the seven-step Next button. */}
+        <div className="rounded-panel overflow-hidden border border-evari-edge/30 bg-evari-ink min-h-[600px] flex">
+          <SpitballPanel
+            playId={playId}
+            playTitle={playTitle}
+            pitch={pitch}
+            open={true}
+            kickoff={false}
+            compact
+            onClose={() => {}}
+          />
+        </div>
       </div>
 
       <Card icon={<TrendingUp className="h-4 w-4" />} title="Success metrics">

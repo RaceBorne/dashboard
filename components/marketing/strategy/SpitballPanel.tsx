@@ -36,6 +36,10 @@ interface Props {
   open: boolean;
   kickoff: boolean;
   onClose: () => void;
+  /** When true, render without the close-button or commit action. Used
+   *  when embedded inside the Brief step: the structured flow owns the
+   *  Next/Handoff actions; Spitball is here purely for refinement. */
+  compact?: boolean;
 }
 
 // Hidden user prompt that kicks off the conversation. Claude already
@@ -57,7 +61,7 @@ const DRAFT_PROMPT = [
   'Tight sentences. No filler. No em-dashes.',
 ].join('\n');
 
-export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose }: Props) {
+export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose, compact }: Props) {
   const router = useRouter();
   const [messages, setMessages] = useState<SpitballMessage[]>([]);
   const [input, setInput] = useState('');
@@ -240,14 +244,16 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
         <h3 className="text-[13px] font-semibold text-evari-text flex-1 truncate">
           Strategy: {playTitle}
         </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition"
-          title="Hide chat, show structured brief"
-        >
-          <X className="h-3.5 w-3.5" /> Close
-        </button>
+        {compact ? null : (
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition"
+            title="Hide chat, show structured brief"
+          >
+            <X className="h-3.5 w-3.5" /> Close
+          </button>
+        )}
       </header>
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
@@ -304,21 +310,23 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
-            <button
-              type="button"
-              onClick={() => void commit()}
-              disabled={committing}
-              className={cn(
-                'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-panel text-[12px] font-semibold transition',
-                'bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-60 disabled:cursor-wait',
-              )}
-              title="Lock the strategy and start finding companies"
-            >
-              {commitStage !== 'idle' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {commitStage === 'locking' ? 'Locking strategy…' :
-               commitStage === 'scanning' ? 'Finding companies…' :
-               'Lock strategy & start discovery'}
-            </button>
+            {compact ? null : (
+              <button
+                type="button"
+                onClick={() => void commit()}
+                disabled={committing}
+                className={cn(
+                  'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-panel text-[12px] font-semibold transition',
+                  'bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-60 disabled:cursor-wait',
+                )}
+                title="Lock the strategy and start finding companies"
+              >
+                {commitStage !== 'idle' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {commitStage === 'locking' ? 'Locking strategy…' :
+                 commitStage === 'scanning' ? 'Finding companies…' :
+                 'Lock strategy & start discovery'}
+              </button>
+            )}
           </form>
         </div>
       </div>
