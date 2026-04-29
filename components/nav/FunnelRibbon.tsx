@@ -8,7 +8,7 @@
  * Ventures (the list) is the left-most chip. The remaining chips drill
  * into a single venture's funnel — they need a playId to navigate
  * meaningfully. When no playId is present (we are on the list page) the
- * downstream chips fall back to /ventures so they behave like normal
+ * downstream chips fall back to /ideas so they behave like normal
  * links that simply keep you on the list until you pick a venture.
  *
  * The consumer can pass a pre-loaded Play object to avoid a double fetch
@@ -69,7 +69,7 @@ interface StageDef {
   /**
    * Given a playId (possibly empty on the list page) return the route
    * for this chip. Stages that depend on a playId fall back to
-   * /ventures when no venture is selected — that keeps every chip a
+   * /ideas when no venture is selected — that keeps every chip a
    * real, clickable link.
    */
   href: (playId: string) => string;
@@ -97,10 +97,10 @@ const STAGES: StageDef[] = [
 interface Props {
   stage: FunnelStage;
   /**
-   * Empty string is allowed — used on /ventures (the list page) when no
+   * Empty string is allowed — used on /ideas (the list page) when no
    * specific venture is selected. In that mode only the Ventures chip is
    * the active stage; downstream chips still render as real links (they
-   * route back to /ventures).
+   * route back to /ideas).
    */
   playId: string;
   /**

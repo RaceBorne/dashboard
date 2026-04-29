@@ -29,7 +29,7 @@
  *   pb-[52px]   Bottom page padding equal to the ribbon clearspace,
  *               so the page rhythm closes symmetrically at the bottom.
  *
- *   px-6        Horizontal page gutters; matches the /ventures hero
+ *   px-6        Horizontal page gutters; matches the /ideas hero
  *               and the AppSidebar inset.
  *
  * ─── History ───

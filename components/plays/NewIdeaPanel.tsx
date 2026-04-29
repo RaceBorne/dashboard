@@ -5,7 +5,7 @@
  * Two fields, title + pitch. Submit creates the play and routes to
  * /strategy?playId=X&kickoff=1 so Spitball auto-drafts immediately.
  *
- * Replaces the old NewVentureButton modal: the form is always visible
+ * Replaces the old NewIdeaPanel modal: the form is always visible
  * on the right side of the page so capture is one click less.
  */
 

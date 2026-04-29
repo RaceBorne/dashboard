@@ -9,7 +9,7 @@ import { cn, relativeTime } from '@/lib/utils';
 import type { Play } from '@/lib/types';
 
 /**
- * A single row in the /ventures list.
+ * A single row in the /ideas list.
  *
  * Reads as a normal clickable link to the detail page, but on hover reveals
  * inline edit (pencil → title becomes an input, Enter to save) and delete

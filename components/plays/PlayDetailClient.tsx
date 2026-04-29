@@ -347,7 +347,7 @@ export function PlayDetailClient({
   // ─── Spitball auto-kickoff ────────────────────────────────────────────
   //
   // When the user lands on a freshly-created venture (chat is empty but the
-  // brief has been seeded by VentureHero), automatically fire the brief as
+  // brief has been seeded by NewIdeaPanel), automatically fire the brief as
   // their first Spitball message. Same UX as if they'd pasted the brief into
   // the chat input and pressed Go themselves — Claude responds immediately,
   // the conversation is alive on entry instead of requiring a manual nudge.

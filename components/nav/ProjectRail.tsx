@@ -18,15 +18,15 @@
  *   The footer used to host a "+ New project" button that called
  *   `window.location.href = '/ideas'`. Two problems with that:
  *     1) Hard reload via window.location.href (not Next.js soft routing)
- *        meant the user dropped onto /ventures with a fresh document load
+ *        meant the user dropped onto /ideas with a fresh document load
  *        — which paints briefly with no cached chunks and looks "broken"
  *        before settling.
- *     2) /ventures is structurally different from the stage pages: it is
+ *     2) /ideas is structurally different from the stage pages: it is
  *        a vertical list (no rail, no 3-column FunnelRibbon+Rail+Cols
  *        layout). The visual jump from the FIXED_HEIGHT stage layout to
  *        the CLASSNAME list layout reads as ribbon clearspace breaking
  *        even though `lib/layout/stageWrapper.ts` is unchanged.
- *   Project creation now lives only on /ventures via VentureHero —
+ *   Project creation now lives only on /ideas via NewIdeaPanel —
  *   which is the proper flow because Spitball needs a working title +
  *   one-sentence pitch on turn one.
  */
