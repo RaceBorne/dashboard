@@ -163,8 +163,10 @@ export function TargetProfileStep({
       return;
     }
     let cancelled = false;
-    setPersonaLoading(true);
-    fetch(`/api/strategy/${playId}/persona`, {
+    const debounce = setTimeout(() => {
+      if (cancelled) return;
+      setPersonaLoading(true);
+      fetch(`/api/strategy/${playId}/persona`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -184,8 +186,9 @@ export function TargetProfileStep({
         if (d?.ok && typeof d.persona === 'string') setPersona(d.persona);
       })
       .catch(() => {})
-      .finally(() => { if (!cancelled) setPersonaLoading(false); });
-    return () => { cancelled = true; };
+        .finally(() => { if (!cancelled) setPersonaLoading(false); });
+    }, 1500);
+    return () => { cancelled = true; clearTimeout(debounce); };
   }, [playId, playTitle, pitch, sizesKey, revenuesKey, audienceKey, channelsKey, brief?.locked]);
 
   // Multi-pick chip handlers (mirror the ones in Market analysis but

@@ -39,6 +39,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ playId:
   const industries = (body.industries ?? []).filter(Boolean);
   const geographies = (body.geographies ?? []).filter(Boolean);
 
+  // Cache check: if the research log already has a market_sizing
+  // entry for this exact (industries, geographies) signature within
+  // the last 60 seconds, return that and skip the AI call. Saves us
+  // from rate-limit errors when chip-pickers fire rapid changes.
+  const cacheKey = JSON.stringify({ i: industries.slice().sort(), g: geographies.slice().sort() });
+  try {
+    const sb = createSupabaseAdmin();
+    if (sb) {
+      const { readResearchLog } = await import('@/lib/marketing/researchLog');
+      const log = await readResearchLog(sb, playId);
+      // Look at the last 5 market_sizing entries; reuse the most
+      // recent that matches our cache key and is fresh.
+      const cutoff = Date.now() - 60_000;
+      for (let i = log.length - 1; i >= Math.max(0, log.length - 5); i--) {
+        const entry = log[i];
+        if (entry.kind !== 'market_sizing') continue;
+        const t = new Date(entry.at).getTime();
+        if (t < cutoff) continue;
+        const cached = entry.payload as { _key?: string; marketSize?: string; competitors?: string[]; buyerTerminology?: string[]; intentSignals?: string[] };
+        if (cached._key === cacheKey) {
+          return NextResponse.json({
+            ok: true,
+            cached: true,
+            marketSize: cached.marketSize ?? '',
+            competitors: Array.isArray(cached.competitors) ? cached.competitors : [],
+            buyerTerminology: Array.isArray(cached.buyerTerminology) ? cached.buyerTerminology : [],
+            intentSignals: Array.isArray(cached.intentSignals) ? cached.intentSignals : [],
+          });
+        }
+      }
+    }
+  } catch {}
+
   const prompt = [
     'Research the market for this play. Be concrete, no hedging.',
     '',
@@ -84,7 +117,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ playId:
     const sb = createSupabaseAdmin();
     if (sb) {
       try {
-        await appendResearchLog(sb, playId, { kind: 'market_sizing', payload: result });
+        await appendResearchLog(sb, playId, { kind: 'market_sizing', payload: { ...result, _key: cacheKey } });
       } catch {}
     }
     return NextResponse.json({ ok: true, ...result });

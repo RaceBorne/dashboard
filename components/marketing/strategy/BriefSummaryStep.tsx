@@ -99,35 +99,41 @@ export function BriefSummaryStep({
   useEffect(() => {
     if (brief.locked) return;
     let cancelled = false;
-    setSizingLoading(true);
-    setSizingError(null);
-    fetch(`/api/strategy/${playId}/market-sizing`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        playTitle,
-        pitch,
-        industries: brief.industries,
-        geographies: brief.geographies.length > 0 ? brief.geographies : (brief.geography ? brief.geography.split(/,\s*/).filter(Boolean) : []),
-      }),
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled) return;
-        if (d?.ok) {
-          setSizing({
-            marketSize: typeof d.marketSize === 'string' ? d.marketSize : '',
-            competitors: Array.isArray(d.competitors) ? d.competitors : [],
-            buyerTerminology: Array.isArray(d.buyerTerminology) ? d.buyerTerminology : [],
-            intentSignals: Array.isArray(d.intentSignals) ? d.intentSignals : [],
-          });
-        } else {
-          setSizingError(typeof d?.error === 'string' ? d.error : 'Could not load market sizing');
-        }
+    // Debounce: rapid chip changes were firing five AI calls in five
+    // seconds and tripping Anthropic's 50k-token/min rate limit.
+    // Wait 1500ms of stillness before sending the request.
+    const debounce = setTimeout(() => {
+      if (cancelled) return;
+      setSizingLoading(true);
+      setSizingError(null);
+      fetch(`/api/strategy/${playId}/market-sizing`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          playTitle,
+          pitch,
+          industries: brief.industries,
+          geographies: brief.geographies.length > 0 ? brief.geographies : (brief.geography ? brief.geography.split(/,\s*/).filter(Boolean) : []),
+        }),
       })
-      .catch((e) => { if (!cancelled) setSizingError((e as Error).message); })
-      .finally(() => { if (!cancelled) setSizingLoading(false); });
-    return () => { cancelled = true; };
+        .then((r) => r.json())
+        .then((d) => {
+          if (cancelled) return;
+          if (d?.ok) {
+            setSizing({
+              marketSize: typeof d.marketSize === 'string' ? d.marketSize : '',
+              competitors: Array.isArray(d.competitors) ? d.competitors : [],
+              buyerTerminology: Array.isArray(d.buyerTerminology) ? d.buyerTerminology : [],
+              intentSignals: Array.isArray(d.intentSignals) ? d.intentSignals : [],
+            });
+          } else {
+            setSizingError(typeof d?.error === 'string' ? d.error : 'Could not load market sizing');
+          }
+        })
+        .catch((e) => { if (!cancelled) setSizingError((e as Error).message); })
+        .finally(() => { if (!cancelled) setSizingLoading(false); });
+    }, 1500);
+    return () => { cancelled = true; clearTimeout(debounce); };
   }, [playId, playTitle, pitch, industriesKey, geographiesKey, brief.industries.length, brief.geographies.length, brief.geography, brief.locked]);
 
   function applyGeographies(picked: string[]) {
