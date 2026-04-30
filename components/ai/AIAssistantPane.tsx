@@ -30,10 +30,12 @@ import {
   CheckCircle2,
   ChevronDown,
   Circle,
+  Headphones,
   Loader2,
   Mic,
   MicOff,
   Minimize2,
+  RadioTower,
   RotateCcw,
   Send,
   Sparkles,
@@ -469,6 +471,223 @@ export function AIAssistantPane() {
     else void startRecording();
   }
 
+  // ----- live conversation mode (mic stays open, VAD splits utterances) ---
+  // Click the headphones to enter "live" mode. We open the mic once,
+  // run an analyser loop on it for voice-activity detection, capture each
+  // speech burst into a separate MediaRecorder lifecycle, transcribe it,
+  // and send it as a normal user message. The assistant's reply is spoken
+  // aloud (forces voiceOut on while live mode is active). Pause listening
+  // while TTS is talking so we do not hear ourselves.
+  const [liveMode, setLiveMode] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<'idle' | 'listening' | 'capturing' | 'transcribing' | 'speaking'>('idle');
+  const liveStreamRef = useRef<MediaStream | null>(null);
+  const liveCtxRef = useRef<AudioContext | null>(null);
+  const liveAnalyserRef = useRef<AnalyserNode | null>(null);
+  const liveRafRef = useRef<number | null>(null);
+  const liveRecRef = useRef<MediaRecorder | null>(null);
+  const liveChunksRef = useRef<Blob[]>([]);
+  // Refs that change without re-rendering — used inside the rAF loop.
+  const liveActiveRef = useRef(false);
+  const speakingRef = useRef(false);
+  const recordingBurstRef = useRef(false);
+  const lastSpeechAtRef = useRef<number>(0);
+  const speechStartedAtRef = useRef<number>(0);
+
+  // Tracking when the browser is speaking so VAD can hold off.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    const tick = () => { speakingRef.current = window.speechSynthesis.speaking; };
+    const i = window.setInterval(tick, 200);
+    return () => window.clearInterval(i);
+  }, []);
+
+  async function enterLiveMode() {
+    if (liveMode) return;
+    setMicError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMicError('This browser does not support microphone capture.');
+      return;
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      setMicError('MediaRecorder not supported.');
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+    } catch (e) {
+      const name = (e as { name?: string } | null)?.name ?? '';
+      setMicError(
+        name === 'NotAllowedError' || name === 'PermissionDeniedError'
+          ? 'Microphone blocked. Allow it in the address bar, then try again.'
+          : 'Could not start microphone: ' + (e instanceof Error ? e.message : String(e)),
+      );
+      return;
+    }
+    const AudioCtor = (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
+      ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtor) {
+      stream.getTracks().forEach((t) => t.stop());
+      setMicError('AudioContext not supported.');
+      return;
+    }
+    const ctx = new AudioCtor();
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+
+    liveStreamRef.current = stream;
+    liveCtxRef.current = ctx;
+    liveAnalyserRef.current = analyser;
+    liveActiveRef.current = true;
+    setLiveMode(true);
+    setVoiceOut(true);
+    setLiveStatus('listening');
+
+    // VAD loop. Sample amplitude ~30Hz. Start a recording burst when the
+    // user is clearly speaking (rolling RMS over threshold for 120ms),
+    // stop and ship the burst when silence has held for 800ms after speech.
+    const buf = new Uint8Array(analyser.fftSize);
+    const SPEECH_THRESHOLD = 12;       // empirical, 0..128 RMS-ish
+    const START_HOLDOFF_MS = 120;
+    const END_SILENCE_MS = 800;
+    const MIN_BURST_MS = 350;
+    const MAX_BURST_MS = 30000;        // safety cap
+
+    let speakingSinceMs = 0;
+
+    function tick() {
+      if (!liveActiveRef.current) return;
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128);
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / buf.length);
+      const now = performance.now();
+
+      // Hold off VAD while the assistant is speaking via SpeechSynthesis.
+      if (speakingRef.current) {
+        speakingSinceMs = 0;
+        if (recordingBurstRef.current) {
+          // We are mid-utterance and TTS just kicked in (rare): finalise.
+          stopBurst();
+        }
+      } else if (rms > SPEECH_THRESHOLD) {
+        if (speakingSinceMs === 0) speakingSinceMs = now;
+        lastSpeechAtRef.current = now;
+        if (!recordingBurstRef.current && now - speakingSinceMs > START_HOLDOFF_MS) {
+          startBurst();
+        }
+      } else {
+        speakingSinceMs = 0;
+        if (recordingBurstRef.current) {
+          const sinceSpeech = now - lastSpeechAtRef.current;
+          const burstLength = now - speechStartedAtRef.current;
+          if (sinceSpeech > END_SILENCE_MS && burstLength > MIN_BURST_MS) {
+            stopBurst();
+          } else if (burstLength > MAX_BURST_MS) {
+            stopBurst();
+          }
+        }
+      }
+      liveRafRef.current = requestAnimationFrame(tick);
+    }
+    liveRafRef.current = requestAnimationFrame(tick);
+  }
+
+  function startBurst() {
+    if (recordingBurstRef.current) return;
+    const stream = liveStreamRef.current;
+    if (!stream) return;
+    let rec: MediaRecorder;
+    try {
+      const mime = pickMime();
+      rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    } catch {
+      return;
+    }
+    liveChunksRef.current = [];
+    rec.ondataavailable = (e) => { if (e.data.size > 0) liveChunksRef.current.push(e.data); };
+    rec.onstop = () => { void shipBurst(rec.mimeType || 'audio/webm'); };
+    rec.start();
+    liveRecRef.current = rec;
+    recordingBurstRef.current = true;
+    speechStartedAtRef.current = performance.now();
+    setLiveStatus('capturing');
+  }
+  function stopBurst() {
+    const rec = liveRecRef.current;
+    if (!rec || rec.state === 'inactive') {
+      recordingBurstRef.current = false;
+      return;
+    }
+    try { rec.stop(); } catch { /* already stopping */ }
+    recordingBurstRef.current = false;
+  }
+  async function shipBurst(mime: string) {
+    setLiveStatus('transcribing');
+    const blob = new Blob(liveChunksRef.current, { type: mime });
+    liveChunksRef.current = [];
+    if (blob.size < 2000) {
+      setLiveStatus('listening');
+      return;
+    }
+    try {
+      const ext = mime.includes('mp4') ? 'mp4' : mime.includes('ogg') ? 'ogg' : 'webm';
+      const fd = new FormData();
+      fd.append('audio', blob, 'audio.' + ext);
+      const res = await fetch('/api/ai/transcribe', { method: 'POST', body: fd });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; text?: string; error?: string };
+      if (res.ok && json.ok && json.text && json.text.trim().length > 1) {
+        // Auto-send. The assistant reply will then be spoken via the
+        // existing voiceOut path.
+        await sendMessage({ text: json.text.trim() });
+      }
+    } catch (e) {
+      console.warn('[mojito.live.transcribe] threw', e);
+    } finally {
+      setLiveStatus(speakingRef.current ? 'speaking' : 'listening');
+    }
+  }
+  function exitLiveMode() {
+    liveActiveRef.current = false;
+    if (liveRafRef.current != null) cancelAnimationFrame(liveRafRef.current);
+    liveRafRef.current = null;
+    if (recordingBurstRef.current) stopBurst();
+    if (liveStreamRef.current) {
+      liveStreamRef.current.getTracks().forEach((t) => t.stop());
+      liveStreamRef.current = null;
+    }
+    if (liveCtxRef.current) {
+      void liveCtxRef.current.close().catch(() => {});
+      liveCtxRef.current = null;
+    }
+    liveAnalyserRef.current = null;
+    setLiveMode(false);
+    setLiveStatus('idle');
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+    }
+  }
+  function toggleLiveMode() {
+    if (liveMode) exitLiveMode();
+    else void enterLiveMode();
+  }
+  // Cleanup on unmount.
+  useEffect(() => {
+    return () => {
+      liveActiveRef.current = false;
+      if (liveRafRef.current != null) cancelAnimationFrame(liveRafRef.current);
+      if (liveStreamRef.current) liveStreamRef.current.getTracks().forEach((t) => t.stop());
+      if (liveCtxRef.current) void liveCtxRef.current.close().catch(() => {});
+    };
+  }, []);
+
   // Send a confirmation reply ("yes, proceed") in response to a
   // requiresConfirmation tool result. The model should re-call the
   // same tool with confirm:true.
@@ -606,7 +825,7 @@ export function AIAssistantPane() {
             <button
               type="button"
               onClick={toggleRecording}
-              disabled={busy || transcribing}
+              disabled={busy || transcribing || liveMode}
               aria-label={recording ? 'Stop recording' : 'Start recording'}
               title={recording ? 'Click to stop and transcribe' : 'Click to record. Click again to stop.'}
               className={cn(
@@ -614,18 +833,45 @@ export function AIAssistantPane() {
                 recording
                   ? 'bg-red-500/20 border-red-500/50 text-red-400 animate-pulse'
                   : 'bg-evari-ink border-evari-edge/40 text-evari-dim hover:text-evari-text',
-                (busy || transcribing) ? 'opacity-50' : '',
+                (busy || transcribing || liveMode) ? 'opacity-50' : '',
               )}
             >
               {transcribing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : recording ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+            </button>
+            <button
+              type="button"
+              onClick={toggleLiveMode}
+              disabled={busy || transcribing || recording}
+              aria-label={liveMode ? 'Exit live mode' : 'Enter live mode'}
+              title={liveMode
+                ? 'Live mode on. Click to exit.'
+                : 'Live mode: keep talking, Mojito listens and replies aloud.'}
+              className={cn(
+                'inline-flex items-center justify-center h-8 w-8 rounded-md border transition shrink-0',
+                liveMode
+                  ? 'bg-evari-gold/20 border-evari-gold/60 text-evari-gold animate-pulse'
+                  : 'bg-evari-ink border-evari-edge/40 text-evari-dim hover:text-evari-text',
+                (busy || transcribing || recording) ? 'opacity-50' : '',
+              )}
+            >
+              {liveMode ? <RadioTower className="h-3.5 w-3.5" /> : <Headphones className="h-3.5 w-3.5" />}
             </button>
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={transcribing ? 'Transcribing...' : recording ? 'Listening...' : 'Ask Mojito...'}
+              placeholder={
+                liveMode
+                  ? (liveStatus === 'capturing' ? 'Listening...' :
+                     liveStatus === 'transcribing' ? 'Transcribing...' :
+                     liveStatus === 'speaking' ? 'Mojito is speaking...' :
+                     'Live: just start talking')
+                  : transcribing ? 'Transcribing...'
+                  : recording ? 'Listening...'
+                  : 'Ask Mojito...'
+              }
               className="flex-1 h-8 px-2 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
-              disabled={transcribing}
+              disabled={transcribing || liveMode}
             />
             <button
               type="submit"
