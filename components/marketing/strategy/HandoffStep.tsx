@@ -45,28 +45,56 @@ interface Analytics {
   highFitCount: number;
 }
 
-const FIELD_KEYS: (keyof Brief)[] = [
-  'campaignName', 'objective', 'targetAudience', 'geography', 'industries',
-  'companySizeMin', 'companySizeMax', 'revenueMin', 'revenueMax',
-  'channels', 'messaging', 'successMetrics', 'idealCustomer',
-];
+// Strategic picks the user makes on Market analysis + Target profile.
+// These are the real decisions; the brief can't ship without them.
+const PICK_FIELDS = ['industries', 'targetAudience', 'channels'] as const;
 
-function readiness(brief: Brief): number {
-  let filled = 0;
-  for (const k of FIELD_KEYS) {
-    const v = brief[k];
-    if (Array.isArray(v)) { if (v.length > 0) filled++; }
-    else if (typeof v === 'number') { if (v !== null && !Number.isNaN(v)) filled++; }
-    else if (typeof v === 'string') { if (v.trim().length > 0) filled++; }
-    else if (v !== null && v !== undefined) filled++;
-  }
-  return Math.round((filled / FIELD_KEYS.length) * 100);
+// AI-articulated prose. Optional from a strategy point of view; the
+// auto-fill button on the readiness banner writes all of them in one
+// pass from the picks above.
+const PROSE_FIELDS = ['campaignName', 'objective', 'idealCustomer', 'messaging', 'successMetrics'] as const;
+
+function isFieldFilled(brief: Brief, key: keyof Brief): boolean {
+  const v = brief[key];
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === 'string') return v.trim().length > 0;
+  if (typeof v === 'number') return !Number.isNaN(v);
+  return v !== null && v !== undefined;
 }
 
-function readinessLabel(pct: number): { label: string; tone: 'success' | 'gold' | 'warn' } {
-  if (pct >= 90) return { label: 'Excellent', tone: 'success' };
-  if (pct >= 70) return { label: 'Strong', tone: 'gold' };
-  return { label: 'Needs work', tone: 'warn' };
+interface Readiness {
+  picksFilled: number;
+  picksTotal: number;
+  proseFilled: number;
+  proseTotal: number;
+  picksComplete: boolean;
+  proseComplete: boolean;
+  proseMissingLabels: string[];
+  state: 'picks_missing' | 'prose_missing' | 'ready';
+}
+
+const PROSE_LABELS: Record<typeof PROSE_FIELDS[number], string> = {
+  campaignName: 'Campaign name',
+  objective: 'Objective',
+  idealCustomer: 'Ideal customer',
+  messaging: 'Messaging angles',
+  successMetrics: 'Success metrics',
+};
+
+function computeReadiness(brief: Brief): Readiness {
+  const picksFilled = PICK_FIELDS.filter((k) => isFieldFilled(brief, k as keyof Brief)).length;
+  const proseFilled = PROSE_FIELDS.filter((k) => isFieldFilled(brief, k as keyof Brief)).length;
+  const proseMissingLabels = PROSE_FIELDS
+    .filter((k) => !isFieldFilled(brief, k as keyof Brief))
+    .map((k) => PROSE_LABELS[k]);
+  const picksComplete = picksFilled === PICK_FIELDS.length;
+  const proseComplete = proseFilled === PROSE_FIELDS.length;
+  const state = !picksComplete ? 'picks_missing' : proseComplete ? 'ready' : 'prose_missing';
+  return {
+    picksFilled, picksTotal: PICK_FIELDS.length,
+    proseFilled, proseTotal: PROSE_FIELDS.length,
+    picksComplete, proseComplete, proseMissingLabels, state,
+  };
 }
 
 interface SequenceStep { day: string; channel: string; objective: string }
@@ -116,10 +144,9 @@ export function HandoffStep({ playId, brief, onEdit, onProceed, stage = 'idle', 
       .catch(() => setA(null));
   }, [playId]);
 
-  const ready = readiness(brief);
-  const lab = readinessLabel(ready);
+  const r = computeReadiness(brief);
   const seq = sequenceFromBrief(brief);
-  const incomplete = ready < 90;
+  const incomplete = r.state !== 'ready';
 
   function printDocument() {
     if (typeof window === 'undefined') return;
@@ -177,55 +204,48 @@ export function HandoffStep({ playId, brief, onEdit, onProceed, stage = 'idle', 
         </button>
       </header>
 
-      {/* Readiness strip — top of page, always visible. The Fix issues
-          button calls auto-fill so Claude populates blank fields. */}
+      {/* Readiness strip. Two honest checklist rows instead of a fake
+          gauge: strategic picks (the real decisions) and prose
+          articulations (auto-fillable). */}
       <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-3 print:hidden">
         <div className="flex items-center gap-3">
-          <div className={cn(
-            'inline-flex items-center justify-center h-9 w-9 rounded-md shrink-0',
-            lab.tone === 'success' ? 'bg-evari-success/15 text-evari-success' :
-            lab.tone === 'gold'    ? 'bg-evari-gold/15 text-evari-gold' :
-                                     'bg-evari-warn/15 text-evari-warn',
-          )}>
-            <CheckCircle2 className="h-5 w-5" />
+          <div className="flex-1 min-w-0 space-y-1">
+            <ReadyRow
+              done={r.picksComplete}
+              label="Strategic picks"
+              detail={r.picksComplete
+                ? 'Sectors, audience, channels chosen.'
+                : `Pick on Market analysis and Target profile (${r.picksFilled}/${r.picksTotal}).`}
+            />
+            <ReadyRow
+              done={r.proseComplete}
+              label="Brief articulations"
+              detail={r.proseComplete
+                ? 'Campaign name, objective, persona, angles, metrics all written.'
+                : r.proseMissingLabels.length === r.proseTotal
+                  ? `${r.proseTotal} prose fields not written yet (${r.proseMissingLabels.join(', ')}). Click Auto-fill to write them from your picks.`
+                  : `${r.proseMissingLabels.length} field${r.proseMissingLabels.length === 1 ? '' : 's'} missing: ${r.proseMissingLabels.join(', ')}`}
+            />
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[14px] font-semibold text-evari-text">
-                {lab.tone === 'warn' ? 'Brief incomplete' : 'Strategy ready for execution'}
-              </span>
-              <span className={cn('text-[11px] font-semibold',
-                lab.tone === 'success' ? 'text-evari-success' :
-                lab.tone === 'gold'    ? 'text-evari-gold' :
-                                         'text-evari-warn')}>{ready}% · {lab.label}</span>
-            </div>
-            <div className="mt-1 h-1 rounded-full bg-evari-edge/30 overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all',
-                  lab.tone === 'success' ? 'bg-evari-success' :
-                  lab.tone === 'gold'    ? 'bg-evari-gold' :
-                                           'bg-evari-warn')}
-                style={{ width: `${ready}%` }}
-              />
-            </div>
-          </div>
-          {incomplete && onPatch ? (
+          {!r.proseComplete && onPatch ? (
             <button
               type="button"
               onClick={() => void fixIssues()}
-              disabled={fixing || inFlight}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/40 hover:bg-evari-gold/25 disabled:opacity-60 disabled:cursor-wait transition shrink-0"
-              title="Let Claude fill the empty sections from the picks you already made"
+              disabled={fixing || inFlight || !r.picksComplete}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/40 hover:bg-evari-gold/25 disabled:opacity-60 disabled:cursor-not-allowed transition shrink-0"
+              title={r.picksComplete
+                ? 'Have Claude write the missing prose from your picks'
+                : 'Pick sectors, audience, and channels first'}
             >
               {fixing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              {fixing ? 'Fixing…' : 'Fix issues'}
+              {fixing ? 'Auto-filling…' : 'Auto-fill'}
             </button>
           ) : null}
           <button
             type="button"
             onClick={onProceed}
-            disabled={inFlight || fixing}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-60 disabled:cursor-wait transition shrink-0"
+            disabled={inFlight || fixing || !r.picksComplete}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed transition shrink-0"
           >
             {inFlight ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             {proceedLabel}
@@ -349,6 +369,21 @@ export function HandoffStep({ playId, brief, onEdit, onProceed, stage = 'idle', 
 }
 
 // ─── document chrome ─────────────────────────────────────────────────
+
+function ReadyRow({ done, label, detail }: { done: boolean; label: string; detail: string }) {
+  return (
+    <div className="flex items-center gap-2 text-[12px]">
+      <span className={cn(
+        'inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold shrink-0',
+        done ? 'bg-evari-success/20 text-evari-success' : 'bg-evari-edge/30 text-evari-dim',
+      )}>
+        {done ? <CheckCircle2 className="h-3 w-3" /> : <span>•</span>}
+      </span>
+      <span className="font-semibold text-evari-text shrink-0">{label}:</span>
+      <span className={cn('truncate', done ? 'text-evari-dim' : 'text-evari-text')}>{detail}</span>
+    </div>
+  );
+}
 
 function DocHeader({ title, generatedAt }: { title: string; generatedAt: string }) {
   return (
