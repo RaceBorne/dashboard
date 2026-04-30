@@ -48,12 +48,12 @@ const NAV = [
   { href: '/', label: 'Home', icon: LayoutDashboard, group: 'today' },
   { href: '/briefing', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
-  { href: '/ideas', label: 'Ideas', icon: Rocket, group: 'pipeline', child: true },
-  { href: '/strategy', label: 'Strategy', icon: ListTodo, group: 'pipeline', child: true },
-  { href: '/discover', label: 'Discovery', icon: Search, group: 'pipeline', child: true },
-  { href: '/shortlist', label: 'Shortlist', icon: Star, group: 'pipeline', child: true },
-  { href: '/enrichment', label: 'Enrichment', icon: Database, group: 'pipeline', child: true },
-  { href: '/leads', label: 'Leads', icon: Users, group: 'pipeline', child: true },
+  { href: '/ideas', label: 'Ideas', icon: Rocket, group: 'pipeline' },
+  { href: '/strategy', label: 'Strategy', icon: ListTodo, group: 'pipeline' },
+  { href: '/discover', label: 'Discovery', icon: Search, group: 'pipeline' },
+  { href: '/shortlist', label: 'Shortlist', icon: Star, group: 'pipeline' },
+  { href: '/enrichment', label: 'Enrichment', icon: Database, group: 'pipeline' },
+  { href: '/leads', label: 'Leads', icon: Users, group: 'pipeline' },
   { href: '/email', label: 'Email', icon: Mail, group: 'marketing' },
   { href: '/people', label: 'People', icon: Users, group: 'marketing', child: true },
   { href: '/email/conversations', label: 'Conversations', icon: Mail, group: 'marketing', child: true },
@@ -74,6 +74,17 @@ const NAV = [
   { href: '/social/tiktok', label: 'TikTok', icon: Music, group: 'broadcast', child: true },
   { href: '/social/linkedin', label: 'LinkedIn', icon: Linkedin, group: 'broadcast', child: true },
   { href: '/journals', label: 'Journals', icon: FileText, group: 'broadcast', child: true },
+  // Content group — asset library + reusable design templates.
+  // Parent rows (Library, Templates) are full size; per-channel
+  // template entries below sit as children of Templates.
+  { href: '/email/assets', label: 'Library', icon: Image, group: 'content' },
+  { href: '/email/templates', label: 'Templates', icon: FileText, group: 'content' },
+  { href: '/email/templates?kind=newsletter', label: 'Newsletter', icon: Mail, group: 'content', child: true },
+  { href: '/email/templates?kind=email', label: 'Email', icon: Mail, group: 'content', child: true },
+  { href: '/email/templates?kind=instagram', label: 'Instagram', icon: Instagram, group: 'content', child: true },
+  { href: '/email/templates?kind=tiktok', label: 'TikTok', icon: Music, group: 'content', child: true },
+  { href: '/email/templates?kind=facebook', label: 'Facebook', icon: Send, group: 'content', child: true },
+  { href: '/email/templates?kind=linkedin', label: 'LinkedIn', icon: Linkedin, group: 'content', child: true },
   // Setup group — touch-once-then-forget pages + integration plumbing.
   // Sits below Marketing in the sidebar so daily workflow items lead,
   // configuration follows. Klaviyo + Shopify live here too because
@@ -84,7 +95,6 @@ const NAV = [
   { href: '/email/domains', label: 'Domains', icon: Globe, group: 'setup' },
   { href: '/email/suppressions', label: 'Suppressions', icon: Ban, group: 'setup' },
   { href: '/prospecting/exclusions', label: 'Prospecting exclusions', icon: Ban, group: 'setup' },
-  { href: '/email/assets', label: 'Assets', icon: Image, group: 'setup' },
   { href: '/email/settings', label: 'Email settings', icon: Settings, group: 'setup' },
   { href: '/scoring', label: 'Fit scoring', icon: Sparkles, group: 'setup' },
   { href: '/klaviyo', label: 'Klaviyo', icon: Mail, group: 'setup' },
@@ -97,9 +107,10 @@ const NAV = [
 const GROUP_LABELS: Record<string, string> = {
   today: 'Today',
   pipeline: 'Prospecting',
-  web: 'Website Statistics',
-  broadcast: 'Broadcast',
   marketing: 'Marketing',
+  broadcast: 'Broadcast',
+  content: 'Content',
+  web: 'Website Statistics',
   setup: 'Setup',
   system: 'System',
 };
@@ -109,7 +120,7 @@ const LS_OPEN_GROUPS = 'evari.sidebar.openGroups';
 // Every group is expanded by default. User collapses whichever
 // sections they want out of the way, and the choice is remembered
 // per-device.
-const DEFAULT_OPEN_GROUPS: string[] = ['today', 'pipeline', 'web', 'broadcast', 'marketing', 'setup', 'system'];
+const DEFAULT_OPEN_GROUPS: string[] = ['today', 'pipeline', 'web', 'broadcast', 'marketing', 'content', 'setup', 'system'];
 
 // Don't steal arrow keys while the user is typing.
 function isTypingTarget(t: EventTarget | null): boolean {
@@ -194,7 +205,7 @@ export function AppSidebar() {
   // Inline groups: only one open at a time. Setup + System are
   // pull-up modals (different presentation), so they stay
   // independent and don't accordion-collapse the main groups.
-  const INLINE_GROUPS = ['today', 'pipeline', 'web', 'broadcast', 'marketing'];
+  const INLINE_GROUPS = ['today', 'pipeline', 'web', 'broadcast', 'marketing', 'content'];
   const toggleGroup = useCallback((group: string) => {
     setOpenGroups((prev) => {
       const next = new Set(prev);
