@@ -111,6 +111,11 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   // In-flight count so we don't blow the AI rate limit. Capped low and
   // queued, since a fresh shortlist can land 30+ rows at once.
   const aboutQueueRef = useRef<{ inFlight: number; queue: Array<() => Promise<void>> }>({ inFlight: 0, queue: [] });
+  // Separate queue for Similar warmup. Tracks domains we've already
+  // warmed so a polled reload doesn't refire. Capped tighter than
+  // About because find-similar is heavier per call.
+  const similarWarmedDomainsRef = useRef<Set<string>>(new Set<string>());
+  const similarQueueRef = useRef<{ inFlight: number; queue: Array<() => Promise<void>> }>({ inFlight: 0, queue: [] });
 
   useAISurface({
     surface: 'discovery',
@@ -189,14 +194,67 @@ export function DiscoveryDashboard({ plays, play }: Props) {
     }
   }
 
+  // Same shape as the About queue, scoped to find-similar warmups.
+  // After this completes for a row, the peer brain has confirmed
+  // entries for that reference brand so the drawer's Similar tab
+  // returns instantly via the brain shortcut.
+  const SIMILAR_CONCURRENCY = 4;
+  const enqueueSimilarPrefetch = useCallback((row: Row) => {
+    const dKey = row.domain.toLowerCase();
+    if (similarWarmedDomainsRef.current.has(dKey)) return;
+    similarWarmedDomainsRef.current.add(dKey);
+    const job = async () => {
+      try {
+        const seenDomains = (rows ?? []).map((r) => r.domain).slice(0, 40);
+        await fetch('/api/discover/find-similar', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            domain: row.domain,
+            playId: play.id,
+            seenDomains,
+            limit: 6,
+          }),
+        });
+        // Response is discarded — the side effect we want is the
+        // peer-brain writeback which find-similar does internally.
+      } catch {
+        // Non-fatal.
+      } finally {
+        similarQueueRef.current.inFlight--;
+        runSimilarQueue();
+      }
+    };
+    similarQueueRef.current.queue.push(job);
+    runSimilarQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [play.id]);
+
+  function runSimilarQueue() {
+    while (
+      similarQueueRef.current.inFlight < SIMILAR_CONCURRENCY &&
+      similarQueueRef.current.queue.length > 0
+    ) {
+      const next = similarQueueRef.current.queue.shift();
+      if (!next) break;
+      similarQueueRef.current.inFlight++;
+      void next();
+    }
+  }
+
   // Whenever rows change (initial load, polled refresh, find-similar
-  // returns), enqueue About-prefetch for any row we haven't warmed yet.
-  // Buffering kicks in the moment a row lands in the list, not when
-  // the user mouses over or clicks it.
+  // returns), enqueue About + Similar prefetch for any row we haven't
+  // warmed yet. Buffering kicks in the moment a row lands in the list,
+  // not when the user mouses over or clicks it. By the time the user
+  // opens the drawer (or even navigates to Shortlist), all the data
+  // is already cached in Supabase.
   useEffect(() => {
     if (!rows) return;
-    for (const r of rows) enqueueAboutPrefetch(r);
-  }, [rows, enqueueAboutPrefetch]);
+    for (const r of rows) {
+      enqueueAboutPrefetch(r);
+      enqueueSimilarPrefetch(r);
+    }
+  }, [rows, enqueueAboutPrefetch, enqueueSimilarPrefetch]);
 
   // Poll while a scan is in flight so candidates appear in real time
   // as the agent inserts them. Triggered by play.autoScan.status =

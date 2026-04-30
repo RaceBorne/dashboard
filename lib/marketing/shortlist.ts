@@ -13,6 +13,14 @@ import { scoreCompany, type CandidateInput } from '@/lib/marketing/fitScore';
 
 export type ShortlistStatus = 'candidate' | 'shortlisted' | 'low_fit' | 'removed';
 
+export interface AboutMeta {
+  address?: string | null;
+  phone?: string | null;
+  employeeRange?: string | null;
+  orgType?: string | null;
+  generatedAt?: string;
+}
+
 export interface ShortlistEntry {
   id: string;
   playId: string;
@@ -28,6 +36,13 @@ export interface ShortlistEntry {
   fitReason: string | null;
   status: ShortlistStatus;
   addedAt: string;
+  // Cached enrichment from Discovery's prefetch loop. Travels with
+  // the row through Shortlist + Enrichment so the drawer hits cached
+  // data instead of re-spending the AI budget.
+  aboutText: string | null;
+  aboutMeta: AboutMeta | null;
+  notes: string | null;
+  logoUrl: string | null;
 }
 
 interface Row {
@@ -36,6 +51,10 @@ interface Row {
   location: string | null; description: string | null;
   fit_score: number | null; fit_band: string | null; fit_reason: string | null;
   status: ShortlistStatus; added_at: string;
+  about_text: string | null;
+  about_meta: AboutMeta | null;
+  notes: string | null;
+  logo_url: string | null;
 }
 
 function rowToEntry(r: Row): ShortlistEntry {
@@ -45,6 +64,10 @@ function rowToEntry(r: Row): ShortlistEntry {
     location: r.location, description: r.description,
     fitScore: r.fit_score, fitBand: r.fit_band, fitReason: r.fit_reason,
     status: r.status, addedAt: r.added_at,
+    aboutText: r.about_text,
+    aboutMeta: r.about_meta,
+    notes: r.notes,
+    logoUrl: r.logo_url ?? `https://logo.clearbit.com/${r.domain}`,
   };
 }
 

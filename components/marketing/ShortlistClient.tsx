@@ -31,6 +31,14 @@ import {
   type StrategyContext,
 } from '@/components/discover/DiscoveryDashboard';
 
+interface AboutMeta {
+  address?: string | null;
+  phone?: string | null;
+  employeeRange?: string | null;
+  orgType?: string | null;
+  generatedAt?: string;
+}
+
 interface Entry {
   id: string;
   playId: string;
@@ -46,9 +54,13 @@ interface Entry {
   fitReason: string | null;
   status: 'candidate' | 'shortlisted' | 'low_fit' | 'removed';
   addedAt: string;
+  aboutText: string | null;
+  aboutMeta: AboutMeta | null;
+  notes: string | null;
+  logoUrl: string | null;
 }
 
-type Tab = 'all' | 'high' | 'medium' | 'low' | 'shortlisted';
+type Tab = 'shortlisted' | 'candidates';
 
 interface Props {
   plays: { id: string; title: string }[];
@@ -59,7 +71,7 @@ interface Props {
 export function ShortlistClient({ plays, play, initial }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<Entry[]>(initial);
-  const [tab, setTab] = useState<Tab>('all');
+  const [tab, setTab] = useState<Tab>('shortlisted');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -72,7 +84,7 @@ export function ShortlistClient({ plays, play, initial }: Props) {
     id: e.id,
     domain: e.domain,
     name: e.name,
-    logoUrl: 'https://logo.clearbit.com/' + e.domain,
+    logoUrl: e.logoUrl ?? 'https://logo.clearbit.com/' + e.domain,
     description: e.fitReason,
     industry: e.industry,
     size: e.employees,
@@ -82,9 +94,11 @@ export function ShortlistClient({ plays, play, initial }: Props) {
     decisionMakerCount: 0,
     dataCoverage: 0,
     status: e.status,
-    aboutText: null,
-    aboutMeta: null,
-    notes: null,
+    // Pull from cached Discovery enrichment so the drawer renders
+    // instantly when warmed.
+    aboutText: e.aboutText,
+    aboutMeta: e.aboutMeta,
+    notes: e.notes,
   }));
 
   async function huntContacts(id: string) {
@@ -117,25 +131,18 @@ export function ShortlistClient({ plays, play, initial }: Props) {
   });
 
   const counts = useMemo(() => {
-    let high = 0, med = 0, low = 0, sl = 0;
+    let sl = 0, cand = 0;
     for (const e of items) {
-      const sc = e.fitScore ?? 0;
-      if (sc >= 80) high++;
-      else if (sc >= 60) med++;
-      else low++;
       if (e.status === 'shortlisted') sl++;
+      else if (e.status === 'candidate') cand++;
     }
-    return { all: items.length, high, medium: med, low, shortlisted: sl };
+    return { shortlisted: sl, candidates: cand };
   }, [items]);
 
   const filtered = useMemo(() => {
     return items.filter((e) => {
-      const sc = e.fitScore ?? 0;
-      if (tab === 'all') return true;
       if (tab === 'shortlisted') return e.status === 'shortlisted';
-      if (tab === 'high') return sc >= 80;
-      if (tab === 'medium') return sc >= 60 && sc < 80;
-      if (tab === 'low') return sc < 60;
+      if (tab === 'candidates') return e.status === 'candidate';
       return true;
     });
   }, [items, tab]);
@@ -181,22 +188,16 @@ export function ShortlistClient({ plays, play, initial }: Props) {
             {plays.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
           </select>
           <div className="text-[12px] text-evari-dim ml-2">
-            <strong className="text-evari-text">{counts.all}</strong> candidates ·
-            <span className="text-evari-success"> {counts.high} high</span> ·
-            <span> {counts.medium} medium</span> ·
-            <span className="text-evari-dim"> {counts.low} low</span> ·
-            <span className="text-evari-gold"> {counts.shortlisted} shortlisted</span>
+            <span className="text-evari-gold tabular-nums">{counts.shortlisted}</span> shortlisted ·
+            <span className="text-evari-dim tabular-nums"> {counts.candidates} candidates</span>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-evari-edge/30">
           {[
-            { key: 'all' as Tab, label: 'All matches', count: counts.all },
-            { key: 'high' as Tab, label: 'High fit', count: counts.high },
-            { key: 'medium' as Tab, label: 'Medium fit', count: counts.medium },
-            { key: 'low' as Tab, label: 'Low fit', count: counts.low },
             { key: 'shortlisted' as Tab, label: 'Shortlisted', count: counts.shortlisted },
+            { key: 'candidates' as Tab, label: 'Candidates', count: counts.candidates },
           ].map((t) => (
             <button
               key={t.key}
@@ -239,11 +240,11 @@ export function ShortlistClient({ plays, play, initial }: Props) {
                   </td>
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-2">
-                      <Avatar name={e.name} logoUrl={'https://logo.clearbit.com/' + e.domain} />
+                      <Avatar name={e.name} logoUrl={e.logoUrl ?? 'https://logo.clearbit.com/' + e.domain} />
                       <div>
                         <div className="text-evari-text font-medium flex items-center gap-1.5">
                           {e.name}
-                          <RowEnrichDot ready={false} />
+                          <RowEnrichDot ready={!!(e.aboutText && e.aboutText.length > 0)} />
                         </div>
                         <div className="text-evari-dim text-[11px]">{e.location ?? e.domain}</div>
                       </div>
