@@ -13,6 +13,7 @@ import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import {
   isDataForSeoConnected,
   searchBusinessListings,
+  webSearchQuery,
   type BusinessListing,
 } from '@/lib/integrations/dataforseo';
 import { upsertLead } from '@/lib/dashboard/repository';
@@ -96,23 +97,37 @@ export async function autoScanForPlay(
     return { inserted: 0, found: 0, agent: 'skipped', skipReason: 'plan-failed' };
   }
 
-  // Run every search plan in parallel and merge the results, deduped
-  // by domain so the same yacht builder can't show up twice across
-  // different keyword variants.
+  // Run TWO sources in parallel: Business Listings (Google Places via
+  // DataForSEO) AND organic SERP (Google web search via DataForSEO).
+  // Listings give us local businesses; SERP scours company websites,
+  // industry directories, and trade press for the same companies plus
+  // the long-tail Listings doesn't index. Results are merged on
+  // normalised domain so the same yacht builder can't show up twice
+  // across sources or keyword variants.
   let listings: BusinessListing[] = [];
   let cost = 0;
   try {
-    const settled = await Promise.allSettled(
-      plans.map((p) =>
-        searchBusinessListings({
-          description: p.description,
-          locationName: p.locationName,
-          limit: p.limit ?? 100,
-        }),
+    // Build the SERP query set from the same sector + geography
+    // pairings, but with phrasings designed to surface directory
+    // pages and company sites rather than local listings.
+    const serpQueries = buildSerpQueriesFromPlans(plans);
+    const [listingResults, serpResults] = await Promise.all([
+      Promise.allSettled(
+        plans.map((p) =>
+          searchBusinessListings({
+            description: p.description,
+            locationName: p.locationName,
+            limit: p.limit ?? 100,
+          }),
+        ),
       ),
-    );
+      Promise.allSettled(
+        serpQueries.map((q) => webSearchQuery({ query: q, limit: 30 })),
+      ),
+    ]);
+
     const seen = new Set<string>();
-    for (const r of settled) {
+    for (const r of listingResults) {
       if (r.status !== 'fulfilled') continue;
       cost += r.value.cost;
       for (const l of r.value.listings) {
@@ -122,13 +137,34 @@ export async function autoScanForPlay(
         listings.push(l);
       }
     }
-    if (listings.length === 0) {
-      // All searches failed or returned nothing. Surface the first
-      // error so the Discovery banner shows something useful.
-      const firstErr = settled.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
-      if (firstErr) {
-        throw firstErr.reason;
+    // SERP hits: convert each hit into a BusinessListing-shaped row,
+    // filtered to exclude obvious aggregator/news domains so we end up
+    // with company sites only.
+    for (const r of serpResults) {
+      if (r.status !== 'fulfilled') continue;
+      cost += r.value.cost;
+      for (const h of r.value.hits) {
+        const domain = (h.domain || '').toLowerCase().replace(/^www\./, '');
+        if (!domain) continue;
+        if (isAggregatorDomain(domain)) continue;
+        if (seen.has(domain)) continue;
+        seen.add(domain);
+        listings.push({
+          title: h.title,
+          url: h.url,
+          domain,
+          phone: undefined,
+          address: undefined,
+          category: undefined,
+          rating: undefined,
+        });
       }
+    }
+    if (listings.length === 0) {
+      const firstErr =
+        ([...listingResults, ...serpResults]
+          .find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined);
+      if (firstErr) throw firstErr.reason;
     }
   } catch (err) {
     await finish(
@@ -349,6 +385,54 @@ function listingToLead(
     playId: play.id,
     prospectStatus: 'pending',
   };
+}
+
+/**
+ * Build SERP query phrasings from the matrix of (sector x geography)
+ * SearchPlans. Listings searches use the bare sector name; SERP
+ * searches need richer phrasings to surface directory pages and
+ * company sites. We use 4-6 templates per sector so each combo fans
+ * out into multiple Google queries.
+ */
+function buildSerpQueriesFromPlans(plans: SearchPlan[]): string[] {
+  const out = new Set<string>();
+  for (const p of plans) {
+    const sector = p.description.trim();
+    const geoBase = p.locationName.replace(/,\s*United Kingdom$/i, '').trim() || 'UK';
+    out.add(`${sector} ${geoBase}`);
+    out.add(`best ${sector} ${geoBase}`);
+    out.add(`top ${sector} ${geoBase}`);
+    out.add(`${sector} companies ${geoBase}`);
+    out.add(`list of ${sector} in ${geoBase}`);
+    out.add(`luxury ${sector} ${geoBase}`);
+  }
+  // Cap at 30 to keep cost predictable. SERP costs ~$0.001 per query.
+  return Array.from(out).slice(0, 30);
+}
+
+const AGGREGATOR_DOMAINS = new Set([
+  'wikipedia.org', 'linkedin.com', 'facebook.com', 'twitter.com',
+  'x.com', 'youtube.com', 'instagram.com', 'tiktok.com', 'pinterest.com',
+  'glassdoor.com', 'glassdoor.co.uk', 'indeed.com', 'indeed.co.uk',
+  'trustpilot.com', 'yelp.com', 'yelp.co.uk', 'tripadvisor.com',
+  'google.com', 'maps.google.com', 'bing.com', 'duckduckgo.com',
+  'amazon.com', 'amazon.co.uk', 'ebay.com', 'ebay.co.uk',
+  'crunchbase.com', 'pitchbook.com', 'dnb.com', 'bloomberg.com',
+  'reuters.com', 'forbes.com', 'theguardian.com', 'bbc.co.uk',
+  'bbc.com', 'thetimes.co.uk', 'telegraph.co.uk', 'ft.com',
+  'companieshouse.gov.uk', 'gov.uk', 'medium.com', 'substack.com',
+  'reddit.com', 'quora.com', 'stackoverflow.com', 'github.com',
+]);
+
+function isAggregatorDomain(domain: string): boolean {
+  if (AGGREGATOR_DOMAINS.has(domain)) return true;
+  // Match second-level matches: news.bbc.com -> bbc.com, blog.medium.com.
+  const parts = domain.split('.');
+  if (parts.length >= 2) {
+    const last2 = parts.slice(-2).join('.');
+    if (AGGREGATOR_DOMAINS.has(last2)) return true;
+  }
+  return false;
 }
 
 function slugify(s: string): string {
