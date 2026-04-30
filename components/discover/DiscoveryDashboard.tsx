@@ -683,6 +683,10 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
   // Fires when drawer opens for a new row, not on tab click.
   const [eagerSimilarDone, setEagerSimilarDone] = useState(false);
   const [eagerSnapshotDone, setEagerSnapshotDone] = useState(false);
+  // Soft-interpolated displayed percentage. Bumps toward the current
+  // ceiling on a tick so the bar always feels like it's making
+  // progress, even between real milestones.
+  const [softPct, setSoftPct] = useState(0);
 
   async function verifyWithWebSearch() {
     if (!row) return;
@@ -720,8 +724,32 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
     setNotesSaving('idle');
     setEagerSimilarDone(false);
     setEagerSnapshotDone(false);
+    setSoftPct(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row?.id]);
+
+  // Soft progress interval. Creeps toward a moving ceiling so the
+  // bar always shows movement.
+  //   - Both pending : ceiling 45%, creep 1.5%/100ms
+  //   - One done     : ceiling 85%, creep 2.0%/100ms
+  //   - Both done    : ceiling 100% (snaps via the real flag below)
+  useEffect(() => {
+    if (!row) return;
+    if (eagerSimilarDone && eagerSnapshotDone) {
+      setSoftPct(100);
+      return;
+    }
+    const ceiling = (eagerSimilarDone ? 1 : 0) + (eagerSnapshotDone ? 1 : 0) === 1 ? 85 : 45;
+    const speed = (eagerSimilarDone || eagerSnapshotDone) ? 2 : 1.5;
+    const id = setInterval(() => {
+      setSoftPct((cur) => {
+        if (cur >= ceiling) return cur;
+        const next = cur + speed;
+        return next > ceiling ? ceiling : next;
+      });
+    }, 100);
+    return () => clearInterval(id);
+  }, [row?.id, eagerSimilarDone, eagerSnapshotDone]);
 
   // Sync the notes draft if the row's notes change externally (e.g.
   // a save round-tripped). Does NOT reset the active tab.
@@ -1029,8 +1057,9 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
               priming. Hides once both are ready. Styled like the fit
               score bar so it reads as the same kind of indicator. */}
           {(() => {
-            const eagerPct = ((eagerSimilarDone ? 1 : 0) + (eagerSnapshotDone ? 1 : 0)) * 50;
-            if (eagerPct >= 100) return null;
+            const bothDone = eagerSimilarDone && eagerSnapshotDone;
+            const eagerPct = bothDone ? 100 : Math.min(99, Math.round(softPct));
+            if (bothDone && softPct >= 100) return null;
             const labelParts: string[] = [];
             if (!eagerSimilarDone) labelParts.push('Similar');
             if (!eagerSnapshotDone) labelParts.push('Snapshot');
