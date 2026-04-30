@@ -358,13 +358,7 @@ export function AppSidebar() {
         )}
         {!collapsed ? (
           <Link href="/" aria-label="Home" title="Home" className="inline-flex items-center hover:brightness-110 transition">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={logoSrc}
-              alt="Evari"
-              style={{ width: 84, height: 'auto' }}
-              draggable={false}
-            />
+            <span className="text-[12px] font-semibold text-evari-text">Mojito AI</span>
           </Link>
         ) : null}
       </div>
