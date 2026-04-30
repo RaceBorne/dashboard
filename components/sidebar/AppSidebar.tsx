@@ -81,6 +81,7 @@ const NAV = [
   { href: '/email/brand', label: 'Brand setup', icon: Palette, group: 'setup' },
   { href: '/email/domains', label: 'Domains', icon: Globe, group: 'setup' },
   { href: '/email/suppressions', label: 'Suppressions', icon: Ban, group: 'setup' },
+  { href: '/prospecting/exclusions', label: 'Prospecting exclusions', icon: Ban, group: 'setup' },
   { href: '/email/assets', label: 'Assets', icon: Image, group: 'setup' },
   { href: '/email/settings', label: 'Email settings', icon: Settings, group: 'setup' },
   { href: '/scoring', label: 'Fit scoring', icon: Sparkles, group: 'setup' },

@@ -647,6 +647,10 @@ interface SimilarCacheEntry {
   // Domains the user has clicked Send to shortlist for in the current
   // session, so the button collapses to a Shortlisted badge.
   shortlistedDomains: Set<string>;
+  // Domains the user has marked Not relevant in this session. Filtered
+  // out of the rendered peer list immediately so the UI stays in sync
+  // with the global blocklist.
+  blockedDomains: Set<string>;
 }
 
 function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress, getSeenDomains, onClose, onShortlist, onRowPatched, onPeersAdded }: {
@@ -817,6 +821,7 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
           reasoning: data.reasoning ?? '',
           addedDomains: new Set<string>(),
           shortlistedDomains: new Set<string>(),
+          blockedDomains: new Set<string>(),
         },
       }));
     } catch (err) {
@@ -901,6 +906,29 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
         addedDomains.add(peer.domain.toLowerCase());
         if (status === 'shortlisted') shortlistedDomains.add(peer.domain.toLowerCase());
         return { ...cur, [row!.domain]: { ...entry, addedDomains, shortlistedDomains } };
+      });
+    } catch {
+      // Non-fatal.
+    }
+  }
+
+  // Mark a peer as Not relevant. Adds the domain to the global
+  // dashboard_blocked_domains list and hides the card immediately.
+  // Future Similar / agent / brain lookups will skip it.
+  async function blockPeer(peer: SimilarPeer) {
+    if (!cached) return;
+    try {
+      await fetch(`/api/discover/${playId}/block`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ domain: peer.domain, reason: 'Not relevant from Similar suggestion' }),
+      });
+      setSimilarCache((cur) => {
+        const entry = cur[row!.domain];
+        if (!entry) return cur;
+        const blockedDomains = new Set(entry.blockedDomains);
+        blockedDomains.add(peer.domain.toLowerCase());
+        return { ...cur, [row!.domain]: { ...entry, blockedDomains } };
       });
       onPeersAdded();
     } catch {
@@ -1138,15 +1166,24 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
               {!similarLoading && cached?.reasoning ? (
                 <div className="text-[10px] text-evari-dimmer italic leading-relaxed">{cached.reasoning}</div>
               ) : null}
-              {cached?.peers?.map((peer) => {
+              {cached?.peers?.filter((peer) => !cached.blockedDomains.has(peer.domain.toLowerCase())).map((peer) => {
                 const dKey = peer.domain.toLowerCase();
                 const inList = peer.alreadyInList || cached.addedDomains.has(dKey);
                 const isShortlisted = peer.status === 'shortlisted' || cached.shortlistedDomains.has(dKey);
                 const peerWebsite = 'https://' + peer.domain;
                 return (
-                  <div key={peer.domain} className="flex items-start gap-3 rounded-md border border-evari-edge/30 p-3 bg-evari-edge/5">
+                  <div key={peer.domain} className="flex items-start gap-3 rounded-md border border-evari-edge/30 p-3 bg-evari-edge/5 relative group/peer">
+                    <button
+                      type="button"
+                      onClick={() => void blockPeer(peer)}
+                      className="absolute top-2 right-2 inline-flex items-center justify-center h-6 w-6 rounded-md text-evari-dimmer hover:text-evari-warning hover:bg-evari-warning/10 transition opacity-60 hover:opacity-100"
+                      title="Not relevant. Removes from this list and blocks from any future searches."
+                      aria-label="Not relevant"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                     <Avatar name={peer.name} logoUrl={peer.logoUrl} />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 pr-6">
                       <div className="text-[13px] font-semibold text-evari-text leading-tight truncate">{peer.name}</div>
                       <a
                         href={peerWebsite}
