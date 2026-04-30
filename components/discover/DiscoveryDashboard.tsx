@@ -27,6 +27,7 @@ interface Row {
   id: string;
   domain: string;
   name: string;
+  logoUrl?: string | null;
   industry: string | null;
   size: string | null;
   revenue: string | null;
@@ -321,7 +322,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
                 <td className="px-3"><input type="checkbox" className="accent-evari-gold" /></td>
                 <td className="py-2.5 px-3">
                   <div className="flex items-center gap-2">
-                    <Avatar name={r.name} />
+                    <Avatar name={r.name} logoUrl={r.logoUrl} />
                     <a href={`https://${r.domain}`} target="_blank" rel="noopener" className="text-evari-text font-medium hover:text-evari-gold transition inline-flex items-center gap-1">
                       {r.name} <ChevronRight className="h-3 w-3 -rotate-45 text-evari-dim" />
                     </a>
@@ -406,10 +407,27 @@ function FitScoreCell({ score }: { score: number | null }) {
 
 const AVATAR_PALETTE = ['#7CCFC2', '#4AA39C', '#2F7B7C', '#1F555F', '#C09000', '#A26F00', '#5C8D4F', '#42685B'];
 
-function Avatar({ name }: { name: string }) {
+function Avatar({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const initials = name.split(/\s+/).map((s) => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
   let h = 0; for (let i = 0; i < name.length; i++) h = ((h << 5) - h) + name.charCodeAt(i);
   const color = AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+  // Try the Clearbit logo; if it 404s, drop back to initials so the
+  // row never breaks.
+  if (logoUrl && !logoFailed) {
+    return (
+      <div className="h-7 w-7 rounded-md overflow-hidden bg-white shrink-0 flex items-center justify-center border border-evari-edge/30">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logoUrl}
+          alt={name}
+          className="h-full w-full object-contain"
+          loading="lazy"
+          onError={() => setLogoFailed(true)}
+        />
+      </div>
+    );
+  }
   return (
     <div className="h-7 w-7 rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: color }}>
       {initials}

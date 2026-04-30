@@ -24,6 +24,7 @@ interface ShortlistRow {
   industry: string | null; employees: string | null; revenue: string | null;
   location: string | null; description: string | null;
   fit_score: number | null; status: string;
+  logo_url: string | null;
 }
 
 interface EnrichmentRow {
@@ -88,6 +89,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playId:
       decisionMakerCount: dDM,
       dataCoverage: dCoverage,
       status: r.status,
+      logoUrl: r.logo_url,
     };
   }).sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0));
 

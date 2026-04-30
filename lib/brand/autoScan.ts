@@ -13,7 +13,6 @@ import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import {
   isDataForSeoConnected,
   searchBusinessListings,
-  webSearchQuery,
   type BusinessListing,
 } from '@/lib/integrations/dataforseo';
 import { upsertLead } from '@/lib/dashboard/repository';
@@ -107,25 +106,20 @@ export async function autoScanForPlay(
   let listings: BusinessListing[] = [];
   let cost = 0;
   try {
-    // Build the SERP query set from the same sector + geography
-    // pairings, but with phrasings designed to surface directory
-    // pages and company sites rather than local listings.
-    const serpQueries = buildSerpQueriesFromPlans(plans);
-    const [listingResults, serpResults] = await Promise.all([
-      Promise.allSettled(
-        plans.map((p) =>
-          searchBusinessListings({
-            description: p.description,
-            locationName: p.locationName,
-            limit: p.limit ?? 100,
-          }),
-        ),
+    // Single source: Google Places via DataForSEO Business Listings.
+    // SERP organic was tried but it returns anything Google has
+    // indexed under the keywords (yacht clubs that mention supercars,
+    // golf clubs with car events, etc.) which destroys precision.
+    // Listings matches against actual business categories.
+    const listingResults = await Promise.allSettled(
+      plans.map((p) =>
+        searchBusinessListings({
+          description: p.description,
+          locationName: p.locationName,
+          limit: p.limit ?? 100,
+        }),
       ),
-      Promise.allSettled(
-        serpQueries.map((q) => webSearchQuery({ query: q, limit: 30 })),
-      ),
-    ]);
-
+    );
     const seen = new Set<string>();
     for (const r of listingResults) {
       if (r.status !== 'fulfilled') continue;
@@ -137,34 +131,23 @@ export async function autoScanForPlay(
         listings.push(l);
       }
     }
-    // SERP hits: convert each hit into a BusinessListing-shaped row,
-    // filtered to exclude obvious aggregator/news domains so we end up
-    // with company sites only.
-    for (const r of serpResults) {
-      if (r.status !== 'fulfilled') continue;
-      cost += r.value.cost;
-      for (const h of r.value.hits) {
-        const domain = (h.domain || '').toLowerCase().replace(/^www\./, '');
-        if (!domain) continue;
-        if (isAggregatorDomain(domain)) continue;
-        if (seen.has(domain)) continue;
-        seen.add(domain);
-        listings.push({
-          title: h.title,
-          url: h.url,
-          domain,
-          phone: undefined,
-          address: undefined,
-          category: undefined,
-          rating: undefined,
-        });
-      }
-    }
     if (listings.length === 0) {
-      const firstErr =
-        ([...listingResults, ...serpResults]
-          .find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined);
+      const firstErr = listingResults.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
       if (firstErr) throw firstErr.reason;
+    }
+
+    // Relevance gate: ask Claude to filter the candidate list against
+    // the brief BEFORE we insert anything. This catches the
+    // 'supercar clubs' brief returning yacht clubs / golf clubs /
+    // cannabis clubs that DataForSEO's category matching let through.
+    if (listings.length > 0) {
+      try {
+        const filtered = await filterListingsByRelevance(play, listings);
+        listings = filtered;
+      } catch {
+        // If the gate fails, fall back to the unfiltered list rather
+        // than inserting nothing.
+      }
     }
   } catch (err) {
     await finish(
@@ -300,6 +283,65 @@ function normaliseLocation(geo: string): string {
   return noParens + ', United Kingdom';
 }
 
+/**
+ * Ask Claude to filter the raw DataForSEO candidate list to the rows
+ * that genuinely match the play's brief. DataForSEO's Business
+ * Listings API matches by Google business category, which is loose:
+ * "supercar clubs" surfaces yacht clubs and cannabis clubs because
+ * Google tags them all as "club". Claude reads the title + category
+ * + address + the brief, returns the IDs of legitimate matches.
+ *
+ * Falls back to the unfiltered list on any error so the operator
+ * still gets candidates rather than nothing.
+ */
+async function filterListingsByRelevance(
+  play: Play,
+  listings: BusinessListing[],
+): Promise<BusinessListing[]> {
+  if (listings.length === 0) return listings;
+  // Build a numbered list Claude can reference by index.
+  const numbered = listings
+    .map(
+      (l, i) =>
+        `${i}. ${l.title}` +
+        (l.category ? ` (${l.category})` : '') +
+        (l.address ? `, ${l.address}` : ''),
+    )
+    .join('\n');
+  const prompt = [
+    'Filter the following list of companies down to only those that genuinely match the play brief.',
+    '',
+    'Play title: ' + play.title,
+    'Brief: ' + (play.brief ?? '(no brief)'),
+    '',
+    'Candidates (numbered):',
+    numbered,
+    '',
+    'Reply with VALID JSON, no commentary, no markdown fences:',
+    '{ "matchIds": [array of numeric indices that match the brief] }',
+    '',
+    'Strict rules:',
+    '- Only include candidates that genuinely fit the brief. If the brief asks for "private supercar clubs for HNW owners", a yacht club, golf club, or cannabis club does NOT match. A track-day supercar club, marque-specific car club, or members-only driving club DOES match.',
+    '- Be strict. If unsure, exclude.',
+    '- Return the indices only, no names.',
+  ].join('\n');
+
+  const text = await generateBriefing({
+    task: 'auto-scan-relevance',
+    voice: 'analyst',
+    prompt,
+  });
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  const parsed = JSON.parse(cleaned) as { matchIds?: number[] };
+  if (!Array.isArray(parsed.matchIds)) return listings;
+  const keep = new Set<number>(parsed.matchIds.filter((n) => Number.isInteger(n)));
+  // If Claude returned an empty array we treat it as a parse failure
+  // and keep everything; otherwise we'd drop all results.
+  if (keep.size === 0) return listings;
+  return listings.filter((_, i) => keep.has(i));
+}
+
+
 async function deriveSinglePlanFromPlay(play: Play, limit: number): Promise<SearchPlan> {
   const prompt = [
     'You are translating a freshly-named Evari outreach Play into a DataForSEO Business Listings search.',
@@ -387,54 +429,6 @@ function listingToLead(
   };
 }
 
-/**
- * Build SERP query phrasings from the matrix of (sector x geography)
- * SearchPlans. Listings searches use the bare sector name; SERP
- * searches need richer phrasings to surface directory pages and
- * company sites. We use 4-6 templates per sector so each combo fans
- * out into multiple Google queries.
- */
-function buildSerpQueriesFromPlans(plans: SearchPlan[]): string[] {
-  const out = new Set<string>();
-  for (const p of plans) {
-    const sector = p.description.trim();
-    const geoBase = p.locationName.replace(/,\s*United Kingdom$/i, '').trim() || 'UK';
-    out.add(`${sector} ${geoBase}`);
-    out.add(`best ${sector} ${geoBase}`);
-    out.add(`top ${sector} ${geoBase}`);
-    out.add(`${sector} companies ${geoBase}`);
-    out.add(`list of ${sector} in ${geoBase}`);
-    out.add(`luxury ${sector} ${geoBase}`);
-  }
-  // Cap at 30 to keep cost predictable. SERP costs ~$0.001 per query.
-  return Array.from(out).slice(0, 30);
-}
-
-const AGGREGATOR_DOMAINS = new Set([
-  'wikipedia.org', 'linkedin.com', 'facebook.com', 'twitter.com',
-  'x.com', 'youtube.com', 'instagram.com', 'tiktok.com', 'pinterest.com',
-  'glassdoor.com', 'glassdoor.co.uk', 'indeed.com', 'indeed.co.uk',
-  'trustpilot.com', 'yelp.com', 'yelp.co.uk', 'tripadvisor.com',
-  'google.com', 'maps.google.com', 'bing.com', 'duckduckgo.com',
-  'amazon.com', 'amazon.co.uk', 'ebay.com', 'ebay.co.uk',
-  'crunchbase.com', 'pitchbook.com', 'dnb.com', 'bloomberg.com',
-  'reuters.com', 'forbes.com', 'theguardian.com', 'bbc.co.uk',
-  'bbc.com', 'thetimes.co.uk', 'telegraph.co.uk', 'ft.com',
-  'companieshouse.gov.uk', 'gov.uk', 'medium.com', 'substack.com',
-  'reddit.com', 'quora.com', 'stackoverflow.com', 'github.com',
-]);
-
-function isAggregatorDomain(domain: string): boolean {
-  if (AGGREGATOR_DOMAINS.has(domain)) return true;
-  // Match second-level matches: news.bbc.com -> bbc.com, blog.medium.com.
-  const parts = domain.split('.');
-  if (parts.length >= 2) {
-    const last2 = parts.slice(-2).join('.');
-    if (AGGREGATOR_DOMAINS.has(last2)) return true;
-  }
-  return false;
-}
-
 function slugify(s: string): string {
   return s
     .toLowerCase()
@@ -450,6 +444,12 @@ async function upsertShortlistFromListing(
 ): Promise<void> {
   if (!supabase) return;
   const domain = l.domain || deriveDomain(l.url) || (l.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.unknown');
+  // Logo via Clearbit's free CDN. No API key required for the logo
+  // endpoint; it returns a transparent PNG. We just URL-build it; the
+  // browser will fall back to an initials avatar if Clearbit doesn't
+  // have a logo for this domain.
+  const looksRealDomain = /\./.test(domain) && !domain.endsWith('.unknown');
+  const logoUrl = looksRealDomain ? 'https://logo.clearbit.com/' + domain : null;
   // Upsert by (play_id, domain) so re-running the auto-scan doesn't
   // duplicate companies that DataForSEO surfaces again.
   await supabase
@@ -464,6 +464,7 @@ async function upsertShortlistFromListing(
         description: l.category
           ? 'Auto-scan (DataForSEO): ' + l.category + (l.address ? ', ' + l.address : '')
           : (l.address ?? null),
+        logo_url: logoUrl,
         // Default fit_score of 60 (good band) until the scoring rubric
         // kicks in or the operator overrides it.
         fit_score: 60,
