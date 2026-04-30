@@ -44,6 +44,12 @@ interface Props {
    *  reply input is disabled. The brief is locked, so the AI must not
    *  redraft anything until the user explicitly unlocks. */
   locked?: boolean;
+  /** When false, the kickoff DRAFT_PROMPT does not auto-fire even if
+   *  the chat is empty. The input stays enabled, but Claude will only
+   *  reply to questions the user actually types. Used on Market
+   *  analysis where Spitball is a research chat, not a strategy
+   *  drafter. Default true preserves the legacy behaviour. */
+  autoDraft?: boolean;
 }
 
 // Hidden user prompt that kicks off the conversation. Claude already
@@ -141,7 +147,7 @@ function renderRich(text: string): React.ReactNode[] {
   return out;
 }
 
-export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose, compact, locked }: Props) {
+export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose, compact, locked, autoDraft = true }: Props) {
   const router = useRouter();
   const [messages, setMessages] = useState<SpitballMessage[]>([]);
   const [input, setInput] = useState('');
@@ -195,6 +201,13 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
         // Locked + empty chat: don't auto-draft. The user has chosen to
         // freeze the brief, so the AI must not run unprompted.
         if (locked) {
+          setBusy(false);
+          return;
+        }
+
+        // autoDraft=false: the host page (e.g. Market analysis) wants
+        // Spitball as a research chat only; no kickoff strategy draft.
+        if (!autoDraft) {
           setBusy(false);
           return;
         }

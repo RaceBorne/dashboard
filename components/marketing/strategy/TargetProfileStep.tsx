@@ -1,29 +1,22 @@
 'use client';
 
 /**
- * Target profile dashboard. This is the stage where we describe WHO
- * we're going to target, derived entirely from the brief — not from
- * Discovery results. Every card on this page is full as soon as the
- * brief has chip picks. Discovery + Enrichment numbers (addressable
- * market, real contacts, real seniority mix) belong on later stages.
+ * Target profile stage — the second stage of the Strategy walk.
  *
- * Layout:
- *  1. "Is this a good market?" headline — ICP rubric score plus four
- *     brief-derived counts (industries, geographies, roles, channels).
- *  2. Decision makers donut — bucketed from the roles we plan to email
- *     (brief.targetAudience), filtered to decision-making seniority.
- *  3. Seniority mix pie — every role bucketed.
- *  4. Ideal companies attribute strip (industry / size / revenue /
- *     location / ICP score).
- *  5. Target summary — prose + post-Discovery stand-out numbers if
- *     Discovery has actually run.
+ * Job of this page: answer "who specifically are we hunting?" Picks
+ * for Company size, Revenue, Roles, and Channels live here (sector +
+ * geography belong to Market analysis). The donut + pie visualise
+ * the role mix; the ideal-companies strip summarises the picks; the
+ * Buyer persona card is AI-written prose describing the actual
+ * person we will email.
  */
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { ArrowRight, Loader2, Lock, Pencil, Sparkles, Unlock, UserSquare } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { StepTitle } from './StepTitle';
+import { ChipPicker } from './ChipPicker';
 
 import { cn } from '@/lib/utils';
 
@@ -55,13 +48,14 @@ interface BriefShape {
   geographies?: string[];
   companySizeMin: number | null;
   companySizeMax: number | null;
-  companySizes?: string[];
+  companySizes: string[];
   revenueMin: string | null;
   revenueMax: string | null;
-  revenues?: string[];
+  revenues: string[];
   channels: string[];
   targetAudience: string[];
   idealCustomer?: string | null;
+  locked: boolean;
 }
 
 type SeniorityKey = 'c_level' | 'vp' | 'director' | 'head' | 'manager' | 'other';
@@ -100,7 +94,19 @@ function bucketRoles(roles: string[]): { all: BreakdownEntry[]; decisionMakers: 
   return { all, decisionMakers, total };
 }
 
-export function TargetProfileStep({ playId, brief }: { playId: string; brief?: BriefShape }) {
+export function TargetProfileStep({
+  playId,
+  brief,
+  playTitle,
+  pitch,
+  onPatch,
+}: {
+  playId: string;
+  brief?: BriefShape;
+  playTitle?: string;
+  pitch?: string;
+  onPatch?: (patch: Partial<BriefShape>) => void;
+}) {
   const [a, setA] = useState<Analytics | null>(null);
   useEffect(() => {
     fetch(`/api/strategy/${playId}/analytics`, { cache: 'no-store' })
@@ -109,21 +115,123 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
       .catch(() => setA(null));
   }, [playId]);
 
+  // Chip suggestions for the customer-side picks. Same loader pattern
+  // as Market analysis but a different stage tag so the API can tailor
+  // the options to who we'll email.
+  const [chips, setChips] = useState<{ companySizes: string[]; revenues: string[]; channels: string[]; audience: string[] } | null>(null);
+  const [chipsLoading, setChipsLoading] = useState(true);
+  useEffect(() => {
+    if (brief?.locked) {
+      setChipsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setChipsLoading(true);
+    fetch(`/api/strategy/${playId}/chips`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ stage: 'market', playTitle, pitch }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        if (d?.ok) {
+          setChips({
+            companySizes: Array.isArray(d.companySizes) ? d.companySizes : [],
+            revenues: Array.isArray(d.revenues) ? d.revenues : [],
+            channels: Array.isArray(d.channels) ? d.channels : [],
+            audience: Array.isArray(d.audience) ? d.audience : [],
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setChipsLoading(false); });
+    return () => { cancelled = true; };
+  }, [playId, playTitle, pitch, brief?.locked]);
+
+  // Persona prose. Re-fetches when the customer-side picks change.
+  const [persona, setPersona] = useState<string | null>(null);
+  const [personaLoading, setPersonaLoading] = useState(false);
+  const sizesKey = (brief?.companySizes ?? []).join('|');
+  const revenuesKey = (brief?.revenues ?? []).join('|');
+  const audienceKey = (brief?.targetAudience ?? []).join('|');
+  const channelsKey = (brief?.channels ?? []).join('|');
+  useEffect(() => {
+    if (brief?.locked) return;
+    if (!brief || (brief.companySizes.length === 0 && brief.revenues.length === 0 && brief.targetAudience.length === 0)) {
+      setPersona(null);
+      return;
+    }
+    let cancelled = false;
+    setPersonaLoading(true);
+    fetch(`/api/strategy/${playId}/persona`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        playTitle,
+        pitch,
+        industries: brief.industries,
+        geographies: brief.geographies ?? [],
+        companySizes: brief.companySizes,
+        revenues: brief.revenues,
+        channels: brief.channels,
+        targetAudience: brief.targetAudience,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        if (d?.ok && typeof d.persona === 'string') setPersona(d.persona);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPersonaLoading(false); });
+    return () => { cancelled = true; };
+  }, [playId, playTitle, pitch, sizesKey, revenuesKey, audienceKey, channelsKey, brief?.locked]);
+
+  // Multi-pick chip handlers (mirror the ones in Market analysis but
+  // for the customer-side fields).
+  function applySizeBand(picked: string[]) {
+    if (!onPatch) return;
+    if (picked.length === 0) {
+      onPatch({ companySizes: [], companySizeMin: null, companySizeMax: null });
+      return;
+    }
+    let minVal: number | null = null;
+    let maxVal: number | null = null;
+    for (const band of picked) {
+      const m = band.match(/(\d+)\s*-\s*(\d+)/);
+      if (m) {
+        const lo = Number(m[1]);
+        const hi = Number(m[2]);
+        minVal = minVal === null ? lo : Math.min(minVal, lo);
+        maxVal = maxVal === null ? hi : Math.max(maxVal, hi);
+        continue;
+      }
+      const plus = band.match(/(\d+)\+/);
+      if (plus) {
+        const n = Number(plus[1]);
+        minVal = minVal === null ? n : Math.min(minVal, n);
+        maxVal = maxVal === null ? 9999 : Math.max(maxVal, 9999);
+      }
+    }
+    onPatch({ companySizes: picked, companySizeMin: minVal, companySizeMax: maxVal });
+  }
+  function applyRevenueBand(picked: string[]) {
+    if (!onPatch) return;
+    if (picked.length === 0) {
+      onPatch({ revenues: [], revenueMin: null, revenueMax: null });
+      return;
+    }
+    const first = picked[0].match(/(£[^-\s]+)\s*-\s*(£[^\s]+)/);
+    const last = picked[picked.length - 1].match(/(£[^-\s]+)\s*-\s*(£[^\s]+)/);
+    const lo = first ? first[1] : picked[0];
+    const hi = last ? last[2] : picked[picked.length - 1];
+    onPatch({ revenues: picked, revenueMin: lo, revenueMax: hi });
+  }
+
   const roles = brief?.targetAudience ?? [];
   const buckets = useMemo(() => bucketRoles(roles), [roles]);
   const dmTotal = buckets.decisionMakers.reduce((acc, x) => acc + x.count, 0);
-
-  const industriesCount = brief?.industries?.length ?? 0;
-  // Count picked geographies. Prefer the new array. If only the legacy
-  // single-string field is set (older briefs), treat any non-empty
-  // value as exactly one geography — the string may contain commas
-  // inside the location name itself (e.g. "South Coast (Solent,
-  // Portsmouth, Southampton)") so we can't split-count it.
-  const geographiesCount =
-    brief?.geographies && brief.geographies.length > 0
-      ? brief.geographies.length
-      : (brief?.geography && brief.geography.trim().length > 0 ? 1 : 0);
-  const channelsCount = brief?.channels?.length ?? 0;
 
   const hasDiscoveryData = !!a && a.addressableMarket > 0;
   const hasContactData = !!a && a.reachableContacts > 0;
@@ -136,9 +244,6 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
     );
   }
 
-  // Prefer the multi-pick arrays where present; fall back to the legacy
-  // single fields so old briefs still render. Trim em-dashes per
-  // CLAUDE.md.
   const sizesPretty =
     brief?.companySizes && brief.companySizes.length > 0
       ? brief.companySizes.join(', ')
@@ -159,12 +264,32 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
       : (a.locations.length > 0 ? a.locations.join(', ') : (brief?.geography ?? '—'));
 
   const highFitPctOfMarket = hasDiscoveryData ? Math.round((a.highFitCount / a.addressableMarket) * 100) : 0;
+  const locked = !!brief?.locked;
 
   return (
     <div className="space-y-panel">
-      <header>
-        <StepTitle substep="Target profile" />
-        <p className="text-[12px] text-evari-dim mt-0.5">Define the personas, roles and company attributes we need to reach.</p>
+      <header className="flex items-start gap-2">
+        <div className="flex-1">
+          <StepTitle substep="Target profile" />
+          <p className="text-[12px] text-evari-dim mt-0.5">
+            {locked
+              ? 'Locked. Click Unlock to refine; the AI will not redraft until you do.'
+              : 'Who specifically are we hunting? Pick the company size, revenue band, roles, and channels. The persona below is what Claude believes you should write to.'}
+          </p>
+        </div>
+        {onPatch ? (
+          <button
+            type="button"
+            onClick={() => onPatch({ locked: !locked })}
+            className={locked
+              ? 'inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/40 hover:bg-evari-gold/25 transition'
+              : 'inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-surface text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition'}
+            title={locked ? 'Unlock to allow AI to refine again' : 'Lock the brief so the AI will not redraft on revisit'}
+          >
+            {locked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+            {locked ? 'Unlock' : 'Lock'}
+          </button>
+        ) : null}
       </header>
 
       {/* Run-Discovery prompt — only shown until Discovery has populated
@@ -181,7 +306,7 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
             <div className="flex-1">
               <div className="text-[13px] font-semibold text-evari-text">Run Discovery to find real companies that match this profile</div>
               <p className="text-[12px] text-evari-dim mt-0.5">
-                The brief tells us who to target. Discovery turns the description into a live shortlist with company-level fit scores.
+                Once the picks below feel right, Discovery turns the description into a live shortlist with company-level fit scores.
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-evari-gold shrink-0" />
@@ -189,30 +314,63 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
         </Link>
       ) : null}
 
-      {/* Is this a good market — driven entirely by the brief at this
-          stage. ICP score is the rubric estimate; the four counts come
-          straight from the chip picks so this card is always full. */}
-      <Card title="Is this a good market to pursue?">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-panel items-center">
-          <div className="md:col-span-1 flex items-center gap-3">
-            <ScoreDonut value={a.icpScore} />
-            <div>
-              <div className="text-[12px] text-evari-dim">Ideal customer score</div>
-              <div className="text-[12px] font-semibold text-evari-text capitalize">{a.icpBand.replace('_', ' ')}</div>
-              <p className="text-[11px] text-evari-dimmer mt-1">Estimated from your brief. Tightens once Discovery shortlists companies.</p>
-            </div>
-          </div>
-          <Stat label="Industries targeted" value={String(industriesCount)} sub={brief?.industries && brief.industries.length > 0 ? brief.industries.slice(0, 2).join(', ') : 'Pick on the brief'} />
-          <Stat label="Geographies" value={String(geographiesCount)} sub={locationsPretty === '—' ? 'Pick on the brief' : locationsPretty} />
-          <Stat label="Roles to email" value={String(roles.length)} sub={dmTotal > 0 ? `${dmTotal} decision makers` : 'Pick on the brief'} />
-          <Stat label="Channels in mix" value={String(channelsCount)} sub={brief?.channels && brief.channels.length > 0 ? brief.channels.slice(0, 2).map(humaniseChannel).join(', ') : 'Pick on the brief'} />
-        </div>
-      </Card>
+      {/* Customer-side chip pickers. Wrapped in a disabled fieldset
+          when the brief is locked. */}
+      {onPatch ? (
+        <fieldset disabled={locked} className={cn('grid grid-cols-1 md:grid-cols-2 gap-panel', locked && 'opacity-70 pointer-events-none')}>
+          <ChipPicker
+            title="Company size"
+            hint="Headcount band(s) of the businesses we want to reach. Pick as many as fit."
+            options={chips?.companySizes ?? []}
+            selected={brief?.companySizes ?? []}
+            onChange={applySizeBand}
+            loading={chipsLoading}
+          />
+          <ChipPicker
+            title="Revenue"
+            hint="Annual revenue band(s). Pick as many as fit."
+            options={chips?.revenues ?? []}
+            selected={brief?.revenues ?? []}
+            onChange={applyRevenueBand}
+            loading={chipsLoading}
+          />
+          <ChipPicker
+            title="Roles to email"
+            hint="The job titles we contact. Mix of decision makers and influencers is fine."
+            options={chips?.audience ?? []}
+            selected={brief?.targetAudience ?? []}
+            onChange={(next) => onPatch({ targetAudience: next })}
+            loading={chipsLoading}
+          />
+          <ChipPicker
+            title="Channels"
+            hint="How we reach this audience."
+            options={chips?.channels ?? []}
+            selected={brief?.channels ?? []}
+            onChange={(next) => onPatch({ channels: next })}
+            loading={chipsLoading}
+          />
+        </fieldset>
+      ) : null}
 
-      {/* Decision makers + Seniority mix — both bucketed from the roles
-          chip on the brief, so they fill at this stage and align with
-          who we plan to email. If targetAudience is empty the cards
-          stay hidden rather than render an empty pie. */}
+      {/* Buyer persona — AI-written prose describing the actual person
+          we'll email. Only renders when the customer-side picks have
+          enough to go on. */}
+      {persona || personaLoading ? (
+        <Card title="Buyer persona" icon={<UserSquare className="h-4 w-4" />}>
+          {personaLoading ? (
+            <div className="text-[12px] text-evari-dim flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Claude is sketching the buyer…
+            </div>
+          ) : persona ? (
+            <p className="text-[13px] text-evari-text leading-relaxed">{persona}</p>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {/* Decision makers + Seniority mix — bucketed from the role
+          chip. Hides when targetAudience is empty so we never render
+          an empty pie. */}
       {buckets.all.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-panel">
           {buckets.decisionMakers.length > 0 ? (
@@ -271,11 +429,10 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
         </div>
       ) : null}
 
-      {/* Ideal company attributes (always renders — derives from the
-          brief, not from Discovery). */}
+      {/* Ideal company strip — summary of the picks above. */}
       <Card title="What do our ideal companies look like?">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-panel">
-          <Attr label="Industry" value={brief?.industries && brief.industries.length > 0 ? brief.industries.slice(0, 3).join(', ') : '—'} sub={industriesCount > 1 ? `${industriesCount} sectors` : 'Sector'} />
+          <Attr label="Industry" value={brief?.industries && brief.industries.length > 0 ? brief.industries.slice(0, 3).join(', ') : '—'} sub={brief?.industries && brief.industries.length > 1 ? `${brief.industries.length} sectors` : 'Sector'} />
           <Attr label="Company size" value={sizesPretty} sub="Employees" />
           <Attr label="Revenue" value={revenuesPretty} sub="Annual" />
           <Attr label="Location" value={locationsPretty} sub="Primary regions" />
@@ -283,36 +440,32 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
         </div>
       </Card>
 
-      {/* Target summary — prose on the left, two stand-out numbers on
-          the right (only when Discovery / Enrichment have actually
-          produced numbers). */}
-      {(brief?.idealCustomer && brief.idealCustomer.trim().length > 0) || hasDiscoveryData || hasContactData ? (
-        <Card title="Target summary">
+      {/* Standout numbers — only shown once Discovery has actually
+          produced data. */}
+      {hasDiscoveryData || hasContactData ? (
+        <Card title="What Discovery has found so far">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-panel items-start">
-            <div className="md:col-span-2">
-              {brief?.idealCustomer && brief.idealCustomer.trim().length > 0 ? (
-                <p className="text-[12px] text-evari-text leading-relaxed">{brief.idealCustomer}</p>
-              ) : (
-                <p className="text-[12px] text-evari-dim leading-relaxed">{a.idealCustomerSummary}</p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-panel">
-              {hasDiscoveryData ? (
-                <SummaryStat
-                  big={a.highFitCount.toLocaleString()}
-                  pill={`${highFitPctOfMarket}%`}
-                  label="High fit companies"
-                  sub="Out of addressable market"
-                />
-              ) : null}
-              {hasContactData ? (
-                <SummaryStat
-                  big={a.decisionMakerCount.toLocaleString()}
-                  label="Reachable decision makers"
-                  sub="Across target accounts"
-                />
-              ) : null}
-            </div>
+            {hasDiscoveryData ? (
+              <SummaryStat
+                big={a.highFitCount.toLocaleString()}
+                pill={`${highFitPctOfMarket}%`}
+                label="High fit companies"
+                sub="Out of addressable market"
+              />
+            ) : null}
+            {hasContactData ? (
+              <SummaryStat
+                big={a.decisionMakerCount.toLocaleString()}
+                label="Reachable decision makers"
+                sub="Across target accounts"
+              />
+            ) : null}
+            <SummaryStat
+              big={String(a.icpScore)}
+              pill={a.icpBand.replace('_', ' ')}
+              label="ICP fit score"
+              sub="Across the shortlist"
+            />
           </div>
         </Card>
       ) : null}
@@ -322,22 +475,17 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
 
 // ─── tiny components ────────────────────────────────────────
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
-      <h3 className="text-[13px] font-semibold text-evari-text mb-3">{title}</h3>
+      <h3 className="text-[13px] font-semibold text-evari-text mb-3 flex items-center gap-2">
+        {icon ? (
+          <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">{icon}</span>
+        ) : null}
+        {title}
+      </h3>
       {children}
     </section>
-  );
-}
-
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div>
-      <div className="text-2xl font-bold tabular-nums text-evari-text">{value}</div>
-      <div className="text-[11px] text-evari-dim">{label}</div>
-      {sub ? <div className="text-[10px] text-evari-dimmer mt-0.5 truncate">{sub}</div> : null}
-    </div>
   );
 }
 
@@ -362,31 +510,4 @@ function SummaryStat({ big, pill, label, sub }: { big: string; pill?: string; la
       <div className="text-[10px] text-evari-dim">{sub}</div>
     </div>
   );
-}
-
-function ScoreDonut({ value }: { value: number }) {
-  const pct = Math.max(0, Math.min(100, value));
-  const data = [{ name: 'score', value: pct }, { name: 'rest', value: 100 - pct }];
-  return (
-    <div className={cn('relative h-20 w-20 shrink-0')}>
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie data={data} dataKey="value" innerRadius={28} outerRadius={38} startAngle={90} endAngle={-270} stroke="none">
-            <Cell fill={TEAL_PRIMARY} />
-            <Cell fill="rgb(var(--evari-edge) / 0.4)" />
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className="text-[16px] font-bold text-evari-text">{pct}</div>
-        <div className="text-[8px] text-evari-dimmer">/100</div>
-      </div>
-    </div>
-  );
-}
-
-function humaniseChannel(c: string): string {
-  if (c === 'linkedin_organic') return 'LinkedIn';
-  if (c === 'linkedin_paid') return 'LinkedIn ads';
-  return c.charAt(0).toUpperCase() + c.slice(1);
 }

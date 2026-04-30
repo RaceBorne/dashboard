@@ -133,6 +133,7 @@ export function SynopsisStep({ playId, playTitle, pitch, brief, onEdit }: Props)
             open={true}
             kickoff={false}
             compact
+            autoDraft={false}
             onClose={() => {}}
           />
         </div>
