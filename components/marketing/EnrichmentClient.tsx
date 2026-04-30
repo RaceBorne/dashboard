@@ -193,9 +193,10 @@ export function EnrichmentClient({ plays, play, initial, summary }: Props) {
                         className={cn('w-full flex items-start gap-2 px-3 py-2.5 text-left border-b border-evari-edge/15 transition',
                           active ? 'bg-evari-gold/10 border-l-2 border-l-evari-gold' : 'hover:bg-evari-ink/30')}
                       >
-                        <div className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-evari-ink/40 text-[10px] font-semibold text-evari-dim uppercase shrink-0">
-                          {(c.fullName ?? c.email ?? '?').slice(0, 2)}
-                        </div>
+                        <CompanyLogoTile
+                          domain={c.domain ?? null}
+                          name={c.companyName ?? c.fullName ?? c.email ?? '?'}
+                        />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="text-[12px] font-semibold text-evari-text truncate">{c.fullName ?? '(no name)'}</span>
@@ -360,6 +361,50 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">{label}</div>
       <div className="text-[12px] text-evari-text">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Logo tile for an Enrichment contact. Tries the Clearbit logo for
+ * the contact's company domain first; falls back to a coloured
+ * initials disc when there is no domain or Clearbit 404s. Same
+ * pattern as the Discovery + Shortlist Avatar so the funnel reads
+ * with consistent identity all the way through.
+ */
+function CompanyLogoTile({ domain, name }: { domain: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const initials = name
+    .split(/\s+/)
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h) + name.charCodeAt(i);
+  const palette = ['#7CCFC2', '#4AA39C', '#2F7B7C', '#1F555F', '#C09000', '#A26F00', '#5C8D4F', '#42685B'];
+  const color = palette[Math.abs(h) % palette.length];
+  if (domain && !failed) {
+    return (
+      <div className="h-8 w-8 rounded-md bg-white shrink-0 flex items-center justify-center border border-evari-edge/30 overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`https://logo.clearbit.com/${domain}`}
+          alt={name}
+          loading="lazy"
+          className="h-full w-full object-contain"
+          onError={() => setFailed(true)}
+        />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="h-8 w-8 rounded-md flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+      style={{ background: color }}
+    >
+      {initials}
     </div>
   );
 }
