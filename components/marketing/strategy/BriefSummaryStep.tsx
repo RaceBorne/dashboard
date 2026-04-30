@@ -98,10 +98,6 @@ export function BriefSummaryStep({
   const geographiesKey = (brief.geographies.length > 0 ? brief.geographies : (brief.geography ? brief.geography.split(/,\s*/) : [])).join('|');
   useEffect(() => {
     if (brief.locked) return;
-    if (brief.industries.length === 0 && brief.geographies.length === 0 && !brief.geography) {
-      setSizing(null);
-      return;
-    }
     let cancelled = false;
     setSizingLoading(true);
     setSizingError(null);
@@ -144,15 +140,13 @@ export function BriefSummaryStep({
   const hasPicks = brief.industries.length > 0 || brief.geographies.length > 0 || !!brief.geography;
   const competitorCount = sizing?.competitors.length ?? 0;
   const intentCount = sizing?.intentSignals.length ?? 0;
-  const verdict = !hasPicks
-    ? { tone: 'idle', label: 'Not enough to size yet' }
-    : sizingLoading
-      ? { tone: 'idle', label: 'Sizing…' }
-      : sizing && sizing.marketSize
-        ? (intentCount >= 2 && competitorCount > 0
-          ? { tone: 'good', label: 'Worth pursuing' }
-          : { tone: 'maybe', label: 'Pursue with caution' })
-        : { tone: 'idle', label: 'Awaiting analysis' };
+  const verdict = sizingLoading
+    ? { tone: 'idle', label: 'Sizing…' }
+    : sizing && sizing.marketSize
+      ? (intentCount >= 2 && competitorCount > 0
+        ? { tone: 'good', label: 'Worth pursuing' }
+        : { tone: 'maybe', label: 'Pursue with caution' })
+      : { tone: 'idle', label: 'Awaiting analysis' };
 
   return (
     <div className="space-y-panel">
@@ -195,13 +189,13 @@ export function BriefSummaryStep({
           />
           <Hero
             label="Competitors"
-            value={hasPicks && !sizingLoading ? String(competitorCount) : '—'}
-            sub={hasPicks && competitorCount > 0 ? sizing?.competitors.slice(0, 2).join(', ') : 'Direct rivals'}
+            value={sizingLoading ? '…' : String(competitorCount)}
+            sub={competitorCount > 0 ? sizing?.competitors.slice(0, 2).join(', ') : 'Direct rivals'}
           />
           <Hero
             label="Intent signals"
-            value={hasPicks && !sizingLoading ? String(intentCount) : '—'}
-            sub={hasPicks && intentCount > 0 ? 'Things to watch' : 'Buying triggers'}
+            value={sizingLoading ? '…' : String(intentCount)}
+            sub={intentCount > 0 ? 'Things to watch' : 'Buying triggers'}
           />
         </div>
       </section>
@@ -238,9 +232,7 @@ export function BriefSummaryStep({
             Market detail
           </h3>
 
-          {!hasPicks ? (
-            <p className="text-[12px] text-evari-dim">Pick a sector or geography on the left to size this market.</p>
-          ) : sizingLoading ? (
+          {sizingLoading ? (
             <div className="text-[12px] text-evari-dim flex items-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Claude is sizing the market…
             </div>
