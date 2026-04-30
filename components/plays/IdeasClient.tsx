@@ -13,7 +13,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Search, Star } from 'lucide-react';
+import { Loader2, Search, Star, X } from 'lucide-react';
 
 import type { Play } from '@/lib/types';
 import { IdeaCard } from './IdeaCard';
@@ -47,9 +47,41 @@ function bucketOf(p: Play): Bucket {
   return 'in_progress';
 }
 
-export function IdeasClient({ plays, counts }: Props) {
+export function IdeasClient({ plays: initialPlays, counts }: Props) {
   const [active, setActive] = useState<Bucket>('all');
   const [search, setSearch] = useState('');
+  const [plays, setPlays] = useState<Play[]>(initialPlays);
+  const [editing, setEditing] = useState<Play | null>(null);
+  const [deleting, setDeleting] = useState<Play | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function commitDelete(play: Play) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/plays/${play.id}`, { method: 'DELETE' });
+      if (res.ok) setPlays((cur) => cur.filter((p) => p.id !== play.id));
+    } catch {}
+    setBusy(false);
+    setDeleting(null);
+  }
+
+  async function commitEdit(next: { title: string; brief: string }) {
+    if (!editing) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/plays/${editing.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok && json.play) {
+        setPlays((cur) => cur.map((p) => (p.id === editing.id ? json.play : p)));
+      }
+    } catch {}
+    setBusy(false);
+    setEditing(null);
+  }
 
   const counts_by_bucket: Record<Bucket, number> = useMemo(() => {
     const out: Record<Bucket, number> = { all: plays.length, favourites: 0, drafts: 0, in_progress: 0, archived: 0 };
@@ -139,7 +171,7 @@ export function IdeasClient({ plays, counts }: Props) {
               ) : (
                 <ul className="space-y-2">
                   {filtered.map((p) => (
-                    <IdeaCard key={p.id} play={p} />
+                    <IdeaCard key={p.id} play={p} onEdit={(pp) => setEditing(pp)} onDelete={(pp) => setDeleting(pp)} />
                   ))}
                 </ul>
               )}
@@ -158,6 +190,67 @@ export function IdeasClient({ plays, counts }: Props) {
           <div className="lg:hidden">
             <NewIdeaPanel />
           </div>
+        </div>
+      </div>
+
+      {editing ? (
+        <EditIdeaModal play={editing} busy={busy} onClose={() => setEditing(null)} onSave={commitEdit} />
+      ) : null}
+      {deleting ? (
+        <ConfirmDeleteModal play={deleting} busy={busy} onClose={() => setDeleting(null)} onConfirm={() => commitDelete(deleting)} />
+      ) : null}
+    </div>
+  );
+}
+
+function EditIdeaModal({ play, busy, onClose, onSave }: { play: Play; busy: boolean; onClose: () => void; onSave: (next: { title: string; brief: string }) => void }) {
+  const [title, setTitle] = useState(play.title);
+  const [brief, setBrief] = useState(play.brief);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="w-full max-w-md rounded-panel bg-evari-surface border border-evari-edge/40 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-evari-edge/30">
+          <h2 className="text-[14px] font-semibold text-evari-text">Edit idea</h2>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text" aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="p-4 space-y-3">
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer block mb-1">Title</span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none" />
+          </label>
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer block mb-1">Brief</span>
+            <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={4} className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none resize-none leading-relaxed" />
+          </label>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-evari-edge/30">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-md text-[12px] text-evari-dim hover:text-evari-text">Cancel</button>
+          <button type="button" disabled={busy || !title.trim()} onClick={() => onSave({ title: title.trim(), brief: brief.trim() })} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-text text-evari-ink disabled:opacity-50 hover:brightness-110">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDeleteModal({ play, busy, onClose, onConfirm }: { play: Play; busy: boolean; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="w-full max-w-md rounded-panel bg-evari-surface border border-evari-edge/40 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-evari-edge/30">
+          <h2 className="text-[14px] font-semibold text-evari-text">Delete idea?</h2>
+        </div>
+        <div className="p-4 text-[12px] text-evari-dim leading-relaxed">
+          This will permanently delete <span className="text-evari-text font-semibold">{play.title}</span> and any prospects, leads, or strategy data tied to it. This cannot be undone.
+        </div>
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-evari-edge/30">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-md text-[12px] text-evari-dim hover:text-evari-text">Cancel</button>
+          <button type="button" disabled={busy} onClick={onConfirm} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 disabled:opacity-50">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            Delete
+          </button>
         </div>
       </div>
     </div>

@@ -10,8 +10,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import {
-  Award, Bike, Briefcase, Building2, Car, Crown, Heart,
-  Plane, Rocket, ShieldCheck, Sparkles, Star, Stethoscope, Trees,
+  Award, Bike, Briefcase, Building2, Car, Crown, Heart, Pencil,
+  Plane, Rocket, ShieldCheck, Sparkles, Star, Stethoscope, Trash2, Trees,
   Trophy, Users, Utensils,
 } from 'lucide-react';
 
@@ -64,13 +64,23 @@ function timeAgo(iso: string | undefined | null): string {
   return `${Math.floor(d / 30)}mo ago`;
 }
 
-export function IdeaCard({ play, onTogglePin }: { play: Play; onTogglePin?: (id: string, next: boolean) => void }) {
+export function IdeaCard({ play, onTogglePin, onEdit, onDelete }: { play: Play; onTogglePin?: (id: string, next: boolean) => void; onEdit?: (play: Play) => void; onDelete?: (play: Play) => void }) {
   const [pinned, setPinned] = useState(!!play.pinned);
   const Icon = pickIcon(play);
   const status = statusFromStage(play.stage);
   const ownerName = play.ownerName ?? 'You';
   const initials = ownerName.split(' ').map((s) => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'YO';
 
+  function handleEdit(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onEdit?.(play);
+  }
+  function handleDelete(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onDelete?.(play);
+  }
   function togglePin(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -105,6 +115,24 @@ export function IdeaCard({ play, onTogglePin }: { play: Play; onTogglePin?: (id:
               aria-label="Toggle favourite"
             >
               <Star className={cn('h-3.5 w-3.5', pinned ? 'fill-evari-gold' : '')} />
+            </button>
+            <button
+              type="button"
+              onClick={handleEdit}
+              className="shrink-0 text-evari-dim hover:text-evari-text transition opacity-0 group-hover:opacity-100"
+              title="Edit"
+              aria-label="Edit idea"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="shrink-0 text-evari-dim hover:text-red-400 transition opacity-0 group-hover:opacity-100"
+              title="Delete"
+              aria-label="Delete idea"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
             <StatusPill tone={status.tone} label={status.label} />
           </div>
