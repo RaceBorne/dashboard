@@ -226,14 +226,16 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
         body: JSON.stringify({}),
       }).catch(() => {});
 
-      // 3. Run the auto-scan synchronously so Discover populates.
-      setHandoffStage('scanning');
-      await fetch(`/api/plays/${next.playId}/discover-agent`, {
+      // 3. Kick off the discover-agent in the BACKGROUND. We do not
+      //    await it — the agent takes 30 to 90 seconds, and the user
+      //    should land on Discovery immediately with the live-polling
+      //    banner already running. Companies pop in one by one as the
+      //    agent inserts them via add_candidate.
+      void fetch(`/api/plays/${next.playId}/discover-agent`, {
         method: 'POST',
       }).catch(() => {});
 
-      // 4. Route to Discover with the autoScanned flag so the banner
-      // shows.
+      // 4. Route to Discover instantly.
       router.push(`/discover?playId=${next.playId}&autoScanned=1`);
     } catch {
       setHandoffStage('idle');

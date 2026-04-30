@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
-import { ArrowLeft, Bookmark, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Search, Wand2 } from 'lucide-react';
+import { ArrowLeft, Bookmark, ChevronRight, ExternalLink, Loader2, MapPin, MoreHorizontal, Pencil, Plus, Search, Send, Star, Wand2, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
@@ -28,6 +28,7 @@ interface Row {
   domain: string;
   name: string;
   logoUrl?: string | null;
+  description?: string | null;
   industry: string | null;
   size: string | null;
   revenue: string | null;
@@ -73,6 +74,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useAISurface({
     surface: 'discovery',
@@ -321,14 +323,12 @@ export function DiscoveryDashboard({ plays, play }: Props) {
             {visible.length === 0 ? (
               <tr><td colSpan={10} className="text-center py-12 text-evari-dim">No companies in Discovery yet. Use the Find companies button above to run an auto-scan.</td></tr>
             ) : visible.map((r) => (
-              <tr key={r.id} className="border-t border-evari-edge/20 hover:bg-evari-ink/30 group">
-                <td className="px-3"><input type="checkbox" className="accent-evari-gold" /></td>
+              <tr key={r.id} onClick={() => setSelectedId(r.id)} className="border-t border-evari-edge/20 hover:bg-evari-ink/30 group cursor-pointer">
+                <td className="px-3" onClick={(e) => e.stopPropagation()}><input type="checkbox" className="accent-evari-gold" /></td>
                 <td className="py-2.5 px-3">
                   <div className="flex items-center gap-2">
                     <Avatar name={r.name} logoUrl={r.logoUrl} />
-                    <a href={`https://${r.domain}`} target="_blank" rel="noopener" className="text-evari-text font-medium hover:text-evari-gold transition inline-flex items-center gap-1">
-                      {r.name} <ChevronRight className="h-3 w-3 -rotate-45 text-evari-dim" />
-                    </a>
+                    <span className="text-evari-text font-medium">{r.name}</span>
                   </div>
                 </td>
                 <td className="py-2.5 px-3 text-evari-dim">{r.industry ?? '—'}</td>
@@ -338,7 +338,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
                 <td className="py-2.5 px-3"><FitScoreCell score={r.fitScore} /></td>
                 <td className="py-2.5 px-3 text-evari-text font-mono tabular-nums">{r.decisionMakerCount}</td>
                 <td className="py-2.5 px-3 text-evari-text font-mono tabular-nums">{r.dataCoverage}%</td>
-                <td className="px-3 text-right">
+                <td className="px-3 text-right" onClick={(e) => e.stopPropagation()}>
                   <RowMenu row={r} busy={busy} onShortlist={() => void shortlist(r.id)} onFindSimilar={() => void findSimilar(r.domain)} />
                 </td>
               </tr>
@@ -368,6 +368,14 @@ export function DiscoveryDashboard({ plays, play }: Props) {
           <span>{PER_PAGE} per page</span>
         </footer>
       ) : null}
+      <CompanyDrawer
+        row={visible.find((r) => r.id === selectedId) ?? rows?.find((r) => r.id === selectedId) ?? null}
+        busy={busy}
+        onClose={() => setSelectedId(null)}
+        onShortlist={(id) => void shortlist(id)}
+        onFindSimilar={(domain) => void findSimilar(domain)}
+      />
+
     </div>
   );
 }
@@ -469,5 +477,120 @@ function ShortlistButton({ busy, onShortlist }: { busy: boolean; onShortlist: ()
     <button type="button" onClick={onShortlist} disabled={busy} className="text-evari-dim hover:text-evari-gold transition" title="Shortlist this company">
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
     </button>
+  );
+}
+
+function CompanyDrawer({ row, busy, onClose, onShortlist, onFindSimilar }: {
+  row: Row | null;
+  busy: string | null;
+  onClose: () => void;
+  onShortlist: (id: string) => void;
+  onFindSimilar: (domain: string) => void;
+}) {
+  if (!row) return null;
+  const shortlisted = row.status === 'shortlisted';
+  const shortlistBusy = busy === row.id;
+  const similarBusy = busy === 'similar:' + row.domain;
+  const websiteUrl = `https://${row.domain}`;
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <aside
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md bg-evari-surface border-l border-evari-edge/30 shadow-2xl flex flex-col h-full"
+      >
+        <header className="flex items-center justify-between px-4 py-3 border-b border-evari-edge/30 shrink-0">
+          <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Company</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-evari-dim hover:text-evari-text transition"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex items-start gap-3">
+            <Avatar name={row.name} logoUrl={row.logoUrl} />
+            <div className="flex-1 min-w-0">
+              <h2 className="text-[16px] font-semibold text-evari-text leading-tight">{row.name}</h2>
+              <a href={websiteUrl} target="_blank" rel="noopener" className="text-[12px] text-evari-gold hover:underline inline-flex items-center gap-1 mt-0.5">
+                {row.domain} <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          </div>
+
+          {row.description ? (
+            <section>
+              <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Why this matches</div>
+              <p className="text-[13px] text-evari-text leading-relaxed">{row.description}</p>
+            </section>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-3 text-[12px]">
+            <KV label="Industry" value={row.industry} />
+            <KV label="Location" value={row.location} icon={<MapPin className="h-3 w-3" />} />
+            <KV label="Size" value={row.size} />
+            <KV label="Revenue" value={row.revenue} />
+          </div>
+
+          <section>
+            <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Fit score</div>
+            <div className="flex items-center gap-3">
+              <span className={cn('text-[24px] font-bold tabular-nums',
+                (row.fitScore ?? 0) >= 90 ? 'text-evari-success' :
+                (row.fitScore ?? 0) >= 80 ? 'text-evari-gold' :
+                'text-evari-text')}>{row.fitScore ?? '—'}</span>
+              <div className="flex-1 h-1.5 rounded-full bg-evari-edge/30 overflow-hidden">
+                <div className="h-full rounded-full bg-evari-gold transition-all" style={{ width: `${row.fitScore ?? 0}%` }} />
+              </div>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-2 gap-3 text-[12px]">
+            <KV label="Decision makers" value={String(row.decisionMakerCount)} />
+            <KV label="Data coverage" value={`${row.dataCoverage}%`} />
+          </section>
+        </div>
+
+        <footer className="px-4 py-3 border-t border-evari-edge/30 flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => onFindSimilar(row.domain)}
+            disabled={similarBusy || shortlistBusy}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold border border-evari-gold/40 text-evari-gold hover:bg-evari-gold/10 disabled:opacity-50 transition flex-1"
+          >
+            {similarBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+            Find similar
+          </button>
+          {shortlisted ? (
+            <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30 flex-1 justify-center">
+              <Star className="h-3.5 w-3.5 fill-evari-gold" /> Shortlisted
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onShortlist(row.id)}
+              disabled={shortlistBusy}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition flex-1"
+            >
+              {shortlistBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Send to shortlist
+            </button>
+          )}
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
+function KV({ label, value, icon }: { label: string; value: string | null | undefined; icon?: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5 inline-flex items-center gap-1">{icon}{label}</div>
+      <div className="text-[12px] text-evari-text leading-snug">{value && value.length > 0 ? value : '—'}</div>
+    </div>
   );
 }

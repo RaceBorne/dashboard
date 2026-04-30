@@ -90,6 +90,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playId:
       dataCoverage: dCoverage,
       status: r.status,
       logoUrl: r.logo_url,
+      description: r.description,
     };
   }).sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0));
 
