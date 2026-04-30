@@ -489,7 +489,7 @@ export function AppSidebar() {
                         ? 'ml-3 pl-3 border-l border-evari-edge/30 text-sm'
                         : 'text-base',
                       active
-                        ? 'bg-black text-white font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                        ? 'bg-evari-gold text-evari-goldInk font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                         : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
                     )}
                     aria-label={collapsed ? it.label : undefined}
@@ -497,7 +497,7 @@ export function AppSidebar() {
                     <Icon
                       className={cn(
                         'h-4 w-4 shrink-0',
-                        active ? 'text-evari-text' : 'text-evari-dimmer',
+                        active ? 'text-evari-goldInk' : 'text-evari-dimmer',
                       )}
                     />
                     {!collapsed ? (
