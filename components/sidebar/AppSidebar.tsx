@@ -191,13 +191,29 @@ export function AppSidebar() {
   }, []);
 
   const toggle = useCallback(() => setCollapsed((c) => !c), []);
+  // Inline groups: only one open at a time. Setup + System are
+  // pull-up modals (different presentation), so they stay
+  // independent and don't accordion-collapse the main groups.
+  const INLINE_GROUPS = ['today', 'pipeline', 'web', 'broadcast', 'marketing'];
   const toggleGroup = useCallback((group: string) => {
     setOpenGroups((prev) => {
       const next = new Set(prev);
-      if (next.has(group)) next.delete(group);
-      else next.add(group);
+      const isInline = INLINE_GROUPS.includes(group);
+      if (next.has(group)) {
+        next.delete(group);
+      } else {
+        if (isInline) {
+          // Close every other inline group so opening one auto-closes
+          // the rest. Pull-ups (setup, system) untouched.
+          for (const g of INLINE_GROUPS) {
+            if (g !== group) next.delete(g);
+          }
+        }
+        next.add(group);
+      }
       return next;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refs for click-outside dismissal of the System pull-up. We need
@@ -343,7 +359,7 @@ export function AppSidebar() {
               >
                 <ChevronDown
                   className={cn(
-                    'h-3 w-3 text-evari-dimmer/70 transition-transform',
+                    'h-3 w-3 text-evari-dimmer/70 transition-transform duration-500 ease-in-out',
                     groupOpen ? '' : '-rotate-90',
                   )}
                 />
@@ -355,10 +371,12 @@ export function AppSidebar() {
             )}
             <div
               className={cn(
-                'space-y-0.5',
-                !collapsed && !groupOpen ? 'hidden' : '',
+                'grid transition-all duration-500 ease-in-out',
+                (collapsed || groupOpen) ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
               )}
             >
+              <div className="overflow-hidden">
+                <div className="space-y-0.5">
               {items.map((item) => {
                 // Highlight rule: per-item exact + nested match for
                 // every link, so only one entry can be active at a
@@ -455,6 +473,8 @@ export function AppSidebar() {
                   </Link>
                 );
               })}
+                </div>
+              </div>
             </div>
           </div>
           );
