@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { format } from 'date-fns';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Sparkles,
@@ -357,8 +358,11 @@ export function AppSidebar() {
           </div>
         )}
         {!collapsed ? (
-          <Link href="/" aria-label="Home" title="Home" className="inline-flex items-center hover:brightness-110 transition">
-            <span className="text-[12px] font-semibold text-evari-text">Mojito AI</span>
+          <Link href="/" aria-label="Home" title="Home" className="hover:brightness-110 transition">
+            <div className="text-[12px] font-semibold text-evari-text leading-none">Mojito AI</div>
+            <div className="text-[10px] font-light text-evari-dimmer tabular-nums mt-1 leading-none">
+              <ClockText />
+            </div>
           </Link>
         ) : null}
       </div>
@@ -739,4 +743,18 @@ export function AppSidebar() {
       )}
     </aside>
   );
+}
+
+/**
+ * Live clock that ticks every 60 seconds. Sits under the Mojito AI
+ * wordmark in the sidebar. Light weight + dim colour so it reads as
+ * supporting metadata, not a heading.
+ */
+function ClockText() {
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return <>{format(now, "EEE d LLL · HH:mm")}</>;
 }
