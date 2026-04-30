@@ -364,18 +364,22 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
             <span className="block" style={{ fontWeight: 600 }}>{pitch || '(no pitch on file)'}</span>
           </div>
 
-          {messages.map((m) => (
-            <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-stretch')}>
-              <div className={cn(
-                'rounded-panel px-3 py-2 text-[13px] break-words leading-relaxed',
-                m.role === 'user'
-                  ? 'bg-evari-gold/15 text-evari-text max-w-[85%]'
-                  : 'bg-evari-surface text-evari-text border border-evari-edge/30 w-full',
-              )}>
+          {messages.map((m) =>
+            m.role === 'user' ? (
+              <div key={m.id} className="flex justify-end">
+                <div className="rounded-panel px-3 py-2 text-[13px] max-w-[85%] break-words leading-relaxed bg-evari-gold/15 text-evari-text">
+                  {renderRich(m.content)}
+                </div>
+              </div>
+            ) : (
+              // Assistant bubble is a block-level element with no flex
+              // wrapper, so it naturally fills the parent's width to
+              // line up edge-to-edge with the Pitch panel above.
+              <div key={m.id} className="rounded-panel px-3 py-2 text-[13px] break-words leading-relaxed bg-evari-surface text-evari-text border border-evari-edge/30">
                 {renderRich(m.content)}
               </div>
-            </div>
-          ))}
+            ),
+          )}
 
           {busy ? (
             <div className="flex items-center gap-2 text-[12px] text-evari-dim">
