@@ -304,7 +304,7 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
               {step === 'market'   ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} playTitle={play.title} pitch={play.brief} onPatch={(patch) => setBrief((cur) => cur ? { ...cur, ...patch } : cur)} /> : null}
               {step === 'target'   ? <TargetProfileStep playId={brief.playId} brief={brief} playTitle={play.title} pitch={play.brief} onPatch={(patch) => setBrief((cur) => cur ? { ...cur, ...patch } : cur)} /> : null}
               {step === 'synopsis' ? <SynopsisStep playId={brief.playId} playTitle={play.title} pitch={play.brief} brief={brief} onEdit={() => openEditor('overview')} onPatch={(patch) => setBrief((cur) => cur ? { ...cur, ...patch } : cur)} /> : null}
-              {step === 'handoff'  ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} stage={handoffStage} /> : null}
+              {step === 'handoff'  ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} stage={handoffStage} playTitle={play.title} pitch={play.brief} onPatch={(patch) => setBrief((cur) => cur ? { ...cur, ...patch } : cur)} /> : null}
             </SlideContainer>
           )}
         </div>
