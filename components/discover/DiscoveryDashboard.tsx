@@ -98,21 +98,24 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   }
   useEffect(() => { void load(); }, [play.id]);
 
-  // When the user lands here from a fresh commit (autoScan running in
-  // the background), poll every 3s for up to 90s so candidates appear
-  // as they're inserted by autoScanForPlay. Stops polling once any rows
-  // show up, the user navigates, or the timeout elapses.
+  // Poll while a scan is in flight so candidates appear in real time
+  // as the agent inserts them. Triggered by play.autoScan.status =
+  // 'running' OR by the just-arrived URL flag, so it works whether the
+  // user landed from a commit or just clicked Find companies.
   const searchParamsForPoll = useSearchParams();
   const arrivingFromCommit = searchParamsForPoll?.get('autoScanned') === '1';
+  const scanRunning = play.autoScan?.status === 'running' || busy === 'autoscan';
   useEffect(() => {
-    if (!arrivingFromCommit) return;
-    if (rows === null) return;       // initial load not done yet
-    if (rows.length > 0) return;     // already populated, no need to poll
+    if (!arrivingFromCommit && !scanRunning) return;
+    if (rows === null) return;
     let cancelled = false;
     let attempts = 0;
     const id = setInterval(() => {
       attempts++;
-      if (attempts > 30 || cancelled) {
+      // Cap at 60 polls (3 minutes) so a runaway scan doesn't hammer
+      // forever. The agent has a 5-minute lambda timeout but most
+      // runs complete in under 90s.
+      if (attempts > 60 || cancelled) {
         clearInterval(id);
         return;
       }
@@ -120,7 +123,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
     }, 3000);
     return () => { cancelled = true; clearInterval(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [arrivingFromCommit, rows?.length, play.id]);
+  }, [arrivingFromCommit, scanRunning, play.id]);
 
   const filtered = useMemo(() => {
     if (!rows) return [];
@@ -169,7 +172,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   // first match shows up.
   const searchParams = useSearchParams();
   const justArrived = searchParams?.get('autoScanned') === '1';
-  const stillScanning = justArrived && rows !== null && rows.length === 0;
+  const stillScanning = (justArrived || scanRunning) && rows !== null;
 
   if (!stats || rows === null) {
     return (
@@ -183,9 +186,9 @@ export function DiscoveryDashboard({ plays, play }: Props) {
     <div className="space-y-panel">
       {(justArrived || stillScanning) && (
         <section className="rounded-panel bg-evari-gold/10 border border-evari-gold/30 px-3 py-2 text-[12px] text-evari-gold flex items-center gap-2">
-          <Sparkles className="h-4 w-4" />
-          {stillScanning
-            ? 'Strategy locked. Searching for companies, results will appear here as they arrive.'
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {scanRunning
+            ? `Agent is researching, ${rows.length} ${rows.length === 1 ? 'company' : 'companies'} added so far. New rows appear automatically.`
             : `Strategy locked. ${rows.length} ${rows.length === 1 ? 'candidate' : 'candidates'} found so far.`}
         </section>
       )}

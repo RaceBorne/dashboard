@@ -269,7 +269,23 @@ export async function runDiscoverAgent(
     : '(no strategy brief yet, infer everything from the title and pitch)';
 
   const task =
-    'You are a senior research analyst hunting for prospects. The operator has written a complete strategic brief below — the synopsis paragraph, ideal customer, sectors, geographies, company sizes, revenue bands, audience roles, channels, messaging angles, success metrics. Treat that brief as ground truth. Do NOT relax it. Find 30 to 50 high-quality companies that genuinely match every dimension: the right industry tier, the right size, the right region. Use web_search for industry directories, trade press, listicle pages (e.g. "list of UK superyacht builders"). Use find_business_listings for category-bound local matches in a specific place. Use fetch_page on candidate company sites whenever the SERP snippet is ambiguous; verify what they ACTUALLY do before you add. Add only verified matches via add_candidate; skip aggregator sites, news outlets, government domains, social media, marketplaces. The fitReason must reference WHY they match the brief specifically: tier, geography, size, signal. Never use em-dashes; commas or full stops only. Plain prose throughout.';
+    [
+      'You are a research analyst on a 5-minute deadline. The brief below is ground truth. Find 20 to 30 verified company matches and call add_candidate on each. SPEED MATTERS more than perfection.',
+      '',
+      'Default loop (this is the optimal sequence; do not deviate unless the brief specifically demands it):',
+      '  1. ONE web_search for an industry list or directory (e.g. "list of UK superyacht builders 2024").',
+      '  2. ONE find_business_listings for the right category in the right location (e.g. "Bicycle shop" in "Hertfordshire, England, United Kingdom").',
+      '  3. From those two calls you should have 30 to 80 candidates. For each that is OBVIOUSLY a fit from name + snippet + category alone, call add_candidate IMMEDIATELY. Do not fetch_page.',
+      '  4. Only fetch_page when the candidate is genuinely ambiguous (e.g. a generic-looking domain you cannot place). Cap fetch_page at 3 calls total.',
+      '  5. If after step 3 you have fewer than 15 added, run ONE more web_search with a different angle.',
+      '  6. Stop and call mark_done when you have 20+ adds, or you have run 3+ tool calls without adding anything.',
+      '',
+      'Hard rules:',
+      '- Add_candidate is your goal, not search. Every search should produce 5+ adds.',
+      '- Skip aggregator domains: wikipedia, linkedin, facebook, twitter, glassdoor, yell, yelp, tripadvisor, gov.uk, news outlets, marketplaces (amazon, ebay).',
+      '- fitReason must reference WHY they match: tier, geography, size, signal. Plain prose, no em-dashes.',
+      '- If the brief says UK, NEVER add a US company. Geography is non-negotiable.',
+    ].join('\n');
 
   const prompt = [
     'Play title: ' + play.title,
@@ -281,13 +297,13 @@ export async function runDiscoverAgent(
     'Already in the shortlist (do not re-add):',
     Array.from(seenDomains).slice(0, 40).join(', ') || '(none)',
     '',
-    'Run your search loop now. Aim for 30 to 50 verified additions. Call mark_done when complete.',
+    'Run the optimal loop now. Aim for 20 verified adds. Move fast. Call mark_done when complete.',
   ].join('\n');
 
   const system = await buildSystemPrompt({ voice: 'analyst', task });
 
   let steps = 0;
-  const stopAfter = stepCountIs(40);
+  const stopAfter = stepCountIs(15);
   const onStepFinish = () => { steps += 1; };
   try {
     try {
