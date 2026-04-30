@@ -21,6 +21,7 @@ import { gateway } from '@ai-sdk/gateway';
 import { anthropic } from '@ai-sdk/anthropic';
 import { loadEvariCopySkill } from './skill';
 import { getBrandBriefForPrompt } from '@/lib/brand/brandBrief';
+import { getActiveContext } from '@/lib/context/activeContext';
 
 // Default to Haiku 4.5 — cheap, fast, plenty smart for our copy tasks.
 // Gateway model string uses the `provider/model` format; the direct SDK
@@ -48,15 +49,39 @@ interface SystemPromptOptions {
 export async function buildSystemPrompt({ voice = 'evari', task }: SystemPromptOptions) {
   const sections: string[] = [];
 
+  // Active context determines who we are speaking AS. When the user
+  // is in the Evari context (the default), we keep the legacy brand
+  // brief so existing voice nuances are preserved. When they switch
+  // to a non-default context, the system prompt is rebuilt from that
+  // context's description + voice fields and the Evari skill is
+  // skipped.
+  const ctx = await getActiveContext().catch(() => null);
+  const isNonEvari = !!ctx && !ctx.isDefault;
+
+  if (isNonEvari) {
+    sections.push(
+      `You are an assistant inside the prospecting cockpit for ${ctx!.name}. The audience for everything you produce is the operator running ${ctx!.name}.`,
+    );
+    sections.push(`# ${ctx!.name} brand grounding\n\n${ctx!.description}`);
+    if (ctx!.voice && ctx!.voice.length > 0) {
+      sections.push(`# Voice and tone\n\n${ctx!.voice}`);
+    }
+    if (ctx!.agentSystemPrompt && ctx!.agentSystemPrompt.length > 0) {
+      sections.push(`# Custom system prompt override\n\n${ctx!.agentSystemPrompt}`);
+    }
+    sections.push(`Today's task: ${task}`);
+    sections.push(
+      'Tone: an analyst briefing the operator. Specific, calm, honest. No hype. No padding. Numbers cited. Lead with the answer. Never use em-dashes or en-dashes; use commas, semicolons, or full stops.',
+    );
+    return sections.join('\n\n');
+  }
+
+  // Default Evari path (unchanged).
   sections.push(
     `You are an assistant inside the Evari Dashboard, a private operations cockpit for the founder of Evari Speed Bikes (evari.cc). The audience for everything you produce is Craig, the founder.`,
   );
-
-  // Brand grounding: every call gets the brief so the AI never asks Craig
-  // to explain who Evari is, what the product is, or who the customer is.
   const brandBrief = await getBrandBriefForPrompt();
   sections.push(brandBrief);
-
   sections.push(`Today's task: ${task}`);
 
   if (voice === 'evari') {

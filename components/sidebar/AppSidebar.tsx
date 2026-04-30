@@ -39,6 +39,7 @@ import {
   Ban,
   Palette,
   Image,
+  Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/theme/ThemeProvider';
@@ -78,6 +79,7 @@ const NAV = [
   // configuration follows. Klaviyo + Shopify live here too because
   // they're fundamentally integrations to set up once, not surfaces
   // the operator works in daily.
+  { href: '/context', label: 'Context', icon: Briefcase, group: 'setup' },
   { href: '/email/brand', label: 'Brand setup', icon: Palette, group: 'setup' },
   { href: '/email/domains', label: 'Domains', icon: Globe, group: 'setup' },
   { href: '/email/suppressions', label: 'Suppressions', icon: Ban, group: 'setup' },
