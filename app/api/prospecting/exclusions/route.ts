@@ -30,16 +30,17 @@ export async function GET() {
   if (!sb) return NextResponse.json({ ok: false, error: 'DB unavailable' }, { status: 500 });
   const { data, error } = await sb
     .from('dashboard_blocked_domains')
-    .select('domain, reason, blocked_by_play, created_at')
+    .select('id, domain, reason, play_id, created_at')
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({
     ok: true,
     exclusions: (data ?? []) as Array<{
+      id: string;
       domain: string;
       reason: string | null;
-      blocked_by_play: string | null;
+      play_id: string | null;
       created_at: string;
     }>,
   });
@@ -53,28 +54,44 @@ export async function POST(req: Request) {
   }
   const sb = createSupabaseAdmin();
   if (!sb) return NextResponse.json({ ok: false, error: 'DB unavailable' }, { status: 500 });
-  const { error } = await sb
+  // Manual add from Settings always lands as a global block.
+  // Per-play blocks are created from inside a venture only.
+  const { data: existing } = await sb
     .from('dashboard_blocked_domains')
-    .upsert(
-      { domain, reason: body.reason ?? 'Manually added in Settings' },
-      { onConflict: 'domain', ignoreDuplicates: true },
-    );
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    .select('id')
+    .eq('domain', domain)
+    .is('play_id', null)
+    .limit(1);
+  if (!existing || existing.length === 0) {
+    const { error } = await sb
+      .from('dashboard_blocked_domains')
+      .insert({
+        domain,
+        reason: body.reason ?? 'Manually added in Settings',
+        play_id: null,
+      });
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, domain });
 }
 
 export async function DELETE(req: Request) {
   const url = new URL(req.url);
+  const id = url.searchParams.get('id');
   const domain = normalizeDomain(url.searchParams.get('domain') ?? '');
-  if (!domain) {
-    return NextResponse.json({ ok: false, error: 'domain required' }, { status: 400 });
+  if (!id && !domain) {
+    return NextResponse.json({ ok: false, error: 'id or domain required' }, { status: 400 });
   }
   const sb = createSupabaseAdmin();
   if (!sb) return NextResponse.json({ ok: false, error: 'DB unavailable' }, { status: 500 });
-  const { error } = await sb
-    .from('dashboard_blocked_domains')
-    .delete()
-    .eq('domain', domain);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, domain });
+  const q = sb.from('dashboard_blocked_domains').delete();
+  if (id) {
+    const { error } = await q.eq('id', id);
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } else {
+    // Legacy path: delete every row for this domain (both global + per-play).
+    const { error } = await q.eq('domain', domain);
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true });
 }

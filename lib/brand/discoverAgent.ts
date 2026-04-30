@@ -96,9 +96,12 @@ export async function runDiscoverAgent(
   }
   const { data: blocked } = await supabase
     .from('dashboard_blocked_domains')
-    .select('domain');
-  for (const r of (blocked ?? []) as Array<{ domain: string | null }>) {
-    if (r.domain) seenDomains.add(r.domain.toLowerCase().replace(/^www\./, ''));
+    .select('domain, play_id');
+  for (const r of (blocked ?? []) as Array<{ domain: string | null; play_id: string | null }>) {
+    if (!r.domain) continue;
+    // Honour both global blocks AND per-play blocks for this venture.
+    if (r.play_id !== null && r.play_id !== play.id) continue;
+    seenDomains.add(r.domain.toLowerCase().replace(/^www\./, ''));
   }
 
   const tools = {

@@ -22,6 +22,9 @@ interface Body {
   domain?: string;
   reason?: string;
   rowId?: string;
+  // 'play' (default) blocks the domain only inside this venture.
+  // 'global' blocks it across every venture and every search path.
+  scope?: 'play' | 'global';
 }
 
 function normalizeDomain(d: string): string {
@@ -47,17 +50,44 @@ export async function POST(
   const sb = createSupabaseAdmin();
   if (!sb) return NextResponse.json({ ok: false, error: 'DB unavailable' }, { status: 500 });
 
-  // 1. Add to the global block list. Idempotent on (domain).
-  await sb
+  // 1. Add to the block list. Default scope is per-play (only this
+  //    venture hides the domain) so the same brand can stay relevant
+  //    in another venture's brief. Pass scope='global' to opt into a
+  //    site-wide block.
+  const scope = body.scope === 'global' ? 'global' : 'play';
+  const playScope = scope === 'global' ? null : playId;
+
+  // Idempotent: do nothing if the same (domain, scope) row already
+  // exists. We can't rely on a single onConflict here because of the
+  // partial unique indices, so do an explicit existence check.
+  const { data: existing } = await sb
     .from('dashboard_blocked_domains')
-    .upsert(
-      {
+    .select('id')
+    .eq('domain', domain)
+    .is('play_id', playScope === null ? null : null) // workaround for typed client
+    .limit(1);
+  // Manual existence check across scopes since postgrest .is('play_id', uuid) is awkward.
+  let alreadyBlocked = false;
+  if (playScope === null && existing && existing.length > 0) {
+    alreadyBlocked = true;
+  } else {
+    const { data: scoped } = await sb
+      .from('dashboard_blocked_domains')
+      .select('id')
+      .eq('domain', domain)
+      .eq('play_id', playScope ?? '')
+      .limit(1);
+    if (scoped && scoped.length > 0) alreadyBlocked = true;
+  }
+  if (!alreadyBlocked) {
+    await sb
+      .from('dashboard_blocked_domains')
+      .insert({
         domain,
         reason: body.reason ?? null,
-        blocked_by_play: playId,
-      },
-      { onConflict: 'domain', ignoreDuplicates: true },
-    );
+        play_id: playScope,
+      });
+  }
 
   // 2. Remove the row from this play's shortlist so it disappears
   //    from the Discovery table immediately. We use status='removed'

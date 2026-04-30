@@ -508,6 +508,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
         getSeenDomains={() => (rows ?? []).map((r) => r.domain).slice(0, 40)}
         onClose={() => setSelectedId(null)}
         onShortlist={(id) => void shortlist(id)}
+        onBlock={(id, domain) => { void blockDomain(id, domain); setSelectedId(null); }}
         onRowPatched={(id, patch) => setRows((cur) => cur?.map((r) => r.id === id ? { ...r, ...patch } : r) ?? null)}
         onPeersAdded={() => void load()}
       />
@@ -653,7 +654,7 @@ interface SimilarCacheEntry {
   blockedDomains: Set<string>;
 }
 
-function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress, getSeenDomains, onClose, onShortlist, onRowPatched, onPeersAdded }: {
+function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress, getSeenDomains, onClose, onShortlist, onBlock, onRowPatched, onPeersAdded }: {
   row: Row | null;
   busy: string | null;
   playId: string;
@@ -662,6 +663,7 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
   getSeenDomains: () => string[];
   onClose: () => void;
   onShortlist: (id: string) => void;
+  onBlock: (id: string, domain: string) => void;
   onRowPatched: (id: string, patch: Partial<Row>) => void;
   onPeersAdded: () => void;
 }) {
@@ -705,7 +707,9 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
   const [notesSaving, setNotesSaving] = useState<'idle' | 'saving' | 'saved'>('idle');
   const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset state when the row changes.
+  // Reset state ONLY when the user opens a different row. Patches to
+  // the same row (eager About completing, notes saved, etc) must not
+  // snap the tab back to About; the user might be reading Similar.
   useEffect(() => {
     setTab('about');
     setSnapshotKey((k) => k + 1);
@@ -716,7 +720,16 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
     setNotesSaving('idle');
     setEagerSimilarDone(false);
     setEagerSnapshotDone(false);
-  }, [row?.id, row?.notes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row?.id]);
+
+  // Sync the notes draft if the row's notes change externally (e.g.
+  // a save round-tripped). Does NOT reset the active tab.
+  useEffect(() => {
+    if (!row) return;
+    setNotesDraft((cur) => (cur === (row.notes ?? '') ? cur : (row.notes ?? '')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row?.notes]);
 
   // Eager preload of Similar + Snapshot when the drawer opens. The
   // user shouldn't have to click into either tab to start loading;
@@ -1023,13 +1036,29 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
             if (!eagerSnapshotDone) labelParts.push('Snapshot');
             return (
               <div className="px-4 py-2 border-b border-evari-edge/20">
+                <style dangerouslySetInnerHTML={{ __html: `
+                  @keyframes evariShimmer {
+                    0%   { background-position: 200% 0; }
+                    100% { background-position: -200% 0; }
+                  }
+                  .evari-shimmer-bar {
+                    background-image: linear-gradient(
+                      90deg,
+                      rgba(254, 199, 0, 0.85) 0%,
+                      rgba(255, 235, 153, 1) 50%,
+                      rgba(254, 199, 0, 0.85) 100%
+                    );
+                    background-size: 200% 100%;
+                    animation: evariShimmer 1.4s linear infinite;
+                  }
+                ` }} />
                 <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer flex items-center justify-between mb-1">
                   <span>Loading {labelParts.join(' + ')}</span>
                   <span className="tabular-nums">{eagerPct}%</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-evari-edge/30 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-evari-gold transition-all duration-500"
+                    className="h-full rounded-full evari-shimmer-bar transition-all duration-500"
                     style={{ width: eagerPct + '%' }}
                   />
                 </div>
@@ -1172,18 +1201,9 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
                 const isShortlisted = peer.status === 'shortlisted' || cached.shortlistedDomains.has(dKey);
                 const peerWebsite = 'https://' + peer.domain;
                 return (
-                  <div key={peer.domain} className="flex items-start gap-3 rounded-md border border-evari-edge/30 p-3 bg-evari-edge/5 relative group/peer">
-                    <button
-                      type="button"
-                      onClick={() => void blockPeer(peer)}
-                      className="absolute top-2 right-2 inline-flex items-center justify-center h-6 w-6 rounded-md text-evari-dimmer hover:text-evari-warning hover:bg-evari-warning/10 transition opacity-60 hover:opacity-100"
-                      title="Not relevant. Removes from this list and blocks from any future searches."
-                      aria-label="Not relevant"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                  <div key={peer.domain} className="flex items-start gap-3 rounded-md border border-evari-edge/30 p-3 bg-evari-edge/5">
                     <Avatar name={peer.name} logoUrl={peer.logoUrl} />
-                    <div className="flex-1 min-w-0 pr-6">
+                    <div className="flex-1 min-w-0">
                       <div className="text-[13px] font-semibold text-evari-text leading-tight truncate">{peer.name}</div>
                       <a
                         href={peerWebsite}
@@ -1196,31 +1216,39 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
                       {peer.why ? (
                         <p className="text-[11px] text-evari-dim leading-relaxed mt-1">{peer.why}</p>
                       ) : null}
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="grid grid-cols-3 gap-1.5 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => void blockPeer(peer)}
+                          className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-medium border border-evari-edge/40 text-evari-dim hover:text-evari-warning hover:border-evari-warning/50 transition"
+                          title="Not relevant for this venture. Excludes from future searches in this venture only."
+                        >
+                          <X className="h-3 w-3" /> Not relevant
+                        </button>
                         {inList ? (
-                          <span className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium bg-evari-edge/20 text-evari-dim border border-evari-edge/30 flex-1">
-                            Already in list
+                          <span className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-medium bg-evari-edge/20 text-evari-dim border border-evari-edge/30">
+                            In list
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => void addOrPromotePeer(peer, 'candidate')}
-                            className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-evari-edge/40 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold transition flex-1"
+                            className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-medium border border-evari-edge/40 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold transition"
                           >
                             <Plus className="h-3 w-3" /> Add to list
                           </button>
                         )}
                         {isShortlisted ? (
-                          <span className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30 flex-1">
+                          <span className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30">
                             <Star className="h-3 w-3 fill-evari-gold" /> Shortlisted
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => void addOrPromotePeer(peer, 'shortlisted')}
-                            className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition flex-1"
+                            className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
                           >
-                            <Send className="h-3 w-3" /> Send to shortlist
+                            <Send className="h-3 w-3" /> Shortlist
                           </button>
                         )}
                       </div>
@@ -1300,9 +1328,18 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
         </div>
 
         <footer className="px-4 py-3 border-t border-evari-edge/30 flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => onBlock(row.id, row.domain)}
+            disabled={shortlistBusy}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold border border-evari-edge/40 text-evari-dim hover:text-evari-warning hover:border-evari-warning/50 disabled:opacity-50 transition flex-1"
+            title="Not relevant for this venture. Removes from this list and excludes from future searches in this venture only."
+          >
+            <X className="h-3.5 w-3.5" /> Not relevant
+          </button>
           {shortlisted ? (
             <span className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30 flex-1">
-              <Star className="h-3.5 w-3.5 fill-evari-gold" /> Already shortlisted
+              <Star className="h-3.5 w-3.5 fill-evari-gold" /> Shortlisted
             </span>
           ) : (
             <button

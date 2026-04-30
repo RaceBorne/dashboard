@@ -54,15 +54,20 @@ export async function POST(req: Request) {
     );
   }
 
-  // Pull the global no-go list once and merge it into the skip
-  // domains. Anything blocked never comes back in any path.
+  // Pull the no-go list: global blocks PLUS per-play blocks for the
+  // current venture. A domain blocked elsewhere stays available here
+  // unless it was blocked globally or specifically for this play.
   const sbForBlocks = createSupabaseAdmin();
   let blockedDomains: string[] = [];
   if (sbForBlocks) {
-    const { data } = await sbForBlocks
+    let q = sbForBlocks
       .from('dashboard_blocked_domains')
-      .select('domain');
-    blockedDomains = (data ?? []).map((r: { domain: string }) => r.domain.toLowerCase());
+      .select('domain, play_id');
+    const { data } = await q;
+    const rows = (data ?? []) as Array<{ domain: string; play_id: string | null }>;
+    blockedDomains = rows
+      .filter((r) => r.play_id === null || r.play_id === body.playId)
+      .map((r) => r.domain.toLowerCase());
   }
   const skipDomains = [...seenDomains, ...blockedDomains];
 
