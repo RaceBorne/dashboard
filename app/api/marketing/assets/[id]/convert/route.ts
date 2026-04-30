@@ -16,6 +16,9 @@ interface Body {
   height?: number;
   format?: Format;
   purpose?: AssetPurpose;
+  /** Human-readable label for the variant. Falls back to a sensible
+   *  default ('Newsletter 600 wide JPEG') if missing. */
+  label?: string;
 }
 
 /**
@@ -129,6 +132,16 @@ export async function POST(
   const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(storageKey);
   const url = pub.publicUrl;
 
+  // Variants always anchor on the ROOT, never on another variant.
+  // If the convert was requested against a variant, walk one hop back
+  // to its parent so the family stays flat and one level deep.
+  const rootId = source.parentAssetId ?? source.id;
+
+  // Default label captures the salient settings so even if the user
+  // doesn't type one, the variant is identifiable inside the family.
+  const defaultLabel = `${purpose === 'newsletter' ? 'Newsletter' : 'Web'} ${targetWidth}w ${format.toUpperCase()}`;
+  const label = (body.label ?? '').trim() || defaultLabel;
+
   const { data: row, error: insErr } = await sb
     .from('dashboard_mkt_assets')
     .insert({
@@ -140,9 +153,11 @@ export async function POST(
       size_bytes: output.length,
       width: outMeta.width ?? null,
       height: outMeta.height ?? null,
-      tags: [...source.tags, `derived:${source.id}`],
+      tags: source.tags,
       alt_text: source.altText,
       purposes: ['global', purpose],
+      parent_asset_id: rootId,
+      variant_label: label,
     })
     .select('*')
     .single();
@@ -164,6 +179,8 @@ export async function POST(
     height: number | null;
     tags: string[] | null;
     purposes: string[] | null;
+    parent_asset_id: string | null;
+    variant_label: string | null;
     alt_text: string | null;
     created_at: string;
     updated_at: string;
@@ -182,6 +199,8 @@ export async function POST(
       height: r.height,
       tags: r.tags ?? [],
       purposes: r.purposes ?? ['global', purpose],
+      parentAssetId: rootId,
+      variantLabel: label,
       altText: r.alt_text,
       createdAt: r.created_at,
       updatedAt: r.updated_at,

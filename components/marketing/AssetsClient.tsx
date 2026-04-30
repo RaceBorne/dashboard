@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Check, Copy, Globe, Layers, Loader2, Mail, Search, Trash2, Upload, X,
+  Check, Copy, Globe, Layers, Loader2, Mail, Plus, Search, Trash2, Upload, X,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import type { AssetPurpose, MktAsset } from '@/lib/marketing/types';
+import type { AssetPurpose, MktAsset, MktAssetFamily } from '@/lib/marketing/types';
 
 interface Props {
-  initialAssets: MktAsset[];
+  initialFamilies: MktAssetFamily[];
 }
 
 const ACCEPTED_MIMES = '.png,.jpg,.jpeg,.gif,.webp,.svg,.avif,.psd,image/*';
@@ -37,55 +37,62 @@ const SCALE_GRID: Record<Scale, string> = {
 };
 
 /**
- * Asset library with three view scales, category tabs, and per-tile
- * channel-readiness toggles. Replaces the old single-density grid.
+ * A family is "ready for X" if the root or any variant carries that
+ * purpose. Used by the tabs and per-tile badges.
  */
-export function AssetsClient({ initialAssets }: Props) {
+function familyHasPurpose(fam: MktAssetFamily, purpose: AssetPurpose): boolean {
+  if (fam.root.purposes.includes(purpose)) return true;
+  return fam.variants.some((v) => v.purposes.includes(purpose));
+}
+
+export function AssetsClient({ initialFamilies }: Props) {
   const router = useRouter();
-  const [assets, setAssets] = useState<MktAsset[]>(initialAssets);
+  const [families, setFamilies] = useState<MktAssetFamily[]>(initialFamilies);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('all');
   const [scale, setScale] = useState<Scale>('medium');
-  const [selected, setSelected] = useState<MktAsset | null>(null);
+  const [openFamilyId, setOpenFamilyId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [convertTarget, setConvertTarget] = useState<{ root: MktAsset; purpose: AssetPurpose } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setAssets(initialAssets), [initialAssets]);
+  useEffect(() => setFamilies(initialFamilies), [initialFamilies]);
 
   const counts = useMemo(() => {
     let g = 0, w = 0, n = 0;
-    for (const a of assets) {
-      if (a.purposes.includes('global')) g++;
-      if (a.purposes.includes('web')) w++;
-      if (a.purposes.includes('newsletter')) n++;
+    for (const f of families) {
+      if (familyHasPurpose(f, 'global')) g++;
+      if (familyHasPurpose(f, 'web')) w++;
+      if (familyHasPurpose(f, 'newsletter')) n++;
     }
-    return { all: assets.length, global: g, web: w, newsletter: n };
-  }, [assets]);
+    return { all: families.length, global: g, web: w, newsletter: n };
+  }, [families]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return assets.filter((a) => {
-      if (tab === 'global' && !a.purposes.includes('global')) return false;
-      if (tab === 'web' && !a.purposes.includes('web')) return false;
-      if (tab === 'newsletter' && !a.purposes.includes('newsletter')) return false;
+    return families.filter((f) => {
+      if (tab === 'global' && !familyHasPurpose(f, 'global')) return false;
+      if (tab === 'web' && !familyHasPurpose(f, 'web')) return false;
+      if (tab === 'newsletter' && !familyHasPurpose(f, 'newsletter')) return false;
       if (!q) return true;
-      return (
+      const matches = (a: MktAsset) =>
         a.filename.toLowerCase().includes(q) ||
         (a.altText ?? '').toLowerCase().includes(q) ||
-        a.tags.some((t) => t.toLowerCase().includes(q))
-      );
+        a.tags.some((t) => t.toLowerCase().includes(q)) ||
+        (a.variantLabel ?? '').toLowerCase().includes(q);
+      return matches(f.root) || f.variants.some(matches);
     });
-  }, [assets, query, tab]);
+  }, [families, query, tab]);
 
   async function handleFiles(list: FileList | null) {
     if (!list || list.length === 0 || uploading) return;
     setUploading(true);
     setError(null);
     try {
-      const next: MktAsset[] = [];
+      const next: MktAssetFamily[] = [];
       for (const file of Array.from(list)) {
         const fd = new FormData();
         fd.append('file', file);
@@ -95,24 +102,50 @@ export function AssetsClient({ initialAssets }: Props) {
           setError(data.error ?? 'Upload failed');
           continue;
         }
-        next.push(data.asset as MktAsset);
+        next.push({ root: data.asset as MktAsset, variants: [] });
       }
-      if (next.length > 0) setAssets((curr) => [...next, ...curr]);
+      if (next.length > 0) setFamilies((curr) => [...next, ...curr]);
       router.refresh();
     } finally {
       setUploading(false);
     }
   }
 
-  // Convert modal state. When a tile's Web/Newsletter button is
-  // clicked we don't toggle the tag directly any more, we open this
-  // dialog so the operator sets dimensions + format.
-  const [convertTarget, setConvertTarget] = useState<{ asset: MktAsset; purpose: AssetPurpose } | null>(null);
-
-  async function runConvert(input: { width: number; height: number | null; format: 'jpeg' | 'png' | 'webp' | 'gif'; purpose: AssetPurpose; assetId: string }) {
-    setBusyId(input.assetId);
+  async function deleteAsset(id: string) {
+    if (!confirm('Delete this asset? Variants attached to it will go too. Anything referencing the URL will break.')) return;
+    setBusyId(id);
     try {
-      const res = await fetch(`/api/marketing/assets/${input.assetId}/convert`, {
+      const res = await fetch(`/api/marketing/assets/${id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) return;
+      // Could be a root or a variant. Reload from server to keep state honest.
+      router.refresh();
+      const fam = await fetch('/api/marketing/assets/families').then((r) => r.json()).catch(() => null);
+      if (fam?.ok) setFamilies(fam.families as MktAssetFamily[]);
+      else {
+        // Local fallback: drop the row wherever it lives.
+        setFamilies((curr) => curr
+          .filter((f) => f.root.id !== id)
+          .map((f) => ({ ...f, variants: f.variants.filter((v) => v.id !== id) })));
+      }
+      if (openFamilyId === id) setOpenFamilyId(null);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function runConvert(input: {
+    rootId: string;
+    width: number;
+    height: number | null;
+    format: 'jpeg' | 'png' | 'webp' | 'gif';
+    purpose: AssetPurpose;
+    label: string;
+  }) {
+    setBusyId(input.rootId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/marketing/assets/${input.rootId}/convert`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -120,11 +153,15 @@ export function AssetsClient({ initialAssets }: Props) {
           height: input.height,
           format: input.format,
           purpose: input.purpose,
+          label: input.label,
         }),
       });
       const data = await res.json().catch(() => null);
       if (data?.ok && data.asset) {
-        setAssets((curr) => [data.asset as MktAsset, ...curr]);
+        const newVariant = data.asset as MktAsset;
+        setFamilies((curr) => curr.map((f) =>
+          f.root.id === input.rootId ? { ...f, variants: [...f.variants, newVariant] } : f,
+        ));
       } else if (data?.error) {
         setError(data.error);
       }
@@ -134,34 +171,25 @@ export function AssetsClient({ initialAssets }: Props) {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this asset? Any email or page referencing it will show a broken image.')) return;
-    const res = await fetch(`/api/marketing/assets/${id}`, { method: 'DELETE' });
-    const data = await res.json().catch(() => ({}));
-    if (data.ok) {
-      setAssets((curr) => curr.filter((a) => a.id !== id));
-      if (selected?.id === id) setSelected(null);
-      router.refresh();
-    }
-  }
+  const openFamily = openFamilyId
+    ? families.find((f) => f.root.id === openFamilyId) ?? null
+    : null;
 
   return (
     <div className="flex-1 min-h-0 flex bg-evari-ink">
       <div className="flex-1 min-w-0 overflow-auto p-4">
-        {/* Toolbar */}
         <div className="mb-3 flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-evari-dimmer" />
             <input
               type="text"
-              placeholder="Search filename, alt text, or tag"
+              placeholder="Search filename, alt text, variant label, or tag"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 rounded-panel bg-evari-surface text-evari-text text-sm placeholder:text-evari-dimmer border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none transition"
             />
           </div>
 
-          {/* Category tabs */}
           <div className="inline-flex rounded-panel bg-evari-surface border border-evari-edge/30 p-0.5">
             <TabButton active={tab === 'all'} onClick={() => setTab('all')} label={`All ${counts.all}`} />
             <TabButton active={tab === 'global'} onClick={() => setTab('global')} icon={<Layers className="h-3 w-3" />} label={`Global ${counts.global}`} />
@@ -169,7 +197,6 @@ export function AssetsClient({ initialAssets }: Props) {
             <TabButton active={tab === 'newsletter'} onClick={() => setTab('newsletter')} icon={<Mail className="h-3 w-3" />} label={`Newsletter ${counts.newsletter}`} />
           </div>
 
-          {/* Scale toggle */}
           <div className="inline-flex rounded-panel bg-evari-surface border border-evari-edge/30 p-0.5">
             <ScaleButton active={scale === 'small'} onClick={() => setScale('small')} label="S" title="Small (8 across)" />
             <ScaleButton active={scale === 'medium'} onClick={() => setScale('medium')} label="M" title="Medium (5 across)" />
@@ -179,7 +206,6 @@ export function AssetsClient({ initialAssets }: Props) {
           <span className="text-xs text-evari-dimmer tabular-nums">{filtered.length} shown</span>
         </div>
 
-        {/* Drop zone */}
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
@@ -187,9 +213,7 @@ export function AssetsClient({ initialAssets }: Props) {
           onClick={() => fileRef.current?.click()}
           className={cn(
             'rounded-md border-2 border-dashed p-5 text-center cursor-pointer mb-3 transition',
-            dragOver
-              ? 'border-evari-gold/60 bg-evari-gold/5'
-              : 'border-evari-edge/40 bg-evari-surface/40 hover:border-evari-edge/60',
+            dragOver ? 'border-evari-gold/60 bg-evari-gold/5' : 'border-evari-edge/40 bg-evari-surface/40 hover:border-evari-edge/60',
           )}
         >
           <input ref={fileRef} type="file" accept={ACCEPTED_MIMES} multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
@@ -203,47 +227,49 @@ export function AssetsClient({ initialAssets }: Props) {
         </div>
         {error ? <p className="mb-3 text-xs text-evari-warning">{error}</p> : null}
 
-        {/* Grid */}
         {filtered.length === 0 ? (
           <div className="rounded-panel bg-evari-surface border border-evari-edge/30 px-3 py-12 text-center text-evari-dimmer text-sm">
-            {assets.length === 0 ? 'No assets yet, drop one above to get started.' : 'No assets match that filter.'}
+            {families.length === 0 ? 'No assets yet, drop one above to get started.' : 'No assets match that filter.'}
           </div>
         ) : (
           <ul className={cn('grid gap-3', SCALE_GRID[scale])}>
-            {filtered.map((a) => (
-              <Tile
-                key={a.id}
-                asset={a}
+            {filtered.map((f) => (
+              <FamilyTile
+                key={f.root.id}
+                family={f}
                 scale={scale}
-                busy={busyId === a.id}
-                selected={selected?.id === a.id}
-                onSelect={() => setSelected(a)}
-                onConvert={(p) => setConvertTarget({ asset: a, purpose: p })}
+                busy={busyId === f.root.id}
+                selected={openFamilyId === f.root.id}
+                onOpen={() => setOpenFamilyId(f.root.id)}
+                onConvert={(p) => setConvertTarget({ root: f.root, purpose: p })}
               />
             ))}
           </ul>
         )}
       </div>
 
-      {selected ? (
-        <DetailPanel
-          asset={selected}
-          onClose={() => setSelected(null)}
-          onChange={(updated) => {
-            setAssets((curr) => curr.map((a) => (a.id === updated.id ? updated : a)));
-            setSelected(updated);
+      {openFamily ? (
+        <FamilyWorkspace
+          family={openFamily}
+          busy={busyId === openFamily.root.id}
+          onClose={() => setOpenFamilyId(null)}
+          onConvert={(p) => setConvertTarget({ root: openFamily.root, purpose: p })}
+          onDelete={(id) => void deleteAsset(id)}
+          onRootUpdated={(updated) => {
+            setFamilies((curr) => curr.map((f) =>
+              f.root.id === updated.id ? { ...f, root: updated } : f,
+            ));
           }}
-          onDelete={() => handleDelete(selected.id)}
         />
       ) : null}
 
       {convertTarget ? (
         <ConvertModal
-          asset={convertTarget.asset}
+          asset={convertTarget.root}
           purpose={convertTarget.purpose}
-          busy={busyId === convertTarget.asset.id}
+          busy={busyId === convertTarget.root.id}
           onClose={() => setConvertTarget(null)}
-          onConfirm={(input) => void runConvert({ ...input, assetId: convertTarget.asset.id })}
+          onConfirm={(input) => void runConvert({ ...input, rootId: convertTarget.root.id })}
         />
       ) : null}
     </div>
@@ -260,8 +286,7 @@ function TabButton({ active, onClick, label, icon }: { active: boolean; onClick:
         active ? 'bg-evari-gold text-evari-goldInk' : 'text-evari-dim hover:text-evari-text',
       )}
     >
-      {icon}
-      {label}
+      {icon}{label}
     </button>
   );
 }
@@ -282,38 +307,33 @@ function ScaleButton({ active, onClick, label, title }: { active: boolean; onCli
   );
 }
 
-function Tile({
-  asset, scale, busy, selected, onSelect, onConvert,
+function FamilyTile({
+  family, scale, busy, selected, onOpen, onConvert,
 }: {
-  asset: MktAsset;
+  family: MktAssetFamily;
   scale: Scale;
   busy: boolean;
   selected: boolean;
-  onSelect: () => void;
-  onConvert: (purpose: AssetPurpose) => void;
+  onOpen: () => void;
+  onConvert: (p: AssetPurpose) => void;
 }) {
-  const isPSD = asset.filename.toLowerCase().endsWith('.psd');
-  const ext = fileExt(asset.filename);
-  const isWeb = asset.purposes.includes('web');
-  const isNewsletter = asset.purposes.includes('newsletter');
+  const a = family.root;
+  const isPSD = a.filename.toLowerCase().endsWith('.psd');
+  const ext = fileExt(a.filename);
+  const variantCount = family.variants.length;
+  const hasWeb = familyHasPurpose(family, 'web');
+  const hasNewsletter = familyHasPurpose(family, 'newsletter');
   const aspect = scale === 'large' ? 'aspect-square' : 'aspect-[4/3]';
 
   return (
     <li>
-      <div
-        className={cn(
-          'rounded-panel overflow-hidden border bg-evari-surface flex flex-col transition',
-          selected ? 'border-evari-gold' : 'border-evari-edge/30 hover:border-evari-edge/60',
-        )}
-      >
-        <button
-          type="button"
-          onClick={onSelect}
-          className={cn(
-            'relative w-full overflow-hidden bg-[#1a1a1a]',
-            aspect,
-          )}
-          title={asset.filename}
+      <div className={cn(
+        'rounded-panel overflow-hidden border bg-evari-surface flex flex-col transition',
+        selected ? 'border-evari-gold' : 'border-evari-edge/30 hover:border-evari-edge/60',
+      )}>
+        <button type="button" onClick={onOpen}
+          className={cn('relative w-full overflow-hidden bg-[#1a1a1a]', aspect)}
+          title={a.filename}
         >
           {isPSD ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-evari-dim gap-1.5">
@@ -322,59 +342,46 @@ function Tile({
             </div>
           ) : (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={asset.url}
-              alt={asset.altText ?? asset.filename}
-              loading="lazy"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <img src={a.url} alt={a.altText ?? a.filename} loading="lazy"
+              className="absolute inset-0 w-full h-full object-cover" />
           )}
+          {variantCount > 0 ? (
+            <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 text-evari-gold text-[10px] font-semibold border border-evari-gold/40 backdrop-blur">
+              <Layers className="h-2.5 w-2.5" />
+              {variantCount} variant{variantCount === 1 ? '' : 's'}
+            </span>
+          ) : null}
         </button>
 
-        {/* Footer metadata + actions */}
         <div className="px-2.5 py-2 space-y-1.5 border-t border-evari-edge/20">
-          <div className="text-[11px] text-evari-text font-medium truncate" title={asset.filename}>
-            {asset.filename}
-          </div>
+          <div className="text-[11px] text-evari-text font-medium truncate" title={a.filename}>{a.filename}</div>
           <div className="flex items-center gap-1.5 text-[10px] text-evari-dimmer">
             <span className="inline-block px-1.5 py-0.5 rounded bg-evari-edge/30 text-evari-dim font-mono tabular-nums">{ext}</span>
-            <span className="font-mono tabular-nums">{formatBytes(asset.sizeBytes)}</span>
-            {asset.width && asset.height ? (
-              <span className="font-mono tabular-nums">{asset.width}×{asset.height}</span>
-            ) : null}
+            <span className="font-mono tabular-nums">{formatBytes(a.sizeBytes)}</span>
+            {a.width && a.height ? <span className="font-mono tabular-nums">{a.width}×{a.height}</span> : null}
           </div>
           <div className="grid grid-cols-2 gap-1">
-            <button
-              type="button"
+            <button type="button"
               onClick={(e) => { e.stopPropagation(); onConvert('web'); }}
               disabled={busy}
-              className={cn(
-                'inline-flex items-center justify-center gap-1 h-6 px-1 rounded text-[10px] font-medium border transition',
-                isWeb
-                  ? 'bg-evari-gold/15 text-evari-gold border-evari-gold/40'
-                  : 'border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40',
-                busy && 'opacity-50',
-              )}
-              title={isWeb ? 'A web variant exists. Click to make another at different dimensions.' : 'Open the convert dialog to make a web-ready variant.'}
+              className={cn('inline-flex items-center justify-center gap-1 h-6 px-1 rounded text-[10px] font-medium border transition',
+                hasWeb ? 'bg-evari-gold/15 text-evari-gold border-evari-gold/40' : 'border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40',
+                busy && 'opacity-50')}
+              title={hasWeb ? 'A web variant exists. Click to make another.' : 'Make a web-ready variant.'}
             >
               {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Globe className="h-2.5 w-2.5" />}
-              {isWeb ? 'Web ✓' : 'Web'}
+              {hasWeb ? 'Web ✓' : 'Web'}
             </button>
-            <button
-              type="button"
+            <button type="button"
               onClick={(e) => { e.stopPropagation(); onConvert('newsletter'); }}
               disabled={busy}
-              className={cn(
-                'inline-flex items-center justify-center gap-1 h-6 px-1 rounded text-[10px] font-medium border transition',
-                isNewsletter
-                  ? 'bg-evari-gold/15 text-evari-gold border-evari-gold/40'
-                  : 'border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40',
-                busy && 'opacity-50',
-              )}
-              title={isNewsletter ? 'A newsletter variant exists. Click to make another at different dimensions.' : 'Open the convert dialog to make a newsletter-ready variant.'}
+              className={cn('inline-flex items-center justify-center gap-1 h-6 px-1 rounded text-[10px] font-medium border transition',
+                hasNewsletter ? 'bg-evari-gold/15 text-evari-gold border-evari-gold/40' : 'border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40',
+                busy && 'opacity-50')}
+              title={hasNewsletter ? 'A newsletter variant exists. Click to make another.' : 'Make a newsletter-ready variant.'}
             >
               {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Mail className="h-2.5 w-2.5" />}
-              {isNewsletter ? 'Newsletter ✓' : 'Newsletter'}
+              {hasNewsletter ? 'Newsletter ✓' : 'Newsletter'}
             </button>
           </div>
         </div>
@@ -383,137 +390,195 @@ function Tile({
   );
 }
 
-function DetailPanel({
-  asset, onClose, onChange, onDelete,
+function FamilyWorkspace({
+  family, busy, onClose, onConvert, onDelete, onRootUpdated,
 }: {
-  asset: MktAsset;
+  family: MktAssetFamily;
+  busy: boolean;
   onClose: () => void;
-  onChange: (a: MktAsset) => void;
-  onDelete: () => void;
+  onConvert: (p: AssetPurpose) => void;
+  onDelete: (id: string) => void;
+  onRootUpdated: (a: MktAsset) => void;
 }) {
-  const [alt, setAlt] = useState(asset.altText ?? '');
-  const [tagsStr, setTagsStr] = useState(asset.tags.join(', '));
+  const root = family.root;
+  const [alt, setAlt] = useState(root.altText ?? '');
+  const [tagsStr, setTagsStr] = useState(root.tags.join(', '));
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
-    setAlt(asset.altText ?? '');
-    setTagsStr(asset.tags.join(', '));
-  }, [asset.id, asset.altText, asset.tags]);
+    setAlt(root.altText ?? '');
+    setTagsStr(root.tags.filter((t) => !t.startsWith('derived:')).join(', '));
+  }, [root.id, root.altText, root.tags]);
 
-  const dirty = alt !== (asset.altText ?? '') || tagsStr !== asset.tags.join(', ');
-  const isPSD = asset.filename.toLowerCase().endsWith('.psd');
+  const dirty = alt !== (root.altText ?? '') || tagsStr !== root.tags.filter((t) => !t.startsWith('derived:')).join(', ');
+  const isPSD = root.filename.toLowerCase().endsWith('.psd');
 
   async function save() {
     if (!dirty || saving) return;
     setSaving(true);
     try {
       const tags = tagsStr.split(',').map((t) => t.trim()).filter(Boolean);
-      const res = await fetch(`/api/marketing/assets/${asset.id}`, {
+      const res = await fetch(`/api/marketing/assets/${root.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ altText: alt.trim() || null, tags }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.ok) onChange(data.asset as MktAsset);
+      if (data.ok) onRootUpdated(data.asset as MktAsset);
     } finally {
       setSaving(false);
     }
   }
 
-  async function copyUrl() {
+  async function copyUrl(url: string) {
     try {
-      await navigator.clipboard.writeText(asset.url);
+      await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch { /* ignore */ }
   }
 
   return (
-    <aside className="w-80 shrink-0 border-l border-evari-edge/30 bg-evari-surface flex flex-col overflow-hidden">
-      <header className="px-3 py-2 border-b border-evari-edge/30 flex items-center justify-between">
-        <span className="text-xs font-semibold text-evari-text truncate">{asset.filename}</span>
-        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text">
+    <aside className="w-[420px] shrink-0 border-l border-evari-edge/30 bg-evari-surface flex flex-col overflow-hidden">
+      <header className="px-4 py-3 border-b border-evari-edge/30 flex items-center justify-between">
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Original</div>
+          <div className="text-[14px] font-semibold text-evari-text truncate">{root.filename}</div>
+        </div>
+        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text shrink-0">
           <X className="h-4 w-4" />
         </button>
       </header>
-      <div className="flex-1 overflow-auto p-3 space-y-3">
-        <div className="rounded p-2 flex items-center justify-center min-h-[200px] bg-[#1a1a1a]">
+
+      <div className="flex-1 overflow-auto p-4 space-y-4">
+        {/* Original preview */}
+        <div className="rounded-panel bg-[#1a1a1a] flex items-center justify-center min-h-[180px] overflow-hidden">
           {isPSD ? (
-            <div className="text-evari-dim text-center py-8">
-              <div className="text-[24px] font-bold opacity-60">PSD</div>
+            <div className="text-evari-dim text-center py-10">
+              <div className="text-[28px] font-bold opacity-60">PSD</div>
               <div className="text-[10px] uppercase tracking-[0.12em] mt-1">No browser preview</div>
             </div>
           ) : (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={asset.url} alt={asset.altText ?? asset.filename} className="max-h-[280px] w-auto object-contain" />
+            <img src={root.url} alt={root.altText ?? root.filename} className="max-h-[280px] w-auto object-contain" />
           )}
         </div>
+
+        {/* Original metadata */}
         <dl className="grid grid-cols-2 gap-2 text-[11px]">
           <div className="rounded bg-evari-ink p-2">
             <dt className="text-evari-dimmer text-[10px]">Type</dt>
-            <dd className="text-evari-text font-mono">{fileExt(asset.filename)}</dd>
+            <dd className="text-evari-text font-mono">{fileExt(root.filename)}</dd>
           </div>
           <div className="rounded bg-evari-ink p-2">
             <dt className="text-evari-dimmer text-[10px]">Size</dt>
-            <dd className="text-evari-text font-mono tabular-nums">{formatBytes(asset.sizeBytes)}</dd>
+            <dd className="text-evari-text font-mono tabular-nums">{formatBytes(root.sizeBytes)}</dd>
           </div>
-          {asset.width && asset.height ? (
+          {root.width && root.height ? (
             <div className="rounded bg-evari-ink p-2 col-span-2">
               <dt className="text-evari-dimmer text-[10px]">Dimensions</dt>
-              <dd className="text-evari-text font-mono tabular-nums">{asset.width} × {asset.height}</dd>
+              <dd className="text-evari-text font-mono tabular-nums">{root.width} × {root.height}</dd>
             </div>
           ) : null}
-          <div className="rounded bg-evari-ink p-2 col-span-2">
-            <dt className="text-evari-dimmer text-[10px]">Public URL</dt>
-            <dd className="text-evari-text font-mono text-[10px] break-all leading-tight mt-0.5">{asset.url}</dd>
-          </div>
         </dl>
-        <button
-          type="button"
-          onClick={copyUrl}
-          className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs bg-evari-ink text-evari-text hover:bg-black/40 transition"
-        >
-          {copied ? <Check className="h-3.5 w-3.5 text-evari-success" /> : <Copy className="h-3.5 w-3.5" />}
-          {copied ? 'Copied' : 'Copy URL'}
-        </button>
+
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => void copyUrl(root.url)}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs bg-evari-ink text-evari-text hover:bg-black/40 transition">
+            {copied ? <Check className="h-3.5 w-3.5 text-evari-success" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? 'Copied' : 'Copy URL'}
+          </button>
+        </div>
+
         <label className="block">
           <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
-          <input
-            type="text"
-            value={alt}
-            onChange={(e) => setAlt(e.target.value)}
-            placeholder="Describe this image (accessibility + spam-filter friendly)"
-            className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
-          />
+          <input type="text" value={alt} onChange={(e) => setAlt(e.target.value)}
+            placeholder="Describe this image"
+            className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
         </label>
         <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Tags (comma-separated)</span>
-          <input
-            type="text"
-            value={tagsStr}
-            onChange={(e) => setTagsStr(e.target.value)}
-            placeholder="logo, hero, product, footer"
-            className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
-          />
+          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Tags</span>
+          <input type="text" value={tagsStr} onChange={(e) => setTagsStr(e.target.value)}
+            placeholder="logo, hero, product"
+            className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
         </label>
-      </div>
-      <footer className="px-3 py-2 border-t border-evari-edge/30 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onDelete}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-evari-dim hover:text-evari-gold transition"
-        >
-          <Trash2 className="h-3 w-3" />
-          Delete
-        </button>
-        <button
-          type="button"
-          onClick={save}
-          disabled={!dirty || saving}
-          className="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-evari-gold text-evari-goldInk disabled:opacity-40"
-        >
+        <button type="button" onClick={save} disabled={!dirty || saving}
+          className="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-evari-gold text-evari-goldInk disabled:opacity-40 transition">
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-          {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
+          {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
+        </button>
+
+        {/* Variants family */}
+        <div className="border-t border-evari-edge/20 pt-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">
+              Variants {family.variants.length > 0 ? `(${family.variants.length})` : ''}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => onConvert('web')} disabled={busy}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40 transition disabled:opacity-50">
+                <Globe className="h-2.5 w-2.5" /> Web variant
+              </button>
+              <button type="button" onClick={() => onConvert('newsletter')} disabled={busy}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40 transition disabled:opacity-50">
+                <Mail className="h-2.5 w-2.5" /> Newsletter variant
+              </button>
+            </div>
+          </div>
+
+          {family.variants.length === 0 ? (
+            <div className="rounded bg-evari-ink/60 border border-evari-edge/20 px-3 py-4 text-[11px] text-evari-dimmer text-center">
+              No variants yet. Click <span className="text-evari-text">Web variant</span> or <span className="text-evari-text">Newsletter variant</span> above to make a smaller named version. Originals stay untouched.
+            </div>
+          ) : (
+            <ul className="space-y-1.5">
+              {family.variants.map((v) => (
+                <li key={v.id} className="flex items-start gap-2 rounded bg-evari-ink/60 border border-evari-edge/20 p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={v.url} alt={v.variantLabel ?? v.filename}
+                    className="h-12 w-12 rounded bg-[#1a1a1a] object-cover shrink-0" loading="lazy" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-semibold text-evari-text truncate">{v.variantLabel ?? v.filename}</span>
+                      {v.purposes.includes('web') ? (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[9px] font-medium bg-evari-gold/15 text-evari-gold border border-evari-gold/30">
+                          <Globe className="h-2 w-2" /> Web
+                        </span>
+                      ) : null}
+                      {v.purposes.includes('newsletter') ? (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[9px] font-medium bg-evari-gold/15 text-evari-gold border border-evari-gold/30">
+                          <Mail className="h-2 w-2" /> Newsletter
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-evari-dimmer">
+                      <span className="font-mono tabular-nums">{fileExt(v.filename)}</span>
+                      <span className="font-mono tabular-nums">{formatBytes(v.sizeBytes)}</span>
+                      {v.width && v.height ? <span className="font-mono tabular-nums">{v.width}×{v.height}</span> : null}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <button type="button" onClick={() => void copyUrl(v.url)}
+                        className="inline-flex items-center gap-1 text-[10px] text-evari-dim hover:text-evari-gold transition">
+                        <Copy className="h-2.5 w-2.5" /> Copy URL
+                      </button>
+                      <button type="button" onClick={() => onDelete(v.id)}
+                        className="inline-flex items-center gap-1 text-[10px] text-evari-dim hover:text-evari-gold transition ml-auto">
+                        <Trash2 className="h-2.5 w-2.5" /> Delete
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <footer className="px-4 py-3 border-t border-evari-edge/30 flex items-center gap-2 shrink-0">
+        <button type="button" onClick={() => onDelete(root.id)}
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-evari-dim hover:text-evari-gold transition">
+          <Trash2 className="h-3 w-3" />
+          Delete original + variants
         </button>
       </footer>
     </aside>
@@ -527,19 +592,17 @@ function ConvertModal({
   purpose: AssetPurpose;
   busy: boolean;
   onClose: () => void;
-  onConfirm: (input: { width: number; height: number | null; format: 'jpeg' | 'png' | 'webp' | 'gif'; purpose: AssetPurpose }) => void;
+  onConfirm: (input: { width: number; height: number | null; format: 'jpeg' | 'png' | 'webp' | 'gif'; purpose: AssetPurpose; label: string }) => void;
 }) {
-  // Sensible defaults per purpose:
-  //   - newsletter: 600px wide JPEG (email-safe, predictable size)
-  //   - web:       1600px wide WebP (modern, small files)
   const defaults = purpose === 'newsletter'
-    ? { width: 600, format: 'jpeg' as const }
-    : { width: 1600, format: 'webp' as const };
+    ? { width: 600, format: 'jpeg' as const, label: 'Newsletter' }
+    : { width: 1600, format: 'webp' as const, label: 'Web' };
 
   const [width, setWidth] = useState<number>(Math.min(defaults.width, asset.width ?? defaults.width));
   const [keepAspect, setKeepAspect] = useState(true);
   const [heightOverride, setHeightOverride] = useState<number | null>(null);
   const [format, setFormat] = useState<'jpeg' | 'png' | 'webp' | 'gif'>(defaults.format);
+  const [label, setLabel] = useState<string>(defaults.label);
 
   const aspect = asset.width && asset.height ? asset.height / asset.width : null;
   const computedHeight = keepAspect && aspect ? Math.round(width * aspect) : (heightOverride ?? null);
@@ -547,14 +610,12 @@ function ConvertModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
-      <div
-        className="relative w-full max-w-md rounded-panel bg-evari-surface border border-evari-edge/30 shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative w-full max-w-md rounded-panel bg-evari-surface border border-evari-edge/30 shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}>
         <header className="px-4 py-3 border-b border-evari-edge/30 flex items-center justify-between">
           <div>
             <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">
-              Make ready for {purpose === 'web' ? 'website' : 'newsletter'}
+              New {purpose === 'web' ? 'web' : 'newsletter'} variant
             </div>
             <div className="text-[14px] font-semibold text-evari-text truncate mt-0.5">{asset.filename}</div>
           </div>
@@ -564,107 +625,74 @@ function ConvertModal({
         </header>
 
         <div className="p-4 space-y-4">
-          {/* Current dimensions */}
+          {/* Variant name */}
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Variant name</label>
+            <input type="text" value={label} onChange={(e) => setLabel(e.target.value)}
+              placeholder="Newsletter hero, Mobile thumb, …"
+              className="w-full h-9 rounded-md border border-evari-edge/40 bg-evari-edge/10 px-3 text-[12px] text-evari-text focus:outline-none focus:border-evari-gold/50" />
+            <div className="text-[10px] text-evari-dimmer mt-1">Identifies this variant inside the family.</div>
+          </div>
+
+          {/* Current → New */}
           <div className="rounded bg-evari-ink/40 border border-evari-edge/20 p-3 flex items-center gap-3 text-[11px]">
             <div className="flex-1">
-              <div className="text-evari-dimmer text-[10px] uppercase tracking-[0.12em]">Current</div>
+              <div className="text-evari-dimmer text-[10px] uppercase tracking-[0.12em]">Original</div>
               <div className="text-evari-text font-mono tabular-nums mt-0.5">
                 {asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'unknown'} · {fileExt(asset.filename)} · {formatBytes(asset.sizeBytes)}
               </div>
             </div>
             <div className="text-evari-gold/60 text-[16px]">→</div>
             <div className="flex-1">
-              <div className="text-evari-dimmer text-[10px] uppercase tracking-[0.12em]">New</div>
+              <div className="text-evari-dimmer text-[10px] uppercase tracking-[0.12em]">Variant</div>
               <div className="text-evari-text font-mono tabular-nums mt-0.5">
                 {width}{computedHeight ? ` × ${computedHeight}` : ''} · {format.toUpperCase()}
               </div>
             </div>
           </div>
 
-          {/* Width input */}
           <div>
             <label className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Target width (px)</label>
             <div className="flex items-center gap-2">
-              <input
-                type="number"
-                value={width}
-                min={16}
-                max={8000}
-                step={50}
+              <input type="number" value={width} min={16} max={8000} step={50}
                 onChange={(e) => setWidth(Math.max(16, Math.min(8000, Number(e.target.value) || 16)))}
-                className="flex-1 h-9 rounded-md border border-evari-edge/40 bg-evari-edge/10 px-3 text-[12px] text-evari-text focus:outline-none focus:border-evari-gold/50 font-mono tabular-nums"
-              />
-              <input
-                type="range"
-                min={120}
-                max={Math.max(2400, asset.width ?? 2400)}
-                step={20}
-                value={width}
-                onChange={(e) => setWidth(Number(e.target.value))}
-                className="flex-1 accent-evari-gold"
-              />
+                className="flex-1 h-9 rounded-md border border-evari-edge/40 bg-evari-edge/10 px-3 text-[12px] text-evari-text focus:outline-none focus:border-evari-gold/50 font-mono tabular-nums" />
+              <input type="range" min={120} max={Math.max(2400, asset.width ?? 2400)} step={20}
+                value={width} onChange={(e) => setWidth(Number(e.target.value))}
+                className="flex-1 accent-evari-gold" />
             </div>
             <div className="flex items-center gap-1.5 mt-2">
               {[600, 1200, 1600, 2400].map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setWidth(preset)}
-                  className={cn(
-                    'px-2 py-0.5 rounded text-[10px] font-medium border transition',
-                    width === preset
-                      ? 'border-evari-gold/50 bg-evari-gold/10 text-evari-gold'
-                      : 'border-evari-edge/40 text-evari-dim hover:text-evari-text',
-                  )}
-                >
+                <button key={preset} type="button" onClick={() => setWidth(preset)}
+                  className={cn('px-2 py-0.5 rounded text-[10px] font-medium border transition',
+                    width === preset ? 'border-evari-gold/50 bg-evari-gold/10 text-evari-gold' : 'border-evari-edge/40 text-evari-dim hover:text-evari-text')}>
                   {preset}px
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Aspect lock */}
           <div className="flex items-center justify-between">
             <label className="inline-flex items-center gap-2 text-[12px] text-evari-text">
-              <input
-                type="checkbox"
-                checked={keepAspect}
-                onChange={(e) => setKeepAspect(e.target.checked)}
-                className="accent-evari-gold"
-              />
+              <input type="checkbox" checked={keepAspect} onChange={(e) => setKeepAspect(e.target.checked)} className="accent-evari-gold" />
               Keep aspect ratio
             </label>
             {!keepAspect ? (
-              <input
-                type="number"
-                placeholder="height (px)"
-                value={heightOverride ?? ''}
-                min={16}
-                max={8000}
+              <input type="number" placeholder="height (px)" value={heightOverride ?? ''} min={16} max={8000}
                 onChange={(e) => setHeightOverride(e.target.value ? Number(e.target.value) : null)}
-                className="w-32 h-9 rounded-md border border-evari-edge/40 bg-evari-edge/10 px-3 text-[12px] text-evari-text focus:outline-none focus:border-evari-gold/50 font-mono tabular-nums"
-              />
+                className="w-32 h-9 rounded-md border border-evari-edge/40 bg-evari-edge/10 px-3 text-[12px] text-evari-text focus:outline-none focus:border-evari-gold/50 font-mono tabular-nums" />
             ) : (
               <span className="text-[10px] text-evari-dimmer">height auto</span>
             )}
           </div>
 
-          {/* Format picker */}
           <div>
             <label className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">File format</label>
             <div className="grid grid-cols-4 gap-1.5">
               {(['jpeg', 'png', 'webp', 'gif'] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setFormat(f)}
-                  className={cn(
-                    'h-9 rounded-md text-[12px] font-medium border transition',
-                    format === f
-                      ? 'border-evari-gold bg-evari-gold/15 text-evari-gold'
-                      : 'border-evari-edge/40 text-evari-dim hover:text-evari-text',
-                  )}
-                >
+                <button key={f} type="button" onClick={() => setFormat(f)}
+                  className={cn('h-9 rounded-md text-[12px] font-medium border transition',
+                    format === f ? 'border-evari-gold bg-evari-gold/15 text-evari-gold' : 'border-evari-edge/40 text-evari-dim hover:text-evari-text')}>
                   {f.toUpperCase()}
                 </button>
               ))}
@@ -672,29 +700,22 @@ function ConvertModal({
             <div className="text-[10px] text-evari-dimmer mt-1.5 leading-relaxed">
               {format === 'jpeg' ? 'Smaller files, no transparency. Best for photos in newsletters.' : null}
               {format === 'png' ? 'Lossless with transparency. Best for logos and graphics.' : null}
-              {format === 'webp' ? 'Modern format, much smaller than JPEG/PNG with transparency support. Best for web.' : null}
-              {format === 'gif' ? 'Animated or 256-colour. Best preserved if the source was animated.' : null}
+              {format === 'webp' ? 'Modern format, smaller than JPEG/PNG with transparency. Best for web.' : null}
+              {format === 'gif' ? 'Animated or 256-colour. Best for animated source.' : null}
             </div>
           </div>
         </div>
 
         <footer className="px-4 py-3 border-t border-evari-edge/30 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="inline-flex items-center justify-center h-9 px-3 rounded-md text-[12px] font-medium text-evari-dim hover:text-evari-text transition disabled:opacity-50"
-          >
+          <button type="button" onClick={onClose} disabled={busy}
+            className="inline-flex items-center justify-center h-9 px-3 rounded-md text-[12px] font-medium text-evari-dim hover:text-evari-text transition disabled:opacity-50">
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={() => onConfirm({ width, height: computedHeight, format, purpose })}
+          <button type="button" onClick={() => onConfirm({ width, height: computedHeight, format, purpose, label })}
             disabled={busy}
-            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
-          >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {busy ? 'Converting…' : `Make ready for ${purpose === 'web' ? 'website' : 'newsletter'}`}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            {busy ? 'Converting…' : 'Add to family'}
           </button>
         </footer>
       </div>

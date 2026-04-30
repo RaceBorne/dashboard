@@ -429,9 +429,22 @@ export interface MktAsset {
   height: number | null;
   tags: string[];
   purposes: AssetPurpose[];
+  /** Non-null when this asset is a variant of another. Roots are null. */
+  parentAssetId: string | null;
+  /** Human-readable label for variants (e.g. 'Newsletter hero'). */
+  variantLabel: string | null;
   altText: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * A root asset plus the family of variants that hang off it. Returned
+ * by the asset workspace surface.
+ */
+export interface MktAssetFamily {
+  root: MktAsset;
+  variants: MktAsset[];
 }
 
 // ─── Footer designer (block-based) ───────────────────────────────

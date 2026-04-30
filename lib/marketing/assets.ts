@@ -23,6 +23,8 @@ interface AssetRow {
   height: number | null;
   tags: string[] | null;
   purposes: AssetPurpose[] | null;
+  parent_asset_id: string | null;
+  variant_label: string | null;
   alt_text: string | null;
   created_at: string;
   updated_at: string;
@@ -41,6 +43,8 @@ function rowToAsset(r: AssetRow): MktAsset {
     height: r.height,
     tags: r.tags ?? [],
     purposes: r.purposes ?? ['global'],
+    parentAssetId: r.parent_asset_id,
+    variantLabel: r.variant_label,
     altText: r.alt_text,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -52,6 +56,8 @@ export async function listAssets(opts: {
   search?: string;
   tag?: string;
   limit?: number;
+  /** When true, return variants too (default false: only roots). */
+  includeVariants?: boolean;
 } = {}): Promise<MktAsset[]> {
   const sb = createSupabaseAdmin();
   if (!sb) return [];
@@ -60,6 +66,7 @@ export async function listAssets(opts: {
     .select('*')
     .order('created_at', { ascending: false })
     .limit(opts.limit ?? 500);
+  if (!opts.includeVariants) q = q.is('parent_asset_id', null);
   if (opts.kind) q = q.eq('kind', opts.kind);
   if (opts.tag)  q = q.contains('tags', [opts.tag]);
   if (opts.search) q = q.ilike('filename', `%${opts.search}%`);
@@ -69,6 +76,70 @@ export async function listAssets(opts: {
     return [];
   }
   return (data ?? []).map(rowToAsset);
+}
+
+/**
+ * Roots returned with their variants attached. Used by the workspace
+ * detail panel + by tab-filtering that needs to see what each family
+ * is prepared for.
+ */
+export async function listAssetsWithVariants(opts: {
+  search?: string;
+  limit?: number;
+} = {}): Promise<Array<{ root: MktAsset; variants: MktAsset[] }>> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return [];
+  // Load every row in one query (roots + variants), then group.
+  let q = sb
+    .from('dashboard_mkt_assets')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(opts.limit ?? 1000);
+  if (opts.search) q = q.ilike('filename', `%${opts.search}%`);
+  const { data, error } = await q;
+  if (error || !data) return [];
+  const all = (data as AssetRow[]).map(rowToAsset);
+  const byParent = new Map<string, MktAsset[]>();
+  const roots: MktAsset[] = [];
+  for (const a of all) {
+    if (a.parentAssetId) {
+      const list = byParent.get(a.parentAssetId) ?? [];
+      list.push(a);
+      byParent.set(a.parentAssetId, list);
+    } else {
+      roots.push(a);
+    }
+  }
+  return roots.map((root) => ({ root, variants: byParent.get(root.id) ?? [] }));
+}
+
+/**
+ * Look up an asset and the family it belongs to. If the supplied id
+ * is a variant, the root is returned alongside all sibling variants.
+ */
+export async function getAssetWithVariants(id: string): Promise<{ root: MktAsset; variants: MktAsset[] } | null> {
+  const sb = createSupabaseAdmin();
+  if (!sb) return null;
+  const { data: target } = await sb
+    .from('dashboard_mkt_assets')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (!target) return null;
+  const targetAsset = rowToAsset(target as AssetRow);
+  const rootId = targetAsset.parentAssetId ?? targetAsset.id;
+  const { data: rootRow } = rootId === targetAsset.id
+    ? { data: target }
+    : await sb.from('dashboard_mkt_assets').select('*').eq('id', rootId).maybeSingle();
+  if (!rootRow) return null;
+  const root = rowToAsset(rootRow as AssetRow);
+  const { data: vs } = await sb
+    .from('dashboard_mkt_assets')
+    .select('*')
+    .eq('parent_asset_id', root.id)
+    .order('created_at', { ascending: true });
+  const variants = ((vs ?? []) as AssetRow[]).map(rowToAsset);
+  return { root, variants };
 }
 
 export async function getAsset(id: string): Promise<MktAsset | null> {
