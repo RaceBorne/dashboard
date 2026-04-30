@@ -40,6 +40,10 @@ interface Props {
    *  when embedded inside the Brief step: the structured flow owns the
    *  Next/Handoff actions; Spitball is here purely for refinement. */
   compact?: boolean;
+  /** When true, the panel never auto-fires the kickoff prompt and the
+   *  reply input is disabled. The brief is locked, so the AI must not
+   *  redraft anything until the user explicitly unlocks. */
+  locked?: boolean;
 }
 
 // Hidden user prompt that kicks off the conversation. Claude already
@@ -137,7 +141,7 @@ function renderRich(text: string): React.ReactNode[] {
   return out;
 }
 
-export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose, compact }: Props) {
+export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose, compact, locked }: Props) {
   const router = useRouter();
   const [messages, setMessages] = useState<SpitballMessage[]>([]);
   const [input, setInput] = useState('');
@@ -176,6 +180,13 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
             role: m.role,
             content: m.content,
           })));
+          setBusy(false);
+          return;
+        }
+
+        // Locked + empty chat: don't auto-draft. The user has chosen to
+        // freeze the brief, so the AI must not run unprompted.
+        if (locked) {
           setBusy(false);
           return;
         }

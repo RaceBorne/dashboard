@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Loader2, Mail, MessageSquare, Pencil, Send, Target, TrendingUp, Users } from 'lucide-react';
+import { Loader2, Lock, Mail, MessageSquare, Pencil, Send, Target, TrendingUp, Unlock, Users } from 'lucide-react';
 import { StepTitle } from './StepTitle';
 
 import { humaniseChannel } from './BriefEditorDrawer';
@@ -32,6 +32,7 @@ interface Brief {
   messaging: { angle: string; line?: string }[] | null;
   successMetrics: { name: string; target?: string }[] | null;
   idealCustomer: string | null;
+  locked: boolean;
 }
 
 interface Analytics {
@@ -65,6 +66,13 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
   const [chips, setChips] = useState<{ industries: string[]; geographies: string[]; companySizes: string[]; revenues: string[]; channels: string[]; audience: string[] } | null>(null);
   const [chipsLoading, setChipsLoading] = useState(true);
   useEffect(() => {
+    // Locked briefs never re-fetch chip suggestions. The picks the user
+    // already made still render (we feed them into the picker as
+    // `selected`); we just don't ask the AI for fresh options.
+    if (brief.locked) {
+      setChipsLoading(false);
+      return;
+    }
     let cancelled = false;
     setChipsLoading(true);
     fetch(`/api/strategy/${playId}/chips`, {
@@ -89,7 +97,7 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
       .catch(() => {})
       .finally(() => { if (!cancelled) setChipsLoading(false); });
     return () => { cancelled = true; };
-  }, [playId, playTitle, pitch]);
+  }, [playId, playTitle, pitch, brief.locked]);
 
   // Multi-pick chip handlers. The brief stores both the raw band labels
   // (companySizes / revenues / geographies arrays) AND a derived numeric
@@ -152,8 +160,19 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
       <header className="flex items-start gap-2">
         <div className="flex-1">
           <StepTitle substep="Brief" />
-          <p className="text-[12px] text-evari-dim mt-0.5">A summary of your go-to-market strategy. Review and share with your team.</p>
+          <p className="text-[12px] text-evari-dim mt-0.5">{brief.locked ? 'Locked. Click Unlock to refine; the AI will not redraft until you do.' : 'A summary of your go-to-market strategy. Review and share with your team.'}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => onPatch({ locked: !brief.locked })}
+          className={brief.locked
+            ? 'inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/40 hover:bg-evari-gold/25 transition'
+            : 'inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-surface text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition'}
+          title={brief.locked ? 'Unlock to allow AI to refine again' : 'Lock the brief so the AI will not redraft on revisit'}
+        >
+          {brief.locked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+          {brief.locked ? 'Unlock' : 'Lock'}
+        </button>
         <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-text text-evari-ink hover:brightness-110 transition">
           <Pencil className="h-3.5 w-3.5" /> Edit brief
         </button>
@@ -166,8 +185,10 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
         {/* LEFT: chip-pick questions. Each ChipPicker is one stage
             question: pick options to lock in your market. Custom
             options can be added inline. The brief patches back to
-            Supabase via the parent's onPatch callback. */}
-        <div className="flex flex-col gap-panel">
+            Supabase via the parent's onPatch callback. When the brief
+            is locked, the whole column is wrapped in a disabled
+            fieldset so chip picks do not fire onPatch. */}
+        <fieldset disabled={brief.locked} className={brief.locked ? 'flex flex-col gap-panel opacity-70 pointer-events-none' : 'flex flex-col gap-panel'}>
           <ChipPicker
             title="Sector"
             hint="Which industries are we targeting?"
@@ -244,7 +265,7 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
               </Card>
             ) : null
           }
-        </div>
+        </fieldset>
 
         {/* RIGHT: Spitball with Claude, full column depth. Compact mode
             so it doesn't compete with the seven-step Next button. */}
@@ -256,21 +277,21 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
             open={true}
             kickoff={false}
             compact
+            locked={brief.locked}
             onClose={() => {}}
           />
         </div>
       </div>
 
-      <Card icon={<TrendingUp className="h-4 w-4" />} title="Success metrics">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-panel">
-          {(brief.successMetrics ?? []).slice(0, 6).map((m, i) => (
-            <Stat key={i} label={m.name || `Metric ${i + 1}`} value={m.target ?? '—'} sub="Target" accent />
-          ))}
-          {(brief.successMetrics ?? []).length === 0 ? (
-            <div className="col-span-full text-[11px] text-evari-dim">No metrics defined yet. Open Success metrics to set them.</div>
-          ) : null}
-        </div>
-      </Card>
+      {(brief.successMetrics ?? []).length > 0 ? (
+        <Card icon={<TrendingUp className="h-4 w-4" />} title="Success metrics">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-panel">
+            {(brief.successMetrics ?? []).slice(0, 6).map((m, i) => (
+              <Stat key={i} label={m.name || `Metric ${i + 1}`} value={m.target ?? '—'} sub="Target" accent />
+            ))}
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

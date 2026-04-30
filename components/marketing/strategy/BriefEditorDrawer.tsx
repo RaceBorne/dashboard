@@ -34,6 +34,7 @@ interface Brief {
   messaging: { angle: string; line?: string }[] | null;
   successMetrics: { name: string; target?: string }[] | null;
   idealCustomer: string | null;
+  locked: boolean;
   handoffStatus: 'draft' | 'ready' | 'handed_off';
 }
 

@@ -29,6 +29,7 @@ export interface StrategyBrief {
   messaging: { angle: string; line?: string }[] | null;
   successMetrics: { name: string; target?: string }[] | null;
   idealCustomer: string | null;
+  locked: boolean;
   handoffStatus: 'draft' | 'ready' | 'handed_off';
   createdAt: string;
   updatedAt: string;
@@ -53,6 +54,7 @@ interface Row {
   messaging: { angle: string; line?: string }[] | null;
   success_metrics: { name: string; target?: string }[] | null;
   ideal_customer: string | null;
+  locked: boolean | null;
   handoff_status: 'draft' | 'ready' | 'handed_off';
   created_at: string;
   updated_at: string;
@@ -78,6 +80,7 @@ function rowToBrief(r: Row): StrategyBrief {
     messaging: r.messaging,
     successMetrics: r.success_metrics,
     idealCustomer: r.ideal_customer,
+    locked: !!r.locked,
     handoffStatus: r.handoff_status,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -125,6 +128,7 @@ export async function updateBrief(playId: string, patch: Partial<StrategyBrief>)
   if ('messaging' in patch) dbPatch.messaging = patch.messaging;
   if ('successMetrics' in patch) dbPatch.success_metrics = patch.successMetrics;
   if ('idealCustomer' in patch) dbPatch.ideal_customer = patch.idealCustomer;
+  if ('locked' in patch) dbPatch.locked = patch.locked;
   if ('handoffStatus' in patch) dbPatch.handoff_status = patch.handoffStatus;
   const { data, error } = await sb
     .from('dashboard_strategy_briefs')
