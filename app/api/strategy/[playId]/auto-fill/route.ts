@@ -65,6 +65,8 @@ export async function POST(req: Request) {
   if (b.idealCustomer && b.idealCustomer.trim().length > 0) filled.push('idealCustomer');
   if (b.messaging && b.messaging.length > 0) filled.push('messaging');
   if (b.successMetrics && b.successMetrics.length > 0) filled.push('successMetrics');
+  if (b.industries && b.industries.length > 0) filled.push('industries');
+  if ((b.geographies && b.geographies.length > 0) || (b.geography && b.geography.trim().length > 0)) filled.push('geography');
 
   const prompt = [
     'Fill in the empty structural fields of this strategy brief based on the picks already made. Only write fields that are currently empty; for fields already filled, omit them from the JSON.',
@@ -76,11 +78,13 @@ export async function POST(req: Request) {
     '',
     'Reply with VALID JSON in exactly this shape, omitting any keys for already-filled fields, no commentary, no markdown fences:',
     '{',
-    '  "campaignName": "string — short, punchy, max 6 words, sentence case",',
-    '  "objective": "string — single sentence describing what this campaign is meant to achieve in concrete terms",',
-    '  "idealCustomer": "string — one paragraph (3-4 sentences) describing the ideal customer: who they are, what they care about, the trigger that makes them buy",',
-    '  "messaging": [{ "angle": "string", "line": "string — optional supporting tagline" }],',
-    '  "successMetrics": [{ "name": "string", "target": "string — concrete numeric or qualitative target" }]',
+    '  "campaignName": "string, short and punchy, max 6 words, sentence case",',
+    '  "objective": "string, single sentence describing what this campaign is meant to achieve in concrete terms",',
+    '  "idealCustomer": "string, one paragraph (3 to 4 sentences) describing the ideal customer: who they are, what they care about, the trigger that makes them buy",',
+    '  "messaging": [{ "angle": "string", "line": "string, optional supporting tagline" }],',
+    '  "successMetrics": [{ "name": "string", "target": "string, concrete numeric or qualitative target" }],',
+    '  "industries": ["string", "string", "string"],',
+    '  "geographies": ["string"]',
     '}',
     '',
     'Strict rules: plain prose only inside each string, no em-dashes (use commas or full stops), no markdown, no headings, no bold. messaging should have exactly 3 entries. successMetrics should have exactly 3 entries.',
@@ -99,6 +103,8 @@ export async function POST(req: Request) {
       idealCustomer?: string;
       messaging?: { angle: string; line?: string }[];
       successMetrics?: { name: string; target?: string }[];
+      industries?: string[];
+      geographies?: string[];
     };
 
     // Build the patch: only include keys Claude actually returned, and
@@ -109,6 +115,14 @@ export async function POST(req: Request) {
     if (typeof parsed.idealCustomer === 'string' && !filled.includes('idealCustomer')) patch.idealCustomer = parsed.idealCustomer;
     if (Array.isArray(parsed.messaging) && !filled.includes('messaging')) patch.messaging = parsed.messaging.slice(0, 3);
     if (Array.isArray(parsed.successMetrics) && !filled.includes('successMetrics')) patch.successMetrics = parsed.successMetrics.slice(0, 3);
+    if (Array.isArray(parsed.industries) && !filled.includes('industries')) patch.industries = parsed.industries.slice(0, 4).filter((s) => typeof s === 'string' && s.trim().length > 0);
+    if (Array.isArray(parsed.geographies) && !filled.includes('geography')) {
+      const geos = parsed.geographies.filter((s) => typeof s === 'string' && s.trim().length > 0);
+      if (geos.length > 0) {
+        patch.geographies = geos;
+        patch.geography = geos.join(', ');
+      }
+    }
 
     return NextResponse.json({ ok: true, patch });
   } catch (err) {

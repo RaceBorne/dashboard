@@ -211,11 +211,25 @@ export function HandoffStep({ playId, brief, onEdit, onProceed, stage = 'idle', 
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0 space-y-1">
             <ReadyRow
-              done={r.picksComplete}
-              label="Strategic picks"
-              detail={r.picksComplete
-                ? 'Sectors, audience, channels chosen.'
-                : `Pick on Market analysis and Target profile (${r.picksFilled}/${r.picksTotal}).`}
+              done={isFieldFilled(brief, 'industries')}
+              label="Sectors"
+              detail={isFieldFilled(brief, 'industries')
+                ? brief.industries.join(', ')
+                : 'Pick on Market analysis (or Auto-fill will infer from your pitch).'}
+            />
+            <ReadyRow
+              done={isFieldFilled(brief, 'targetAudience')}
+              label="Audience"
+              detail={isFieldFilled(brief, 'targetAudience')
+                ? brief.targetAudience.join(', ')
+                : 'Pick on Target profile.'}
+            />
+            <ReadyRow
+              done={isFieldFilled(brief, 'channels')}
+              label="Channels"
+              detail={isFieldFilled(brief, 'channels')
+                ? brief.channels.join(', ')
+                : 'Pick on Target profile.'}
             />
             <ReadyRow
               done={r.proseComplete}
@@ -231,20 +245,18 @@ export function HandoffStep({ playId, brief, onEdit, onProceed, stage = 'idle', 
             <button
               type="button"
               onClick={() => void fixIssues()}
-              disabled={fixing || inFlight || !r.picksComplete}
+              disabled={fixing || inFlight}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/40 hover:bg-evari-gold/25 disabled:opacity-60 disabled:cursor-not-allowed transition shrink-0"
-              title={r.picksComplete
-                ? 'Have Claude write the missing prose from your picks'
-                : 'Pick sectors, audience, and channels first'}
+              title="Have Claude write the missing prose from whatever's there: title, pitch, picks. Industries and geography will be inferred if blank."
             >
               {fixing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              {fixing ? 'Auto-filling…' : 'Auto-fill'}
+              {fixing ? 'Auto-filling…' : 'Auto-fill blanks'}
             </button>
           ) : null}
           <button
             type="button"
             onClick={onProceed}
-            disabled={inFlight || fixing || !r.picksComplete}
+            disabled={inFlight || fixing}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed transition shrink-0"
           >
             {inFlight ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
