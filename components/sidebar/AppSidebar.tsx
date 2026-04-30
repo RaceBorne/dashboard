@@ -505,7 +505,7 @@ export function AppSidebar() {
                           openGroups.has('setup') ? 'max-h-[500px]' : 'max-h-0',
                         )}
                       >
-                        <div className="space-y-0.5 pl-2">
+                        <div className="space-y-0.5">
                           {(groups['setup'] ?? []).map((item) => {
                             const active = pathname === item.href || pathname.startsWith(item.href + '/');
                             const Icon = item.icon;
