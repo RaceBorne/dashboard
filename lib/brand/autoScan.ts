@@ -16,6 +16,7 @@ import {
   type BusinessListing,
 } from '@/lib/integrations/dataforseo';
 import { upsertLead } from '@/lib/dashboard/repository';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import type { Lead, Play, PlayAutoScanStatus, PlaySourceRun } from '@/lib/types';
 
 interface SearchPlan {
@@ -129,6 +130,11 @@ export async function autoScanForPlay(
     const row = listingToLead(l, play, category, nowIso);
     const out = await upsertLead(supabase, row);
     if (out) inserted += 1;
+    // Also write a shortlist row so the Discovery dashboard surfaces
+    // the company. The leads table is the canonical prospect record;
+    // the shortlist is the per-play scoring + curation surface that
+    // /api/discover/[playId]/dashboard reads from.
+    await upsertShortlistFromListing(supabase, l, play.id);
   }
 
   const finishedAt = new Date().toISOString();
@@ -273,6 +279,37 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
+}
+
+async function upsertShortlistFromListing(
+  supabase: ReturnType<typeof createSupabaseAdmin> extends infer T ? T : never,
+  l: BusinessListing,
+  playId: string,
+): Promise<void> {
+  if (!supabase) return;
+  const domain = l.domain || deriveDomain(l.url) || (l.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.unknown');
+  // Upsert by (play_id, domain) so re-running the auto-scan doesn't
+  // duplicate companies that DataForSEO surfaces again.
+  await supabase
+    .from('dashboard_play_shortlist')
+    .upsert(
+      {
+        play_id: playId,
+        domain,
+        name: l.title,
+        industry: l.category ?? null,
+        location: l.address ?? null,
+        description: l.category
+          ? 'Auto-scan (DataForSEO): ' + l.category + (l.address ? ', ' + l.address : '')
+          : (l.address ?? null),
+        // Default fit_score of 60 (good band) until the scoring rubric
+        // kicks in or the operator overrides it.
+        fit_score: 60,
+        fit_band: 'good',
+        status: 'candidate',
+      },
+      { onConflict: 'play_id,domain', ignoreDuplicates: false },
+    );
 }
 
 function deriveDomain(url: string | undefined): string | undefined {
