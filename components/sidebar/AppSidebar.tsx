@@ -81,7 +81,7 @@ const NAV = [
   // Content group — asset library + reusable design templates.
   // Parent rows (Library, Templates) are full size; per-channel
   // template entries below sit as children of Templates.
-  { href: '/email/assets', label: 'Library', icon: Image, group: 'content' },
+  { href: '/email/assets', label: 'Asset library', icon: Image, group: 'content' },
   { href: '/email/templates', label: 'Templates', icon: FileText, group: 'content' },
   { href: '/email/templates?kind=newsletter', label: 'Newsletter', icon: Mail, group: 'content', child: true },
   { href: '/email/templates?kind=email', label: 'Email', icon: Mail, group: 'content', child: true },
