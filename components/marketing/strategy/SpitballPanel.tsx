@@ -365,12 +365,12 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
           </div>
 
           {messages.map((m) => (
-            <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+            <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-stretch')}>
               <div className={cn(
-                'rounded-panel px-3 py-2 text-[13px] max-w-[85%] break-words leading-relaxed',
+                'rounded-panel px-3 py-2 text-[13px] break-words leading-relaxed',
                 m.role === 'user'
-                  ? 'bg-evari-gold/15 text-evari-text'
-                  : 'bg-evari-surface text-evari-text border border-evari-edge/30',
+                  ? 'bg-evari-gold/15 text-evari-text max-w-[85%]'
+                  : 'bg-evari-surface text-evari-text border border-evari-edge/30 w-full',
               )}>
                 {renderRich(m.content)}
               </div>
