@@ -53,6 +53,14 @@ const NAV = [
   { href: '/shortlist', label: 'Shortlist', icon: Star, group: 'pipeline', child: true },
   { href: '/enrichment', label: 'Enrichment', icon: Database, group: 'pipeline', child: true },
   { href: '/leads', label: 'Leads', icon: Users, group: 'pipeline', child: true },
+  { href: '/email', label: 'Email', icon: Mail, group: 'marketing' },
+  { href: '/people', label: 'People', icon: Users, group: 'marketing', child: true },
+  { href: '/email/conversations', label: 'Conversations', icon: Mail, group: 'marketing', child: true },
+  { href: '/email/audience', label: 'Audience', icon: Users, group: 'marketing', child: true },
+  { href: '/email/templates', label: 'Templates', icon: Image, group: 'marketing', child: true },
+  { href: '/email/campaigns', label: 'Campaigns', icon: Send, group: 'marketing', child: true },
+  { href: '/email/statistics', label: 'Statistics', icon: TrendingUp, group: 'marketing', child: true },
+  { href: '/email/flows', label: 'Flows', icon: GitBranch, group: 'marketing', child: true },
   { href: '/traffic', label: 'Traffic', icon: TrendingUp, group: 'web' },
   { href: '/seo', label: 'SEO Health', icon: Search, group: 'web', warn: true },
   { href: '/pages', label: 'Pages', icon: FileText, group: 'web' },
@@ -65,14 +73,6 @@ const NAV = [
   { href: '/social/tiktok', label: 'TikTok', icon: Music, group: 'broadcast', child: true },
   { href: '/social/linkedin', label: 'LinkedIn', icon: Linkedin, group: 'broadcast', child: true },
   { href: '/journals', label: 'Journals', icon: FileText, group: 'broadcast', child: true },
-  { href: '/email', label: 'Email', icon: Mail, group: 'marketing' },
-  { href: '/people', label: 'People', icon: Users, group: 'marketing', child: true },
-  { href: '/email/conversations', label: 'Conversations', icon: Mail, group: 'marketing', child: true },
-  { href: '/email/audience', label: 'Audience', icon: Users, group: 'marketing', child: true },
-  { href: '/email/templates', label: 'Templates', icon: Image, group: 'marketing', child: true },
-  { href: '/email/campaigns', label: 'Campaigns', icon: Send, group: 'marketing', child: true },
-  { href: '/email/statistics', label: 'Statistics', icon: TrendingUp, group: 'marketing', child: true },
-  { href: '/email/flows', label: 'Flows', icon: GitBranch, group: 'marketing', child: true },
   // Setup group — touch-once-then-forget pages + integration plumbing.
   // Sits below Marketing in the sidebar so daily workflow items lead,
   // configuration follows. Klaviyo + Shopify live here too because
@@ -94,7 +94,7 @@ const NAV = [
 const GROUP_LABELS: Record<string, string> = {
   today: 'Today',
   pipeline: 'Prospecting',
-  web: 'Website',
+  web: 'Website Statistics',
   broadcast: 'Broadcast',
   marketing: 'Marketing',
   setup: 'Setup',
@@ -327,7 +327,7 @@ export function AppSidebar() {
           collapsed ? 'px-1.5' : 'px-2',
         )}
       >
-        {Object.entries(groups).filter(([g]) => g !== 'system').map(([group, items]) => {
+        {Object.entries(groups).filter(([g]) => g !== 'system' && g !== 'setup').map(([group, items]) => {
           const groupOpen = openGroups.has(group);
           return (
           <div key={group} className="mb-4">
@@ -465,7 +465,8 @@ export function AppSidebar() {
           systemPanelRef + systemTriggerRef above). */}
       {(() => {
         const systemItems = groups['system'] ?? [];
-        if (systemItems.length === 0) return null;
+        const setupItems = groups['setup'] ?? [];
+        if (systemItems.length === 0 && setupItems.length === 0) return null;
         const open = openGroups.has('system');
         return (
           <div ref={systemPanelRef} className="shrink-0">
@@ -473,11 +474,62 @@ export function AppSidebar() {
               <div
                 className={cn(
                   'overflow-hidden border-t border-evari-edge/30 bg-evari-ink transition-[max-height] duration-500 ease-evari',
-                  open ? 'max-h-[400px]' : 'max-h-0 border-t-0',
+                  open ? 'max-h-[700px]' : 'max-h-0 border-t-0',
                 )}
                 aria-hidden={!open}
               >
                 <div className="space-y-0.5 px-2 py-2">
+                  {/* Setup sub-section. Lives inside the Settings
+                      pull-up so it doesn't clutter the main nav, but
+                      keeps its collapsible dropdown so the user can
+                      hide it once they've finished initial setup. */}
+                  {(groups['setup'] ?? []).length > 0 ? (
+                    <div className="mb-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup('setup')}
+                        className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium hover:text-evari-dim transition-colors"
+                        aria-expanded={openGroups.has('setup')}
+                      >
+                        <ChevronDown
+                          className={cn(
+                            'h-3 w-3 text-evari-dimmer/70 transition-transform',
+                            openGroups.has('setup') ? '' : '-rotate-90',
+                          )}
+                        />
+                        <span className="flex-1 text-left">Setup</span>
+                      </button>
+                      <div
+                        className={cn(
+                          'overflow-hidden transition-[max-height] duration-300 ease-evari',
+                          openGroups.has('setup') ? 'max-h-[500px]' : 'max-h-0',
+                        )}
+                      >
+                        <div className="space-y-0.5 pl-2">
+                          {(groups['setup'] ?? []).map((item) => {
+                            const active = pathname === item.href || pathname.startsWith(item.href + '/');
+                            const Icon = item.icon;
+                            return (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                className={cn(
+                                  'flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors',
+                                  active
+                                    ? 'bg-evari-surface text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                                    : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
+                                )}
+                              >
+                                <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-evari-text' : 'text-evari-dimmer')} />
+                                <span className="flex-1">{item.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="my-1.5 mx-2 h-px bg-evari-line/20" />
+                    </div>
+                  ) : null}
                   {systemItems.map((item) => {
                     const active = pathname === item.href || pathname.startsWith(item.href + '/');
                     const Icon = item.icon;
