@@ -323,10 +323,16 @@ export function DiscoveryDashboard({ plays, play }: Props) {
     if (!confirm(`Mark ${domain} as not a fit?\n\nThis removes it from this list and stops it from showing up in any future searches (Similar, agent, auto-scan).`)) return;
     setBusy(id);
     try {
+      // Capture WHY this row was originally suggested (the agent's
+      // fit reason). Surfaced back to find-similar as a negative
+      // example next time so the AI learns the pattern of what's
+      // being rejected, not just the bare domain.
+      const row = rows?.find((r) => r.id === id);
+      const reason = row?.description ?? null;
       await fetch(`/api/discover/${play.id}/block`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ domain, rowId: id }),
+        body: JSON.stringify({ domain, rowId: id, reason, rejectedName: row?.name ?? null }),
       });
       // Drop the row from local state without waiting for a reload.
       setRows((cur) => cur?.filter((r) => r.id !== id) ?? null);
@@ -1027,7 +1033,13 @@ export function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentPr
       await fetch(`/api/discover/${playId}/block`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ domain: peer.domain, reason: 'Not relevant from Similar suggestion' }),
+        body: JSON.stringify({
+          domain: peer.domain,
+          // Pass the peer's why string so future Similar runs can
+          // see what kind of pattern the operator is rejecting.
+          reason: peer.why || 'Not relevant from Similar suggestion',
+          rejectedName: peer.name,
+        }),
       });
       setSimilarCache((cur) => {
         const entry = cur[row!.domain];

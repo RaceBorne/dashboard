@@ -25,6 +25,10 @@ interface Body {
   // 'play' (default) blocks the domain only inside this venture.
   // 'global' blocks it across every venture and every search path.
   scope?: 'play' | 'global';
+  // The friendly name of the rejected company; combined with reason
+  // when stored so the find-similar prompt can surface a useful
+  // negative-example string.
+  rejectedName?: string;
 }
 
 function normalizeDomain(d: string): string {
@@ -80,11 +84,17 @@ export async function POST(
     if (scoped && scoped.length > 0) alreadyBlocked = true;
   }
   if (!alreadyBlocked) {
+    // Store name + reason together so the find-similar prompt can
+    // render a clean negative-example line. Name first because it
+    // anchors the example, reason second to give the why.
+    const composedReason = [body.rejectedName, body.reason]
+      .filter((s) => typeof s === 'string' && s.trim().length > 0)
+      .join(' — ');
     await sb
       .from('dashboard_blocked_domains')
       .insert({
         domain,
-        reason: body.reason ?? null,
+        reason: composedReason || null,
         play_id: playScope,
       });
   }

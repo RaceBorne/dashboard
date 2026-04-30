@@ -57,17 +57,28 @@ export async function POST(req: Request) {
   // Pull the no-go list: global blocks PLUS per-play blocks for the
   // current venture. A domain blocked elsewhere stays available here
   // unless it was blocked globally or specifically for this play.
+  // Also pull the stored reason for each so we can feed the most
+  // recent rejections to the AI as negative examples ('don't suggest
+  // things like these'). Helps the agent learn the operator's taste.
   const sbForBlocks = createSupabaseAdmin();
   let blockedDomains: string[] = [];
+  let recentRejections: Array<{ domain: string; reason: string | null }> = [];
   if (sbForBlocks) {
-    let q = sbForBlocks
+    const { data } = await sbForBlocks
       .from('dashboard_blocked_domains')
-      .select('domain, play_id');
-    const { data } = await q;
-    const rows = (data ?? []) as Array<{ domain: string; play_id: string | null }>;
-    blockedDomains = rows
-      .filter((r) => r.play_id === null || r.play_id === body.playId)
-      .map((r) => r.domain.toLowerCase());
+      .select('domain, play_id, reason, created_at')
+      .order('created_at', { ascending: false })
+      .limit(80);
+    const rows = (data ?? []) as Array<{ domain: string; play_id: string | null; reason: string | null; created_at: string }>;
+    const relevant = rows.filter((r) => r.play_id === null || r.play_id === body.playId);
+    blockedDomains = relevant.map((r) => r.domain.toLowerCase());
+    // Keep only entries that have a reason worth surfacing (the
+    // generic 'Not relevant' default carries no signal). Take the
+    // 20 most recent for the prompt.
+    recentRejections = relevant
+      .filter((r) => r.reason && r.reason.trim().length > 0 && !/^Not relevant from Similar/i.test(r.reason))
+      .slice(0, 20)
+      .map((r) => ({ domain: r.domain, reason: r.reason }));
   }
   const skipDomains = [...seenDomains, ...blockedDomains];
 
@@ -250,10 +261,21 @@ export async function POST(req: Request) {
     '\n  - If you cannot find ' + limit + ' peers that pass all three checks, RETURN FEWER. Quality over' +
     '\n    quantity. 3 great peers beats 8 generic ones.';
 
+  const rejectionBlock = recentRejections.length > 0
+    ? [
+        'OPERATOR HAS REJECTED these previously for this venture. Do NOT suggest brands that fit the same pattern, even if they are not on the skip list:',
+        ...recentRejections.map((r) => '  - ' + r.domain + (r.reason ? ' — ' + r.reason : '')),
+        '',
+        'When you pick peers, actively avoid the axes that got rejected above. If the operator rejected something for being a generic members club, do not suggest other generic members clubs.',
+      ].join('\n')
+    : '';
+
   const prompt = [
     ventureBlock,
     '',
     referenceBlock,
+    '',
+    rejectionBlock,
     '',
     'Skip list (already in the operator\'s results or blocked, do not re-suggest):',
     skipDomains.slice(0, 60).map((d) => '  ' + d).join('\n') || '  (none)',
