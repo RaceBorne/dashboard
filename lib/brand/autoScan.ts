@@ -17,6 +17,7 @@ import {
 } from '@/lib/integrations/dataforseo';
 import { upsertLead } from '@/lib/dashboard/repository';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { getOrCreateBrief } from '@/lib/marketing/strategy';
 import type { Lead, Play, PlayAutoScanStatus, PlaySourceRun } from '@/lib/types';
 
 interface SearchPlan {
@@ -77,9 +78,9 @@ export async function autoScanForPlay(
     return { inserted: 0, found: 0, agent: 'skipped', skipReason: 'no-ai' };
   }
 
-  let plan: SearchPlan;
+  let plans: SearchPlan[];
   try {
-    plan = await derivePlanFromPlay(play, opts?.limit ?? 25);
+    plans = await derivePlansFromPlay(supabase, play, opts?.limit);
   } catch (err) {
     await finish(
       supabase,
@@ -90,21 +91,45 @@ export async function autoScanForPlay(
         finishedAt: new Date().toISOString(),
         error: 'Plan failed: ' + (err as Error).message,
       },
-      'Auto-scan skipped: could not derive search plan — ' + (err as Error).message,
+      'Auto-scan skipped: could not derive search plan, ' + (err as Error).message,
     );
     return { inserted: 0, found: 0, agent: 'skipped', skipReason: 'plan-failed' };
   }
 
+  // Run every search plan in parallel and merge the results, deduped
+  // by domain so the same yacht builder can't show up twice across
+  // different keyword variants.
   let listings: BusinessListing[] = [];
   let cost = 0;
   try {
-    const res = await searchBusinessListings({
-      description: plan.description,
-      locationName: plan.locationName,
-      limit: plan.limit ?? 25,
-    });
-    listings = res.listings;
-    cost = res.cost;
+    const settled = await Promise.allSettled(
+      plans.map((p) =>
+        searchBusinessListings({
+          description: p.description,
+          locationName: p.locationName,
+          limit: p.limit ?? 100,
+        }),
+      ),
+    );
+    const seen = new Set<string>();
+    for (const r of settled) {
+      if (r.status !== 'fulfilled') continue;
+      cost += r.value.cost;
+      for (const l of r.value.listings) {
+        const key = (l.domain || l.url || l.title).toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        listings.push(l);
+      }
+    }
+    if (listings.length === 0) {
+      // All searches failed or returned nothing. Surface the first
+      // error so the Discovery banner shows something useful.
+      const firstErr = settled.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
+      if (firstErr) {
+        throw firstErr.reason;
+      }
+    }
   } catch (err) {
     await finish(
       supabase,
@@ -113,11 +138,11 @@ export async function autoScanForPlay(
         status: 'error',
         startedAt,
         finishedAt: new Date().toISOString(),
-        description: plan.description,
-        locationName: plan.locationName,
+        description: plans.map((p) => p.description).join(' | '),
+        locationName: plans[0]?.locationName ?? '',
         error: 'DataForSEO call failed: ' + (err as Error).message,
       },
-      'Auto-scan skipped: DataForSEO call failed — ' + (err as Error).message,
+      'Auto-scan skipped: DataForSEO call failed, ' + (err as Error).message,
     );
     return { inserted: 0, found: 0, agent: 'skipped', skipReason: 'dfs-failed' };
   }
@@ -138,6 +163,7 @@ export async function autoScanForPlay(
   }
 
   const finishedAt = new Date().toISOString();
+  const planSummary = plans.map((p) => p.description).join(', ');
   await finish(
     supabase,
     play,
@@ -147,26 +173,25 @@ export async function autoScanForPlay(
       finishedAt,
       inserted,
       found: listings.length,
-      description: plan.description,
-      locationName: plan.locationName,
+      description: planSummary,
+      locationName: plans[0]?.locationName ?? '',
       costUsd: cost,
     },
     'Auto-scan sourced ' +
       inserted +
-      ' candidate(s) for "' +
-      plan.description +
-      '" in ' +
-      plan.locationName +
-      ' (DataForSEO, $' +
+      ' candidate(s) across ' +
+      plans.length +
+      ' searches (DataForSEO, $' +
       cost.toFixed(3) +
       ').',
-    // Also stamp scope.lastSourceRun so the detail panel's "Last run" card
-    // shows the auto-scan result even before Craig runs Source Prospects.
+    // Also stamp scope.lastSourceRun so the detail panel's "Last run"
+    // card shows the auto-scan result even before Craig runs Source
+    // Prospects manually.
     {
       at: finishedAt,
       agent: 'auto-scan',
-      description: plan.description,
-      locationName: plan.locationName,
+      description: planSummary,
+      locationName: plans[0]?.locationName ?? '',
       found: listings.length,
       inserted,
       costUsd: cost,
@@ -177,7 +202,7 @@ export async function autoScanForPlay(
     inserted,
     found: listings.length,
     agent: 'dataforseo',
-    query: plan,
+    query: plans[0],
     costUsd: cost,
   };
 }
@@ -186,7 +211,60 @@ export async function autoScanForPlay(
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function derivePlanFromPlay(play: Play, limit: number): Promise<SearchPlan> {
+async function derivePlansFromPlay(
+  supabase: SupabaseClient,
+  play: Play,
+  limit: number | undefined,
+): Promise<SearchPlan[]> {
+  // Strategy brief drives the matrix when present: every sector
+  // crossed with every geography (capped at 8 queries to keep cost
+  // sane). Falls back to a single AI-generated plan otherwise.
+  const brief = await getOrCreateBrief(play.id).catch(() => null);
+  if (brief && brief.industries.length > 0) {
+    const geos = brief.geographies && brief.geographies.length > 0
+      ? brief.geographies
+      : (brief.geography ? [brief.geography] : ['United Kingdom']);
+    const queries: SearchPlan[] = [];
+    for (const sector of brief.industries) {
+      for (const geo of geos) {
+        queries.push({
+          description: sector,
+          locationName: normaliseLocation(geo),
+          limit: limit ?? 100,
+        });
+        if (queries.length >= 8) break;
+      }
+      if (queries.length >= 8) break;
+    }
+    if (queries.length > 0) return queries;
+  }
+  // Fallback: single AI-generated plan.
+  const single = await deriveSinglePlanFromPlay(play, limit ?? 50);
+  return [single];
+}
+
+/**
+ * Map free-form geography strings to a DataForSEO-friendly location
+ * name. DataForSEO accepts country names ("United Kingdom"), region/
+ * city pairs ("Southampton, England, United Kingdom"), and similar.
+ * Anything we can't confidently re-format gets the country prefix
+ * appended.
+ */
+function normaliseLocation(geo: string): string {
+  const trimmed = geo.trim();
+  if (!trimmed) return 'United Kingdom';
+  // If they typed something with the country already, leave it alone.
+  if (/united\s*kingdom|england|scotland|wales|usa|united\s*states|canada|australia|france|germany|italy|spain/i.test(trimmed)) {
+    return trimmed;
+  }
+  // Strip parenthetical detail like 'South Coast (Solent, ...)' so
+  // DataForSEO doesn't choke. Take what's outside the parens, append
+  // 'United Kingdom' as the country anchor.
+  const noParens = trimmed.replace(/\([^)]*\)/g, '').trim();
+  return noParens + ', United Kingdom';
+}
+
+async function deriveSinglePlanFromPlay(play: Play, limit: number): Promise<SearchPlan> {
   const prompt = [
     'You are translating a freshly-named Evari outreach Play into a DataForSEO Business Listings search.',
     'The Play has JUST been created, so it may only have a title and a short brief.',
@@ -207,7 +285,7 @@ async function derivePlanFromPlay(play: Play, limit: number): Promise<SearchPlan
     'Rules:',
     '- The description should be concrete (what kind of business are we targeting) and as specific as the Play title allows.',
     '- Default location is "United Kingdom" unless the title implies a specific city/region.',
-    '- Prefer 25 as the default limit.',
+    '- Prefer 100 as the default limit, capped at 200.',
     '- Never target generic bike shops. Prefer HNW / luxury-adjacent categories consistent with the brand grounding.',
     '- Return raw JSON only — no prose, no markdown fences.',
   ].join('\n');
