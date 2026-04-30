@@ -7,6 +7,7 @@ import { buildSystemPrompt } from '@/lib/ai/gateway';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay } from '@/lib/dashboard/repository';
 import { isDataForSeoConnected, webSearchQuery } from '@/lib/integrations/dataforseo';
+import { lookupPeers, recordPeers } from '@/lib/brand/peerBrain';
 import type { DiscoveredCompany } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -51,6 +52,34 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+
+  // Peer Brain shortcut. If we have at least 5 peers in the brain
+  // for this reference at confidence >= 0.6, return them in ~10ms
+  // and skip the AI call entirely. Verify mode bypasses this so the
+  // user can re-research with web search on demand.
+  if (!verify) {
+    const cached = await lookupPeers(domain, {
+      limit: limit,
+      skipDomains: seenDomains,
+      minConfidence: 0.6,
+    });
+    if (cached.length >= 5) {
+      const supabaseEarly = createSupabaseAdmin();
+      const peersOut = await mapPeersWithListStatus(supabaseEarly, body.playId, cached.map((p) => ({
+        domain: p.domain,
+        name: p.name ?? p.domain,
+        why: p.why ?? '',
+        logoUrl: 'https://logo.clearbit.com/' + p.domain,
+      })));
+      return NextResponse.json({
+        ok: true,
+        peers: peersOut,
+        reasoning: 'Peers from the brand brain (' + cached.length + ' cached, no AI call needed).',
+        source: 'brain',
+      });
+    }
+  }
+
   const supabase = createSupabaseAdmin();
 
   // Reference company context. First try the legacy enrichment table
@@ -293,41 +322,76 @@ export async function POST(req: Request) {
     if (peers.length >= limit) break;
   }
 
-  // Peers are SUGGESTIONS only. We do NOT auto-add them to the play's
-  // list. The user clicks Add to list (or Send to shortlist) per peer
-  // in the Similar tab. To support that UX we look up which peer
-  // domains already have a row for this play so the client can show
-  // "Already in list" instead of an Add button.
-  const peerDomains = peers.map((p) => p.domain.toLowerCase());
-  const existingByDomain = new Map<string, { id: string; status: string | null }>();
-  if (supabase && body.playId && peerDomains.length > 0) {
-    const { data: existing } = await supabase
-      .from('dashboard_play_shortlist')
-      .select('id, domain, status')
-      .eq('play_id', body.playId)
-      .in('domain', peerDomains);
-    for (const r of (existing ?? []) as Array<{ id: string; domain: string; status: string | null }>) {
-      existingByDomain.set(r.domain.toLowerCase(), { id: r.id, status: r.status });
-    }
-  }
+  // Write the AI's picks back to the brain so the next lookup for
+  // this reference brand is instant. Confidence depends on whether
+  // we used web verification.
+  await recordPeers(
+    domain,
+    peers.map((p) => ({ domain: p.domain, name: p.name ?? null, why: p.why ?? null })),
+    {
+      source: verify ? 'verified' : 'ai',
+      confidence: verify ? 0.7 : 0.5,
+    },
+  );
 
-  const peersOut = peers.map((p) => {
-    const existing = existingByDomain.get(p.domain.toLowerCase());
-    return {
+  const peersOut = await mapPeersWithListStatus(
+    supabase,
+    body.playId,
+    peers.map((p) => ({
       domain: p.domain,
       name: p.name ?? p.domain,
       why: p.why ?? '',
       logoUrl: 'https://logo.clearbit.com/' + p.domain,
-      rowId: existing?.id ?? null,
-      status: existing?.status ?? null,
-      alreadyInList: !!existing,
-    };
-  });
+    })),
+  );
 
   return NextResponse.json({
     ok: true,
     peers: peersOut,
     reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
+    source: verify ? 'ai+web' : 'ai',
+  });
+}
+
+/**
+ * For each peer suggestion, look up whether it already has a row in
+ * dashboard_play_shortlist for the given play. The client uses this
+ * to render "Add to list" vs "Already in list" per peer.
+ */
+async function mapPeersWithListStatus(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  playId: string | undefined,
+  peers: Array<{ domain: string; name: string; why: string; logoUrl: string }>,
+): Promise<Array<{
+  domain: string;
+  name: string;
+  why: string;
+  logoUrl: string;
+  rowId: string | null;
+  status: string | null;
+  alreadyInList: boolean;
+}>> {
+  if (!supabase || !playId || peers.length === 0) {
+    return peers.map((p) => ({ ...p, rowId: null, status: null, alreadyInList: false }));
+  }
+  const peerDomains = peers.map((p) => p.domain.toLowerCase());
+  const { data: existing } = await supabase
+    .from('dashboard_play_shortlist')
+    .select('id, domain, status')
+    .eq('play_id', playId)
+    .in('domain', peerDomains);
+  const byDomain = new Map<string, { id: string; status: string | null }>();
+  for (const r of (existing ?? []) as Array<{ id: string; domain: string; status: string | null }>) {
+    byDomain.set(r.domain.toLowerCase(), { id: r.id, status: r.status });
+  }
+  return peers.map((p) => {
+    const ex = byDomain.get(p.domain.toLowerCase());
+    return {
+      ...p,
+      rowId: ex?.id ?? null,
+      status: ex?.status ?? null,
+      alreadyInList: !!ex,
+    };
   });
 }
 

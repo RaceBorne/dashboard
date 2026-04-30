@@ -101,6 +101,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [strategyContext, setStrategyContext] = useState<StrategyContext | null>(null);
+  const [brainStats, setBrainStats] = useState<{ referenceCount: number; peerCount: number }>({ referenceCount: 0, peerCount: 0 });
   // Set of shortlist row ids we've already kicked off About-prefetch
   // for this session. useRef so writes don't trigger re-renders. Lives
   // for the lifetime of the component, not per-load, so a row that
@@ -130,6 +131,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
       setRows(json.rows);
       setTopIndustries(json.topIndustries ?? []);
       setStrategyContext(json.strategyContext ?? null);
+      setBrainStats(json.brainStats ?? { referenceCount: 0, peerCount: 0 });
     } else {
       setRows([]); setStats({ companiesFound: 0, decisionMakers: 0, dataCoverage: 0, estimatedReachable: 0, avgFitScore: 0, pctOfDM: 0 });
     }
@@ -452,6 +454,15 @@ export function DiscoveryDashboard({ plays, play }: Props) {
           </tbody>
         </table>
       </section>
+
+      {brainStats.peerCount > 0 ? (
+        <div className="flex items-center justify-end gap-2 text-[10px] text-evari-dimmer">
+          <Sparkles className="h-3 w-3 text-evari-gold/50" />
+          <span>
+            Peer brain knows <span className="text-evari-gold tabular-nums">{brainStats.referenceCount.toLocaleString()}</span> reference {brainStats.referenceCount === 1 ? 'brand' : 'brands'} and <span className="text-evari-gold tabular-nums">{brainStats.peerCount.toLocaleString()}</span> peer {brainStats.peerCount === 1 ? 'relationship' : 'relationships'}. Lookups skip AI when confidence is high.
+          </span>
+        </div>
+      ) : null}
 
       {/* Pagination */}
       {filtered.length > PER_PAGE ? (
@@ -805,6 +816,8 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
           industry: row?.industry ?? null,
           location: row?.location ?? null,
           status,
+          // Train the peer brain on this acceptance.
+          referenceDomain: row?.domain ?? null,
         }),
       });
       const data = await res.json().catch(() => null);

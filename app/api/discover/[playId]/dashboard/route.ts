@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getOrCreateBrief } from '@/lib/marketing/strategy';
+import { getBrainStats } from '@/lib/brand/peerBrain';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -122,10 +123,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playId:
     topIndustries = [...top, { name: 'Others', count: others, pct: total > 0 ? Math.round((others / total) * 100) : 0 }];
   }
 
-  // Pull the parent brief once so the Strategy tab in the drawer can
-  // show the operator the context they signed off on (industries,
-  // audience, channels, key messages). Read-only; never mutated here.
-  const brief = await getOrCreateBrief(playId).catch(() => null);
+  // Pull the parent brief + a peer-brain stats snapshot in parallel.
+  const [brief, brainStats] = await Promise.all([
+    getOrCreateBrief(playId).catch(() => null),
+    getBrainStats().catch(() => ({ referenceCount: 0, peerCount: 0 })),
+  ]);
   const strategyContext = brief
     ? {
         campaignName: brief.campaignName,
@@ -155,5 +157,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playId:
     rows,
     topIndustries,
     strategyContext,
+    brainStats,
   });
 }

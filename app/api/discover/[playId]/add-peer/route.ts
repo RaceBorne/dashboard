@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { bumpConfidence } from '@/lib/brand/peerBrain';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,10 @@ interface Body {
   status?: 'candidate' | 'shortlisted';
   industry?: string | null;
   location?: string | null;
+  // The reference brand the user was looking at when they chose this
+  // peer. When supplied, we train the peer brain by bumping the
+  // (referenceDomain -> domain) edge confidence.
+  referenceDomain?: string | null;
 }
 
 export async function POST(
@@ -52,6 +57,20 @@ export async function POST(
     .eq('domain', domain)
     .maybeSingle();
 
+  // The brain bump applies to both paths. Add to list = +0.2,
+  // Send to shortlist = +0.4. We only bump if a referenceDomain was
+  // supplied (i.e. the click came from the Similar tab, not from a
+  // standalone add elsewhere).
+  async function trainBrain() {
+    if (!body.referenceDomain) return;
+    const delta = status === 'shortlisted' ? 0.4 : 0.2;
+    await bumpConfidence(body.referenceDomain, domain, {
+      delta,
+      peerName: body.name ?? domain,
+      why: body.why ?? null,
+    });
+  }
+
   if (existing) {
     // Only PATCH the status when promoting (candidate -> shortlisted).
     // Don't downgrade or churn.
@@ -63,8 +82,10 @@ export async function POST(
       if (error) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
       }
+      await trainBrain();
       return NextResponse.json({ ok: true, id: existing.id, status: 'shortlisted', existed: true });
     }
+    await trainBrain();
     return NextResponse.json({ ok: true, id: existing.id, status: existing.status ?? 'candidate', existed: true });
   }
 
@@ -88,5 +109,6 @@ export async function POST(
   if (error || !inserted) {
     return NextResponse.json({ ok: false, error: error?.message ?? 'insert failed' }, { status: 500 });
   }
+  await trainBrain();
   return NextResponse.json({ ok: true, id: inserted.id, status, existed: false });
 }
