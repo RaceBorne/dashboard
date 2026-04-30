@@ -114,7 +114,15 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
   const dmTotal = buckets.decisionMakers.reduce((acc, x) => acc + x.count, 0);
 
   const industriesCount = brief?.industries?.length ?? 0;
-  const geographiesCount = brief?.geographies?.length ?? (brief?.geography ? brief.geography.split(',').length : 0);
+  // Count picked geographies. Prefer the new array. If only the legacy
+  // single-string field is set (older briefs), treat any non-empty
+  // value as exactly one geography — the string may contain commas
+  // inside the location name itself (e.g. "South Coast (Solent,
+  // Portsmouth, Southampton)") so we can't split-count it.
+  const geographiesCount =
+    brief?.geographies && brief.geographies.length > 0
+      ? brief.geographies.length
+      : (brief?.geography && brief.geography.trim().length > 0 ? 1 : 0);
   const channelsCount = brief?.channels?.length ?? 0;
 
   const hasDiscoveryData = !!a && a.addressableMarket > 0;
