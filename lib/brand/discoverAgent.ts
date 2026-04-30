@@ -237,23 +237,39 @@ export async function runDiscoverAgent(
 
   const briefSummary = brief
     ? [
-        brief.industries.length > 0 ? 'Sectors: ' + brief.industries.join(', ') : '',
+        brief.synopsisText && brief.synopsisText.trim().length > 0
+          ? 'Synopsis (the canonical strategy paragraph the operator wrote):\n' + brief.synopsisText
+          : '',
+        brief.idealCustomer && brief.idealCustomer.trim().length > 0
+          ? 'Ideal customer / buyer persona:\n' + brief.idealCustomer
+          : '',
+        brief.industries.length > 0 ? 'Sectors picked on Market analysis: ' + brief.industries.join(', ') : '',
         brief.geographies && brief.geographies.length > 0
-          ? 'Geographies: ' + brief.geographies.join(', ')
-          : (brief.geography ? 'Geography: ' + brief.geography : ''),
+          ? 'Geographies picked: ' + brief.geographies.join(', ')
+          : (brief.geography ? 'Geography (single string): ' + brief.geography : ''),
         brief.companySizes && brief.companySizes.length > 0
-          ? 'Company sizes: ' + brief.companySizes.join(', ')
+          ? 'Target company sizes: ' + brief.companySizes.join(', ')
+          : '',
+        brief.revenues && brief.revenues.length > 0
+          ? 'Target revenue bands: ' + brief.revenues.join(', ')
           : '',
         brief.targetAudience.length > 0 ? 'Roles to email: ' + brief.targetAudience.join(', ') : '',
-        brief.idealCustomer ? 'Ideal customer: ' + brief.idealCustomer : '',
+        brief.channels.length > 0 ? 'Channels in mix: ' + brief.channels.join(', ') : '',
+        brief.messaging && brief.messaging.length > 0
+          ? 'Messaging angles:\n' + brief.messaging.map((m, i) => `  ${i + 1}. ${m.angle}` + (m.line ? ` (${m.line})` : '')).join('\n')
+          : '',
+        brief.successMetrics && brief.successMetrics.length > 0
+          ? 'Success metrics:\n' + brief.successMetrics.map((m, i) => `  ${i + 1}. ${m.name}` + (m.target ? ` -> ${m.target}` : '')).join('\n')
+          : '',
+        brief.objective && brief.objective.trim().length > 0 ? 'Objective: ' + brief.objective : '',
+        brief.campaignName && brief.campaignName.trim().length > 0 ? 'Campaign: ' + brief.campaignName : '',
       ]
         .filter(Boolean)
-        .join('\n')
-    : '(no strategy brief yet)';
+        .join('\n\n')
+    : '(no strategy brief yet, infer everything from the title and pitch)';
 
   const task =
-    'You are a research analyst. Find ~30 to 50 high-quality companies matching the play brief and add each one via add_candidate as you verify it. Match concrete decisions: the right industry, the right tier, the right geography. ' +
-    'Use web_search for industry directories and listicle pages (e.g. "list of UK superyacht builders"). Use find_business_listings for category-bound matches in a specific area. Use fetch_page on candidate company sites when you are not sure what they do from the snippet alone. Add only verified matches; skip aggregator sites, news outlets, government domains, social media. Never use em-dashes; commas or full stops only. Plain prose throughout.';
+    'You are a senior research analyst hunting for prospects. The operator has written a complete strategic brief below — the synopsis paragraph, ideal customer, sectors, geographies, company sizes, revenue bands, audience roles, channels, messaging angles, success metrics. Treat that brief as ground truth. Do NOT relax it. Find 30 to 50 high-quality companies that genuinely match every dimension: the right industry tier, the right size, the right region. Use web_search for industry directories, trade press, listicle pages (e.g. "list of UK superyacht builders"). Use find_business_listings for category-bound local matches in a specific place. Use fetch_page on candidate company sites whenever the SERP snippet is ambiguous; verify what they ACTUALLY do before you add. Add only verified matches via add_candidate; skip aggregator sites, news outlets, government domains, social media, marketplaces. The fitReason must reference WHY they match the brief specifically: tier, geography, size, signal. Never use em-dashes; commas or full stops only. Plain prose throughout.';
 
   const prompt = [
     'Play title: ' + play.title,
