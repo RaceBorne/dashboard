@@ -36,6 +36,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { CampaignReviewModal } from './CampaignReviewModal';
+import { PrepareSendButton } from './PrepareSendButton';
 import { SequenceEditor } from './SequenceEditor';
 import { LaunchChecksPanel } from './LaunchChecksPanel';
 import { AIDraftButton } from '../ai/AIDraftButton';
@@ -873,6 +874,7 @@ function SendStep(props: {
         </div>
       ) : (
         <div className="space-y-2">
+          {campaignId ? <PrepareSendButton campaignId={campaignId} /> : null}
           <button
             type="button"
             onClick={onReview}
