@@ -19,7 +19,7 @@ interface Props {
   initial: ExclusionRow[];
 }
 
-type Tab = 'global' | 'perVenture';
+type Tab = 'global' | 'perSearch';
 
 export function ExclusionsClient({ initial }: Props) {
   const [rows, setRows] = useState<ExclusionRow[]>(initial);
@@ -31,7 +31,7 @@ export function ExclusionsClient({ initial }: Props) {
 
   const counts = {
     global: rows.filter((r) => r.play_id === null).length,
-    perVenture: rows.filter((r) => r.play_id !== null).length,
+    perSearch: rows.filter((r) => r.play_id !== null).length,
   };
   const filtered = rows.filter((r) =>
     tab === 'global' ? r.play_id === null : r.play_id !== null,
@@ -94,7 +94,7 @@ export function ExclusionsClient({ initial }: Props) {
         <header>
           <h1 className="text-[18px] font-semibold text-evari-text">Prospecting exclusions</h1>
           <p className="text-[12px] text-evari-dim mt-1 leading-relaxed">
-            Domains here are blocked from Discovery search. <strong className="text-evari-text">Global</strong> blocks apply across every venture; <strong className="text-evari-text">per-venture</strong> blocks only hide the domain from one specific venture so the same brand can stay relevant elsewhere. Anything you mark Not a fit or Not relevant inside a venture lands as per-venture by default. Manual adds from this page default to global.
+            Domains here are blocked from Discovery search. <strong className="text-evari-text">Global</strong> blocks apply across every prospecting search; <strong className="text-evari-text">per prospecting search</strong> blocks only hide the domain from one specific search so the same brand can stay relevant elsewhere. Anything you mark Not a fit or Not relevant from inside a search lands as per prospecting search by default. Manual adds from this page default to global.
           </p>
         </header>
 
@@ -119,7 +119,7 @@ export function ExclusionsClient({ initial }: Props) {
         {error ? <div className="text-[11px] text-evari-warning">{error}</div> : null}
 
         <div className="border-t border-evari-edge/20 pt-4">
-          {/* Two tabs: Global blocks (everywhere) and Per-venture
+          {/* Two tabs: Global blocks (everywhere) and Per prospecting search
               blocks (only inside a specific play). Lets the operator
               audit each scope independently. */}
           <div className="flex items-center gap-1 mb-3 border-b border-evari-edge/20">
@@ -134,19 +134,19 @@ export function ExclusionsClient({ initial }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => setTab('perVenture')}
+              onClick={() => setTab('perSearch')}
               className={cn('inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium border-b-2 transition',
-                tab === 'perVenture' ? 'border-evari-gold text-evari-gold' : 'border-transparent text-evari-dim hover:text-evari-text')}
+                tab === 'perSearch' ? 'border-evari-gold text-evari-gold' : 'border-transparent text-evari-dim hover:text-evari-text')}
             >
-              <Target className="h-3.5 w-3.5" /> Per-venture
-              <span className="ml-0.5 text-[11px] tabular-nums opacity-70">{counts.perVenture}</span>
+              <Target className="h-3.5 w-3.5" /> Per prospecting search
+              <span className="ml-0.5 text-[11px] tabular-nums opacity-70">{counts.perSearch}</span>
             </button>
           </div>
           {filtered.length === 0 ? (
             <div className="text-[12px] text-evari-dim italic py-4 text-center">
               {tab === 'global'
                 ? 'No global exclusions. Anything you add manually here, or block site-wide from a search, will land in this tab.'
-                : 'No per-venture exclusions yet. Anything you mark Not a fit or Not relevant from inside a venture will land in this tab, scoped to that venture only.'}
+                : 'No per prospecting search exclusions yet. Anything you mark Not a fit or Not relevant from inside a search lands here, scoped to that search only.'}
             </div>
           ) : (
             <ul className="divide-y divide-evari-edge/20">
@@ -157,7 +157,7 @@ export function ExclusionsClient({ initial }: Props) {
                       <div className="text-[13px] font-medium text-evari-text truncate">{r.domain}</div>
                       {r.play_id ? (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-evari-edge/20 text-evari-dim border border-evari-edge/30 whitespace-nowrap">
-                          <Target className="h-2.5 w-2.5" /> {r.play_title ?? 'Per-venture'}
+                          <Target className="h-2.5 w-2.5" /> {r.play_title ?? 'Per prospecting search'}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-evari-gold/10 text-evari-gold border border-evari-gold/30 whitespace-nowrap">

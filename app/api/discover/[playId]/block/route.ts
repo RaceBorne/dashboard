@@ -89,14 +89,25 @@ export async function POST(
     // anchors the example, reason second to give the why.
     const composedReason = [body.rejectedName, body.reason]
       .filter((s) => typeof s === 'string' && s.trim().length > 0)
-      .join(' — ');
-    await sb
+      .join(', ');
+    const { error: insertError } = await sb
       .from('dashboard_blocked_domains')
       .insert({
         domain,
         reason: composedReason || null,
         play_id: playScope,
       });
+    if (insertError) {
+      // Surface inserts errors instead of silently swallowing. Without
+      // this, a column-type mismatch (or any constraint violation)
+      // returns ok=true to the client and the row never appears in
+      // the exclusions list. We return 500 so the client can flag.
+      console.error('[block] insert failed', insertError);
+      return NextResponse.json(
+        { ok: false, error: 'Could not save block: ' + insertError.message, code: insertError.code },
+        { status: 500 },
+      );
+    }
   }
 
   // 2. Remove the row from this play's shortlist so it disappears
