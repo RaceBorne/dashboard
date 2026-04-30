@@ -139,7 +139,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   // Concurrency-bounded queue for About-prefetches. The dispatcher
   // pulls the next job whenever a slot frees. Cap at 3 so a fresh
   // shortlist of 30 rows doesn't fan out into a rate-limit burst.
-  const ABOUT_CONCURRENCY = 3;
+  const ABOUT_CONCURRENCY = 6;
   const enqueueAboutPrefetch = useCallback((row: Row) => {
     if (warmedIdsRef.current.has(row.id)) return;
     if (row.aboutText && row.aboutText.length > 0) {
@@ -238,6 +238,15 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
   const visible = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
+
+  // How many rows have About-text loaded vs total. Drives the
+  // progress strip in the drawer + the per-row dot in the table.
+  const enrichmentProgress = useMemo(() => {
+    if (!rows) return { ready: 0, total: 0 };
+    const total = rows.length;
+    const ready = rows.filter((r) => r.aboutText && r.aboutText.length > 0).length;
+    return { ready, total };
+  }, [rows]);
 
   async function shortlist(id: string) {
     setBusy(id);
@@ -425,6 +434,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
                   <div className="flex items-center gap-2">
                     <Avatar name={r.name} logoUrl={r.logoUrl} />
                     <span className="text-evari-text font-medium">{r.name}</span>
+                    <RowEnrichDot ready={!!(r.aboutText && r.aboutText.length > 0)} />
                   </div>
                 </td>
                 <td className="py-2.5 px-3 text-evari-dim">{r.industry ?? '—'}</td>
@@ -469,6 +479,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
         busy={busy}
         playId={play.id}
         strategyContext={strategyContext}
+        enrichmentProgress={enrichmentProgress}
         getSeenDomains={() => (rows ?? []).map((r) => r.domain).slice(0, 40)}
         onClose={() => setSelectedId(null)}
         onShortlist={(id) => void shortlist(id)}
@@ -595,11 +606,12 @@ interface SimilarCacheEntry {
   promotedIds: Set<string>;
 }
 
-function CompanyDrawer({ row, busy, playId, strategyContext, getSeenDomains, onClose, onShortlist, onRowPatched, onPeersAdded }: {
+function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress, getSeenDomains, onClose, onShortlist, onRowPatched, onPeersAdded }: {
   row: Row | null;
   busy: string | null;
   playId: string;
   strategyContext: StrategyContext | null;
+  enrichmentProgress: { ready: number; total: number };
   getSeenDomains: () => string[];
   onClose: () => void;
   onShortlist: (id: string) => void;
@@ -615,6 +627,27 @@ function CompanyDrawer({ row, busy, playId, strategyContext, getSeenDomains, onC
   const [snapshotFailed, setSnapshotFailed] = useState(false);
   const [aboutLoading, setAboutLoading] = useState(false);
   const [aboutError, setAboutError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+
+  async function verifyWithWebSearch() {
+    if (!row) return;
+    setVerifying(true);
+    setAboutError(null);
+    try {
+      const res = await fetch(`/api/discover/${playId}/companies/${row.id}/enrich-about?verify=1&regenerate=1`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
+      const data = await res.json().catch(() => null);
+      if (!data?.ok) throw new Error(data?.error ?? 'Verification failed');
+      onRowPatched(row.id, { aboutText: data.aboutText, aboutMeta: data.aboutMeta ?? null });
+    } catch (err) {
+      setAboutError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVerifying(false);
+    }
+  }
   const [notesDraft, setNotesDraft] = useState('');
   const [notesSaving, setNotesSaving] = useState<'idle' | 'saving' | 'saved'>('idle');
   const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -768,16 +801,32 @@ function CompanyDrawer({ row, busy, playId, strategyContext, getSeenDomains, onC
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-md bg-evari-surface border-l border-evari-edge/30 shadow-2xl flex flex-col h-full"
       >
-        <header className="flex items-center justify-between px-4 py-3 border-b border-evari-edge/30 shrink-0">
-          <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Company</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-evari-dim hover:text-evari-text transition"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        <header className="border-b border-evari-edge/30 shrink-0">
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Company</span>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-evari-dim hover:text-evari-text transition"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {enrichmentProgress.total > 0 && enrichmentProgress.ready < enrichmentProgress.total ? (
+            <div className="px-4 pb-2.5">
+              <div className="text-[10px] text-evari-dimmer flex items-center justify-between mb-1">
+                <span>Researching {enrichmentProgress.total - enrichmentProgress.ready} more {enrichmentProgress.total - enrichmentProgress.ready === 1 ? 'company' : 'companies'}</span>
+                <span className="tabular-nums">{enrichmentProgress.ready} / {enrichmentProgress.total}</span>
+              </div>
+              <div className="h-1 rounded-full bg-evari-edge/20 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-evari-gold transition-all duration-500"
+                  style={{ width: `${enrichmentProgress.total > 0 ? Math.round((enrichmentProgress.ready / enrichmentProgress.total) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
         </header>
 
         <div className="flex-1 overflow-y-auto">
@@ -838,20 +887,31 @@ function CompanyDrawer({ row, busy, playId, strategyContext, getSeenDomains, onC
           {tab === 'about' ? (
             <div className="p-4 space-y-4">
               <div>
-                <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1.5">About</div>
-                {row.aboutText ? (
+                <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1.5 flex items-center justify-between">
+                  <span>About</span>
+                  {row.aboutText ? (
+                    <button
+                      type="button"
+                      onClick={() => void verifyWithWebSearch()}
+                      disabled={verifying}
+                      className="text-[10px] uppercase tracking-[0.12em] text-evari-dim hover:text-evari-gold disabled:opacity-50 transition inline-flex items-center gap-1 normal-case tracking-normal"
+                      title="Re-research this company with web search verification (slower, more accurate for niche / local companies)"
+                    >
+                      {verifying ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                      {verifying ? 'Verifying...' : 'Verify with web'}
+                    </button>
+                  ) : null}
+                </div>
+                {row.aboutText && !aboutLoading ? (
                   <p className="text-[13px] text-evari-text leading-relaxed whitespace-pre-line">{row.aboutText}</p>
                 ) : aboutLoading ? (
-                  <div className="text-[11px] text-evari-dim flex items-center gap-2 py-3">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Researching the company on the open web...
-                  </div>
+                  <AboutSkeleton />
                 ) : aboutError ? (
                   <div className="text-[11px] text-evari-dim border border-evari-edge/30 rounded-md p-3 bg-evari-edge/10">
                     Could not generate the About paragraph: {aboutError}
                   </div>
                 ) : (
-                  <div className="text-[11px] text-evari-dim">No About data yet. Switching to this tab will trigger a research pass.</div>
+                  <AboutSkeleton />
                 )}
               </div>
 
@@ -1090,6 +1150,36 @@ function ChipRow({ label, values }: { label: string; values: string[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+// Three shimmering bars that mimic the shape of the synopsis paragraph,
+// so the user sees the slot for the content rather than a spinner.
+function AboutSkeleton() {
+  return (
+    <div className="space-y-2 py-1">
+      <div className="h-3 rounded bg-evari-edge/20 animate-pulse w-full" />
+      <div className="h-3 rounded bg-evari-edge/20 animate-pulse w-[92%]" />
+      <div className="h-3 rounded bg-evari-edge/20 animate-pulse w-[78%]" />
+      <div className="h-3 rounded bg-evari-edge/20 animate-pulse w-[60%]" />
+      <div className="text-[10px] text-evari-dimmer pt-1">Drafting from the company data we have, no web round-trip needed...</div>
+    </div>
+  );
+}
+
+// Per-row enrichment dot. Solid gold = ready, hollow ring with pulse =
+// still warming. Fits in 8x8 next to the company name.
+function RowEnrichDot({ ready }: { ready: boolean }) {
+  return ready ? (
+    <span
+      className="inline-block h-1.5 w-1.5 rounded-full bg-evari-gold/80"
+      title="About data ready"
+    />
+  ) : (
+    <span
+      className="inline-block h-1.5 w-1.5 rounded-full border border-evari-gold/60 animate-pulse"
+      title="Researching this company..."
+    />
   );
 }
 

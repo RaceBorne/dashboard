@@ -12,6 +12,11 @@ export const maxDuration = 90;
 
 const MODEL = process.env.AI_MODEL || 'anthropic/claude-haiku-4-5';
 
+// Default path is FAST: no web_search, just the model + the row data
+// we already have. Cuts each call from 8-15s to 1-3s. The user can
+// opt into the slow web-verified path per-row via ?verify=1.
+
+
 /**
  * POST /api/discover/[playId]/companies/[id]/enrich-about
  *
@@ -59,7 +64,11 @@ export async function POST(
     );
   }
 
-  if (!regenerate && row.about_text) {
+  // ?verify=1 forces the slow web_search path even on cached rows
+  // so the user can re-research on demand from the About tab.
+  const verify = url.searchParams.get('verify') === '1';
+
+  if (!regenerate && !verify && row.about_text) {
     return NextResponse.json({
       ok: true,
       cached: true,
@@ -80,9 +89,13 @@ export async function POST(
     'flatter or speculate. Never use em-dashes or en-dashes ' +
     'in any output. Use commas, semicolons, or full stops instead.' +
     '\n\nProcess:' +
-    '\n  1. Use web_search to confirm the basic facts (a couple of queries are' +
-    '\n     usually enough). Look for the company\'s own site, About page, or' +
-    '\n     trusted directory listings.' +
+    (verify
+      ? '\n  1. Use web_search to confirm the basic facts (a couple of queries are' +
+        '\n     usually enough). Look for the company\'s own site, About page, or' +
+        '\n     trusted directory listings.'
+      : '\n  1. Write from your own knowledge of the company plus the data above.' +
+        '\n     Do NOT call any tools. Speed matters. If you genuinely don\'t know' +
+        '\n     the company, say what the data above implies and stop there.') +
     '\n  2. Output the synopsis FIRST as plain prose.' +
     '\n  3. After the synopsis, on a NEW LINE, emit the literal delimiter' +
     '\n     <<<META>>> followed by a single JSON object on the next line:' +
@@ -142,14 +155,19 @@ export async function POST(
     }),
   };
 
+  // When verifying, expose the web_search tool. Otherwise call the
+  // model with no tools at all so it returns in one round trip.
+  const callTools = verify ? tools : undefined;
+  const stepCap = verify ? 6 : 1;
+
   let raw = '';
   try {
     const res = await generateText({
       model: gateway(MODEL),
       system,
       prompt,
-      tools,
-      stopWhen: stepCountIs(6),
+      tools: callTools,
+      stopWhen: stepCountIs(stepCap),
     });
     raw = res.text;
   } catch (gatewayErr) {
@@ -169,8 +187,8 @@ export async function POST(
         model: anthropic(bareModel),
         system,
         prompt,
-        tools,
-        stopWhen: stepCountIs(6),
+        tools: callTools,
+        stopWhen: stepCountIs(stepCap),
       });
       raw = res.text;
     } catch (anthropicErr) {
