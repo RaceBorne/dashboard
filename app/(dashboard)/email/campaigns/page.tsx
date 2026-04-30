@@ -3,6 +3,7 @@ import { listCampaigns, getCampaignStats } from '@/lib/marketing/campaigns';
 import { listGroups } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
 import { CampaignsListClient } from '@/components/marketing/CampaignsListClient';
+import { CampaignKindPicker } from '@/components/marketing/CampaignKindPicker';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -20,6 +21,7 @@ export default async function CampaignsPage() {
   return (
     <>
       <TopBar title="Campaigns" subtitle="Email · Broadcasts" />
+      <div className="px-4 pt-3"><CampaignKindPicker /></div>
       <CampaignsListClient
         campaigns={campaigns}
         statsMap={statsMap}
