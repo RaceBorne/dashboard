@@ -305,51 +305,100 @@ export function AIAssistantPane() {
     void sendMessage({ text });
   }
 
-  // ----- voice (push-to-talk -> Whisper) --------------------------------
+  // ----- voice (click to toggle, talks to Whisper) ----------------------
+  // Click to start, click again to stop, transcribe runs on stop. Errors
+  // surface in micError so the user can see why the mic did not work
+  // (most common cause: browser permission denied).
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   async function startRecording() {
     if (recording || transcribing) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream, { mimeType: pickMime() });
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType });
-        chunksRef.current = [];
-        if (blob.size === 0) { setRecording(false); return; }
-        setTranscribing(true);
-        try {
-          const fd = new FormData();
-          fd.append('audio', blob, 'audio.webm');
-          const res = await fetch('/api/ai/transcribe', { method: 'POST', body: fd });
-          const json = (await res.json()) as { ok: boolean; text?: string; error?: string };
-          if (json.ok && json.text) {
-            setInput((cur) => (cur ? cur + ' ' + json.text : json.text!));
-          }
-        } catch {
-          // surface failure quietly; user can retype
-        } finally {
-          setTranscribing(false);
-          setRecording(false);
-        }
-      };
-      rec.start();
-      recorderRef.current = rec;
-      setRecording(true);
-    } catch {
-      setRecording(false);
+    setMicError(null);
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setMicError('This browser does not support microphone capture.');
+      return;
     }
+    if (typeof MediaRecorder === 'undefined') {
+      setMicError('MediaRecorder not supported in this browser.');
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      // Permission denied, no device, or hardware error.
+      const name = (e as { name?: string } | null)?.name ?? '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setMicError('Microphone blocked. Allow it in the browser address bar, then click the mic again.');
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setMicError('No microphone detected on this device.');
+      } else {
+        setMicError('Could not start microphone: ' + (e instanceof Error ? e.message : String(e)));
+      }
+      console.warn('[mojito.mic.start] getUserMedia failed', e);
+      return;
+    }
+    let rec: MediaRecorder;
+    try {
+      const mime = pickMime();
+      rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    } catch (e) {
+      stream.getTracks().forEach((t) => t.stop());
+      setMicError('MediaRecorder rejected the audio format.');
+      console.warn('[mojito.mic.start] MediaRecorder failed', e);
+      return;
+    }
+    chunksRef.current = [];
+    rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+    rec.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const mime = rec.mimeType || 'audio/webm';
+      const blob = new Blob(chunksRef.current, { type: mime });
+      chunksRef.current = [];
+      setRecording(false);
+      if (blob.size < 1500) {
+        // Way too small to contain speech, skip the round-trip.
+        setMicError('Recording was too short. Try again and speak for a beat.');
+        return;
+      }
+      setTranscribing(true);
+      try {
+        const ext = mime.includes('mp4') ? 'mp4' : mime.includes('ogg') ? 'ogg' : 'webm';
+        const fd = new FormData();
+        fd.append('audio', blob, 'audio.' + ext);
+        const res = await fetch('/api/ai/transcribe', { method: 'POST', body: fd });
+        const json = (await res.json().catch(() => ({}))) as { ok?: boolean; text?: string; error?: string };
+        if (res.ok && json.ok && json.text) {
+          setInput((cur) => (cur ? cur + ' ' + json.text : json.text!));
+        } else {
+          setMicError(json.error ?? ('Transcription failed (HTTP ' + res.status + ').'));
+          console.warn('[mojito.mic.transcribe] failed', json);
+        }
+      } catch (e) {
+        setMicError('Transcription request failed: ' + (e instanceof Error ? e.message : String(e)));
+        console.warn('[mojito.mic.transcribe] threw', e);
+      } finally {
+        setTranscribing(false);
+      }
+    };
+    rec.start();
+    recorderRef.current = rec;
+    setRecording(true);
   }
   function stopRecording() {
     const rec = recorderRef.current;
-    if (rec && rec.state !== 'inactive') rec.stop();
+    if (rec && rec.state !== 'inactive') {
+      try { rec.stop(); } catch { /* already stopping */ }
+    }
     recorderRef.current = null;
+  }
+  function toggleRecording() {
+    if (recording) stopRecording();
+    else void startRecording();
   }
 
   // Send a confirmation reply ("yes, proceed") in response to a
@@ -462,6 +511,14 @@ export function AIAssistantPane() {
             </div>
           ) : null}
 
+          {micError ? (
+            <div className="px-3 pb-2 -mt-1">
+              <div className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/30 rounded-md px-2 py-1.5 leading-snug">
+                {micError}
+              </div>
+            </div>
+          ) : null}
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -471,13 +528,10 @@ export function AIAssistantPane() {
           >
             <button
               type="button"
-              onMouseDown={(e) => { e.preventDefault(); void startRecording(); }}
-              onMouseUp={(e) => { e.preventDefault(); stopRecording(); }}
-              onMouseLeave={() => { if (recording) stopRecording(); }}
-              onTouchStart={(e) => { e.preventDefault(); void startRecording(); }}
-              onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+              onClick={toggleRecording}
               disabled={busy || transcribing}
-              title={recording ? 'Release to send' : 'Hold to talk'}
+              aria-label={recording ? 'Stop recording' : 'Start recording'}
+              title={recording ? 'Click to stop and transcribe' : 'Click to record. Click again to stop.'}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md border transition shrink-0',
                 recording
