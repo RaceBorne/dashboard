@@ -54,6 +54,18 @@ export async function POST(req: Request) {
     );
   }
 
+  // Pull the global no-go list once and merge it into the skip
+  // domains. Anything blocked never comes back in any path.
+  const sbForBlocks = createSupabaseAdmin();
+  let blockedDomains: string[] = [];
+  if (sbForBlocks) {
+    const { data } = await sbForBlocks
+      .from('dashboard_blocked_domains')
+      .select('domain');
+    blockedDomains = (data ?? []).map((r: { domain: string }) => r.domain.toLowerCase());
+  }
+  const skipDomains = [...seenDomains, ...blockedDomains];
+
   // Peer Brain shortcut. If we have at least 5 peers in the brain
   // for this reference at confidence >= 0.6, return them in ~10ms
   // and skip the AI call entirely. Verify mode bypasses this so the
@@ -61,7 +73,7 @@ export async function POST(req: Request) {
   if (!verify) {
     const cached = await lookupPeers(domain, {
       limit: limit,
-      skipDomains: seenDomains,
+      skipDomains,
       minConfidence: 0.6,
     });
     if (cached.length >= 5) {
@@ -238,8 +250,8 @@ export async function POST(req: Request) {
     '',
     referenceBlock,
     '',
-    'Skip list (already in the operator\'s results, do not re-suggest):',
-    seenDomains.slice(0, 40).map((d) => '  ' + d).join('\n') || '  (none)',
+    'Skip list (already in the operator\'s results or blocked, do not re-suggest):',
+    skipDomains.slice(0, 60).map((d) => '  ' + d).join('\n') || '  (none)',
   ]
     .filter((s) => s !== '')
     .join('\n');
@@ -337,7 +349,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const seen = new Set<string>([domain, ...seenDomains.map((d) => d.toLowerCase())]);
+  const seen = new Set<string>([domain, ...skipDomains.map((d) => d.toLowerCase())]);
   const peers: Array<{ domain: string; name?: string; why?: string }> = [];
   for (const p of parsed.peers as unknown[]) {
     if (!p || typeof p !== 'object') continue;

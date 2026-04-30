@@ -49,7 +49,7 @@ const NAV = [
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
   { href: '/ideas', label: 'Ideas', icon: Rocket, group: 'pipeline', child: true },
   { href: '/strategy', label: 'Strategy', icon: ListTodo, group: 'pipeline', child: true },
-  { href: '/discover', label: 'Discover', icon: Search, group: 'pipeline', child: true },
+  { href: '/discover', label: 'Discovery', icon: Search, group: 'pipeline', child: true },
   { href: '/shortlist', label: 'Shortlist', icon: Star, group: 'pipeline', child: true },
   { href: '/enrichment', label: 'Enrichment', icon: Database, group: 'pipeline', child: true },
   { href: '/leads', label: 'Leads', icon: Users, group: 'pipeline', child: true },

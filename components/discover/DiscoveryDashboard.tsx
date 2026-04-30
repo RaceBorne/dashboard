@@ -261,6 +261,20 @@ export function DiscoveryDashboard({ plays, play }: Props) {
     } finally { setBusy(null); }
   }
 
+  async function blockDomain(id: string, domain: string) {
+    if (!confirm(`Mark ${domain} as not a fit?\n\nThis removes it from this list and stops it from showing up in any future searches (Similar, agent, auto-scan).`)) return;
+    setBusy(id);
+    try {
+      await fetch(`/api/discover/${play.id}/block`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ domain, rowId: id }),
+      });
+      // Drop the row from local state without waiting for a reload.
+      setRows((cur) => cur?.filter((r) => r.id !== id) ?? null);
+    } finally { setBusy(null); }
+  }
+
   async function findSimilar(domain: string) {
     setBusy('similar:' + domain);
     try {
@@ -381,11 +395,9 @@ export function DiscoveryDashboard({ plays, play }: Props) {
 
       {/* Stats strip */}
       <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <Stat label="Companies found" value={stats.companiesFound.toLocaleString()} sub="100% of target" />
-          <Stat label="Decision makers" value={stats.decisionMakers.toLocaleString()} sub="100% of target" />
           <Stat label="Data coverage" value={`${stats.dataCoverage}%`} sub={stats.dataCoverage >= 90 ? 'High quality' : stats.dataCoverage >= 70 ? 'Good' : 'Partial'} />
-          <Stat label="Estimated reachable" value={stats.estimatedReachable.toLocaleString()} sub={`${stats.pctOfDM}% of decision makers`} />
           <Stat label="Avg. fit score" value={String(stats.avgFitScore)} sub={stats.avgFitScore >= 80 ? 'Strong fit' : stats.avgFitScore >= 60 ? 'Good fit' : 'Average fit'} accent />
         </div>
       </section>
@@ -417,18 +429,16 @@ export function DiscoveryDashboard({ plays, play }: Props) {
               <th className="text-left py-2.5 px-3 w-[24px]"></th>
               <th className="text-left py-2.5 px-3">Company</th>
               <th className="text-left py-2.5 px-3">Industry</th>
-              <th className="text-left py-2.5 px-3">Size</th>
               <th className="text-left py-2.5 px-3">Revenue</th>
               <th className="text-left py-2.5 px-3">Location</th>
               <th className="text-left py-2.5 px-3 w-[140px]">Fit score</th>
-              <th className="text-left py-2.5 px-3">Decision makers</th>
               <th className="text-left py-2.5 px-3">Data coverage</th>
-              <th className="py-2.5 px-3 w-[24px]"></th>
+              <th className="py-2.5 px-3 w-[200px] text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {visible.length === 0 ? (
-              <tr><td colSpan={10} className="text-center py-12 text-evari-dim">No companies in Discovery yet. Use the Find companies button above to run an auto-scan.</td></tr>
+              <tr><td colSpan={8} className="text-center py-12 text-evari-dim">No companies in Discovery yet. Use the Find companies button above to run an auto-scan.</td></tr>
             ) : visible.map((r) => (
               <tr key={r.id} onClick={() => setSelectedId(r.id)} className="border-t border-evari-edge/20 hover:bg-evari-ink/30 group cursor-pointer">
                 <td className="px-3" onClick={(e) => e.stopPropagation()}><input type="checkbox" className="accent-evari-gold" /></td>
@@ -440,14 +450,18 @@ export function DiscoveryDashboard({ plays, play }: Props) {
                   </div>
                 </td>
                 <td className="py-2.5 px-3 text-evari-dim">{r.industry ?? '—'}</td>
-                <td className="py-2.5 px-3 text-evari-dim">{r.size ?? '—'}</td>
                 <td className="py-2.5 px-3 text-evari-dim">{r.revenue ?? '—'}</td>
                 <td className="py-2.5 px-3 text-evari-dim">{r.location ?? '—'}</td>
                 <td className="py-2.5 px-3"><FitScoreCell score={r.fitScore} /></td>
-                <td className="py-2.5 px-3 text-evari-text font-mono tabular-nums">{r.decisionMakerCount}</td>
                 <td className="py-2.5 px-3 text-evari-text font-mono tabular-nums">{r.dataCoverage}%</td>
                 <td className="px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                  <RowMenu row={r} busy={busy} onShortlist={() => void shortlist(r.id)} onFindSimilar={() => void findSimilar(r.domain)} />
+                  <RowMenu
+                    row={r}
+                    busy={busy}
+                    onShortlist={() => void shortlist(r.id)}
+                    onFindSimilar={() => void findSimilar(r.domain)}
+                    onBlock={() => void blockDomain(r.id, r.domain)}
+                  />
                 </td>
               </tr>
             ))}
@@ -568,23 +582,33 @@ function Avatar({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
   );
 }
 
-function RowMenu({ row, busy, onShortlist, onFindSimilar }: { row: Row; busy: string | null; onShortlist: () => void; onFindSimilar: () => void }) {
+function RowMenu({ row, busy, onShortlist, onFindSimilar, onBlock }: { row: Row; busy: string | null; onShortlist: () => void; onFindSimilar: () => void; onBlock: () => void }) {
   const shortlistBusy = busy === row.id;
   const similarBusy = busy === 'similar:' + row.domain;
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <button
+        type="button"
+        onClick={onBlock}
+        disabled={shortlistBusy || similarBusy}
+        className="inline-flex items-center justify-center h-7 w-7 rounded-md text-evari-dim hover:text-evari-warning hover:bg-evari-warning/10 disabled:opacity-50 transition"
+        title="Not a fit. Removes from this list and blocks from any future searches."
+        aria-label="Not a fit"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
       <button
         type="button"
         onClick={onFindSimilar}
         disabled={similarBusy || shortlistBusy}
-        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-evari-edge/40 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold disabled:opacity-50 transition"
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-evari-edge/40 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold disabled:opacity-50 transition whitespace-nowrap"
         title="Find peer companies at the same tier and brand ethos"
       >
         {similarBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
         Similar
       </button>
       {row.status === 'shortlisted' ? (
-        <span className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30">
+        <span className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30 whitespace-nowrap">
           <Star className="h-3 w-3 fill-evari-gold" /> Shortlisted
         </span>
       ) : (
@@ -592,11 +616,11 @@ function RowMenu({ row, busy, onShortlist, onFindSimilar }: { row: Row; busy: st
           type="button"
           onClick={onShortlist}
           disabled={shortlistBusy}
-          className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
+          className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition whitespace-nowrap"
           title="Promote this company to your shortlist"
         >
           {shortlistBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-          Send to shortlist
+          Shortlist
         </button>
       )}
     </span>
@@ -895,7 +919,6 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
             <div className="grid grid-cols-2 gap-3 text-[12px]">
               <KV label="Industry" value={row.industry} />
               <KV label="Location" value={row.location} icon={<MapPin className="h-3 w-3" />} />
-              <KV label="Size" value={row.size} />
               <KV label="Revenue" value={row.revenue} />
             </div>
 
@@ -912,10 +935,6 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
               </div>
             </section>
 
-            <section className="grid grid-cols-2 gap-3 text-[12px]">
-              <KV label="Decision makers" value={String(row.decisionMakerCount)} />
-              <KV label="Data coverage" value={row.dataCoverage + '%'} />
-            </section>
           </div>
 
           {/* Five tabs sit inside the drawer below the overview. */}

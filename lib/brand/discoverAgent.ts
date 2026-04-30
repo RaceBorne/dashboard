@@ -84,13 +84,20 @@ export async function runDiscoverAgent(
   const log: ToolCallLog[] = [];
   const seenDomains = new Set<string>();
 
-  // Pre-seed seen with whatever's already in the shortlist for this
-  // play, so the agent doesn't re-add companies the user already has.
+  // Pre-seed seen with (a) whatever's already in this play's
+  // shortlist and (b) the global no-go blocklist. Both protect the
+  // operator from re-seeing rejected domains.
   const { data: existing } = await supabase
     .from('dashboard_play_shortlist')
     .select('domain')
     .eq('play_id', play.id);
   for (const r of (existing ?? []) as Array<{ domain: string | null }>) {
+    if (r.domain) seenDomains.add(r.domain.toLowerCase().replace(/^www\./, ''));
+  }
+  const { data: blocked } = await supabase
+    .from('dashboard_blocked_domains')
+    .select('domain');
+  for (const r of (blocked ?? []) as Array<{ domain: string | null }>) {
     if (r.domain) seenDomains.add(r.domain.toLowerCase().replace(/^www\./, ''));
   }
 
