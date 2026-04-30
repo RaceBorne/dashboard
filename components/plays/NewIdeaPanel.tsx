@@ -3,7 +3,7 @@
 /**
  * Inline "new idea" panel mounted on the Ideas page (right column).
  * Two fields, title + pitch. Submit creates the play and routes to
- * /strategy?playId=X&kickoff=1 so Spitball auto-drafts immediately.
+ * /strategy?playId=X so the user lands on Market analysis. No auto-scan, no auto-Spitball; the user walks the four strategy stages first.
  *
  * Replaces the old NewIdeaPanel modal: the form is always visible
  * on the right side of the page so capture is one click less.
@@ -49,7 +49,7 @@ export function NewIdeaPanel() {
         body: JSON.stringify({ strategyShort: p }),
       }).catch(() => {});
       try { window.dispatchEvent(new Event('evari:plays-dirty')); } catch {}
-      router.push(`/strategy?playId=${body.id}&kickoff=1`);
+      router.push(`/strategy?playId=${body.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

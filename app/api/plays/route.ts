@@ -1,6 +1,5 @@
 import { NextResponse, after } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
-import { autoScanForPlay } from '@/lib/brand/autoScan';
 import { getCountsPerPlay, listPlays } from '@/lib/dashboard/repository';
 import type { Play } from '@/lib/types';
 
@@ -114,15 +113,6 @@ export async function POST(req: Request) {
   // Auto-scan the landscape for this Play in the background. We don't
   // block the response on it — Craig gets the id immediately and the
   // funnel fills in over the next few seconds. Anything that goes wrong
-  // inside autoScanForPlay stamps the Play activity and returns quietly.
-  after(async () => {
-    try {
-      await autoScanForPlay(supabase, play);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('[plays] auto-scan failed:', (err as Error).message);
-    }
-  });
 
   return NextResponse.json({ ok: true, id });
 }
