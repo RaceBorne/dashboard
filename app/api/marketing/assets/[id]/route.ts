@@ -20,6 +20,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if ('tags' in body && Array.isArray(body.tags)) {
     patch.tags = (body.tags as unknown[]).filter((t): t is string => typeof t === 'string');
   }
+  if ('purposes' in body && Array.isArray(body.purposes)) {
+    const allowed: Array<'global' | 'web' | 'newsletter'> = ['global', 'web', 'newsletter'];
+    const cleaned = (body.purposes as unknown[])
+      .filter((p): p is string => typeof p === 'string')
+      .filter((p): p is 'global' | 'web' | 'newsletter' => (allowed as string[]).includes(p));
+    // Ensure 'global' is always present so an asset never disappears
+    // entirely from the library when the user toggles other purposes.
+    const set = new Set<'global' | 'web' | 'newsletter'>(cleaned);
+    set.add('global');
+    patch.purposes = Array.from(set);
+  }
   const asset = await updateAsset(id, patch);
   if (!asset) return NextResponse.json({ ok: false, error: 'Update failed' }, { status: 500 });
   return NextResponse.json({ ok: true, asset });

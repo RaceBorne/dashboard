@@ -7,7 +7,7 @@
  */
 
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
-import type { AssetKind, MktAsset } from './types';
+import type { AssetKind, AssetPurpose, MktAsset } from './types';
 
 const BUCKET = 'mkt-assets';
 
@@ -22,6 +22,7 @@ interface AssetRow {
   width: number | null;
   height: number | null;
   tags: string[] | null;
+  purposes: AssetPurpose[] | null;
   alt_text: string | null;
   created_at: string;
   updated_at: string;
@@ -39,6 +40,7 @@ function rowToAsset(r: AssetRow): MktAsset {
     width: r.width,
     height: r.height,
     tags: r.tags ?? [],
+    purposes: r.purposes ?? ['global'],
     altText: r.alt_text,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -152,13 +154,15 @@ export async function updateAsset(id: string, patch: Partial<{
   altText: string | null;
   tags: string[];
   kind: AssetKind;
+  purposes: AssetPurpose[];
 }>): Promise<MktAsset | null> {
   const sb = createSupabaseAdmin();
   if (!sb) return null;
   const dbPatch: Record<string, unknown> = {};
-  if ('altText' in patch) dbPatch.alt_text = patch.altText;
-  if ('tags' in patch)    dbPatch.tags = patch.tags;
-  if ('kind' in patch)    dbPatch.kind = patch.kind;
+  if ('altText' in patch)  dbPatch.alt_text = patch.altText;
+  if ('tags' in patch)     dbPatch.tags = patch.tags;
+  if ('kind' in patch)     dbPatch.kind = patch.kind;
+  if ('purposes' in patch) dbPatch.purposes = patch.purposes;
   if (Object.keys(dbPatch).length === 0) return getAsset(id);
   const { data, error } = await sb
     .from('dashboard_mkt_assets')

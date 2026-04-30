@@ -410,6 +410,13 @@ export interface MarketingBrand {
 
 export type AssetKind = 'image' | 'gif' | 'logo' | 'video_thumb' | 'other';
 
+/**
+ * Where an asset is prepared to be used. An asset can be in any
+ * subset of these (commonly: ['global'] only after upload, then
+ * ['global', 'web'] or ['global', 'newsletter'] once promoted).
+ */
+export type AssetPurpose = 'global' | 'web' | 'newsletter';
+
 export interface MktAsset {
   id: string;
   kind: AssetKind;
@@ -421,6 +428,7 @@ export interface MktAsset {
   width: number | null;
   height: number | null;
   tags: string[];
+  purposes: AssetPurpose[];
   altText: string | null;
   createdAt: string;
   updatedAt: string;
