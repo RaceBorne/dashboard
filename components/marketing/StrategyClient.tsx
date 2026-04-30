@@ -45,11 +45,14 @@ interface Brief {
   objective: string | null;
   targetAudience: string[];
   geography: string | null;
+  geographies: string[];
   industries: string[];
   companySizeMin: number | null;
   companySizeMax: number | null;
+  companySizes: string[];
   revenueMin: string | null;
   revenueMax: string | null;
+  revenues: string[];
   channels: string[];
   messaging: { angle: string; line?: string }[] | null;
   successMetrics: { name: string; target?: string }[] | null;

@@ -17,11 +17,14 @@ export interface StrategyBrief {
   objective: string | null;
   targetAudience: string[];
   geography: string | null;
+  geographies: string[];
   industries: string[];
   companySizeMin: number | null;
   companySizeMax: number | null;
+  companySizes: string[];
   revenueMin: string | null;
   revenueMax: string | null;
+  revenues: string[];
   channels: string[];
   messaging: { angle: string; line?: string }[] | null;
   successMetrics: { name: string; target?: string }[] | null;
@@ -38,11 +41,14 @@ interface Row {
   objective: string | null;
   target_audience: string[] | null;
   geography: string | null;
+  geographies: string[] | null;
   industries: string[] | null;
   company_size_min: number | null;
   company_size_max: number | null;
+  company_sizes: string[] | null;
   revenue_min: string | null;
   revenue_max: string | null;
+  revenues: string[] | null;
   channels: string[] | null;
   messaging: { angle: string; line?: string }[] | null;
   success_metrics: { name: string; target?: string }[] | null;
@@ -60,11 +66,14 @@ function rowToBrief(r: Row): StrategyBrief {
     objective: r.objective,
     targetAudience: r.target_audience ?? [],
     geography: r.geography,
+    geographies: r.geographies ?? [],
     industries: r.industries ?? [],
     companySizeMin: r.company_size_min,
     companySizeMax: r.company_size_max,
+    companySizes: r.company_sizes ?? [],
     revenueMin: r.revenue_min,
     revenueMax: r.revenue_max,
+    revenues: r.revenues ?? [],
     channels: r.channels ?? [],
     messaging: r.messaging,
     successMetrics: r.success_metrics,
@@ -104,11 +113,14 @@ export async function updateBrief(playId: string, patch: Partial<StrategyBrief>)
   if ('objective' in patch) dbPatch.objective = patch.objective;
   if ('targetAudience' in patch) dbPatch.target_audience = patch.targetAudience;
   if ('geography' in patch) dbPatch.geography = patch.geography;
+  if ('geographies' in patch) dbPatch.geographies = patch.geographies;
   if ('industries' in patch) dbPatch.industries = patch.industries;
   if ('companySizeMin' in patch) dbPatch.company_size_min = patch.companySizeMin;
   if ('companySizeMax' in patch) dbPatch.company_size_max = patch.companySizeMax;
+  if ('companySizes' in patch) dbPatch.company_sizes = patch.companySizes;
   if ('revenueMin' in patch) dbPatch.revenue_min = patch.revenueMin;
   if ('revenueMax' in patch) dbPatch.revenue_max = patch.revenueMax;
+  if ('revenues' in patch) dbPatch.revenues = patch.revenues;
   if ('channels' in patch) dbPatch.channels = patch.channels;
   if ('messaging' in patch) dbPatch.messaging = patch.messaging;
   if ('successMetrics' in patch) dbPatch.success_metrics = patch.successMetrics;

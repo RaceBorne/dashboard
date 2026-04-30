@@ -117,7 +117,7 @@ export async function getStrategyAnalytics(playId: string): Promise<StrategyAnal
   const empty: StrategyAnalytics = {
     icpScore: 60, icpBand: 'average',
     addressableMarket: 0, highFitCount: 0, reachableContacts: 0, decisionMakerCount: 0,
-    revenuePotentialLabel: brief?.revenueMin && brief?.revenueMax ? `${brief.revenueMin} – ${brief.revenueMax}` : '—',
+    revenuePotentialLabel: brief?.revenues && brief.revenues.length > 0 ? brief.revenues.join(', ') : (brief?.revenueMin && brief?.revenueMax ? `${brief.revenueMin} to ${brief.revenueMax}` : '—'),
     engagementLikelihood: 'Unknown',
     decisionMakers: [], seniorityMix: [],
     industries: brief?.industries ?? [],
@@ -193,7 +193,7 @@ export async function getStrategyAnalytics(playId: string): Promise<StrategyAnal
   }
 
   // Revenue potential label.
-  const revenuePotentialLabel = brief.revenueMin && brief.revenueMax ? `${brief.revenueMin} – ${brief.revenueMax}` : (brief.revenueMin ?? brief.revenueMax ?? '—');
+  const revenuePotentialLabel = brief.revenues && brief.revenues.length > 0 ? brief.revenues.join(', ') : (brief.revenueMin && brief.revenueMax ? `${brief.revenueMin} to ${brief.revenueMax}` : (brief.revenueMin ?? brief.revenueMax ?? '—'));
 
   // Tech stack + buying signals — extract keyword hits from descriptions.
   const allText = slist.map((r) => `${r.description ?? ''}`).join('\n').toLowerCase();

@@ -20,11 +20,14 @@ interface Brief {
   objective: string | null;
   targetAudience: string[];
   geography: string | null;
+  geographies: string[];
   industries: string[];
   companySizeMin: number | null;
   companySizeMax: number | null;
+  companySizes: string[];
   revenueMin: string | null;
   revenueMax: string | null;
+  revenues: string[];
   channels: string[];
   messaging: { angle: string; line?: string }[] | null;
   successMetrics: { name: string; target?: string }[] | null;
@@ -88,36 +91,57 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
     return () => { cancelled = true; };
   }, [playId, playTitle, pitch]);
 
-  // Helpers for chip-picked sizing/revenue, which live as min/max
-  // numeric fields on the brief but as discrete bands in the chips UI.
-  const sizeBand =
-    brief.companySizeMin && brief.companySizeMax
-      ? `${brief.companySizeMin}-${brief.companySizeMax} employees`
-      : null;
-  const revenueBand =
-    brief.revenueMin && brief.revenueMax ? `${brief.revenueMin}-${brief.revenueMax}` : null;
+  // Multi-pick chip handlers. The brief stores both the raw band labels
+  // (companySizes / revenues / geographies arrays) AND a derived numeric
+  // span (companySizeMin..Max, revenueMin..Max) for backwards-compatible
+  // analytics. The arrays preserve exactly what the user picked.
   function applySizeBand(picked: string[]) {
-    const last = picked[picked.length - 1];
-    if (!last) {
-      onPatch({ companySizeMin: null, companySizeMax: null });
+    if (picked.length === 0) {
+      onPatch({ companySizes: [], companySizeMin: null, companySizeMax: null });
       return;
     }
-    const m = last.match(/(\d+)\s*-\s*(\d+)/);
-    if (m) onPatch({ companySizeMin: Number(m[1]), companySizeMax: Number(m[2]) });
-    else if (/(\d+)\+/.test(last)) {
-      const n = Number(last.match(/(\d+)\+/)![1]);
-      onPatch({ companySizeMin: n, companySizeMax: 9999 });
+    let minVal: number | null = null;
+    let maxVal: number | null = null;
+    for (const band of picked) {
+      const m = band.match(/(\d+)\s*-\s*(\d+)/);
+      if (m) {
+        const lo = Number(m[1]);
+        const hi = Number(m[2]);
+        minVal = minVal === null ? lo : Math.min(minVal, lo);
+        maxVal = maxVal === null ? hi : Math.max(maxVal, hi);
+        continue;
+      }
+      const plus = band.match(/(\d+)\+/);
+      if (plus) {
+        const n = Number(plus[1]);
+        minVal = minVal === null ? n : Math.min(minVal, n);
+        maxVal = maxVal === null ? 9999 : Math.max(maxVal, 9999);
+      }
     }
+    onPatch({ companySizes: picked, companySizeMin: minVal, companySizeMax: maxVal });
   }
   function applyRevenueBand(picked: string[]) {
-    const last = picked[picked.length - 1];
-    if (!last) {
-      onPatch({ revenueMin: null, revenueMax: null });
+    if (picked.length === 0) {
+      onPatch({ revenues: [], revenueMin: null, revenueMax: null });
       return;
     }
-    const m = last.match(/(£[^-\s]+)\s*-\s*(£[^\s]+)/);
-    if (m) onPatch({ revenueMin: m[1], revenueMax: m[2] });
-    else onPatch({ revenueMin: last, revenueMax: last });
+    // Heuristic: take min from first band, max from last band so the
+    // numeric span covers the union. Order is whatever order the user
+    // clicked (which usually correlates with revenue magnitude). For the
+    // numeric span we just take the first and last band's tokens.
+    const first = picked[0].match(/(£[^-\s]+)\s*-\s*(£[^\s]+)/);
+    const last = picked[picked.length - 1].match(/(£[^-\s]+)\s*-\s*(£[^\s]+)/);
+    const lo = first ? first[1] : picked[0];
+    const hi = last ? last[2] : picked[picked.length - 1];
+    onPatch({ revenues: picked, revenueMin: lo, revenueMax: hi });
+  }
+  function applyGeographies(picked: string[]) {
+    onPatch({
+      geographies: picked,
+      // Keep legacy single-string column populated (comma-joined) so any
+      // older code paths that still read brief.geography stay readable.
+      geography: picked.length > 0 ? picked.join(', ') : null,
+    });
   }
 
   const valueProp = brief.objective?.trim() ?? 'Add an objective on the Brief editor.';
@@ -155,31 +179,28 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
 
           <ChipPicker
             title="Geography"
-            hint="Where are these companies based?"
+            hint="Where are these companies based? Pick as many as you like."
             options={chips?.geographies ?? []}
-            selected={brief.geography ? [brief.geography] : []}
-            onChange={(next) => onPatch({ geography: next[next.length - 1] ?? null })}
-            max={1}
+            selected={brief.geographies.length > 0 ? brief.geographies : (brief.geography ? brief.geography.split(/,\s*/).filter(Boolean) : [])}
+            onChange={applyGeographies}
             loading={chipsLoading}
           />
 
           <ChipPicker
             title="Company size"
-            hint="Headcount band of the businesses we want to reach."
+            hint="Headcount band(s) of the businesses we want to reach. Pick as many as fit."
             options={chips?.companySizes ?? []}
-            selected={sizeBand ? [sizeBand] : []}
+            selected={brief.companySizes}
             onChange={applySizeBand}
-            max={1}
             loading={chipsLoading}
           />
 
           <ChipPicker
             title="Revenue"
-            hint="Annual revenue band."
+            hint="Annual revenue band(s). Pick as many as fit."
             options={chips?.revenues ?? []}
-            selected={revenueBand ? [revenueBand] : []}
+            selected={brief.revenues}
             onChange={applyRevenueBand}
-            max={1}
             loading={chipsLoading}
           />
 
@@ -201,20 +222,28 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
             loading={chipsLoading}
           />
 
-          {/* Snapshot of analytics derived from picks above, plus
-              ideal customer prose if Claude has filled it in. */}
-          <Card icon={<Users className="h-4 w-4" />} title="Snapshot">
-            {a === null ? <Loading /> : (
-              <div className="grid grid-cols-3 gap-3">
-                <Stat label="ICP fit score" value={String(a.icpScore)} sub={a.icpBand.replace('_', ' ')} accent />
-                <Stat label="Market size" value={a.addressableMarket.toLocaleString()} sub="Addressable companies" />
-                <Stat label="Revenue potential" value={a.revenuePotentialLabel} sub="Annual" />
-              </div>
-            )}
-            {brief.idealCustomer && brief.idealCustomer.trim().length > 0 ? (
-              <p className="mt-3 pt-3 border-t border-evari-edge/20 text-[12px] text-evari-text leading-relaxed">{brief.idealCustomer}</p>
-            ) : null}
-          </Card>
+          {/* Snapshot card. Only render the analytics row once Discovery
+              has actually run and shortlisted companies, so we never
+              show fake placeholder numbers (ICP 50 / market 0 / revenue
+              dash) on a fresh brief. */}
+          {a === null ? null :
+            a.addressableMarket > 0 ? (
+              <Card icon={<Users className="h-4 w-4" />} title="Snapshot">
+                <div className="grid grid-cols-3 gap-3">
+                  <Stat label="ICP fit score" value={String(a.icpScore)} sub={a.icpBand.replace('_', ' ')} accent />
+                  <Stat label="Market size" value={a.addressableMarket.toLocaleString()} sub="Addressable companies" />
+                  <Stat label="Revenue potential" value={a.revenuePotentialLabel} sub="Annual" />
+                </div>
+                {brief.idealCustomer && brief.idealCustomer.trim().length > 0 ? (
+                  <p className="mt-3 pt-3 border-t border-evari-edge/20 text-[12px] text-evari-text leading-relaxed">{brief.idealCustomer}</p>
+                ) : null}
+              </Card>
+            ) : brief.idealCustomer && brief.idealCustomer.trim().length > 0 ? (
+              <Card icon={<Users className="h-4 w-4" />} title="Ideal customer">
+                <p className="text-[12px] text-evari-text leading-relaxed">{brief.idealCustomer}</p>
+              </Card>
+            ) : null
+          }
         </div>
 
         {/* RIGHT: Spitball with Claude, full column depth. Compact mode
