@@ -644,11 +644,19 @@ export function AIAssistantPane() {
       const res = await fetch('/api/ai/transcribe', { method: 'POST', body: fd });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; text?: string; error?: string };
       if (res.ok && json.ok && json.text && json.text.trim().length > 1) {
-        // Auto-send. The assistant reply will then be spoken via the
-        // existing voiceOut path.
+        setMicError(null);
         await sendMessage({ text: json.text.trim() });
+      } else if (!res.ok || json.ok === false) {
+        // Surface the failure so the user sees why nothing is happening.
+        // Also kill live mode on auth errors so we do not loop on a bad key.
+        setMicError(json.error ?? ('Transcription failed (HTTP ' + res.status + ').'));
+        console.warn('[mojito.live.transcribe] failed', { status: res.status, json });
+        if (json.error && json.error.includes('401')) {
+          exitLiveMode();
+        }
       }
     } catch (e) {
+      setMicError('Transcription request failed: ' + (e instanceof Error ? e.message : String(e)));
       console.warn('[mojito.live.transcribe] threw', e);
     } finally {
       setLiveStatus(speakingRef.current ? 'speaking' : 'listening');
