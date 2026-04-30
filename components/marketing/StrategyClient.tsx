@@ -228,7 +228,7 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
 
       // 3. Run the auto-scan synchronously so Discover populates.
       setHandoffStage('scanning');
-      await fetch(`/api/plays/${next.playId}/auto-scan`, {
+      await fetch(`/api/plays/${next.playId}/discover-agent`, {
         method: 'POST',
       }).catch(() => {});
 

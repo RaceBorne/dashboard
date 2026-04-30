@@ -214,7 +214,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
           onClick={async () => {
             setBusy('autoscan');
             try {
-              await fetch(`/api/plays/${play.id}/auto-scan`, { method: 'POST' });
+              await fetch(`/api/plays/${play.id}/discover-agent`, { method: 'POST' });
               await load();
             } finally {
               setBusy(null);
@@ -251,7 +251,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
               onClick={async () => {
                 setBusy('autoscan');
                 try {
-                  await fetch(`/api/plays/${play.id}/auto-scan`, { method: 'POST' });
+                  await fetch(`/api/plays/${play.id}/discover-agent`, { method: 'POST' });
                   await load();
                   router.refresh();
                 } finally {
