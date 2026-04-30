@@ -23,6 +23,13 @@ import {
 
 import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
+import {
+  Avatar,
+  CompanyDrawer,
+  RowEnrichDot,
+  type Row as DrawerRow,
+  type StrategyContext,
+} from '@/components/discover/DiscoveryDashboard';
 
 interface Entry {
   id: string;
@@ -55,6 +62,30 @@ export function ShortlistClient({ plays, play, initial }: Props) {
   const [tab, setTab] = useState<Tab>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Project a Shortlist Entry into the shape the shared CompanyDrawer
+  // expects. Fields the drawer doesn't read at this stage (decision
+  // makers, data coverage, aboutText/Meta, notes) are stubbed out and
+  // the drawer fetches what it needs lazily.
+  const drawerRows: DrawerRow[] = items.map((e) => ({
+    id: e.id,
+    domain: e.domain,
+    name: e.name,
+    logoUrl: 'https://logo.clearbit.com/' + e.domain,
+    description: e.fitReason,
+    industry: e.industry,
+    size: e.employees,
+    revenue: e.revenue,
+    location: e.location,
+    fitScore: e.fitScore,
+    decisionMakerCount: 0,
+    dataCoverage: 0,
+    status: e.status,
+    aboutText: null,
+    aboutMeta: null,
+    notes: null,
+  }));
 
   async function huntContacts(id: string) {
     setBusy(`hunt:${id}`);
@@ -202,13 +233,21 @@ export function ShortlistClient({ plays, play, initial }: Props) {
               {filtered.length === 0 ? (
                 <tr><td colSpan={8} className="text-center py-12 text-evari-dim">No candidates in this bucket.</td></tr>
               ) : filtered.map((e) => (
-                <tr key={e.id} className="border-t border-evari-edge/20 hover:bg-evari-ink/30">
-                  <td className="py-2 px-3">
+                <tr key={e.id} onClick={() => setSelectedId(e.id)} className="border-t border-evari-edge/20 hover:bg-evari-ink/30 cursor-pointer">
+                  <td className="py-2 px-3" onClick={(ev) => ev.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggle(e.id)} className="accent-evari-gold" />
                   </td>
                   <td className="py-2 px-3">
-                    <div className="text-evari-text font-medium">{e.name}</div>
-                    <div className="text-evari-dim text-[11px]">{e.location ?? e.domain}</div>
+                    <div className="flex items-center gap-2">
+                      <Avatar name={e.name} logoUrl={'https://logo.clearbit.com/' + e.domain} />
+                      <div>
+                        <div className="text-evari-text font-medium flex items-center gap-1.5">
+                          {e.name}
+                          <RowEnrichDot ready={false} />
+                        </div>
+                        <div className="text-evari-dim text-[11px]">{e.location ?? e.domain}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="py-2 px-3 text-evari-dim">{e.industry ?? '—'}</td>
                   <td className="py-2 px-3 text-evari-dim">{e.employees ?? '—'}</td>
@@ -217,7 +256,7 @@ export function ShortlistClient({ plays, play, initial }: Props) {
                     <FitScoreCell score={e.fitScore} band={e.fitBand} />
                   </td>
                   <td className="py-2 px-3 text-evari-dim max-w-[260px] truncate">{e.fitReason ?? '—'}</td>
-                  <td className="py-2 px-3">
+                  <td className="py-2 px-3" onClick={(ev) => ev.stopPropagation()}>
                     <div className="flex items-center gap-1.5">
                       {e.status === 'shortlisted' ? (
                         <span className="inline-flex items-center gap-1 text-[11px] text-evari-gold"><Bookmark className="h-3 w-3 fill-evari-gold" /> Shortlisted</span>
@@ -240,6 +279,36 @@ export function ShortlistClient({ plays, play, initial }: Props) {
             </tbody>
           </table>
         </div>
+
+        {/* Drawer for the selected row */}
+        <CompanyDrawer
+          row={drawerRows.find((r) => r.id === selectedId) ?? null}
+          busy={busy}
+          playId={play.id}
+          strategyContext={null}
+          enrichmentProgress={{ ready: 0, total: 0 }}
+          stage="shortlist"
+          primaryAction={selectedId ? {
+            label: 'Hunt contacts',
+            icon: <Sparkles className="h-3.5 w-3.5" />,
+            onClick: () => { void huntContacts(selectedId); setSelectedId(null); },
+            busy: busy === `hunt:${selectedId}`,
+          } : undefined}
+          getSeenDomains={() => items.map((e) => e.domain).slice(0, 40)}
+          onClose={() => setSelectedId(null)}
+          onShortlist={(id) => { setSelected(new Set([id])); void bulkAction('shortlisted'); }}
+          onBlock={async (id, domain) => {
+            await fetch(`/api/discover/${play.id}/block`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ domain, rowId: id }),
+            });
+            setItems((cur) => cur.filter((e) => e.id !== id));
+            setSelectedId(null);
+          }}
+          onRowPatched={() => { /* not needed; drawer About/Notes lazy-fetch */ }}
+          onPeersAdded={() => { /* not needed; new peers don't auto-add */ }}
+        />
 
         {/* Bulk actions */}
         {selected.size > 0 ? (

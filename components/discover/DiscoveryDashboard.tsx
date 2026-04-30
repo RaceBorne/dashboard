@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
 import { StepTitle } from '@/components/marketing/strategy/StepTitle';
 
-interface Row {
+export interface Row {
   id: string;
   domain: string;
   name: string;
@@ -42,7 +42,7 @@ interface Row {
   notes?: string | null;
 }
 
-interface AboutMeta {
+export interface AboutMeta {
   address?: string | null;
   phone?: string | null;
   employeeRange?: string | null;
@@ -50,7 +50,7 @@ interface AboutMeta {
   generatedAt?: string;
 }
 
-interface StrategyContext {
+export interface StrategyContext {
   campaignName: string | null;
   objective: string | null;
   industries: string[];
@@ -555,7 +555,7 @@ function FitScoreCell({ score }: { score: number | null }) {
 
 const AVATAR_PALETTE = ['#7CCFC2', '#4AA39C', '#2F7B7C', '#1F555F', '#C09000', '#A26F00', '#5C8D4F', '#42685B'];
 
-function Avatar({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
+export function Avatar({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
   const [logoFailed, setLogoFailed] = useState(false);
   const initials = name.split(/\s+/).map((s) => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
   let h = 0; for (let i = 0; i < name.length; i++) h = ((h << 5) - h) + name.charCodeAt(i);
@@ -628,7 +628,7 @@ function RowMenu({ row, busy, onShortlist, onFindSimilar, onBlock }: { row: Row;
   );
 }
 
-interface SimilarPeer {
+export interface SimilarPeer {
   domain: string;
   name: string;
   why: string;
@@ -654,12 +654,19 @@ interface SimilarCacheEntry {
   blockedDomains: Set<string>;
 }
 
-function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress, getSeenDomains, onClose, onShortlist, onBlock, onRowPatched, onPeersAdded }: {
+export function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress, stage, primaryAction, getSeenDomains, onClose, onShortlist, onBlock, onRowPatched, onPeersAdded }: {
   row: Row | null;
   busy: string | null;
   playId: string;
   strategyContext: StrategyContext | null;
   enrichmentProgress: { ready: number; total: number };
+  /** Which stage the drawer is mounted in. Drives the footer's
+   * primary action: discovery shows Send to shortlist, shortlist
+   * shows Hunt contacts. Defaults to discovery. */
+  stage?: 'discovery' | 'shortlist' | 'enrichment';
+  /** Custom primary footer action. When present, replaces the
+   * stage default. Useful for ad-hoc surfaces. */
+  primaryAction?: { label: string; icon?: React.ReactNode; onClick: () => void; disabled?: boolean; busy?: boolean };
   getSeenDomains: () => string[];
   onClose: () => void;
   onShortlist: (id: string) => void;
@@ -1371,7 +1378,35 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
           >
             <X className="h-3.5 w-3.5" /> Not relevant
           </button>
-          {shortlisted ? (
+          {primaryAction ? (
+            <button
+              type="button"
+              onClick={primaryAction.onClick}
+              disabled={primaryAction.disabled}
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition flex-1"
+            >
+              {primaryAction.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : primaryAction.icon}
+              {primaryAction.label}
+            </button>
+          ) : stage === 'shortlist' ? (
+            shortlisted ? (
+              /* On shortlist, the row is by definition shortlisted, so
+                 the primary action moves on to enrichment. */
+              <span className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30 flex-1">
+                <Star className="h-3.5 w-3.5 fill-evari-gold" /> Shortlisted
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onShortlist(row.id)}
+                disabled={shortlistBusy}
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition flex-1"
+              >
+                {shortlistBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                Send to shortlist
+              </button>
+            )
+          ) : shortlisted ? (
             <span className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30 flex-1">
               <Star className="h-3.5 w-3.5 fill-evari-gold" /> Shortlisted
             </span>
@@ -1457,7 +1492,7 @@ function SimilarSkeletonCard() {
 
 // Per-row enrichment dot. Solid gold = ready, hollow ring with pulse =
 // still warming. Fits in 8x8 next to the company name.
-function RowEnrichDot({ ready }: { ready: boolean }) {
+export function RowEnrichDot({ ready }: { ready: boolean }) {
   return ready ? (
     <span
       className="inline-block h-1.5 w-1.5 rounded-full bg-evari-gold/80"
@@ -1471,7 +1506,7 @@ function RowEnrichDot({ ready }: { ready: boolean }) {
   );
 }
 
-function KV({ label, value, icon }: { label: string; value: string | null | undefined; icon?: React.ReactNode }) {
+export function KV({ label, value, icon }: { label: string; value: string | null | undefined; icon?: React.ReactNode }) {
   return (
     <div>
       <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5 inline-flex items-center gap-1">{icon}{label}</div>
