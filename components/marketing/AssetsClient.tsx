@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Check, Copy, Globe, Layers, Loader2, Mail, Maximize2,
-  Minimize2, Search, Trash2, Upload, X,
+  Check, Copy, Globe, Layers, Loader2, Mail, Search, Trash2, Upload, X,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -15,16 +14,6 @@ interface Props {
 }
 
 const ACCEPTED_MIMES = '.png,.jpg,.jpeg,.gif,.webp,.svg,.avif,.psd,image/*';
-
-// Filenames carrying transparency. PNG, SVG, GIF can. Showing them on
-// a dark grey checkered background lets the operator see where the
-// image ends and the canvas begins.
-function isTransparent(filename: string, mime: string | null): boolean {
-  const ext = filename.toLowerCase().split('.').pop();
-  if (ext === 'png' || ext === 'psd' || ext === 'svg' || ext === 'webp' || ext === 'gif') return true;
-  if (mime?.includes('png') || mime?.includes('svg') || mime?.includes('webp') || mime?.includes('gif')) return true;
-  return false;
-}
 
 function fileExt(filename: string): string {
   const e = filename.toLowerCase().split('.').pop();
@@ -115,28 +104,33 @@ export function AssetsClient({ initialAssets }: Props) {
     }
   }
 
-  async function togglePurpose(asset: MktAsset, purpose: AssetPurpose) {
-    setBusyId(asset.id);
+  // Convert modal state. When a tile's Web/Newsletter button is
+  // clicked we don't toggle the tag directly any more, we open this
+  // dialog so the operator sets dimensions + format.
+  const [convertTarget, setConvertTarget] = useState<{ asset: MktAsset; purpose: AssetPurpose } | null>(null);
+
+  async function runConvert(input: { width: number; height: number | null; format: 'jpeg' | 'png' | 'webp' | 'gif'; purpose: AssetPurpose; assetId: string }) {
+    setBusyId(input.assetId);
     try {
-      const has = asset.purposes.includes(purpose);
-      const next = has
-        ? asset.purposes.filter((p) => p !== purpose)
-        : [...asset.purposes, purpose];
-      // Server enforces global stays in. We mirror that locally so the
-      // UI reflects the persisted state.
-      if (!next.includes('global')) next.push('global');
-      const res = await fetch(`/api/marketing/assets/${asset.id}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/marketing/assets/${input.assetId}/convert`, {
+        method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ purposes: next }),
+        body: JSON.stringify({
+          width: input.width,
+          height: input.height,
+          format: input.format,
+          purpose: input.purpose,
+        }),
       });
       const data = await res.json().catch(() => null);
-      if (data?.ok) {
-        setAssets((curr) => curr.map((a) => (a.id === asset.id ? (data.asset as MktAsset) : a)));
-        if (selected?.id === asset.id) setSelected(data.asset as MktAsset);
+      if (data?.ok && data.asset) {
+        setAssets((curr) => [data.asset as MktAsset, ...curr]);
+      } else if (data?.error) {
+        setError(data.error);
       }
     } finally {
       setBusyId(null);
+      setConvertTarget(null);
     }
   }
 
@@ -224,7 +218,7 @@ export function AssetsClient({ initialAssets }: Props) {
                 busy={busyId === a.id}
                 selected={selected?.id === a.id}
                 onSelect={() => setSelected(a)}
-                onTogglePurpose={(p) => void togglePurpose(a, p)}
+                onConvert={(p) => setConvertTarget({ asset: a, purpose: p })}
               />
             ))}
           </ul>
@@ -240,6 +234,16 @@ export function AssetsClient({ initialAssets }: Props) {
             setSelected(updated);
           }}
           onDelete={() => handleDelete(selected.id)}
+        />
+      ) : null}
+
+      {convertTarget ? (
+        <ConvertModal
+          asset={convertTarget.asset}
+          purpose={convertTarget.purpose}
+          busy={busyId === convertTarget.asset.id}
+          onClose={() => setConvertTarget(null)}
+          onConfirm={(input) => void runConvert({ ...input, assetId: convertTarget.asset.id })}
         />
       ) : null}
     </div>
@@ -279,23 +283,19 @@ function ScaleButton({ active, onClick, label, title }: { active: boolean; onCli
 }
 
 function Tile({
-  asset, scale, busy, selected, onSelect, onTogglePurpose,
+  asset, scale, busy, selected, onSelect, onConvert,
 }: {
   asset: MktAsset;
   scale: Scale;
   busy: boolean;
   selected: boolean;
   onSelect: () => void;
-  onTogglePurpose: (p: AssetPurpose) => void;
+  onConvert: (purpose: AssetPurpose) => void;
 }) {
   const isPSD = asset.filename.toLowerCase().endsWith('.psd');
-  const transparent = isTransparent(asset.filename, asset.mimeType);
   const ext = fileExt(asset.filename);
   const isWeb = asset.purposes.includes('web');
   const isNewsletter = asset.purposes.includes('newsletter');
-
-  // Tile aspect: a touch wider than tall on small/medium, square on
-  // large, so the metadata footer doesn't dominate the card.
   const aspect = scale === 'large' ? 'aspect-square' : 'aspect-[4/3]';
 
   return (
@@ -310,11 +310,8 @@ function Tile({
           type="button"
           onClick={onSelect}
           className={cn(
-            'relative w-full overflow-hidden',
+            'relative w-full overflow-hidden bg-[#1a1a1a]',
             aspect,
-            transparent
-              ? 'bg-[#1a1a1a] bg-[linear-gradient(45deg,#262626_25%,transparent_25%),linear-gradient(-45deg,#262626_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#262626_75%),linear-gradient(-45deg,transparent_75%,#262626_75%)] bg-[length:14px_14px] bg-[position:0_0,0_7px,7px_-7px,-7px_0px]'
-              : 'bg-evari-ink',
           )}
           title={asset.filename}
         >
@@ -329,10 +326,7 @@ function Tile({
               src={asset.url}
               alt={asset.altText ?? asset.filename}
               loading="lazy"
-              className={cn(
-                'absolute inset-0 w-full h-full',
-                transparent ? 'object-contain' : 'object-cover',
-              )}
+              className="absolute inset-0 w-full h-full object-cover"
             />
           )}
         </button>
@@ -352,7 +346,7 @@ function Tile({
           <div className="grid grid-cols-2 gap-1">
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onTogglePurpose('web'); }}
+              onClick={(e) => { e.stopPropagation(); onConvert('web'); }}
               disabled={busy}
               className={cn(
                 'inline-flex items-center justify-center gap-1 h-6 px-1 rounded text-[10px] font-medium border transition',
@@ -361,14 +355,14 @@ function Tile({
                   : 'border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40',
                 busy && 'opacity-50',
               )}
-              title={isWeb ? 'Marked ready for website' : 'Mark ready for website'}
+              title={isWeb ? 'A web variant exists. Click to make another at different dimensions.' : 'Open the convert dialog to make a web-ready variant.'}
             >
               {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Globe className="h-2.5 w-2.5" />}
               {isWeb ? 'Web ✓' : 'Web'}
             </button>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onTogglePurpose('newsletter'); }}
+              onClick={(e) => { e.stopPropagation(); onConvert('newsletter'); }}
               disabled={busy}
               className={cn(
                 'inline-flex items-center justify-center gap-1 h-6 px-1 rounded text-[10px] font-medium border transition',
@@ -377,7 +371,7 @@ function Tile({
                   : 'border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40',
                 busy && 'opacity-50',
               )}
-              title={isNewsletter ? 'Marked ready for newsletter' : 'Mark ready for newsletter'}
+              title={isNewsletter ? 'A newsletter variant exists. Click to make another at different dimensions.' : 'Open the convert dialog to make a newsletter-ready variant.'}
             >
               {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Mail className="h-2.5 w-2.5" />}
               {isNewsletter ? 'Newsletter ✓' : 'Newsletter'}
@@ -407,7 +401,6 @@ function DetailPanel({
   }, [asset.id, asset.altText, asset.tags]);
 
   const dirty = alt !== (asset.altText ?? '') || tagsStr !== asset.tags.join(', ');
-  const transparent = isTransparent(asset.filename, asset.mimeType);
   const isPSD = asset.filename.toLowerCase().endsWith('.psd');
 
   async function save() {
@@ -444,10 +437,7 @@ function DetailPanel({
         </button>
       </header>
       <div className="flex-1 overflow-auto p-3 space-y-3">
-        <div className={cn(
-          'rounded p-2 flex items-center justify-center min-h-[200px]',
-          transparent ? 'bg-[#1a1a1a]' : 'bg-evari-ink',
-        )}>
+        <div className="rounded p-2 flex items-center justify-center min-h-[200px] bg-[#1a1a1a]">
           {isPSD ? (
             <div className="text-evari-dim text-center py-8">
               <div className="text-[24px] font-bold opacity-60">PSD</div>
@@ -527,5 +517,187 @@ function DetailPanel({
         </button>
       </footer>
     </aside>
+  );
+}
+
+function ConvertModal({
+  asset, purpose, busy, onClose, onConfirm,
+}: {
+  asset: MktAsset;
+  purpose: AssetPurpose;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (input: { width: number; height: number | null; format: 'jpeg' | 'png' | 'webp' | 'gif'; purpose: AssetPurpose }) => void;
+}) {
+  // Sensible defaults per purpose:
+  //   - newsletter: 600px wide JPEG (email-safe, predictable size)
+  //   - web:       1600px wide WebP (modern, small files)
+  const defaults = purpose === 'newsletter'
+    ? { width: 600, format: 'jpeg' as const }
+    : { width: 1600, format: 'webp' as const };
+
+  const [width, setWidth] = useState<number>(Math.min(defaults.width, asset.width ?? defaults.width));
+  const [keepAspect, setKeepAspect] = useState(true);
+  const [heightOverride, setHeightOverride] = useState<number | null>(null);
+  const [format, setFormat] = useState<'jpeg' | 'png' | 'webp' | 'gif'>(defaults.format);
+
+  const aspect = asset.width && asset.height ? asset.height / asset.width : null;
+  const computedHeight = keepAspect && aspect ? Math.round(width * aspect) : (heightOverride ?? null);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" />
+      <div
+        className="relative w-full max-w-md rounded-panel bg-evari-surface border border-evari-edge/30 shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="px-4 py-3 border-b border-evari-edge/30 flex items-center justify-between">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">
+              Make ready for {purpose === 'web' ? 'website' : 'newsletter'}
+            </div>
+            <div className="text-[14px] font-semibold text-evari-text truncate mt-0.5">{asset.filename}</div>
+          </div>
+          <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="p-4 space-y-4">
+          {/* Current dimensions */}
+          <div className="rounded bg-evari-ink/40 border border-evari-edge/20 p-3 flex items-center gap-3 text-[11px]">
+            <div className="flex-1">
+              <div className="text-evari-dimmer text-[10px] uppercase tracking-[0.12em]">Current</div>
+              <div className="text-evari-text font-mono tabular-nums mt-0.5">
+                {asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'unknown'} · {fileExt(asset.filename)} · {formatBytes(asset.sizeBytes)}
+              </div>
+            </div>
+            <div className="text-evari-gold/60 text-[16px]">→</div>
+            <div className="flex-1">
+              <div className="text-evari-dimmer text-[10px] uppercase tracking-[0.12em]">New</div>
+              <div className="text-evari-text font-mono tabular-nums mt-0.5">
+                {width}{computedHeight ? ` × ${computedHeight}` : ''} · {format.toUpperCase()}
+              </div>
+            </div>
+          </div>
+
+          {/* Width input */}
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Target width (px)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={width}
+                min={16}
+                max={8000}
+                step={50}
+                onChange={(e) => setWidth(Math.max(16, Math.min(8000, Number(e.target.value) || 16)))}
+                className="flex-1 h-9 rounded-md border border-evari-edge/40 bg-evari-edge/10 px-3 text-[12px] text-evari-text focus:outline-none focus:border-evari-gold/50 font-mono tabular-nums"
+              />
+              <input
+                type="range"
+                min={120}
+                max={Math.max(2400, asset.width ?? 2400)}
+                step={20}
+                value={width}
+                onChange={(e) => setWidth(Number(e.target.value))}
+                className="flex-1 accent-evari-gold"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 mt-2">
+              {[600, 1200, 1600, 2400].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setWidth(preset)}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-medium border transition',
+                    width === preset
+                      ? 'border-evari-gold/50 bg-evari-gold/10 text-evari-gold'
+                      : 'border-evari-edge/40 text-evari-dim hover:text-evari-text',
+                  )}
+                >
+                  {preset}px
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Aspect lock */}
+          <div className="flex items-center justify-between">
+            <label className="inline-flex items-center gap-2 text-[12px] text-evari-text">
+              <input
+                type="checkbox"
+                checked={keepAspect}
+                onChange={(e) => setKeepAspect(e.target.checked)}
+                className="accent-evari-gold"
+              />
+              Keep aspect ratio
+            </label>
+            {!keepAspect ? (
+              <input
+                type="number"
+                placeholder="height (px)"
+                value={heightOverride ?? ''}
+                min={16}
+                max={8000}
+                onChange={(e) => setHeightOverride(e.target.value ? Number(e.target.value) : null)}
+                className="w-32 h-9 rounded-md border border-evari-edge/40 bg-evari-edge/10 px-3 text-[12px] text-evari-text focus:outline-none focus:border-evari-gold/50 font-mono tabular-nums"
+              />
+            ) : (
+              <span className="text-[10px] text-evari-dimmer">height auto</span>
+            )}
+          </div>
+
+          {/* Format picker */}
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">File format</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(['jpeg', 'png', 'webp', 'gif'] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFormat(f)}
+                  className={cn(
+                    'h-9 rounded-md text-[12px] font-medium border transition',
+                    format === f
+                      ? 'border-evari-gold bg-evari-gold/15 text-evari-gold'
+                      : 'border-evari-edge/40 text-evari-dim hover:text-evari-text',
+                  )}
+                >
+                  {f.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <div className="text-[10px] text-evari-dimmer mt-1.5 leading-relaxed">
+              {format === 'jpeg' ? 'Smaller files, no transparency. Best for photos in newsletters.' : null}
+              {format === 'png' ? 'Lossless with transparency. Best for logos and graphics.' : null}
+              {format === 'webp' ? 'Modern format, much smaller than JPEG/PNG with transparency support. Best for web.' : null}
+              {format === 'gif' ? 'Animated or 256-colour. Best preserved if the source was animated.' : null}
+            </div>
+          </div>
+        </div>
+
+        <footer className="px-4 py-3 border-t border-evari-edge/30 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="inline-flex items-center justify-center h-9 px-3 rounded-md text-[12px] font-medium text-evari-dim hover:text-evari-text transition disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm({ width, height: computedHeight, format, purpose })}
+            disabled={busy}
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-md text-[12px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
+          >
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            {busy ? 'Converting…' : `Make ready for ${purpose === 'web' ? 'website' : 'newsletter'}`}
+          </button>
+        </footer>
+      </div>
+    </div>
   );
 }
