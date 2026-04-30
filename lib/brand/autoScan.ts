@@ -243,10 +243,25 @@ async function derivePlansFromPlay(
   // analysis ("Luxury yacht manufacturing", "Superyacht design").
   // Google Places returns nothing useful for those.
   const brief = await getOrCreateBrief(play.id).catch(() => null);
-  const geos = brief?.geographies && brief.geographies.length > 0
-    ? brief.geographies
-    : (brief?.geography ? [brief.geography] : ['United Kingdom']);
   const sectors = brief?.industries ?? [];
+  // Geography order of precedence:
+  // 1. Multi-pick chips array (user explicitly chose).
+  // 2. Single-string legacy field.
+  // 3. AI extraction from title + pitch (catches the 'Hertfordshire
+  //    bike shops' case where the user typed the location but never
+  //    clicked a chip).
+  let geos: string[];
+  if (brief?.geographies && brief.geographies.length > 0) {
+    geos = brief.geographies;
+  } else if (brief?.geography && brief.geography.trim().length > 0) {
+    geos = [brief.geography];
+  } else {
+    try {
+      geos = await deriveLocationsFromPlay(play);
+    } catch {
+      geos = ['United Kingdom'];
+    }
+  }
 
   try {
     const categories = await deriveBusinessCategoriesFromBrief(play, sectors);
@@ -275,6 +290,45 @@ async function derivePlansFromPlay(
   const single = await deriveSinglePlanFromPlay(play, limit ?? 100);
   return [single];
 }
+
+/**
+ * Extract concrete locations from the play title + brief when the
+ * user hasn't picked a geography chip. Catches the 'Hertfordshire
+ * bike shops' case where the operator typed the location into the
+ * brief but never clicked through to set it as a chip. Returns a
+ * list of DataForSEO-friendly location names.
+ */
+async function deriveLocationsFromPlay(play: Play): Promise<string[]> {
+  const prompt = [
+    'Extract the geographic locations the user means to target from this prospecting brief. The user may have written the location into the title or the brief without explicitly picking it from a list.',
+    '',
+    'Idea title: ' + play.title,
+    'Brief: ' + (play.brief ?? ''),
+    '',
+    'Reply with VALID JSON, no commentary, no markdown fences:',
+    '{ "locations": [array of 1 to 3 DataForSEO-friendly location names like "Hertfordshire, England, United Kingdom" or "London, England, United Kingdom" or "Spain"] }',
+    '',
+    'Strict rules:',
+    '- Each location must be a real place. If you can identify a UK county or city in the brief, prefer "<Place>, England, United Kingdom" formatting.',
+    '- If no location is mentioned anywhere, default to ["United Kingdom"]. NEVER default to USA or any specific country other than United Kingdom.',
+    '- Ignore industry words, focus only on places.',
+  ].join('\n');
+
+  const text = await generateBriefing({
+    task: 'auto-scan-locations',
+    voice: 'analyst',
+    prompt,
+  });
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  const parsed = JSON.parse(cleaned) as { locations?: string[] };
+  if (!Array.isArray(parsed.locations)) return ['United Kingdom'];
+  const out = parsed.locations
+    .map((l) => (typeof l === 'string' ? l.trim() : ''))
+    .filter((l) => l.length > 0)
+    .slice(0, 3);
+  return out.length > 0 ? out : ['United Kingdom'];
+}
+
 
 /**
  * Ask Claude to translate the play title + brief + the user's chip
