@@ -371,9 +371,11 @@ export function DiscoveryDashboard({ plays, play }: Props) {
       <CompanyDrawer
         row={visible.find((r) => r.id === selectedId) ?? rows?.find((r) => r.id === selectedId) ?? null}
         busy={busy}
+        playId={play.id}
+        getSeenDomains={() => (rows ?? []).map((r) => r.domain).slice(0, 40)}
         onClose={() => setSelectedId(null)}
         onShortlist={(id) => void shortlist(id)}
-        onFindSimilar={(domain) => void findSimilar(domain)}
+        onPeersAdded={() => void load()}
       />
 
     </div>
@@ -480,18 +482,123 @@ function ShortlistButton({ busy, onShortlist }: { busy: boolean; onShortlist: ()
   );
 }
 
-function CompanyDrawer({ row, busy, onClose, onShortlist, onFindSimilar }: {
+interface SimilarPeer {
+  domain: string;
+  name: string;
+  why: string;
+  logoUrl: string;
+  rowId: string | null;
+  status: string;
+}
+
+interface SimilarCacheEntry {
+  peers: SimilarPeer[];
+  reasoning: string;
+  promotedIds: Set<string>;
+}
+
+function CompanyDrawer({ row, busy, playId, getSeenDomains, onClose, onShortlist, onPeersAdded }: {
   row: Row | null;
   busy: string | null;
+  playId: string;
+  getSeenDomains: () => string[];
   onClose: () => void;
   onShortlist: (id: string) => void;
-  onFindSimilar: (domain: string) => void;
+  onPeersAdded: () => void;
 }) {
+  const [tab, setTab] = useState<'snapshot' | 'similar'>('snapshot');
+  // Per-domain cache so re-opening the same row's drawer doesn't
+  // re-spend the agent budget. Stored as state to keep React in sync,
+  // but we mutate-then-clone on writes to keep deps stable.
+  const [similarCache, setSimilarCache] = useState<Record<string, SimilarCacheEntry>>({});
+  const [similarLoading, setSimilarLoading] = useState(false);
+  const [similarError, setSimilarError] = useState<string | null>(null);
+  const [snapshotKey, setSnapshotKey] = useState(0);
+  const [snapshotFailed, setSnapshotFailed] = useState(false);
+
+  // Reset to Snapshot tab + clear screenshot fail state when the user
+  // opens a different row.
+  useEffect(() => {
+    setTab('snapshot');
+    setSnapshotKey((k) => k + 1);
+    setSnapshotFailed(false);
+    setSimilarError(null);
+  }, [row?.id]);
+
+  // Lazy-fetch peers the first time Similar opens for a given row.
+  useEffect(() => {
+    if (!row) return;
+    if (tab !== 'similar') return;
+    if (similarCache[row.domain]) return;
+    let cancelled = false;
+    setSimilarLoading(true);
+    setSimilarError(null);
+    (async () => {
+      try {
+        const res = await fetch('/api/discover/find-similar', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            domain: row.domain,
+            playId,
+            seenDomains: getSeenDomains(),
+            limit: 8,
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!data?.ok) throw new Error(data?.error ?? 'Find similar failed');
+        const peers = (data.peers ?? []) as SimilarPeer[];
+        setSimilarCache((cur) => ({
+          ...cur,
+          [row.domain]: { peers, reasoning: data.reasoning ?? '', promotedIds: new Set() },
+        }));
+        if ((data.inserted ?? 0) > 0) onPeersAdded();
+      } catch (err) {
+        if (!cancelled) setSimilarError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setSimilarLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row?.id, tab]);
+
   if (!row) return null;
   const shortlisted = row.status === 'shortlisted';
   const shortlistBusy = busy === row.id;
-  const similarBusy = busy === 'similar:' + row.domain;
-  const websiteUrl = `https://${row.domain}`;
+  const websiteUrl = 'https://' + row.domain;
+  const cached = similarCache[row.domain];
+  // Microlink screenshot endpoint. Free tier, no key required for low
+  // volume. embed=screenshot.url returns the rendered image directly
+  // so we can use it as <img src>.
+  const screenshotSrc =
+    'https://api.microlink.io/?url=' +
+    encodeURIComponent(websiteUrl) +
+    '&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1280&viewport.height=800';
+
+  async function promotePeer(peer: SimilarPeer) {
+    if (!peer.rowId || !cached) return;
+    if (cached.promotedIds.has(peer.rowId)) return;
+    try {
+      await fetch('/api/shortlist/' + playId, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [peer.rowId], status: 'shortlisted' }),
+      });
+      setSimilarCache((cur) => {
+        const entry = cur[row!.domain];
+        if (!entry || !peer.rowId) return cur;
+        const promotedIds = new Set(entry.promotedIds);
+        promotedIds.add(peer.rowId);
+        return { ...cur, [row!.domain]: { ...entry, promotedIds } };
+      });
+      onPeersAdded();
+    } catch {
+      // Non-fatal; user can retry.
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40" />
@@ -511,63 +618,169 @@ function CompanyDrawer({ row, busy, onClose, onShortlist, onFindSimilar }: {
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="flex items-start gap-3">
-            <Avatar name={row.name} logoUrl={row.logoUrl} />
-            <div className="flex-1 min-w-0">
-              <h2 className="text-[16px] font-semibold text-evari-text leading-tight">{row.name}</h2>
-              <a href={websiteUrl} target="_blank" rel="noopener" className="text-[12px] text-evari-gold hover:underline inline-flex items-center gap-1 mt-0.5">
-                {row.domain} <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          </div>
-
-          {row.description ? (
-            <section>
-              <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Why this matches</div>
-              <p className="text-[13px] text-evari-text leading-relaxed">{row.description}</p>
-            </section>
-          ) : null}
-
-          <div className="grid grid-cols-2 gap-3 text-[12px]">
-            <KV label="Industry" value={row.industry} />
-            <KV label="Location" value={row.location} icon={<MapPin className="h-3 w-3" />} />
-            <KV label="Size" value={row.size} />
-            <KV label="Revenue" value={row.revenue} />
-          </div>
-
-          <section>
-            <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Fit score</div>
-            <div className="flex items-center gap-3">
-              <span className={cn('text-[24px] font-bold tabular-nums',
-                (row.fitScore ?? 0) >= 90 ? 'text-evari-success' :
-                (row.fitScore ?? 0) >= 80 ? 'text-evari-gold' :
-                'text-evari-text')}>{row.fitScore ?? '—'}</span>
-              <div className="flex-1 h-1.5 rounded-full bg-evari-edge/30 overflow-hidden">
-                <div className="h-full rounded-full bg-evari-gold transition-all" style={{ width: `${row.fitScore ?? 0}%` }} />
+        <div className="flex-1 overflow-y-auto">
+          {/* Overview block — unchanged, sits at the top of the drawer. */}
+          <div className="p-4 space-y-4 border-b border-evari-edge/20">
+            <div className="flex items-start gap-3">
+              <Avatar name={row.name} logoUrl={row.logoUrl} />
+              <div className="flex-1 min-w-0">
+                <h2 className="text-[16px] font-semibold text-evari-text leading-tight">{row.name}</h2>
+                <a href={websiteUrl} target="_blank" rel="noopener" className="text-[12px] text-evari-gold hover:underline inline-flex items-center gap-1 mt-0.5">
+                  {row.domain} <ExternalLink className="h-3 w-3" />
+                </a>
               </div>
             </div>
-          </section>
 
-          <section className="grid grid-cols-2 gap-3 text-[12px]">
-            <KV label="Decision makers" value={String(row.decisionMakerCount)} />
-            <KV label="Data coverage" value={`${row.dataCoverage}%`} />
-          </section>
+            {row.description ? (
+              <section>
+                <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Why this matches</div>
+                <p className="text-[13px] text-evari-text leading-relaxed">{row.description}</p>
+              </section>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-3 text-[12px]">
+              <KV label="Industry" value={row.industry} />
+              <KV label="Location" value={row.location} icon={<MapPin className="h-3 w-3" />} />
+              <KV label="Size" value={row.size} />
+              <KV label="Revenue" value={row.revenue} />
+            </div>
+
+            <section>
+              <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Fit score</div>
+              <div className="flex items-center gap-3">
+                <span className={cn('text-[24px] font-bold tabular-nums',
+                  (row.fitScore ?? 0) >= 90 ? 'text-evari-success' :
+                  (row.fitScore ?? 0) >= 80 ? 'text-evari-gold' :
+                  'text-evari-text')}>{row.fitScore ?? '—'}</span>
+                <div className="flex-1 h-1.5 rounded-full bg-evari-edge/30 overflow-hidden">
+                  <div className="h-full rounded-full bg-evari-gold transition-all" style={{ width: (row.fitScore ?? 0) + '%' }} />
+                </div>
+              </div>
+            </section>
+
+            <section className="grid grid-cols-2 gap-3 text-[12px]">
+              <KV label="Decision makers" value={String(row.decisionMakerCount)} />
+              <KV label="Data coverage" value={row.dataCoverage + '%'} />
+            </section>
+          </div>
+
+          {/* Tab strip + tab content. Tabs are inside the same drawer
+              so the overview stays visible at the top, and the user
+              picks Snapshot or Similar to dig deeper. */}
+          <div className="sticky top-0 bg-evari-surface z-10 flex items-center gap-1 px-3 pt-3 pb-0 border-b border-evari-edge/30">
+            <DrawerTab label="Snapshot" active={tab === 'snapshot'} onClick={() => setTab('snapshot')} />
+            <DrawerTab label="Similar" active={tab === 'similar'} onClick={() => setTab('similar')} />
+          </div>
+
+          {tab === 'snapshot' ? (
+            <div className="p-4 space-y-3">
+              <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer flex items-center justify-between">
+                <span>Live screenshot</span>
+                <a
+                  href={websiteUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-[10px] uppercase tracking-[0.12em] text-evari-gold hover:underline inline-flex items-center gap-1"
+                >
+                  Open site <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+              <div className="rounded-md border border-evari-edge/30 bg-evari-edge/10 overflow-hidden aspect-[16/10] flex items-center justify-center">
+                {snapshotFailed ? (
+                  <div className="text-[11px] text-evari-dim text-center px-6">
+                    Could not load a screenshot for this site. Use Open site to inspect it directly.
+                  </div>
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    key={snapshotKey + ':' + row.domain}
+                    src={screenshotSrc}
+                    alt={row.name + ' homepage'}
+                    className="w-full h-full object-cover object-top"
+                    loading="lazy"
+                    onError={() => setSnapshotFailed(true)}
+                  />
+                )}
+              </div>
+              <div className="text-[10px] text-evari-dimmer leading-relaxed">
+                Quick gut-check that the company is real, on-brand and the right size of operation. Snapshot is generated on demand by Microlink.
+              </div>
+            </div>
+          ) : null}
+
+          {tab === 'similar' ? (
+            <div className="p-4 space-y-3">
+              <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer flex items-center justify-between">
+                <span>Peer companies at the same tier</span>
+                {cached?.peers?.length ? (
+                  <span className="text-[10px] text-evari-dimmer normal-case tracking-normal">{cached.peers.length} found, all added to your list</span>
+                ) : null}
+              </div>
+              {similarLoading ? (
+                <div className="text-[11px] text-evari-dim flex items-center gap-2 py-6">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Searching the web for peer brands at the same tier as {row.name}...
+                </div>
+              ) : null}
+              {similarError ? (
+                <div className="text-[11px] text-evari-dim border border-evari-edge/30 rounded-md p-3 bg-evari-edge/10">
+                  Could not run Find similar: {similarError}
+                </div>
+              ) : null}
+              {!similarLoading && !similarError && cached?.peers?.length === 0 ? (
+                <div className="text-[11px] text-evari-dim py-6 text-center">
+                  The agent could not pin down peers for this company. Try a richer reference (more fields filled in on the row), or run it again later.
+                </div>
+              ) : null}
+              {!similarLoading && cached?.reasoning ? (
+                <div className="text-[10px] text-evari-dimmer italic leading-relaxed">{cached.reasoning}</div>
+              ) : null}
+              {cached?.peers?.map((peer) => {
+                const peerShortlisted = peer.status === 'shortlisted' || (peer.rowId ? cached.promotedIds.has(peer.rowId) : false);
+                const peerWebsite = 'https://' + peer.domain;
+                return (
+                  <div key={peer.domain} className="flex items-start gap-3 rounded-md border border-evari-edge/30 p-3 bg-evari-edge/5">
+                    <Avatar name={peer.name} logoUrl={peer.logoUrl} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[13px] font-semibold text-evari-text leading-tight truncate">{peer.name}</div>
+                        {peerShortlisted ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-evari-gold whitespace-nowrap">
+                            <Star className="h-3 w-3 fill-evari-gold" /> Shortlisted
+                          </span>
+                        ) : peer.rowId ? (
+                          <button
+                            type="button"
+                            onClick={() => void promotePeer(peer)}
+                            className="inline-flex items-center gap-1 text-[10px] text-evari-gold hover:underline whitespace-nowrap"
+                          >
+                            <Send className="h-3 w-3" /> Shortlist
+                          </button>
+                        ) : null}
+                      </div>
+                      <a
+                        href={peerWebsite}
+                        target="_blank"
+                        rel="noopener"
+                        className="text-[11px] text-evari-gold hover:underline inline-flex items-center gap-1"
+                      >
+                        {peer.domain} <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                      {peer.why ? (
+                        <p className="text-[11px] text-evari-dim leading-relaxed mt-1">{peer.why}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
 
         <footer className="px-4 py-3 border-t border-evari-edge/30 flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => onFindSimilar(row.domain)}
-            disabled={similarBusy || shortlistBusy}
-            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold border border-evari-gold/40 text-evari-gold hover:bg-evari-gold/10 disabled:opacity-50 transition flex-1"
-          >
-            {similarBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-            Find similar
-          </button>
           {shortlisted ? (
-            <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30 flex-1 justify-center">
-              <Star className="h-3.5 w-3.5 fill-evari-gold" /> Shortlisted
+            <span className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30 flex-1">
+              <Star className="h-3.5 w-3.5 fill-evari-gold" /> Already shortlisted
             </span>
           ) : (
             <button
@@ -583,6 +796,23 @@ function CompanyDrawer({ row, busy, onClose, onShortlist, onFindSimilar }: {
         </footer>
       </aside>
     </div>
+  );
+}
+
+function DrawerTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'px-3 py-2 text-[12px] font-medium border-b-2 transition',
+        active
+          ? 'border-evari-gold text-evari-gold'
+          : 'border-transparent text-evari-dim hover:text-evari-text',
+      )}
+    >
+      {label}
+    </button>
   );
 }
 

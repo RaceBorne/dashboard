@@ -297,17 +297,52 @@ export async function POST(req: Request) {
         : 'Peer of ' + (reference?.name ?? shortlistRef?.name ?? domain),
       fit_score: 60,
       fit_band: 'good',
+      // Inline Clearbit logo URL so peer rows arrive with a real mark
+      // instead of falling back to TSAV-style initials in the table.
+      logo_url: 'https://logo.clearbit.com/' + peer.domain,
       status: 'candidate',
     }));
-    const { error: upsertErr, count } = await supabase
+    const { data: upserted, error: upsertErr, count } = await supabase
       .from('dashboard_play_shortlist')
-      .upsert(rows, { onConflict: 'play_id,domain', ignoreDuplicates: false, count: 'exact' });
+      .upsert(rows, { onConflict: 'play_id,domain', ignoreDuplicates: false, count: 'exact' })
+      .select('id, domain, status');
     if (!upsertErr) inserted = count ?? rows.length;
+    // Map peer.domain -> { rowId, status } so the client can render
+    // logos + an in-place Send-to-shortlist button without a follow-up
+    // GET.
+    const upsertedRows = (upserted ?? []) as Array<{ id: string; domain: string; status: string | null }>;
+    const byDomain = new Map(upsertedRows.map((r) => [r.domain.toLowerCase(), r]));
+    const peersWithIds = peers.map((p) => {
+      const row = byDomain.get(p.domain.toLowerCase());
+      return {
+        domain: p.domain,
+        name: p.name ?? p.domain,
+        why: p.why ?? '',
+        logoUrl: 'https://logo.clearbit.com/' + p.domain,
+        rowId: row?.id ?? null,
+        status: row?.status ?? 'candidate',
+      };
+    });
+    return NextResponse.json({
+      ok: true,
+      peers: peersWithIds,
+      inserted,
+      reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
+    });
   }
 
+  // No supabase OR no playId — fall back to the original lightweight
+  // response (no row IDs because nothing was inserted).
   return NextResponse.json({
     ok: true,
-    peers,
+    peers: peers.map((p) => ({
+      domain: p.domain,
+      name: p.name ?? p.domain,
+      why: p.why ?? '',
+      logoUrl: 'https://logo.clearbit.com/' + p.domain,
+      rowId: null,
+      status: 'candidate',
+    })),
     inserted,
     reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
   });

@@ -89,7 +89,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playId:
       decisionMakerCount: dDM,
       dataCoverage: dCoverage,
       status: r.status,
-      logoUrl: r.logo_url,
+      // Fall back to a Clearbit logo on the fly so legacy shortlist
+      // rows (inserted before logo_url was tracked) still show a real
+      // mark instead of "TSAV" initials. Avatar component handles the
+      // 404 path gracefully.
+      logoUrl: r.logo_url ?? `https://logo.clearbit.com/${r.domain}`,
       description: r.description,
     };
   }).sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0));
