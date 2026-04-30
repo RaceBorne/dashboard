@@ -109,88 +109,75 @@ export function IdeasClient({ plays: initialPlays, counts }: Props) {
   }, [plays, active, search]);
 
   return (
-    // Two-column layout. Left column is the existing list of
-    // opportunities (search + tabs + scrollable cards). Right column
-    // is an inline 'new opportunity' panel that submits straight into
-    // /strategy?playId=X&kickoff=1.
-    <div className="flex-1 min-h-0 flex flex-col bg-evari-ink">
-      <div className="shrink-0 px-gutter pt-5 pb-3">
-        <div className="flex items-end gap-2">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-[20px] font-bold text-evari-text">Ideas</h1>
-            <p className="text-[12px] text-evari-dim">Capture, develop and organise new targeting concepts.</p>
+    // Stacked layout that mirrors the Campaigns list page: a header
+    // panel with the new-opportunity creator at the top, the existing
+    // ideas list in a separate panel below. Same visual chrome
+    // (rounded-panel + bg-evari-surface + border) on both panels for
+    // visual consistency across the app.
+    <div className="flex-1 min-h-0 overflow-auto bg-evari-ink">
+      <div className="px-gutter py-4 space-y-3">
+        {/* Top panel: pose the question + the creation card. Reads as
+            the same family of header as 'What are you sending?' on
+            the Campaigns list. */}
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-5">
+          <header className="text-center mb-4">
+            <h2 className="text-[18px] font-bold text-evari-text">What's the next opportunity?</h2>
+            <p className="text-[12px] text-evari-dim mt-1 leading-relaxed max-w-2xl mx-auto">
+              Capture a working title and a one-sentence pitch. Claude takes it from there into Strategy.
+            </p>
+          </header>
+          <div className="max-w-2xl mx-auto">
+            <NewIdeaPanel />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="h-3.5 w-3.5 text-evari-dim absolute left-2 top-1/2 -translate-y-1/2" />
+        </section>
+
+        {/* Bottom panel: existing ideas list + tabs + search. Same
+            shape as the campaigns list. */}
+        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-3">
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <div className="relative flex-1 min-w-[240px] max-w-md">
+              <Search className="h-3.5 w-3.5 text-evari-dim absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search ideas..."
-                className="pl-7 pr-2 py-1.5 rounded-panel bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none w-56"
+                className="w-full pl-8 pr-3 py-1.5 rounded-md bg-evari-ink text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
               />
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Two-column body. The grid itself doesn't scroll; the LEFT
-          column scrolls its cards internally, the RIGHT column stays
-          fixed alongside (sticky position keeps the panel pinned even
-          when the parent content is taller). */}
-      <div className="flex-1 min-h-0 px-gutter pb-5 overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-panel h-full">
-          {/* LEFT: tabs at top, scrollable cards list below. */}
-          <div className="min-w-0 flex flex-col min-h-0">
-            <div className="flex items-center gap-1 border-b border-evari-edge/30 shrink-0">
+            <div className="inline-flex rounded-panel bg-evari-ink/30 border border-evari-edge/30 p-0.5">
               {BUCKETS.map((b) => (
                 <button
                   key={b.key}
                   type="button"
                   onClick={() => setActive(b.key)}
-                  className={cn('inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium border-b-2 transition',
+                  className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[12px] font-medium transition',
                     active === b.key
-                      ? 'border-evari-gold text-evari-text'
-                      : 'border-transparent text-evari-dim hover:text-evari-text')}
+                      ? 'bg-evari-gold text-evari-goldInk'
+                      : 'text-evari-dim hover:text-evari-text')}
                 >
                   {b.key === 'favourites' ? <Star className="h-3 w-3" /> : null}
                   <span>{b.label}</span>
                   <span className={cn('inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded text-[10px] font-mono tabular-nums',
-                    active === b.key ? 'bg-evari-gold/15 text-evari-gold' : 'bg-evari-ink/40 text-evari-dim')}>
+                    active === b.key ? 'bg-evari-goldInk/20 text-evari-goldInk' : 'bg-evari-ink/40 text-evari-dim')}>
                     {counts_by_bucket[b.key]}
                   </span>
                 </button>
               ))}
             </div>
+          </div>
 
-            <div className="flex-1 min-h-0 overflow-auto pt-3 no-scrollbar">
-              {filtered.length === 0 ? (
-                <div className="rounded-panel bg-evari-surface border border-evari-edge/30 p-10 text-center text-[13px] text-evari-dim">
-                  {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet. Use the panel on the right to create one.'}
-                </div>
-              ) : (
-                <ul className="space-y-2">
-                  {filtered.map((p) => (
-                    <IdeaCard key={p.id} play={p} onEdit={(pp) => setEditing(pp)} onDelete={(pp) => setDeleting(pp)} />
-                  ))}
-                </ul>
-              )}
+          {filtered.length === 0 ? (
+            <div className="rounded-md bg-evari-ink/30 border border-evari-edge/20 p-10 text-center text-[13px] text-evari-dim">
+              {search.trim() ? 'No ideas match that search.' : active === 'favourites' ? 'Star an idea to add it to favourites.' : 'No ideas in this bucket yet. Use the panel above to create one.'}
             </div>
-          </div>
-
-          {/* RIGHT: opportunity panel. Top aligned with first card row
-              by skipping the tabs height (~41px). Panel itself is a
-              capped-height column that ends before the bottom of the
-              page; cards scrolling on the left don't move it. */}
-          <div className="min-w-0 hidden lg:block pt-[41px]">
-            <NewIdeaPanel />
-          </div>
-
-          {/* On narrow viewports the panel sits BELOW the list. */}
-          <div className="lg:hidden">
-            <NewIdeaPanel />
-          </div>
-        </div>
+          ) : (
+            <ul className="space-y-2">
+              {filtered.map((p) => (
+                <IdeaCard key={p.id} play={p} onEdit={(pp) => setEditing(pp)} onDelete={(pp) => setDeleting(pp)} />
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
 
       {editing ? (
