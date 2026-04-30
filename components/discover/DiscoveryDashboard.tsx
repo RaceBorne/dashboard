@@ -14,7 +14,7 @@
  */
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { ArrowLeft, Bookmark, ChevronRight, ExternalLink, Loader2, MapPin, MoreHorizontal, Pencil, Plus, Search, Send, Star, Wand2, X } from 'lucide-react';
@@ -37,6 +37,31 @@ interface Row {
   decisionMakerCount: number;
   dataCoverage: number;
   status: string;
+  aboutText?: string | null;
+  aboutMeta?: AboutMeta | null;
+  notes?: string | null;
+}
+
+interface AboutMeta {
+  address?: string | null;
+  phone?: string | null;
+  employeeRange?: string | null;
+  orgType?: string | null;
+  generatedAt?: string;
+}
+
+interface StrategyContext {
+  campaignName: string | null;
+  objective: string | null;
+  industries: string[];
+  geographies: string[];
+  targetAudience: string[];
+  companySizes: string[];
+  revenues: string[];
+  channels: string[];
+  messaging: { angle: string; line?: string }[] | null;
+  idealCustomer: string | null;
+  synopsisText: string | null;
 }
 
 interface Stats {
@@ -75,6 +100,16 @@ export function DiscoveryDashboard({ plays, play }: Props) {
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [strategyContext, setStrategyContext] = useState<StrategyContext | null>(null);
+  // Set of shortlist row ids we've already kicked off About-prefetch
+  // for this session. useRef so writes don't trigger re-renders. Lives
+  // for the lifetime of the component, not per-load, so a row that
+  // comes back in a polled reload doesn't re-fire if we already kicked
+  // off its prefetch the first time.
+  const warmedIdsRef = useRef<Set<string>>(new Set<string>());
+  // In-flight count so we don't blow the AI rate limit. Capped low and
+  // queued, since a fresh shortlist can land 30+ rows at once.
+  const aboutQueueRef = useRef<{ inFlight: number; queue: Array<() => Promise<void>> }>({ inFlight: 0, queue: [] });
 
   useAISurface({
     surface: 'discovery',
@@ -94,11 +129,72 @@ export function DiscoveryDashboard({ plays, play }: Props) {
       setStats(json.stats);
       setRows(json.rows);
       setTopIndustries(json.topIndustries ?? []);
+      setStrategyContext(json.strategyContext ?? null);
     } else {
       setRows([]); setStats({ companiesFound: 0, decisionMakers: 0, dataCoverage: 0, estimatedReachable: 0, avgFitScore: 0, pctOfDM: 0 });
     }
   }
   useEffect(() => { void load(); }, [play.id]);
+
+  // Concurrency-bounded queue for About-prefetches. The dispatcher
+  // pulls the next job whenever a slot frees. Cap at 3 so a fresh
+  // shortlist of 30 rows doesn't fan out into a rate-limit burst.
+  const ABOUT_CONCURRENCY = 3;
+  const enqueueAboutPrefetch = useCallback((row: Row) => {
+    if (warmedIdsRef.current.has(row.id)) return;
+    if (row.aboutText && row.aboutText.length > 0) {
+      // Already enriched (server returned cached value). Mark warmed so
+      // we never re-enqueue, and skip the network call.
+      warmedIdsRef.current.add(row.id);
+      return;
+    }
+    warmedIdsRef.current.add(row.id);
+    const job = async () => {
+      try {
+        const res = await fetch(`/api/discover/${play.id}/companies/${row.id}/enrich-about`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        });
+        const data = await res.json().catch(() => null);
+        if (data?.ok && typeof data.aboutText === 'string') {
+          // Patch the local row in place so the drawer sees fresh data
+          // without forcing a full dashboard reload (which would burn
+          // bandwidth on the polled scan path).
+          setRows((cur) => cur?.map((r) => r.id === row.id ? { ...r, aboutText: data.aboutText, aboutMeta: data.aboutMeta ?? null } : r) ?? null);
+        }
+      } catch {
+        // Non-fatal — the user can still trigger a manual enrich from
+        // the drawer's About tab if needed.
+      } finally {
+        aboutQueueRef.current.inFlight--;
+        runAboutQueue();
+      }
+    };
+    aboutQueueRef.current.queue.push(job);
+    runAboutQueue();
+  }, [play.id]);
+
+  function runAboutQueue() {
+    while (
+      aboutQueueRef.current.inFlight < ABOUT_CONCURRENCY &&
+      aboutQueueRef.current.queue.length > 0
+    ) {
+      const next = aboutQueueRef.current.queue.shift();
+      if (!next) break;
+      aboutQueueRef.current.inFlight++;
+      void next();
+    }
+  }
+
+  // Whenever rows change (initial load, polled refresh, find-similar
+  // returns), enqueue About-prefetch for any row we haven't warmed yet.
+  // Buffering kicks in the moment a row lands in the list, not when
+  // the user mouses over or clicks it.
+  useEffect(() => {
+    if (!rows) return;
+    for (const r of rows) enqueueAboutPrefetch(r);
+  }, [rows, enqueueAboutPrefetch]);
 
   // Poll while a scan is in flight so candidates appear in real time
   // as the agent inserts them. Triggered by play.autoScan.status =
@@ -372,9 +468,11 @@ export function DiscoveryDashboard({ plays, play }: Props) {
         row={visible.find((r) => r.id === selectedId) ?? rows?.find((r) => r.id === selectedId) ?? null}
         busy={busy}
         playId={play.id}
+        strategyContext={strategyContext}
         getSeenDomains={() => (rows ?? []).map((r) => r.domain).slice(0, 40)}
         onClose={() => setSelectedId(null)}
         onShortlist={(id) => void shortlist(id)}
+        onRowPatched={(id, patch) => setRows((cur) => cur?.map((r) => r.id === id ? { ...r, ...patch } : r) ?? null)}
         onPeersAdded={() => void load()}
       />
 
@@ -497,33 +595,72 @@ interface SimilarCacheEntry {
   promotedIds: Set<string>;
 }
 
-function CompanyDrawer({ row, busy, playId, getSeenDomains, onClose, onShortlist, onPeersAdded }: {
+function CompanyDrawer({ row, busy, playId, strategyContext, getSeenDomains, onClose, onShortlist, onRowPatched, onPeersAdded }: {
   row: Row | null;
   busy: string | null;
   playId: string;
+  strategyContext: StrategyContext | null;
   getSeenDomains: () => string[];
   onClose: () => void;
   onShortlist: (id: string) => void;
+  onRowPatched: (id: string, patch: Partial<Row>) => void;
   onPeersAdded: () => void;
 }) {
-  const [tab, setTab] = useState<'snapshot' | 'similar'>('snapshot');
-  // Per-domain cache so re-opening the same row's drawer doesn't
-  // re-spend the agent budget. Stored as state to keep React in sync,
-  // but we mutate-then-clone on writes to keep deps stable.
+  type DrawerTabKey = 'about' | 'snapshot' | 'similar' | 'notes' | 'strategy';
+  const [tab, setTab] = useState<DrawerTabKey>('about');
   const [similarCache, setSimilarCache] = useState<Record<string, SimilarCacheEntry>>({});
   const [similarLoading, setSimilarLoading] = useState(false);
   const [similarError, setSimilarError] = useState<string | null>(null);
   const [snapshotKey, setSnapshotKey] = useState(0);
   const [snapshotFailed, setSnapshotFailed] = useState(false);
+  const [aboutLoading, setAboutLoading] = useState(false);
+  const [aboutError, setAboutError] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [notesSaving, setNotesSaving] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset to Snapshot tab + clear screenshot fail state when the user
-  // opens a different row.
+  // Reset state when the row changes.
   useEffect(() => {
-    setTab('snapshot');
+    setTab('about');
     setSnapshotKey((k) => k + 1);
     setSnapshotFailed(false);
     setSimilarError(null);
-  }, [row?.id]);
+    setAboutError(null);
+    setNotesDraft(row?.notes ?? '');
+    setNotesSaving('idle');
+  }, [row?.id, row?.notes]);
+
+  // Lazy-fetch the About paragraph if the prefetch hasn't already
+  // populated it. Most rows arrive with aboutText already filled in
+  // because the dashboard fires enrich-about on row arrival.
+  useEffect(() => {
+    if (!row) return;
+    if (tab !== 'about') return;
+    if (row.aboutText && row.aboutText.length > 0) return;
+    if (aboutLoading) return;
+    let cancelled = false;
+    setAboutLoading(true);
+    setAboutError(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/discover/${playId}/companies/${row.id}/enrich-about`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        });
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!data?.ok) throw new Error(data?.error ?? 'About enrichment failed');
+        onRowPatched(row.id, { aboutText: data.aboutText, aboutMeta: data.aboutMeta ?? null });
+      } catch (err) {
+        if (!cancelled) setAboutError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setAboutLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row?.id, tab, row?.aboutText]);
 
   // Lazy-fetch peers the first time Similar opens for a given row.
   useEffect(() => {
@@ -564,14 +701,39 @@ function CompanyDrawer({ row, busy, playId, getSeenDomains, onClose, onShortlist
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row?.id, tab]);
 
+  // Debounced notes save. Drops a PATCH 600ms after the user stops
+  // typing so we don't hammer Supabase on every keystroke.
+  useEffect(() => {
+    if (!row) return;
+    if (notesDraft === (row.notes ?? '')) return;
+    if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
+    notesTimerRef.current = setTimeout(() => {
+      void (async () => {
+        setNotesSaving('saving');
+        try {
+          await fetch(`/api/discover/${playId}/companies/${row.id}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ notes: notesDraft }),
+          });
+          onRowPatched(row.id, { notes: notesDraft });
+          setNotesSaving('saved');
+          setTimeout(() => setNotesSaving('idle'), 1500);
+        } catch {
+          setNotesSaving('idle');
+        }
+      })();
+    }, 600);
+    return () => {
+      if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
+    };
+  }, [notesDraft, row?.id, row?.notes, playId, onRowPatched]);
+
   if (!row) return null;
   const shortlisted = row.status === 'shortlisted';
   const shortlistBusy = busy === row.id;
   const websiteUrl = 'https://' + row.domain;
   const cached = similarCache[row.domain];
-  // Microlink screenshot endpoint. Free tier, no key required for low
-  // volume. embed=screenshot.url returns the rendered image directly
-  // so we can use it as <img src>.
   const screenshotSrc =
     'https://api.microlink.io/?url=' +
     encodeURIComponent(websiteUrl) +
@@ -619,7 +781,7 @@ function CompanyDrawer({ row, busy, playId, getSeenDomains, onClose, onShortlist
         </header>
 
         <div className="flex-1 overflow-y-auto">
-          {/* Overview block — unchanged, sits at the top of the drawer. */}
+          {/* Overview block stays at the top of the drawer. */}
           <div className="p-4 space-y-4 border-b border-evari-edge/20">
             <div className="flex items-start gap-3">
               <Avatar name={row.name} logoUrl={row.logoUrl} />
@@ -664,13 +826,48 @@ function CompanyDrawer({ row, busy, playId, getSeenDomains, onClose, onShortlist
             </section>
           </div>
 
-          {/* Tab strip + tab content. Tabs are inside the same drawer
-              so the overview stays visible at the top, and the user
-              picks Snapshot or Similar to dig deeper. */}
-          <div className="sticky top-0 bg-evari-surface z-10 flex items-center gap-1 px-3 pt-3 pb-0 border-b border-evari-edge/30">
+          {/* Five tabs sit inside the drawer below the overview. */}
+          <div className="sticky top-0 bg-evari-surface z-10 flex items-center gap-1 px-3 pt-3 pb-0 border-b border-evari-edge/30 overflow-x-auto">
+            <DrawerTab label="About" active={tab === 'about'} onClick={() => setTab('about')} />
             <DrawerTab label="Snapshot" active={tab === 'snapshot'} onClick={() => setTab('snapshot')} />
             <DrawerTab label="Similar" active={tab === 'similar'} onClick={() => setTab('similar')} />
+            <DrawerTab label="Notes" active={tab === 'notes'} onClick={() => setTab('notes')} />
+            <DrawerTab label="Strategy" active={tab === 'strategy'} onClick={() => setTab('strategy')} />
           </div>
+
+          {tab === 'about' ? (
+            <div className="p-4 space-y-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1.5">About</div>
+                {row.aboutText ? (
+                  <p className="text-[13px] text-evari-text leading-relaxed whitespace-pre-line">{row.aboutText}</p>
+                ) : aboutLoading ? (
+                  <div className="text-[11px] text-evari-dim flex items-center gap-2 py-3">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Researching the company on the open web...
+                  </div>
+                ) : aboutError ? (
+                  <div className="text-[11px] text-evari-dim border border-evari-edge/30 rounded-md p-3 bg-evari-edge/10">
+                    Could not generate the About paragraph: {aboutError}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-evari-dim">No About data yet. Switching to this tab will trigger a research pass.</div>
+                )}
+              </div>
+
+              {row.aboutMeta && (row.aboutMeta.address || row.aboutMeta.phone || row.aboutMeta.employeeRange || row.aboutMeta.orgType) ? (
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1.5">Company details</div>
+                  <div className="grid grid-cols-2 gap-3 text-[12px]">
+                    {row.aboutMeta.address ? <KV label="Address" value={row.aboutMeta.address} icon={<MapPin className="h-3 w-3" />} /> : null}
+                    {row.aboutMeta.phone ? <KV label="Phone" value={row.aboutMeta.phone} /> : null}
+                    {row.aboutMeta.employeeRange ? <KV label="Employees" value={row.aboutMeta.employeeRange} /> : null}
+                    {row.aboutMeta.orgType ? <KV label="Org type" value={row.aboutMeta.orgType} /> : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {tab === 'snapshot' ? (
             <div className="p-4 space-y-3">
@@ -775,6 +972,73 @@ function CompanyDrawer({ row, busy, playId, getSeenDomains, onClose, onShortlist
               })}
             </div>
           ) : null}
+
+          {tab === 'notes' ? (
+            <div className="p-4 space-y-2">
+              <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer flex items-center justify-between">
+                <span>Notes for this company</span>
+                <span className="text-[10px] text-evari-dimmer normal-case tracking-normal">
+                  {notesSaving === 'saving' ? 'Saving...' : notesSaving === 'saved' ? 'Saved' : ''}
+                </span>
+              </div>
+              <textarea
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                placeholder="Anything worth remembering about this prospect: how you found them, who introduced you, why they fit, what to lead the conversation with..."
+                className="w-full min-h-[180px] rounded-md border border-evari-edge/30 bg-evari-edge/5 p-3 text-[13px] text-evari-text leading-relaxed placeholder:text-evari-dimmer focus:outline-none focus:border-evari-gold/50 resize-y"
+              />
+              <div className="text-[10px] text-evari-dimmer">Notes persist with this row through Shortlist + Enrichment.</div>
+            </div>
+          ) : null}
+
+          {tab === 'strategy' ? (
+            <div className="p-4 space-y-4">
+              <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Why this row fits the brief</div>
+              {strategyContext ? (
+                <div className="space-y-3 text-[12px]">
+                  {strategyContext.campaignName ? (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Campaign</div>
+                      <div className="text-[12px] text-evari-text">{strategyContext.campaignName}</div>
+                    </div>
+                  ) : null}
+                  {strategyContext.objective ? (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Objective</div>
+                      <div className="text-[12px] text-evari-text leading-relaxed">{strategyContext.objective}</div>
+                    </div>
+                  ) : null}
+                  {strategyContext.idealCustomer ? (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Ideal customer</div>
+                      <div className="text-[12px] text-evari-text leading-relaxed">{strategyContext.idealCustomer}</div>
+                    </div>
+                  ) : null}
+                  {strategyContext.industries.length > 0 ? <ChipRow label="Industries" values={strategyContext.industries} /> : null}
+                  {strategyContext.geographies.length > 0 ? <ChipRow label="Geographies" values={strategyContext.geographies} /> : null}
+                  {strategyContext.targetAudience.length > 0 ? <ChipRow label="Target audience" values={strategyContext.targetAudience} /> : null}
+                  {strategyContext.companySizes.length > 0 ? <ChipRow label="Company sizes" values={strategyContext.companySizes} /> : null}
+                  {strategyContext.revenues.length > 0 ? <ChipRow label="Revenue bands" values={strategyContext.revenues} /> : null}
+                  {strategyContext.channels.length > 0 ? <ChipRow label="Channels" values={strategyContext.channels} /> : null}
+                  {strategyContext.messaging && strategyContext.messaging.length > 0 ? (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">Key messages</div>
+                      <ul className="space-y-1.5">
+                        {strategyContext.messaging.map((m, i) => (
+                          <li key={i} className="text-[12px] text-evari-text leading-relaxed">
+                            <span className="text-evari-gold">{m.angle}</span>
+                            {m.line ? <span className="text-evari-dim">, {m.line}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="text-[11px] text-evari-dim">No strategy brief on file for this venture yet.</div>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <footer className="px-4 py-3 border-t border-evari-edge/30 flex items-center gap-2 shrink-0">
@@ -805,7 +1069,7 @@ function DrawerTab({ label, active, onClick }: { label: string; active: boolean;
       type="button"
       onClick={onClick}
       className={cn(
-        'px-3 py-2 text-[12px] font-medium border-b-2 transition',
+        'px-3 py-2 text-[12px] font-medium border-b-2 transition whitespace-nowrap',
         active
           ? 'border-evari-gold text-evari-gold'
           : 'border-transparent text-evari-dim hover:text-evari-text',
@@ -813,6 +1077,19 @@ function DrawerTab({ label, active, onClick }: { label: string; active: boolean;
     >
       {label}
     </button>
+  );
+}
+
+function ChipRow({ label, values }: { label: string; values: string[] }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">{label}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {values.map((v) => (
+          <span key={v} className="inline-flex items-center px-2 py-0.5 rounded-full bg-evari-edge/20 text-[11px] text-evari-text border border-evari-edge/30">{v}</span>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -15,6 +15,7 @@
 import { NextResponse } from 'next/server';
 
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { getOrCreateBrief } from '@/lib/marketing/strategy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,9 @@ interface ShortlistRow {
   location: string | null; description: string | null;
   fit_score: number | null; status: string;
   logo_url: string | null;
+  about_text: string | null;
+  about_meta: Record<string, unknown> | null;
+  notes: string | null;
 }
 
 interface EnrichmentRow {
@@ -95,6 +99,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playId:
       // 404 path gracefully.
       logoUrl: r.logo_url ?? `https://logo.clearbit.com/${r.domain}`,
       description: r.description,
+      aboutText: r.about_text,
+      aboutMeta: r.about_meta ?? null,
+      notes: r.notes,
     };
   }).sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0));
 
@@ -115,6 +122,26 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playId:
     topIndustries = [...top, { name: 'Others', count: others, pct: total > 0 ? Math.round((others / total) * 100) : 0 }];
   }
 
+  // Pull the parent brief once so the Strategy tab in the drawer can
+  // show the operator the context they signed off on (industries,
+  // audience, channels, key messages). Read-only; never mutated here.
+  const brief = await getOrCreateBrief(playId).catch(() => null);
+  const strategyContext = brief
+    ? {
+        campaignName: brief.campaignName,
+        objective: brief.objective,
+        industries: brief.industries,
+        geographies: brief.geographies,
+        targetAudience: brief.targetAudience,
+        companySizes: brief.companySizes,
+        revenues: brief.revenues,
+        channels: brief.channels,
+        messaging: brief.messaging,
+        idealCustomer: brief.idealCustomer,
+        synopsisText: brief.synopsisText,
+      }
+    : null;
+
   return NextResponse.json({
     ok: true,
     stats: {
@@ -127,5 +154,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playId:
     },
     rows,
     topIndustries,
+    strategyContext,
   });
 }
