@@ -159,8 +159,8 @@ export function BriefSummaryStep({ playId, brief, onEdit, playTitle, pitch, onPa
     <div className="space-y-panel">
       <header className="flex items-start gap-2">
         <div className="flex-1">
-          <StepTitle substep="Brief" />
-          <p className="text-[12px] text-evari-dim mt-0.5">{brief.locked ? 'Locked. Click Unlock to refine; the AI will not redraft until you do.' : 'A summary of your go-to-market strategy. Review and share with your team.'}</p>
+          <StepTitle substep="Market analysis" />
+          <p className="text-[12px] text-evari-dim mt-0.5">{brief.locked ? 'Locked. Click Unlock to refine; the AI will not redraft until you do.' : 'Define who we are hunting and how we will reach them. The pitch sits at the top, the chips on the left, and Claude on the right is here to think with you.'}</p>
         </div>
         <button
           type="button"

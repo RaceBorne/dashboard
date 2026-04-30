@@ -77,7 +77,7 @@ export function SynopsisStep({ playId, playTitle, pitch, brief, onEdit }: Props)
       <header className="flex items-start gap-2">
         <div className="flex-1">
           <StepTitle substep="Synopsis" />
-          <p className="text-[12px] text-evari-dim mt-0.5">Claude reads everything you have so far and writes a single narrative summary. Refine it with chat on the right.</p>
+          <p className="text-[12px] text-evari-dim mt-0.5">The strategy in one read. Claude folds Market analysis and Target profile into a single paragraph you could email a co-founder.</p>
         </div>
         <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition">
           <Pencil className="h-3.5 w-3.5" /> Edit fields

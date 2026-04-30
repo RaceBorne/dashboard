@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 
 export const STRATEGY_STEPS = [
   { key: 'market',   label: 'Market analysis' },
-  { key: 'target',   label: 'Target' },
+  { key: 'target',   label: 'Target profile' },
   { key: 'synopsis', label: 'Synopsis' },
   { key: 'handoff',  label: 'Handoff' },
 ] as const;
