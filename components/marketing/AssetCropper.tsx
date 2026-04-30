@@ -68,9 +68,12 @@ export function AssetCropper({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load actual rendered dimensions of the source so we can map
-  // display → source coordinates.
+  // Both rendered (display) and natural (source) dimensions of the
+  // image. Natural dims come from <img>.naturalWidth which works
+  // for any decoded image even when the DB row has null dimensions
+  // (older uploads pre-dated metadata capture).
   const [imgRect, setImgRect] = useState<{ width: number; height: number } | null>(null);
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   // Crop frame in DISPLAY pixels (top-left x/y, width/height).
@@ -99,6 +102,9 @@ export function AssetCropper({
   function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const el = e.currentTarget;
     setImgRect({ width: el.clientWidth, height: el.clientHeight });
+    if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+      setNaturalSize({ width: el.naturalWidth, height: el.naturalHeight });
+    }
   }
   // Re-measure on window resize so the frame stays aligned.
   useEffect(() => {
@@ -145,21 +151,34 @@ export function AssetCropper({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom]);
 
-  // Convert the display crop back to source pixels.
+  // Convert the display crop back to source pixels. Prefer the
+  // browser-decoded naturalSize over the DB row's width/height since
+  // older uploads have null dims in the DB but always have valid
+  // natural dims in the rendered <img>.
   const sourceCrop = useMemo(() => {
-    if (!cropDisp || !imgRect || !root.width || !root.height) return null;
-    const sx = root.width / imgRect.width;
-    const sy = root.height / imgRect.height;
+    if (!cropDisp || !imgRect) return null;
+    const srcW = naturalSize?.width ?? root.width;
+    const srcH = naturalSize?.height ?? root.height;
+    if (!srcW || !srcH) return null;
+    const sx = srcW / imgRect.width;
+    const sy = srcH / imgRect.height;
     return {
       x: Math.round(cropDisp.x * sx),
       y: Math.round(cropDisp.y * sy),
       width: Math.round(cropDisp.width * sx),
       height: Math.round(cropDisp.height * sy),
     };
-  }, [cropDisp, imgRect, root.width, root.height]);
+  }, [cropDisp, imgRect, naturalSize, root.width, root.height]);
 
   async function saveCrop() {
-    if (!activePreset || !sourceCrop) return;
+    if (!activePreset) {
+      setError('Pick a preset on the right first.');
+      return;
+    }
+    if (!sourceCrop) {
+      setError('Crop frame not ready yet. Wait for the image to load and try again.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -272,8 +291,10 @@ export function AssetCropper({
                     <span className="font-mono tabular-nums">
                       Crop {sourceCrop.width}×{sourceCrop.height} → {activePreset.width}×{activePreset.height}
                     </span>
-                  ) : (
+                  ) : !activePreset ? (
                     <span>Pick a preset on the right</span>
+                  ) : (
+                    <span className="text-evari-dimmer">Loading image…</span>
                   )}
                 </div>
                 <button

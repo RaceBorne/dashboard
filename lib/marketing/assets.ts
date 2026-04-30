@@ -6,6 +6,7 @@
  *   - brand kit logo references (could later swap data-URLs for these)
  */
 
+import sharp from 'sharp';
 import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import type { AssetKind, AssetPurpose, MktAsset } from './types';
 
@@ -188,7 +189,25 @@ export async function uploadAsset(input: {
   const key = `${safeSlug(input.filename.replace(/\.[^.]+$/, ''))}-${Date.now()}.${ext}`;
 
   const arrayBuffer = await f.arrayBuffer();
-  const { error: uploadErr } = await sb.storage.from(BUCKET).upload(key, arrayBuffer, {
+  const buffer = Buffer.from(arrayBuffer);
+
+  // Pull intrinsic dimensions out of the image so the workspace +
+  // cropper can map between display and source pixels without
+  // having to wait for the browser to decode the image. sharp can
+  // read most raster formats without decoding the full image.
+  let width: number | null = null;
+  let height: number | null = null;
+  try {
+    const meta = await sharp(buffer).metadata();
+    if (typeof meta.width === 'number') width = meta.width;
+    if (typeof meta.height === 'number') height = meta.height;
+  } catch {
+    // SVG, PSD and exotic formats may fail metadata extraction.
+    // Leave width/height null; the cropper falls back to
+    // <img>.naturalWidth at render time.
+  }
+
+  const { error: uploadErr } = await sb.storage.from(BUCKET).upload(key, buffer, {
     cacheControl: '31536000, immutable',
     contentType: mime || `image/${ext}`,
     upsert: false,
@@ -209,6 +228,8 @@ export async function uploadAsset(input: {
       url,
       mime_type: mime,
       size_bytes: f.size ?? null,
+      width,
+      height,
       tags: input.tags ?? [],
       alt_text: input.altText ?? null,
     })
