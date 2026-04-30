@@ -1,23 +1,22 @@
 'use client';
 
 /**
- * Target profile dashboard. Read-only summary of the strategy as it
- * currently stands, computed from Supabase via /api/strategy/[playId]/
- * analytics. Edit fields on the Brief step to change the inputs.
+ * Target profile dashboard. This is the stage where we describe WHO
+ * we're going to target, derived entirely from the brief — not from
+ * Discovery results. Every card on this page is full as soon as the
+ * brief has chip picks. Discovery + Enrichment numbers (addressable
+ * market, real contacts, real seniority mix) belong on later stages.
  *
- * Layout follows the design mockup:
- *  1. Header with subtitle.
- *  2. "Is this a good market?" headline card with ICP donut + four
- *     KPIs (addressable market / reachable contacts / revenue
- *     potential / engagement likelihood).
- *  3. Decision makers donut + Seniority pie (side by side).
- *  4. Ideal companies attribute strip (5 fields from the brief).
- *  5. Target summary card with prose + stand-out numbers.
- *
- * If Discovery has not yet been run for this play
- * (addressableMarket = 0) we show a single banner at the top inviting
- * the user to run it, and suppress charts that need shortlist or
- * enrichment data.
+ * Layout:
+ *  1. "Is this a good market?" headline — ICP rubric score plus four
+ *     brief-derived counts (industries, geographies, roles, channels).
+ *  2. Decision makers donut — bucketed from the roles we plan to email
+ *     (brief.targetAudience), filtered to decision-making seniority.
+ *  3. Seniority mix pie — every role bucketed.
+ *  4. Ideal companies attribute strip (industry / size / revenue /
+ *     location / ICP score).
+ *  5. Target summary — prose + post-Discovery stand-out numbers if
+ *     Discovery has actually run.
  */
 
 import Link from 'next/link';
@@ -65,6 +64,42 @@ interface BriefShape {
   idealCustomer?: string | null;
 }
 
+type SeniorityKey = 'c_level' | 'vp' | 'director' | 'head' | 'manager' | 'other';
+const SENIORITY_LABEL: Record<SeniorityKey, string> = {
+  c_level: 'C-Level', vp: 'VP', director: 'Director',
+  head: 'Head of Dept', manager: 'Manager', other: 'Other',
+};
+const DECISION_KEYS: SeniorityKey[] = ['c_level', 'vp', 'director', 'head'];
+
+function classifyRole(role: string): SeniorityKey {
+  const t = role.toLowerCase();
+  if (/\b(ceo|cfo|cto|coo|cmo|chief|founder|owner|president)\b/.test(t)) return 'c_level';
+  if (/\bvp\b|vice president/.test(t)) return 'vp';
+  if (/\bdirector\b/.test(t)) return 'director';
+  if (/\bhead\b/.test(t)) return 'head';
+  if (/\bmanager\b/.test(t)) return 'manager';
+  return 'other';
+}
+
+function bucketRoles(roles: string[]): { all: BreakdownEntry[]; decisionMakers: BreakdownEntry[]; total: number } {
+  const counts = new Map<SeniorityKey, number>();
+  for (const r of roles) {
+    const k = classifyRole(r);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const total = Array.from(counts.values()).reduce((a, b) => a + b, 0);
+  const toEntry = (k: SeniorityKey): BreakdownEntry => {
+    const count = counts.get(k) ?? 0;
+    return { key: k, label: SENIORITY_LABEL[k], count, pct: total > 0 ? Math.round((count / total) * 100) : 0 };
+  };
+  const all: BreakdownEntry[] = (Object.keys(SENIORITY_LABEL) as SeniorityKey[])
+    .map(toEntry)
+    .filter((e) => e.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const decisionMakers = DECISION_KEYS.map(toEntry).filter((e) => e.count > 0).sort((a, b) => b.count - a.count);
+  return { all, decisionMakers, total };
+}
+
 export function TargetProfileStep({ playId, brief }: { playId: string; brief?: BriefShape }) {
   const [a, setA] = useState<Analytics | null>(null);
   useEffect(() => {
@@ -74,7 +109,14 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
       .catch(() => setA(null));
   }, [playId]);
 
-  const dmTotal = useMemo(() => (a?.decisionMakers ?? []).reduce((sum, x) => sum + x.count, 0), [a]);
+  const roles = brief?.targetAudience ?? [];
+  const buckets = useMemo(() => bucketRoles(roles), [roles]);
+  const dmTotal = buckets.decisionMakers.reduce((acc, x) => acc + x.count, 0);
+
+  const industriesCount = brief?.industries?.length ?? 0;
+  const geographiesCount = brief?.geographies?.length ?? (brief?.geography ? brief.geography.split(',').length : 0);
+  const channelsCount = brief?.channels?.length ?? 0;
+
   const hasDiscoveryData = !!a && a.addressableMarket > 0;
   const hasContactData = !!a && a.reachableContacts > 0;
 
@@ -108,7 +150,6 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
       ? brief.geographies.join(', ')
       : (a.locations.length > 0 ? a.locations.join(', ') : (brief?.geography ?? '—'));
 
-  const industryFitPct = a.industryFitPct;
   const highFitPctOfMarket = hasDiscoveryData ? Math.round((a.highFitCount / a.addressableMarket) * 100) : 0;
 
   return (
@@ -119,8 +160,7 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
       </header>
 
       {/* Run-Discovery prompt — only shown until Discovery has populated
-          the shortlist. Keeps the rest of the page useful by drawing
-          the user's eye to the action that unlocks the live numbers. */}
+          the shortlist. The rest of the page stays useful regardless. */}
       {!hasDiscoveryData ? (
         <Link
           href={`/discover?playId=${playId}`}
@@ -131,9 +171,9 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
               <Sparkles className="h-4 w-4" />
             </span>
             <div className="flex-1">
-              <div className="text-[13px] font-semibold text-evari-text">Run Discovery to populate this profile</div>
+              <div className="text-[13px] font-semibold text-evari-text">Run Discovery to find real companies that match this profile</div>
               <p className="text-[12px] text-evari-dim mt-0.5">
-                Industry, company size, revenue and location come straight from the brief. The market-size, decision-maker and seniority numbers fill in once Discovery has shortlisted real companies.
+                The brief tells us who to target. Discovery turns the description into a live shortlist with company-level fit scores.
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-evari-gold shrink-0" />
@@ -141,7 +181,9 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
         </Link>
       ) : null}
 
-      {/* Is this a good market */}
+      {/* Is this a good market — driven entirely by the brief at this
+          stage. ICP score is the rubric estimate; the four counts come
+          straight from the chip picks so this card is always full. */}
       <Card title="Is this a good market to pursue?">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-panel items-center">
           <div className="md:col-span-1 flex items-center gap-3">
@@ -149,64 +191,66 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
             <div>
               <div className="text-[12px] text-evari-dim">Ideal customer score</div>
               <div className="text-[12px] font-semibold text-evari-text capitalize">{a.icpBand.replace('_', ' ')}</div>
-              <p className="text-[11px] text-evari-dimmer mt-1">
-                {hasDiscoveryData ? 'Strong alignment across key attributes.' : 'Score is a baseline from the rubric. Run Discovery for a real market read.'}
-              </p>
+              <p className="text-[11px] text-evari-dimmer mt-1">Estimated from your brief. Tightens once Discovery shortlists companies.</p>
             </div>
           </div>
-          <Stat label="Addressable market" value={hasDiscoveryData ? a.addressableMarket.toLocaleString() : '—'} sub="Companies" />
-          <Stat label="Reachable contacts" value={hasContactData ? a.reachableContacts.toLocaleString() : '—'} sub="Decision makers" />
-          <Stat label="Revenue potential" value={a.revenuePotentialLabel || '—'} sub="Pipeline opportunity" />
-          <Stat label="Engagement likelihood" value={a.engagementLikelihood === 'Unknown' ? '—' : a.engagementLikelihood} sub="Based on intent signals" />
+          <Stat label="Industries targeted" value={String(industriesCount)} sub={brief?.industries && brief.industries.length > 0 ? brief.industries.slice(0, 2).join(', ') : 'Pick on the brief'} />
+          <Stat label="Geographies" value={String(geographiesCount)} sub={locationsPretty === '—' ? 'Pick on the brief' : locationsPretty} />
+          <Stat label="Roles to email" value={String(roles.length)} sub={dmTotal > 0 ? `${dmTotal} decision makers` : 'Pick on the brief'} />
+          <Stat label="Channels in mix" value={String(channelsCount)} sub={brief?.channels && brief.channels.length > 0 ? brief.channels.slice(0, 2).map(humaniseChannel).join(', ') : 'Pick on the brief'} />
         </div>
       </Card>
 
-      {/* Decision makers + Seniority mix. Both depend on enrichment data
-          so we only render them when contacts have been hunted. */}
-      {hasContactData ? (
+      {/* Decision makers + Seniority mix — both bucketed from the roles
+          chip on the brief, so they fill at this stage and align with
+          who we plan to email. If targetAudience is empty the cards
+          stay hidden rather than render an empty pie. */}
+      {buckets.all.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-panel">
-          <Card title="Who are the decision makers?">
-            <div className="grid grid-cols-2 gap-3 items-center">
-              <div className="h-[200px] relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={a.decisionMakers} dataKey="count" nameKey="label" innerRadius={55} outerRadius={80} stroke="none">
-                      {a.decisionMakers.map((entry, i) => <Cell key={entry.key} fill={TEAL_PALETTE[i % TEAL_PALETTE.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: 'rgb(var(--evari-surface))', border: '1px solid rgb(var(--evari-edge))', borderRadius: 6, fontSize: 11 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <div className="text-2xl font-bold text-evari-text">{dmTotal}</div>
-                  <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Total</div>
+          {buckets.decisionMakers.length > 0 ? (
+            <Card title="Decision makers we will target">
+              <div className="grid grid-cols-2 gap-3 items-center">
+                <div className="h-[200px] relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={buckets.decisionMakers} dataKey="count" nameKey="label" innerRadius={55} outerRadius={80} stroke="none">
+                        {buckets.decisionMakers.map((entry, i) => <Cell key={entry.key} fill={TEAL_PALETTE[i % TEAL_PALETTE.length]} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ background: 'rgb(var(--evari-surface))', border: '1px solid rgb(var(--evari-edge))', borderRadius: 6, fontSize: 11 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <div className="text-2xl font-bold text-evari-text">{dmTotal}</div>
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Roles</div>
+                  </div>
                 </div>
+                <ul className="space-y-1">
+                  {buckets.decisionMakers.map((d, i) => (
+                    <li key={d.key} className="flex items-center gap-2 text-[12px]">
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: TEAL_PALETTE[i % TEAL_PALETTE.length] }} />
+                      <span className="flex-1 text-evari-text">{d.label}</span>
+                      <span className="text-evari-dim font-mono tabular-nums">{d.count}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="space-y-1">
-                {a.decisionMakers.map((d, i) => (
-                  <li key={d.key} className="flex items-center gap-2 text-[12px]">
-                    <span className="h-2 w-2 rounded-full shrink-0" style={{ background: TEAL_PALETTE[i % TEAL_PALETTE.length] }} />
-                    <span className="flex-1 text-evari-text">{d.label}</span>
-                    <span className="text-evari-dim font-mono tabular-nums">{d.pct}%</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </Card>
+            </Card>
+          ) : null}
 
-          <Card title="Seniority mix">
+          <Card title="Seniority mix targeted">
             <div className="grid grid-cols-2 gap-3 items-center">
               <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={a.seniorityMix} dataKey="count" nameKey="label" outerRadius={80} stroke="none">
-                      {a.seniorityMix.map((entry, i) => <Cell key={entry.key} fill={TEAL_PALETTE[i % TEAL_PALETTE.length]} />)}
+                    <Pie data={buckets.all} dataKey="count" nameKey="label" outerRadius={80} stroke="none">
+                      {buckets.all.map((entry, i) => <Cell key={entry.key} fill={TEAL_PALETTE[i % TEAL_PALETTE.length]} />)}
                     </Pie>
                     <Tooltip contentStyle={{ background: 'rgb(var(--evari-surface))', border: '1px solid rgb(var(--evari-edge))', borderRadius: 6, fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
               <ul className="space-y-1">
-                {a.seniorityMix.map((d, i) => (
+                {buckets.all.map((d, i) => (
                   <li key={d.key} className="flex items-center gap-2 text-[12px]">
                     <span className="h-2 w-2 rounded-full shrink-0" style={{ background: TEAL_PALETTE[i % TEAL_PALETTE.length] }} />
                     <span className="flex-1 text-evari-text">{d.label}</span>
@@ -223,17 +267,17 @@ export function TargetProfileStep({ playId, brief }: { playId: string; brief?: B
           brief, not from Discovery). */}
       <Card title="What do our ideal companies look like?">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-panel">
-          <Attr label="Industry fit" value={hasDiscoveryData ? `${industryFitPct}%` : '—'} sub={(brief?.industries && brief.industries.length > 0) ? brief.industries.slice(0, 2).join(', ') : '—'} />
+          <Attr label="Industry" value={brief?.industries && brief.industries.length > 0 ? brief.industries.slice(0, 3).join(', ') : '—'} sub={industriesCount > 1 ? `${industriesCount} sectors` : 'Sector'} />
           <Attr label="Company size" value={sizesPretty} sub="Employees" />
-          <Attr label="Revenue" value={revenuesPretty} sub="Annual revenue" />
+          <Attr label="Revenue" value={revenuesPretty} sub="Annual" />
           <Attr label="Location" value={locationsPretty} sub="Primary regions" />
           <Attr label="ICP fit score" value={`${a.icpScore} /100`} sub={a.icpBand.replace('_', ' ')} />
         </div>
       </Card>
 
       {/* Target summary — prose on the left, two stand-out numbers on
-          the right. Hide entirely when there is neither prose nor real
-          numbers, so we never display a hollow card. */}
+          the right (only when Discovery / Enrichment have actually
+          produced numbers). */}
       {(brief?.idealCustomer && brief.idealCustomer.trim().length > 0) || hasDiscoveryData || hasContactData ? (
         <Card title="Target summary">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-panel items-start">
@@ -284,7 +328,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
     <div>
       <div className="text-2xl font-bold tabular-nums text-evari-text">{value}</div>
       <div className="text-[11px] text-evari-dim">{label}</div>
-      {sub ? <div className="text-[10px] text-evari-dimmer mt-0.5">{sub}</div> : null}
+      {sub ? <div className="text-[10px] text-evari-dimmer mt-0.5 truncate">{sub}</div> : null}
     </div>
   );
 }
@@ -331,4 +375,10 @@ function ScoreDonut({ value }: { value: number }) {
       </div>
     </div>
   );
+}
+
+function humaniseChannel(c: string): string {
+  if (c === 'linkedin_organic') return 'LinkedIn';
+  if (c === 'linkedin_paid') return 'LinkedIn ads';
+  return c.charAt(0).toUpperCase() + c.slice(1);
 }
