@@ -592,7 +592,7 @@ function RowMenu({ row, busy, onShortlist, onFindSimilar, onBlock }: { row: Row;
         type="button"
         onClick={onBlock}
         disabled={shortlistBusy || similarBusy}
-        className="inline-flex items-center justify-center h-7 w-7 rounded-md text-evari-dim hover:text-evari-warning hover:bg-evari-warning/10 disabled:opacity-50 transition"
+        className="inline-flex items-center justify-center h-7 w-7 rounded-md text-evari-dim hover:text-evari-gold hover:bg-evari-gold/10 disabled:opacity-50 transition"
         title="Not a fit. Removes from this list and blocks from any future searches."
         aria-label="Not a fit"
       >
@@ -1073,19 +1073,12 @@ export function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentPr
             return (
               <div className="px-4 py-2 border-b border-evari-edge/20">
                 <style dangerouslySetInnerHTML={{ __html: `
-                  @keyframes evariShimmer {
-                    0%   { background-position: 200% 0; }
-                    100% { background-position: -200% 0; }
+                  @keyframes evariBarPulse {
+                    0%, 100% { opacity: 0.85; }
+                    50%      { opacity: 1; }
                   }
                   .evari-shimmer-bar {
-                    background-image: linear-gradient(
-                      90deg,
-                      rgba(254, 199, 0, 0.85) 0%,
-                      rgba(255, 235, 153, 1) 50%,
-                      rgba(254, 199, 0, 0.85) 100%
-                    );
-                    background-size: 200% 100%;
-                    animation: evariShimmer 1.4s linear infinite;
+                    animation: evariBarPulse 2.4s ease-in-out infinite;
                   }
                 ` }} />
                 <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer flex items-center justify-between mb-1">
@@ -1094,7 +1087,7 @@ export function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentPr
                 </div>
                 <div className="h-1.5 rounded-full bg-evari-edge/30 overflow-hidden">
                   <div
-                    className="h-full rounded-full evari-shimmer-bar transition-all duration-500"
+                    className="h-full rounded-full bg-evari-gold evari-shimmer-bar transition-all duration-500"
                     style={{ width: eagerPct + '%' }}
                   />
                 </div>
@@ -1256,7 +1249,7 @@ export function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentPr
                         <button
                           type="button"
                           onClick={() => void blockPeer(peer)}
-                          className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-medium border border-evari-edge/40 text-evari-dim hover:text-evari-warning hover:border-evari-warning/50 transition"
+                          className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-medium border border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40 transition"
                           title="Not relevant for this venture. Excludes from future searches in this venture only."
                         >
                           <X className="h-3 w-3" /> Not relevant
@@ -1373,7 +1366,7 @@ export function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentPr
             type="button"
             onClick={() => onBlock(row.id, row.domain)}
             disabled={shortlistBusy}
-            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold border border-evari-edge/40 text-evari-dim hover:text-evari-warning hover:border-evari-warning/50 disabled:opacity-50 transition flex-1"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[12px] font-semibold border border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40 disabled:opacity-50 transition flex-1"
             title="Not relevant for this venture. Removes from this list and excludes from future searches in this venture only."
           >
             <X className="h-3.5 w-3.5" /> Not relevant
