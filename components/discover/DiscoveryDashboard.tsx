@@ -672,6 +672,11 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
   const [aboutLoading, setAboutLoading] = useState(false);
   const [aboutError, setAboutError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  // Tracks completion of the two slow fetches (Similar + Snapshot)
+  // so we can show a single progress bar at the top of the drawer.
+  // Fires when drawer opens for a new row, not on tab click.
+  const [eagerSimilarDone, setEagerSimilarDone] = useState(false);
+  const [eagerSnapshotDone, setEagerSnapshotDone] = useState(false);
 
   async function verifyWithWebSearch() {
     if (!row) return;
@@ -705,7 +710,49 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
     setAboutError(null);
     setNotesDraft(row?.notes ?? '');
     setNotesSaving('idle');
+    setEagerSimilarDone(false);
+    setEagerSnapshotDone(false);
   }, [row?.id, row?.notes]);
+
+  // Eager preload of Similar + Snapshot when the drawer opens. The
+  // user shouldn't have to click into either tab to start loading;
+  // both should be in flight by the time they get there. Tracks each
+  // completion so the progress bar at the top of the drawer can fill
+  // up as work finishes.
+  useEffect(() => {
+    if (!row) return;
+    let cancelled = false;
+
+    // Snapshot: kick off an Image() preload so the browser caches the
+    // screenshot. The Microlink URL is the same one the <img> tag in
+    // the Snapshot tab uses, so this primes its cache.
+    const websiteUrlLocal = 'https://' + row.domain;
+    const screenshotUrl =
+      'https://api.microlink.io/?url=' +
+      encodeURIComponent(websiteUrlLocal) +
+      '&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1280&viewport.height=800';
+    const img = new window.Image();
+    img.onload = () => { if (!cancelled) setEagerSnapshotDone(true); };
+    img.onerror = () => { if (!cancelled) setEagerSnapshotDone(true); };
+    img.src = screenshotUrl;
+
+    // Similar: only fire if we don't already have peers cached for
+    // this domain. Either way, mark eager done when finished.
+    if (similarCache[row.domain]) {
+      setEagerSimilarDone(true);
+    } else {
+      void (async () => {
+        try {
+          await fetchSimilar();
+        } finally {
+          if (!cancelled) setEagerSimilarDone(true);
+        }
+      })();
+    }
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row?.id]);
 
   // Lazy-fetch the About paragraph if the prefetch hasn't already
   // populated it. Most rows arrive with aboutText already filled in
@@ -936,6 +983,31 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
             </section>
 
           </div>
+
+          {/* Drawer load progress. Fills as Similar + Snapshot finish
+              priming. Hides once both are ready. Styled like the fit
+              score bar so it reads as the same kind of indicator. */}
+          {(() => {
+            const eagerPct = ((eagerSimilarDone ? 1 : 0) + (eagerSnapshotDone ? 1 : 0)) * 50;
+            if (eagerPct >= 100) return null;
+            const labelParts: string[] = [];
+            if (!eagerSimilarDone) labelParts.push('Similar');
+            if (!eagerSnapshotDone) labelParts.push('Snapshot');
+            return (
+              <div className="px-4 py-2 border-b border-evari-edge/20">
+                <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer flex items-center justify-between mb-1">
+                  <span>Loading {labelParts.join(' + ')}</span>
+                  <span className="tabular-nums">{eagerPct}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-evari-edge/30 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-evari-gold transition-all duration-500"
+                    style={{ width: eagerPct + '%' }}
+                  />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Five tabs sit inside the drawer below the overview. */}
           <div className="sticky top-0 bg-evari-surface z-10 flex items-center gap-1 px-3 pt-3 pb-0 border-b border-evari-edge/30 overflow-x-auto">
