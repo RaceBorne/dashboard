@@ -140,6 +140,7 @@ export function AppSidebar() {
   const searchParams = useSearchParams();
   const { theme, setTheme, logoLight, logoDark } = useTheme();
   const [openTaskCount, setOpenTaskCount] = useState<number | null>(null);
+  const [followupCount, setFollowupCount] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -200,6 +201,19 @@ export function AppSidebar() {
       })
       .catch(() => {
         if (!cancelled) setOpenTaskCount(0);
+      });
+    // Pending follow-up suggestions surface as a count badge on the
+    // Statistics nav item so the operator sees there's something to
+    // act on without having to open the page first.
+    fetch('/api/marketing/followups')
+      .then((r) => r.json())
+      .then((d: { suggestions?: Array<{ status?: string }> }) => {
+        if (cancelled) return;
+        const pending = (d.suggestions ?? []).filter((s) => s.status === 'pending').length;
+        setFollowupCount(pending);
+      })
+      .catch(() => {
+        if (!cancelled) setFollowupCount(0);
       });
     return () => {
       cancelled = true;
@@ -456,7 +470,9 @@ export function AppSidebar() {
                   const navCount =
                     it.href === '/tasks' && openTaskCount && openTaskCount > 0
                       ? openTaskCount
-                      : undefined;
+                      : it.href === '/email/statistics' && followupCount && followupCount > 0
+                        ? followupCount
+                        : undefined;
                   const linkEl = (
                   <Link
                     key={it.href}
@@ -498,7 +514,7 @@ export function AppSidebar() {
                                   : navCount >= 100
                                     ? 'px-1.5'
                                     : 'px-1',
-                              item.href === '/tasks'
+                              item.href === '/tasks' || item.href === '/email/statistics'
                                 ? 'bg-evari-warn text-evari-ink font-semibold'
                                 : active
                                   ? 'bg-evari-surfaceSoft text-evari-dim'
@@ -525,7 +541,7 @@ export function AppSidebar() {
                       <span
                         className={cn(
                           'absolute h-1.5 w-1.5 rounded-full -translate-y-2 translate-x-2',
-                          item.href === '/tasks' ? 'bg-evari-warn' : 'bg-evari-dim',
+                          item.href === '/tasks' || item.href === '/email/statistics' ? 'bg-evari-warn' : 'bg-evari-dim',
                         )}
                       />
                     ) : null}

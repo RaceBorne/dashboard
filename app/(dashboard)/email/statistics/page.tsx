@@ -1,6 +1,7 @@
 import { TopBar } from '@/components/sidebar/TopBar';
 import { listCampaigns, getCampaignStats } from '@/lib/marketing/campaigns';
 import { StatisticsClient } from '@/components/marketing/StatisticsClient';
+import { FollowupInbox } from '@/components/marketing/FollowupInbox';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -19,6 +20,7 @@ export default async function StatisticsPage() {
         title="Statistics"
         subtitle="Email · Performance across every campaign"
       />
+      <div className="px-4 pt-3"><FollowupInbox /></div>
       <StatisticsClient items={statsList} />
     </>
   );
