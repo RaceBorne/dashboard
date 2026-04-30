@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Sparkles,
@@ -50,6 +50,10 @@ const NAV = [
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
   { href: '/ideas', label: 'Ideas', icon: Rocket, group: 'pipeline' },
   { href: '/strategy', label: 'Strategy', icon: ListTodo, group: 'pipeline' },
+  { href: '/strategy?step=market',   label: 'Market analysis', icon: ListTodo, group: 'pipeline', child: true, parent: '/strategy' },
+  { href: '/strategy?step=target',   label: 'Target profile',  icon: ListTodo, group: 'pipeline', child: true, parent: '/strategy' },
+  { href: '/strategy?step=synopsis', label: 'Synopsis',        icon: ListTodo, group: 'pipeline', child: true, parent: '/strategy' },
+  { href: '/strategy?step=handoff',  label: 'Handoff',         icon: ListTodo, group: 'pipeline', child: true, parent: '/strategy' },
   { href: '/discover', label: 'Discovery', icon: Search, group: 'pipeline' },
   { href: '/shortlist', label: 'Shortlist', icon: Star, group: 'pipeline' },
   { href: '/enrichment', label: 'Enrichment', icon: Database, group: 'pipeline' },
@@ -133,6 +137,7 @@ function isTypingTarget(t: EventTarget | null): boolean {
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { theme, setTheme, logoLight, logoDark } = useTheme();
   const [openTaskCount, setOpenTaskCount] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -388,55 +393,90 @@ export function AppSidebar() {
             >
               <div className="overflow-hidden">
                 <div className="space-y-0.5">
-              {items.map((item) => {
-                // Highlight rule: per-item exact + nested match for
-                // every link, so only one entry can be active at a
-                // time. (Earlier versions lit every Prospecting child
-                // whenever any venture URL was open — that's wrong;
-                // operators want to see exactly which stage they're
-                // looking at.)
-                const active =
-                  item.href === '/'
-                    ? pathname === '/'
-                    : item.href === '/social'
-                      ? // Calendar: exact match only, so it doesn't
-                        // stay active on /social/instagram etc.
-                        pathname === '/social' ||
-                        pathname.startsWith('/social?') ||
-                        pathname === '/social/new' ||
-                        pathname.startsWith('/social/new/')
-                      : pathname === item.href ||
-                        pathname.startsWith(item.href + '/') ||
-                        pathname.startsWith(item.href + '?');
-                const Icon = item.icon;
-                const navCount =
-                  item.href === '/tasks' && openTaskCount && openTaskCount > 0
-                    ? openTaskCount
-                    : undefined;
-                const isChild = 'child' in item && item.child === true;
-                return (
+              {(() => {
+                // Pre-compute which parent paths have children in this
+                // group so the chevron + collapsible logic knows about
+                // them. parentRequiresChildren[href] === true means
+                // 'show a chevron next to this item; its children
+                // should fold out when the user is on this URL'.
+                type NavItem = typeof NAV[number] & { parent?: string };
+                const childrenByParent = new Map<string, NavItem[]>();
+                for (const it of items as NavItem[]) {
+                  if ('parent' in it && it.parent) {
+                    const list = childrenByParent.get(it.parent) ?? [];
+                    list.push(it);
+                    childrenByParent.set(it.parent, list);
+                  }
+                }
+                // Active match: query-aware. An item with `?step=foo`
+                // in its href is active only when the URL also has
+                // step=foo.
+                function activeMatch(href: string): boolean {
+                  if (href === '/') return pathname === '/';
+                  if (href === '/social') {
+                    return (
+                      pathname === '/social' ||
+                      pathname.startsWith('/social?') ||
+                      pathname === '/social/new' ||
+                      pathname.startsWith('/social/new/')
+                    );
+                  }
+                  const [path, query] = href.split('?');
+                  if (pathname !== path && !pathname.startsWith(path + '/')) return false;
+                  if (!query) return true;
+                  const sp = new URLSearchParams(query);
+                  for (const [k, v] of sp.entries()) {
+                    if (searchParams?.get(k) !== v) return false;
+                  }
+                  return true;
+                }
+                return items.map((item) => {
+                  const it = item as NavItem;
+                  const isChild = 'child' in it && it.child === true;
+                  const itemParent = 'parent' in it ? it.parent : undefined;
+                  // Drive child visibility off whether the parent's path
+                  // is active. We keep the row mounted and animate the
+                  // height via grid-rows-1fr/0fr below so it folds in
+                  // smoothly instead of popping in/out.
+                  let childVisible = true;
+                  if (isChild && itemParent && !collapsed) {
+                    childVisible = pathname === itemParent || pathname.startsWith(itemParent + '/');
+                  }
+                  const childList = childrenByParent.get(it.href) ?? [];
+                  const hasChildren = childList.length > 0;
+                  const childrenVisible = hasChildren
+                    && (pathname === it.href || pathname.startsWith(it.href + '/'));
+                  // Parent dims when one of its children is active so
+                  // we don't show two highlights at once.
+                  let active = activeMatch(it.href);
+                  if (active && hasChildren) {
+                    if (childList.some((c) => activeMatch(c.href))) active = false;
+                  }
+                  const Icon = it.icon;
+                  const navCount =
+                    it.href === '/tasks' && openTaskCount && openTaskCount > 0
+                      ? openTaskCount
+                      : undefined;
+                  const linkEl = (
                   <Link
-                    key={item.href}
-                    href={item.href}
-                    title={collapsed ? item.label : undefined}
+                    key={it.href}
+                    href={it.href}
+                    title={collapsed ? it.label : undefined}
                     className={cn(
                       'flex items-center rounded-md transition-colors',
                       collapsed ? 'justify-center h-9 w-9 mx-auto' : 'gap-3 px-3 py-1.5',
-                      // Children sit indented under their parent
-                      // (Calendar). The ml-3 + border-l draws a faint
-                      // tree-line from the parent's icon-column down
-                      // through the children, making the nesting
-                      // unambiguous. Children also use a smaller font
-                      // size + slightly dimmer label to read as
-                      // secondary nav.
+                      // Children sit indented under their parent.
+                      // The ml-3 + border-l draws a faint tree-line so
+                      // nesting reads unambiguously; smaller font keeps
+                      // them visually subordinate.
                       !collapsed && isChild
                         ? 'ml-3 pl-3 border-l border-evari-edge/30 text-sm'
                         : 'text-base',
                       active
-                        ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                        ? 'bg-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                         : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
                     )}
-                    aria-label={collapsed ? item.label : undefined}
+                    aria-label={collapsed ? it.label : undefined}
                   >
                     <Icon
                       className={cn(
@@ -471,6 +511,14 @@ export function AppSidebar() {
                         {'warn' in item && item.warn ? (
                           <span className="h-1.5 w-1.5 rounded-full bg-evari-warn" />
                         ) : null}
+                        {hasChildren ? (
+                          <ChevronDown
+                            className={cn(
+                              'h-3 w-3 shrink-0 transition-transform duration-500 ease-in-out',
+                              childrenVisible ? 'text-evari-dim' : '-rotate-90 text-evari-dimmer/70',
+                            )}
+                          />
+                        ) : null}
                       </>
                     ) : navCount ? (
                       /* small dot on the icon when there are open tasks */
@@ -482,8 +530,23 @@ export function AppSidebar() {
                       />
                     ) : null}
                   </Link>
-                );
-              })}
+                  );
+                  if (isChild && itemParent && !collapsed) {
+                    return (
+                      <div
+                        key={it.href}
+                        className={cn(
+                          'grid transition-all duration-500 ease-in-out',
+                          childVisible ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+                        )}
+                      >
+                        <div className="overflow-hidden">{linkEl}</div>
+                      </div>
+                    );
+                  }
+                  return linkEl;
+                });
+              })()}
                 </div>
               </div>
             </div>
