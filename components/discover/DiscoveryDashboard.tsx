@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
-import { ArrowLeft, Bookmark, ChevronRight, ExternalLink, Loader2, MapPin, MoreHorizontal, Pencil, Plus, Search, Send, Star, Wand2, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ExternalLink, Loader2, MapPin, Pencil, Plus, Search, Send, Star, Wand2, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
@@ -566,28 +566,29 @@ function RowMenu({ row, busy, onShortlist, onFindSimilar }: { row: Row; busy: st
         type="button"
         onClick={onFindSimilar}
         disabled={similarBusy || shortlistBusy}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-evari-gold hover:bg-evari-gold/10 disabled:opacity-50 transition"
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-evari-edge/40 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold disabled:opacity-50 transition"
         title="Find peer companies at the same tier and brand ethos"
       >
         {similarBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
         Similar
       </button>
       {row.status === 'shortlisted' ? (
-        <span className="inline-flex items-center gap-1 text-[11px] text-evari-gold">
-          <Bookmark className="h-3 w-3 fill-evari-gold" /> Shortlisted
+        <span className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30">
+          <Star className="h-3 w-3 fill-evari-gold" /> Shortlisted
         </span>
       ) : (
-        <ShortlistButton busy={shortlistBusy} onShortlist={onShortlist} />
+        <button
+          type="button"
+          onClick={onShortlist}
+          disabled={shortlistBusy}
+          className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 disabled:opacity-50 transition"
+          title="Promote this company to your shortlist"
+        >
+          {shortlistBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+          Send to shortlist
+        </button>
       )}
     </span>
-  );
-}
-
-function ShortlistButton({ busy, onShortlist }: { busy: boolean; onShortlist: () => void }) {
-  return (
-    <button type="button" onClick={onShortlist} disabled={busy} className="text-evari-dim hover:text-evari-gold transition" title="Shortlist this company">
-      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
-    </button>
   );
 }
 
@@ -597,13 +598,20 @@ interface SimilarPeer {
   why: string;
   logoUrl: string;
   rowId: string | null;
-  status: string;
+  status: string | null;
+  alreadyInList: boolean;
 }
 
 interface SimilarCacheEntry {
   peers: SimilarPeer[];
   reasoning: string;
-  promotedIds: Set<string>;
+  // Domains the user has clicked Add to list for in the current
+  // session, so the button label flips to "Already in list" without
+  // needing to refetch the peers.
+  addedDomains: Set<string>;
+  // Domains the user has clicked Send to shortlist for in the current
+  // session, so the button collapses to a Shortlisted badge.
+  shortlistedDomains: Set<string>;
 }
 
 function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress, getSeenDomains, onClose, onShortlist, onRowPatched, onPeersAdded }: {
@@ -721,9 +729,13 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
         const peers = (data.peers ?? []) as SimilarPeer[];
         setSimilarCache((cur) => ({
           ...cur,
-          [row.domain]: { peers, reasoning: data.reasoning ?? '', promotedIds: new Set() },
+          [row.domain]: {
+            peers,
+            reasoning: data.reasoning ?? '',
+            addedDomains: new Set<string>(),
+            shortlistedDomains: new Set<string>(),
+          },
         }));
-        if ((data.inserted ?? 0) > 0) onPeersAdded();
       } catch (err) {
         if (!cancelled) setSimilarError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -772,25 +784,36 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
     encodeURIComponent(websiteUrl) +
     '&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1280&viewport.height=800';
 
-  async function promotePeer(peer: SimilarPeer) {
-    if (!peer.rowId || !cached) return;
-    if (cached.promotedIds.has(peer.rowId)) return;
+  // Both buttons hit the same endpoint; status differs.
+  async function addOrPromotePeer(peer: SimilarPeer, status: 'candidate' | 'shortlisted') {
+    if (!cached) return;
     try {
-      await fetch('/api/shortlist/' + playId, {
-        method: 'PATCH',
+      const res = await fetch(`/api/discover/${playId}/add-peer`, {
+        method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ids: [peer.rowId], status: 'shortlisted' }),
+        body: JSON.stringify({
+          domain: peer.domain,
+          name: peer.name,
+          why: peer.why,
+          industry: row?.industry ?? null,
+          location: row?.location ?? null,
+          status,
+        }),
       });
+      const data = await res.json().catch(() => null);
+      if (!data?.ok) return;
       setSimilarCache((cur) => {
         const entry = cur[row!.domain];
-        if (!entry || !peer.rowId) return cur;
-        const promotedIds = new Set(entry.promotedIds);
-        promotedIds.add(peer.rowId);
-        return { ...cur, [row!.domain]: { ...entry, promotedIds } };
+        if (!entry) return cur;
+        const addedDomains = new Set(entry.addedDomains);
+        const shortlistedDomains = new Set(entry.shortlistedDomains);
+        addedDomains.add(peer.domain.toLowerCase());
+        if (status === 'shortlisted') shortlistedDomains.add(peer.domain.toLowerCase());
+        return { ...cur, [row!.domain]: { ...entry, addedDomains, shortlistedDomains } };
       });
       onPeersAdded();
     } catch {
-      // Non-fatal; user can retry.
+      // Non-fatal.
     }
   }
 
@@ -970,7 +993,7 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
               <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer flex items-center justify-between">
                 <span>Peer companies at the same tier</span>
                 {cached?.peers?.length ? (
-                  <span className="text-[10px] text-evari-dimmer normal-case tracking-normal">{cached.peers.length} found, all added to your list</span>
+                  <span className="text-[10px] text-evari-dimmer normal-case tracking-normal">{cached.peers.length} found, choose to add or shortlist</span>
                 ) : null}
               </div>
               {similarLoading ? (
@@ -993,28 +1016,15 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
                 <div className="text-[10px] text-evari-dimmer italic leading-relaxed">{cached.reasoning}</div>
               ) : null}
               {cached?.peers?.map((peer) => {
-                const peerShortlisted = peer.status === 'shortlisted' || (peer.rowId ? cached.promotedIds.has(peer.rowId) : false);
+                const dKey = peer.domain.toLowerCase();
+                const inList = peer.alreadyInList || cached.addedDomains.has(dKey);
+                const isShortlisted = peer.status === 'shortlisted' || cached.shortlistedDomains.has(dKey);
                 const peerWebsite = 'https://' + peer.domain;
                 return (
                   <div key={peer.domain} className="flex items-start gap-3 rounded-md border border-evari-edge/30 p-3 bg-evari-edge/5">
                     <Avatar name={peer.name} logoUrl={peer.logoUrl} />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-[13px] font-semibold text-evari-text leading-tight truncate">{peer.name}</div>
-                        {peerShortlisted ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-evari-gold whitespace-nowrap">
-                            <Star className="h-3 w-3 fill-evari-gold" /> Shortlisted
-                          </span>
-                        ) : peer.rowId ? (
-                          <button
-                            type="button"
-                            onClick={() => void promotePeer(peer)}
-                            className="inline-flex items-center gap-1 text-[10px] text-evari-gold hover:underline whitespace-nowrap"
-                          >
-                            <Send className="h-3 w-3" /> Shortlist
-                          </button>
-                        ) : null}
-                      </div>
+                      <div className="text-[13px] font-semibold text-evari-text leading-tight truncate">{peer.name}</div>
                       <a
                         href={peerWebsite}
                         target="_blank"
@@ -1026,6 +1036,34 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
                       {peer.why ? (
                         <p className="text-[11px] text-evari-dim leading-relaxed mt-1">{peer.why}</p>
                       ) : null}
+                      <div className="flex items-center gap-2 mt-2">
+                        {inList ? (
+                          <span className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium bg-evari-edge/20 text-evari-dim border border-evari-edge/30 flex-1">
+                            Already in list
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void addOrPromotePeer(peer, 'candidate')}
+                            className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-evari-edge/40 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold transition flex-1"
+                          >
+                            <Plus className="h-3 w-3" /> Add to list
+                          </button>
+                        )}
+                        {isShortlisted ? (
+                          <span className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30 flex-1">
+                            <Star className="h-3 w-3 fill-evari-gold" /> Shortlisted
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void addOrPromotePeer(peer, 'shortlisted')}
+                            className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition flex-1"
+                          >
+                            <Send className="h-3 w-3" /> Send to shortlist
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

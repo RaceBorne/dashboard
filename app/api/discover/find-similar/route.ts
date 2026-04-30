@@ -281,69 +281,40 @@ export async function POST(req: Request) {
     if (peers.length >= limit) break;
   }
 
-  // Insert the peer rows straight into the shortlist for this play
-  // so they show up in Discovery immediately (no separate enrich
-  // step required to see them on the page).
-  let inserted = 0;
-  if (supabase && body.playId && peers.length > 0) {
-    const rows = peers.map((peer) => ({
-      play_id: body.playId!,
-      domain: peer.domain,
-      name: peer.name ?? peer.domain,
-      industry: reference?.category ?? shortlistRef?.industry ?? null,
-      location: shortlistRef?.location ?? null,
-      description: peer.why
-        ? 'Similar to ' + (reference?.name ?? shortlistRef?.name ?? domain) + ': ' + peer.why
-        : 'Peer of ' + (reference?.name ?? shortlistRef?.name ?? domain),
-      fit_score: 60,
-      fit_band: 'good',
-      // Inline Clearbit logo URL so peer rows arrive with a real mark
-      // instead of falling back to TSAV-style initials in the table.
-      logo_url: 'https://logo.clearbit.com/' + peer.domain,
-      status: 'candidate',
-    }));
-    const { data: upserted, error: upsertErr, count } = await supabase
+  // Peers are SUGGESTIONS only. We do NOT auto-add them to the play's
+  // list. The user clicks Add to list (or Send to shortlist) per peer
+  // in the Similar tab. To support that UX we look up which peer
+  // domains already have a row for this play so the client can show
+  // "Already in list" instead of an Add button.
+  const peerDomains = peers.map((p) => p.domain.toLowerCase());
+  const existingByDomain = new Map<string, { id: string; status: string | null }>();
+  if (supabase && body.playId && peerDomains.length > 0) {
+    const { data: existing } = await supabase
       .from('dashboard_play_shortlist')
-      .upsert(rows, { onConflict: 'play_id,domain', ignoreDuplicates: false, count: 'exact' })
-      .select('id, domain, status');
-    if (!upsertErr) inserted = count ?? rows.length;
-    // Map peer.domain -> { rowId, status } so the client can render
-    // logos + an in-place Send-to-shortlist button without a follow-up
-    // GET.
-    const upsertedRows = (upserted ?? []) as Array<{ id: string; domain: string; status: string | null }>;
-    const byDomain = new Map(upsertedRows.map((r) => [r.domain.toLowerCase(), r]));
-    const peersWithIds = peers.map((p) => {
-      const row = byDomain.get(p.domain.toLowerCase());
-      return {
-        domain: p.domain,
-        name: p.name ?? p.domain,
-        why: p.why ?? '',
-        logoUrl: 'https://logo.clearbit.com/' + p.domain,
-        rowId: row?.id ?? null,
-        status: row?.status ?? 'candidate',
-      };
-    });
-    return NextResponse.json({
-      ok: true,
-      peers: peersWithIds,
-      inserted,
-      reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
-    });
+      .select('id, domain, status')
+      .eq('play_id', body.playId)
+      .in('domain', peerDomains);
+    for (const r of (existing ?? []) as Array<{ id: string; domain: string; status: string | null }>) {
+      existingByDomain.set(r.domain.toLowerCase(), { id: r.id, status: r.status });
+    }
   }
 
-  // No supabase OR no playId — fall back to the original lightweight
-  // response (no row IDs because nothing was inserted).
-  return NextResponse.json({
-    ok: true,
-    peers: peers.map((p) => ({
+  const peersOut = peers.map((p) => {
+    const existing = existingByDomain.get(p.domain.toLowerCase());
+    return {
       domain: p.domain,
       name: p.name ?? p.domain,
       why: p.why ?? '',
       logoUrl: 'https://logo.clearbit.com/' + p.domain,
-      rowId: null,
-      status: 'candidate',
-    })),
-    inserted,
+      rowId: existing?.id ?? null,
+      status: existing?.status ?? null,
+      alreadyInList: !!existing,
+    };
+  });
+
+  return NextResponse.json({
+    ok: true,
+    peers: peersOut,
     reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
   });
 }
