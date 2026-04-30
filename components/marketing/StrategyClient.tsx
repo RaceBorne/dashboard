@@ -24,7 +24,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronRight, Loader2, Plus, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Loader2, Plus, Sparkles, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
@@ -57,6 +57,7 @@ interface Brief {
   messaging: { angle: string; line?: string }[] | null;
   successMetrics: { name: string; target?: string }[] | null;
   idealCustomer: string | null;
+  synopsisText: string | null;
   locked: boolean;
   handoffStatus: 'draft' | 'ready' | 'handed_off';
 }
@@ -184,6 +185,11 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
     }
     go(STEPS[curIdx + 1].key);
   }
+  function prevStep() {
+    const curIdx = STEPS.findIndex((s) => s.key === step);
+    if (curIdx <= 0) return;
+    go(STEPS[curIdx - 1].key);
+  }
   const isLastStep = step === 'handoff';
   const currentStepIdx = STEPS.findIndex((s) => s.key === step);
   const nextLabel = isLastStep
@@ -253,27 +259,33 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
         )}>
           {/* Header */}
           <div className="flex items-center gap-2 mb-4">
-            <select
-              value={brief.playId}
-              onChange={(e) => router.push(`/strategy?playId=${e.target.value}`)}
-              className="px-2 py-1.5 rounded-panel bg-evari-surface text-evari-text text-[12px] border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none"
+            <button
+              type="button"
+              onClick={() => router.push('/ideas')}
+              className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-panel text-[12px] text-evari-dim hover:text-evari-text hover:bg-evari-surface transition"
+              title="Back to Ideas"
             >
-              {plays.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-            </select>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Ideas</span>
+            </button>
+            <span className="text-evari-dimmer text-[12px]">/</span>
+            <span className="text-[12px] font-semibold text-evari-text truncate max-w-[280px]" title={play.title}>{play.title}</span>
             <div className="ml-auto inline-flex items-center gap-2">
               {savingAt && Date.now() - savingAt < 2000 ? (
                 <span className="text-[10px] text-evari-success inline-flex items-center gap-1"><Check className="h-3 w-3" /> Saved</span>
               ) : null}
+{/* Big Next button — advances through the seven steps,
+                  and on Handoff it commits and routes to Discovery. */}
               <button
                 type="button"
-                onClick={() => spitballOpen ? setSpitballOpen(false) : openSpitball()}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold hover:bg-evari-gold/25 border border-evari-gold/30 transition"
-                title={spitballOpen ? 'Hide Spitball, show seven-step brief' : 'Spitball with Claude, then commit'}
+                onClick={prevStep}
+                disabled={spitballOpen || currentStepIdx === 0}
+                className="inline-flex items-center justify-center h-10 w-10 rounded-md text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                title="Previous step"
+                aria-label="Previous step"
               >
-                <Sparkles className="h-3.5 w-3.5" /> {spitballOpen ? 'Show brief' : 'Spitball'}
+                <ChevronLeft className="h-4 w-4" />
               </button>
-              {/* Big Next button — advances through the seven steps,
-                  and on Handoff it commits and routes to Discovery. */}
               <button
                 type="button"
                 onClick={nextStep}
@@ -291,7 +303,7 @@ export function StrategyClient({ plays, play, initialBrief }: Props) {
             <SlideContainer step={step} direction={direction}>
               {step === 'market'   ? <BriefSummaryStep playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} playTitle={play.title} pitch={play.brief} onPatch={(patch) => setBrief((cur) => cur ? { ...cur, ...patch } : cur)} /> : null}
               {step === 'target'   ? <TargetProfileStep playId={brief.playId} brief={brief} playTitle={play.title} pitch={play.brief} onPatch={(patch) => setBrief((cur) => cur ? { ...cur, ...patch } : cur)} /> : null}
-              {step === 'synopsis' ? <SynopsisStep playId={brief.playId} playTitle={play.title} pitch={play.brief} brief={brief} onEdit={() => openEditor('overview')} /> : null}
+              {step === 'synopsis' ? <SynopsisStep playId={brief.playId} playTitle={play.title} pitch={play.brief} brief={brief} onEdit={() => openEditor('overview')} onPatch={(patch) => setBrief((cur) => cur ? { ...cur, ...patch } : cur)} /> : null}
               {step === 'handoff'  ? <HandoffStepDashboard playId={brief.playId} brief={brief} onEdit={() => openEditor('overview')} onProceed={handoff} stage={handoffStage} /> : null}
             </SlideContainer>
           )}

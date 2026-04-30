@@ -1,16 +1,17 @@
 'use client';
 
 /**
- * Synopsis stage. Synthesises Market analysis + Target into a single
- * narrative summary the operator can refine via Spitball before the
- * final Handover document. Two-column layout: synopsis on the left,
- * Spitball with Claude on the right (compact mode).
+ * Synopsis stage — third stage of the Strategy walk.
+ *
+ * Locked-on-arrival: if a synopsisText is already cached on the brief
+ * we render it without an AI call. The user must explicitly Unlock +
+ * Regenerate to spend tokens. This protects against accidental
+ * re-spend when the page is revisited.
  */
 
-import { useEffect, useState } from 'react';
-import { Loader2, Pencil, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { Lock, Loader2, Pencil, Sparkles, Unlock } from 'lucide-react';
 import { StepTitle } from './StepTitle';
-import { SpitballPanel } from './SpitballPanel';
 import { humaniseChannel } from './BriefEditorDrawer';
 
 interface Brief {
@@ -18,15 +19,20 @@ interface Brief {
   objective: string | null;
   targetAudience: string[];
   geography: string | null;
+  geographies?: string[];
   industries: string[];
   companySizeMin: number | null;
   companySizeMax: number | null;
+  companySizes?: string[];
   revenueMin: string | null;
   revenueMax: string | null;
+  revenues?: string[];
   channels: string[];
   messaging: { angle: string; line?: string }[] | null;
   successMetrics: { name: string; target?: string }[] | null;
   idealCustomer: string | null;
+  synopsisText: string | null;
+  locked: boolean;
 }
 
 interface Props {
@@ -35,13 +41,21 @@ interface Props {
   pitch: string;
   brief: Brief;
   onEdit: () => void;
+  onPatch: (patch: Partial<Brief>) => void;
 }
 
-export function SynopsisStep({ playId, playTitle, pitch, brief, onEdit }: Props) {
-  const [aiSynopsis, setAiSynopsis] = useState<string | null>(null);
+export function SynopsisStep({ playId, playTitle, pitch, brief, onEdit, onPatch }: Props) {
   const [loading, setLoading] = useState(false);
 
-  async function generate() {
+  // The synopsis paragraph comes from the cached field on the brief.
+  // No useEffect, no auto-regeneration. The user explicitly clicks
+  // Regenerate to spend an AI call.
+  const text = brief.synopsisText && brief.synopsisText.trim().length > 0
+    ? brief.synopsisText
+    : fallbackSynopsis(brief);
+
+  async function regenerate() {
+    if (brief.locked) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/strategy/${playId}/synopsis`, {
@@ -50,118 +64,125 @@ export function SynopsisStep({ playId, playTitle, pitch, brief, onEdit }: Props)
         body: JSON.stringify({ brief, pitch, playTitle }),
       });
       const d = await res.json();
-      if (d?.ok && typeof d.synopsis === 'string') setAiSynopsis(d.synopsis);
+      if (d?.ok && typeof d.synopsis === 'string') {
+        // Persist to the brief so subsequent visits read from cache.
+        onPatch({ synopsisText: d.synopsis });
+      }
     } catch {
-      // fallback prose covers it
+      // Fall back to the canned synthesise() output on the page.
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    void generate();
-    // Regenerate when major fields change. We deliberately don't fire
-    // on every keystroke; the brief editor debounces so this fires at
-    // most every ~1s while editing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playId, brief.campaignName, brief.objective, brief.industries.join('|'), brief.geography, brief.idealCustomer]);
-
-  // Fallback synopsis if AI is offline: stitch the brief fields
-  // together as a readable paragraph. This keeps the page useful even
-  // when the gateway is down.
-  const fallback = synthesise(brief);
-  const text = aiSynopsis ?? fallback;
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const lead = sentences.slice(0, Math.min(2, sentences.length)).join(' ');
+  const rest = sentences.slice(2).join(' ');
 
   return (
     <div className="space-y-panel">
       <header className="flex items-start gap-2">
         <div className="flex-1">
           <StepTitle substep="Synopsis" />
-          <p className="text-[12px] text-evari-dim mt-0.5">The strategy in one read. Claude folds Market analysis and Target profile into a single paragraph you could email a co-founder.</p>
+          <p className="text-[12px] text-evari-dim mt-0.5">
+            {brief.locked
+              ? 'Locked. Click Unlock if you want to regenerate this synopsis.'
+              : 'The strategy in one read. Click Regenerate if you want a fresh take after editing the brief.'}
+          </p>
         </div>
-        <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition">
+        <button
+          type="button"
+          onClick={() => onPatch({ locked: !brief.locked })}
+          className={brief.locked
+            ? 'inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/40 hover:bg-evari-gold/25 transition'
+            : 'inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-surface text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 transition'}
+          title={brief.locked ? 'Unlock to regenerate' : 'Lock so the AI cannot redraft on revisit'}
+        >
+          {brief.locked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+          {brief.locked ? 'Unlock' : 'Lock'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void regenerate()}
+          disabled={brief.locked || loading}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-surface text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          title={brief.locked ? 'Unlock first' : 'Regenerate the synopsis'}
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          Regenerate
+        </button>
+        <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-text text-evari-ink hover:brightness-110 transition">
           <Pencil className="h-3.5 w-3.5" /> Edit fields
         </button>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-panel">
-        {/* LEFT: AI-generated synopsis */}
-        <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-5 min-h-[600px]">
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="text-[13px] font-semibold text-evari-text flex items-center gap-2 flex-1">
-              <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-evari-gold/15 text-evari-gold">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              Strategy synopsis
-            </h3>
-            <button
-              type="button"
-              onClick={() => void generate()}
-              disabled={loading}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] text-evari-dim hover:text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 disabled:opacity-50 transition"
-              title="Ask Claude to write a fresh synopsis"
-            >
-              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-              Regenerate
-            </button>
-          </div>
-          {loading ? (
-            <div className="flex items-center gap-2 text-[12px] text-evari-dim">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Claude is synthesising the brief…
-            </div>
-          ) : (
-            <p className="text-[14px] text-evari-text leading-relaxed whitespace-pre-wrap">{text}</p>
-          )}
-
-          {/* Pertinent points block — quick-scan summary of the
-              decisions baked into the synopsis above. */}
-          <div className="mt-5 pt-4 border-t border-evari-edge/30 space-y-2 text-[12px]">
-            <Point label="Pitch" value={pitch} />
-            <Point label="Sector" value={brief.industries.join(', ') || '—'} />
-            <Point label="Geography" value={brief.geography || '—'} />
-            <Point label="Channels" value={brief.channels.length > 0 ? brief.channels.map(humaniseChannel).join(', ') : '—'} />
-            <Point label="Top angle" value={brief.messaging?.[0]?.angle ?? '—'} />
-          </div>
-        </section>
-
-        {/* RIGHT: Spitball with Claude in compact mode */}
-        <div className="rounded-panel overflow-hidden border border-evari-edge/30 bg-evari-ink min-h-[600px] flex">
-          <SpitballPanel
-            playId={playId}
-            playTitle={playTitle}
-            pitch={pitch}
-            open={true}
-            kickoff={false}
-            compact
-            autoDraft={false}
-            onClose={() => {}}
-          />
+      {/* Big lead paragraph — the headline. Then the rest in calmer
+          type. Then a quick-scan facts strip. No more two-column
+          chat layout; the AI Assistant pane on the right of the app
+          is for back-and-forth refinement. */}
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-6">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-evari-dimmer mb-3">
+          <Sparkles className="h-3 w-3 text-evari-gold" />
+          <span>Strategy synopsis</span>
         </div>
-      </div>
+        {loading && !brief.synopsisText ? (
+          <div className="text-[12px] text-evari-dim flex items-center gap-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Claude is writing…
+          </div>
+        ) : (
+          <>
+            <p className="text-[18px] text-evari-text leading-relaxed font-semibold">{lead}</p>
+            {rest ? <p className="text-[14px] text-evari-text leading-relaxed mt-3">{rest}</p> : null}
+          </>
+        )}
+      </section>
+
+      {/* Quick-scan facts. Three columns, decision-grade summary. */}
+      <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-panel">
+          <Fact label="Sector" value={brief.industries.length > 0 ? brief.industries.join(', ') : '—'} />
+          <Fact label="Geography" value={brief.geographies && brief.geographies.length > 0 ? brief.geographies.join(', ') : (brief.geography ?? '—')} />
+          <Fact label="Channels" value={brief.channels.length > 0 ? brief.channels.map(humaniseChannel).join(', ') : '—'} />
+          <Fact label="Roles" value={brief.targetAudience.length > 0 ? brief.targetAudience.join(', ') : '—'} />
+          <Fact label="Top angle" value={brief.messaging?.[0]?.angle ?? '—'} />
+          <Fact label="Pitch" value={pitch} />
+        </div>
+      </section>
     </div>
   );
 }
 
-function Point({ label, value }: { label: string; value: string }) {
+function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[100px_1fr] gap-3 items-baseline">
-      <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">{label}</span>
-      <span className="text-evari-text">{value}</span>
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-1">{label}</div>
+      <div className="text-[12px] text-evari-text leading-relaxed break-words">{value}</div>
     </div>
   );
 }
 
-function synthesise(b: Brief): string {
+function fallbackSynopsis(b: Brief): string {
   const parts: string[] = [];
-  if (b.campaignName) parts.push(`This is the ${b.campaignName} play.`);
-  if (b.objective) parts.push(b.objective);
-  if (b.industries.length > 0) parts.push(`We target ${b.industries.join(', ')}${b.geography ? ` in ${b.geography}` : ''}.`);
-  if (b.companySizeMin && b.companySizeMax) parts.push(`Companies of ${b.companySizeMin} to ${b.companySizeMax} employees.`);
-  if (b.targetAudience.length > 0) parts.push(`We talk to ${b.targetAudience.join(', ')}.`);
-  if (b.channels.length > 0) parts.push(`Channels: ${b.channels.map(humaniseChannel).join(', ')}.`);
-  if (b.messaging && b.messaging.length > 0) parts.push(`Lead angle: ${b.messaging[0].angle}.`);
-  if (b.successMetrics && b.successMetrics.length > 0) parts.push(`Success looks like ${b.successMetrics.map((m) => m.target ?? m.name).join(', ')}.`);
-  if (b.idealCustomer) parts.push(b.idealCustomer);
-  if (parts.length === 0) return 'Add brief fields and Claude will generate a synopsis.';
+  if (b.industries.length > 0) {
+    parts.push(`We are hunting ${b.industries.join(', ')}${b.geography ? ` in ${b.geography}` : ''}.`);
+  }
+  if (b.targetAudience.length > 0) {
+    parts.push(`The roles we email are ${b.targetAudience.join(', ')}.`);
+  }
+  if (b.companySizeMin && b.companySizeMax) {
+    parts.push(`Companies of ${b.companySizeMin} to ${b.companySizeMax} employees.`);
+  }
+  if (b.channels.length > 0) {
+    parts.push(`Channels: ${b.channels.map(humaniseChannel).join(', ')}.`);
+  }
+  if (b.messaging && b.messaging.length > 0) {
+    parts.push(`Lead angle: ${b.messaging[0].angle}.`);
+  }
+  if (b.idealCustomer) {
+    parts.push(b.idealCustomer);
+  }
+  if (parts.length === 0) {
+    return 'Pick a sector and geography on Market analysis, then click Regenerate to write the synopsis.';
+  }
   return parts.join(' ');
 }

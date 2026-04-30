@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
-import { Bookmark, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Search } from 'lucide-react';
+import { ArrowLeft, Bookmark, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Search } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
@@ -180,13 +180,17 @@ export function DiscoveryDashboard({ plays, play }: Props) {
           <StepTitle substep="Discovery" />
           <p className="text-[12px] text-evari-dim">Find and validate companies that match your ideal customer profile.</p>
         </div>
-        <select
-          value={play.id}
-          onChange={(e) => router.push(`/discover?playId=${e.target.value}`)}
-          className="px-2 py-1.5 rounded-panel bg-evari-surface text-evari-text text-[12px] border border-evari-edge/40 focus:border-evari-gold/60 focus:outline-none"
+        <button
+          type="button"
+          onClick={() => router.push('/ideas')}
+          className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-panel text-[12px] text-evari-dim hover:text-evari-text hover:bg-evari-surface transition"
+          title="Back to Ideas"
         >
-          {plays.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-        </select>
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span>Ideas</span>
+        </button>
+        <span className="text-evari-dimmer text-[12px]">/</span>
+        <span className="text-[12px] font-semibold text-evari-text truncate max-w-[280px]" title={play.title}>{play.title}</span>
         <Link href={`/strategy?playId=${encodeURIComponent(play.id)}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] text-evari-text border border-evari-edge/40 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition">
           <Pencil className="h-3.5 w-3.5" /> Edit strategy
         </Link>
