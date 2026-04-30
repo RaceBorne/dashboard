@@ -1225,31 +1225,36 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
                         >
                           <X className="h-3 w-3" /> Not relevant
                         </button>
-                        {inList ? (
-                          <span className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-medium bg-evari-edge/20 text-evari-dim border border-evari-edge/30">
-                            In list
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => void addOrPromotePeer(peer, 'candidate')}
-                            className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-medium border border-evari-edge/40 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold transition"
-                          >
-                            <Plus className="h-3 w-3" /> Add to list
-                          </button>
-                        )}
                         {isShortlisted ? (
-                          <span className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30">
+                          /* Already shortlisted: skip the Add slot
+                             and show one wide Shortlisted badge so we
+                             don't double-up state. */
+                          <span className="col-span-2 inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-semibold bg-evari-gold/15 text-evari-gold border border-evari-gold/30">
                             <Star className="h-3 w-3 fill-evari-gold" /> Shortlisted
                           </span>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => void addOrPromotePeer(peer, 'shortlisted')}
-                            className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
-                          >
-                            <Send className="h-3 w-3" /> Shortlist
-                          </button>
+                          <>
+                            {inList ? (
+                              <span className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-medium bg-evari-edge/20 text-evari-dim border border-evari-edge/30">
+                                Already in list
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => void addOrPromotePeer(peer, 'candidate')}
+                                className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-medium border border-evari-edge/40 text-evari-text hover:border-evari-gold/40 hover:text-evari-gold transition"
+                              >
+                                <Plus className="h-3 w-3" /> Add to list
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => void addOrPromotePeer(peer, 'shortlisted')}
+                              className="inline-flex items-center justify-center gap-1 h-7 px-1 rounded-md text-[10px] font-semibold bg-evari-gold text-evari-goldInk hover:brightness-110 transition"
+                            >
+                              <Send className="h-3 w-3" /> Shortlist
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
