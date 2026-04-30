@@ -283,7 +283,7 @@ export function AppSidebar() {
       <button
         type="button"
         onClick={() => setHidden(false)}
-        className="hidden lg:inline-flex fixed left-3 bottom-3 z-30 items-center gap-1.5 px-3 py-1.5 rounded-full border border-evari-gold/40 bg-evari-surface text-evari-gold hover:brightness-110 shadow-lg transition text-[11px] font-semibold"
+        className="hidden lg:inline-flex fixed left-3 bottom-3 z-30 items-center gap-1.5 px-3 py-1.5 rounded-full border border-evari-gold/40 bg-evari-surface text-evari-gold hover:brightness-110 shadow-lg transition text-[13px] font-semibold"
       >
         <Maximize2 className="h-3.5 w-3.5" /> Show nav
       </button>
@@ -365,7 +365,7 @@ export function AppSidebar() {
               <button
                 type="button"
                 onClick={() => toggleGroup(group)}
-                className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium hover:text-evari-dim transition-colors"
+                className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[12px] uppercase tracking-[0.16em] text-evari-dimmer font-medium hover:text-evari-dim transition-colors"
                 aria-expanded={groupOpen}
               >
                 <ChevronDown
@@ -430,8 +430,8 @@ export function AppSidebar() {
                       // size + slightly dimmer label to read as
                       // secondary nav.
                       !collapsed && isChild
-                        ? 'ml-3 pl-3 border-l border-evari-edge/30 text-xs'
-                        : 'text-sm',
+                        ? 'ml-3 pl-3 border-l border-evari-edge/30 text-sm'
+                        : 'text-base',
                       active
                         ? 'bg-evari-surfaceSoft text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                         : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
@@ -450,7 +450,7 @@ export function AppSidebar() {
                         {navCount ? (
                           <span
                             className={cn(
-                              'inline-flex items-center justify-center h-5 min-w-[20px] text-[10px] tabular-nums rounded-full',
+                              'inline-flex items-center justify-center h-5 min-w-[20px] text-[12px] tabular-nums rounded-full',
                               navCount >= 10000
                                 ? 'px-2.5'
                                 : navCount >= 1000
@@ -522,7 +522,7 @@ export function AppSidebar() {
                       <button
                         type="button"
                         onClick={() => toggleGroup('setup')}
-                        className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-evari-dimmer font-medium hover:text-evari-dim transition-colors"
+                        className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[12px] uppercase tracking-[0.16em] text-evari-dimmer font-medium hover:text-evari-dim transition-colors"
                         aria-expanded={openGroups.has('setup')}
                       >
                         <ChevronDown
@@ -548,7 +548,7 @@ export function AppSidebar() {
                                 key={item.href}
                                 href={item.href}
                                 className={cn(
-                                  'flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors',
+                                  'flex items-center gap-3 px-3 py-1.5 rounded-md text-base transition-colors',
                                   active
                                     ? 'bg-evari-surface text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                                     : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
@@ -572,7 +572,7 @@ export function AppSidebar() {
                         key={item.href}
                         href={item.href}
                         className={cn(
-                          'flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors',
+                          'flex items-center gap-3 px-3 py-1.5 rounded-md text-base transition-colors',
                           active
                             ? 'bg-evari-surface text-evari-text shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                             : 'text-evari-dim hover:bg-evari-surface/60 hover:text-evari-text',
@@ -630,7 +630,7 @@ export function AppSidebar() {
           <button
             type="button"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[10px] uppercase tracking-[0.12em]"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-evari-edge/40 hover:border-evari-gold/40 transition text-evari-dim hover:text-evari-text text-[12px] uppercase tracking-[0.12em]"
             title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
           >
             {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
