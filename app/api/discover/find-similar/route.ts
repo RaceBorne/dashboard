@@ -49,8 +49,13 @@ export async function POST(req: Request) {
   }
   const supabase = createSupabaseAdmin();
 
-  // Reference company context — pull whatever we've already enriched.
+  // Reference company context. First try the legacy enrichment table
+  // (rich profile), then fall back to the shortlist row (always
+  // populated by auto-scan) so this endpoint works on freshly-scanned
+  // companies that haven't been deeply enriched yet.
   let reference: DiscoveredCompany | null = null;
+  type ShortlistRef = { name: string | null; industry: string | null; location: string | null; description: string | null };
+  let shortlistRef: ShortlistRef | null = null;
   if (supabase) {
     const { data } = await supabase
       .from('dashboard_discovered_companies')
@@ -58,6 +63,15 @@ export async function POST(req: Request) {
       .eq('domain', domain)
       .maybeSingle();
     reference = (data?.payload ?? null) as DiscoveredCompany | null;
+    if (!reference && body.playId) {
+      const { data: slRow } = await supabase
+        .from('dashboard_play_shortlist')
+        .select('name, industry, location, description')
+        .eq('play_id', body.playId)
+        .eq('domain', domain)
+        .maybeSingle();
+      shortlistRef = (slRow ?? null) as ShortlistRef | null;
+    }
   }
 
   // Venture context when a playId is provided — helps Claude stay
@@ -99,6 +113,17 @@ export async function POST(req: Request) {
         reference.keywords && reference.keywords.length > 0
           ? '  Keywords: ' + reference.keywords.join(', ')
           : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : shortlistRef
+    ? [
+        'REFERENCE COMPANY (we want more like this):',
+        '  Domain: ' + domain,
+        '  Name: ' + (shortlistRef.name ?? domain),
+        shortlistRef.industry ? '  Industry: ' + shortlistRef.industry : '',
+        shortlistRef.location ? '  Location: ' + shortlistRef.location : '',
+        shortlistRef.description ? '  Notes: ' + shortlistRef.description : '',
       ]
         .filter(Boolean)
         .join('\n')
@@ -256,9 +281,34 @@ export async function POST(req: Request) {
     if (peers.length >= limit) break;
   }
 
+  // Insert the peer rows straight into the shortlist for this play
+  // so they show up in Discovery immediately (no separate enrich
+  // step required to see them on the page).
+  let inserted = 0;
+  if (supabase && body.playId && peers.length > 0) {
+    const rows = peers.map((peer) => ({
+      play_id: body.playId!,
+      domain: peer.domain,
+      name: peer.name ?? peer.domain,
+      industry: reference?.category ?? shortlistRef?.industry ?? null,
+      location: shortlistRef?.location ?? null,
+      description: peer.why
+        ? 'Similar to ' + (reference?.name ?? shortlistRef?.name ?? domain) + ': ' + peer.why
+        : 'Peer of ' + (reference?.name ?? shortlistRef?.name ?? domain),
+      fit_score: 60,
+      fit_band: 'good',
+      status: 'candidate',
+    }));
+    const { error: upsertErr, count } = await supabase
+      .from('dashboard_play_shortlist')
+      .upsert(rows, { onConflict: 'play_id,domain', ignoreDuplicates: false, count: 'exact' });
+    if (!upsertErr) inserted = count ?? rows.length;
+  }
+
   return NextResponse.json({
     ok: true,
     peers,
+    inserted,
     reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
   });
 }

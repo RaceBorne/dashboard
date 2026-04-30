@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
-import { ArrowLeft, Bookmark, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Search } from 'lucide-react';
+import { ArrowLeft, Bookmark, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Search, Wand2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useAISurface } from '@/components/ai/AIAssistantPane';
@@ -145,6 +145,20 @@ export function DiscoveryDashboard({ plays, play }: Props) {
         body: JSON.stringify({ ids: [id], status: 'shortlisted' }),
       });
       setRows((cur) => cur?.map((r) => r.id === id ? { ...r, status: 'shortlisted' } : r) ?? null);
+    } finally { setBusy(null); }
+  }
+
+  async function findSimilar(domain: string) {
+    setBusy('similar:' + domain);
+    try {
+      const seenDomains = (rows ?? []).map((r) => r.domain).slice(0, 40);
+      await fetch('/api/discover/find-similar', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ domain, playId: play.id, seenDomains, limit: 8 }),
+      });
+      // Reload the dashboard so the new peer rows show up.
+      await load();
     } finally { setBusy(null); }
   }
 
@@ -321,7 +335,7 @@ export function DiscoveryDashboard({ plays, play }: Props) {
                 <td className="py-2.5 px-3 text-evari-text font-mono tabular-nums">{r.decisionMakerCount}</td>
                 <td className="py-2.5 px-3 text-evari-text font-mono tabular-nums">{r.dataCoverage}%</td>
                 <td className="px-3 text-right">
-                  <RowMenu row={r} busy={busy === r.id} onShortlist={() => void shortlist(r.id)} />
+                  <RowMenu row={r} busy={busy} onShortlist={() => void shortlist(r.id)} onFindSimilar={() => void findSimilar(r.domain)} />
                 </td>
               </tr>
             ))}
@@ -403,10 +417,33 @@ function Avatar({ name }: { name: string }) {
   );
 }
 
-function RowMenu({ row, busy, onShortlist }: { row: Row; busy: boolean; onShortlist: () => void }) {
-  if (row.status === 'shortlisted') {
-    return <span className="inline-flex items-center gap-1 text-[11px] text-evari-gold"><Bookmark className="h-3 w-3 fill-evari-gold" /> Shortlisted</span>;
-  }
+function RowMenu({ row, busy, onShortlist, onFindSimilar }: { row: Row; busy: string | null; onShortlist: () => void; onFindSimilar: () => void }) {
+  const shortlistBusy = busy === row.id;
+  const similarBusy = busy === 'similar:' + row.domain;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={onFindSimilar}
+        disabled={similarBusy || shortlistBusy}
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-evari-gold hover:bg-evari-gold/10 disabled:opacity-50 transition"
+        title="Find peer companies at the same tier and brand ethos"
+      >
+        {similarBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+        Similar
+      </button>
+      {row.status === 'shortlisted' ? (
+        <span className="inline-flex items-center gap-1 text-[11px] text-evari-gold">
+          <Bookmark className="h-3 w-3 fill-evari-gold" /> Shortlisted
+        </span>
+      ) : (
+        <ShortlistButton busy={shortlistBusy} onShortlist={onShortlist} />
+      )}
+    </span>
+  );
+}
+
+function ShortlistButton({ busy, onShortlist }: { busy: boolean; onShortlist: () => void }) {
   return (
     <button type="button" onClick={onShortlist} disabled={busy} className="text-evari-dim hover:text-evari-gold transition" title="Shortlist this company">
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
