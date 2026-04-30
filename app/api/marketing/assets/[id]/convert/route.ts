@@ -11,14 +11,25 @@ const BUCKET = 'mkt-assets';
 const ALLOWED_FORMATS = ['jpeg', 'png', 'webp', 'gif'] as const;
 type Format = typeof ALLOWED_FORMATS[number];
 
+interface CropRect {
+  /** All in source pixels. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface Body {
   width?: number;
   height?: number;
   format?: Format;
   purpose?: AssetPurpose;
   /** Human-readable label for the variant. Falls back to a sensible
-   *  default ('Newsletter 600 wide JPEG') if missing. */
+   *  default if missing. */
   label?: string;
+  /** When supplied, the source is cropped to this region (in source
+   *  pixels) before being resized to width/height. */
+  crop?: CropRect;
 }
 
 /**
@@ -63,10 +74,18 @@ export async function POST(
     );
   }
 
-  // Sharp pipeline. Resize fits inside the box (no upscaling beyond
-  // the source). withMetadata strip reduces final byte size. Format
+  // Sharp pipeline. If a crop rect was supplied, extract that region
+  // from the source first; then resize to the target box. Format
   // dictates the encoder.
-  let pipeline = sharp(sourceBuffer).resize({
+  let pipeline = sharp(sourceBuffer);
+  if (body.crop && body.crop.width > 0 && body.crop.height > 0) {
+    const left = Math.max(0, Math.round(body.crop.x));
+    const top = Math.max(0, Math.round(body.crop.y));
+    const cropW = Math.max(1, Math.round(body.crop.width));
+    const cropH = Math.max(1, Math.round(body.crop.height));
+    pipeline = pipeline.extract({ left, top, width: cropW, height: cropH });
+  }
+  pipeline = pipeline.resize({
     width: targetWidth,
     height: targetHeight ?? undefined,
     fit: targetHeight ? 'cover' : 'inside',

@@ -8,6 +8,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import type { AssetPurpose, MktAsset, MktAssetFamily } from '@/lib/marketing/types';
+import { AssetCropper } from './AssetCropper';
 
 interface Props {
   initialFamilies: MktAssetFamily[];
@@ -249,17 +250,21 @@ export function AssetsClient({ initialFamilies }: Props) {
       </div>
 
       {openFamily ? (
-        <FamilyWorkspace
+        <AssetCropper
           family={openFamily}
           busy={busyId === openFamily.root.id}
           onClose={() => setOpenFamilyId(null)}
-          onConvert={(p) => setConvertTarget({ root: openFamily.root, purpose: p })}
-          onDelete={(id) => void deleteAsset(id)}
           onRootUpdated={(updated) => {
             setFamilies((curr) => curr.map((f) =>
               f.root.id === updated.id ? { ...f, root: updated } : f,
             ));
           }}
+          onVariantAdded={(rootId, variant) => {
+            setFamilies((curr) => curr.map((f) =>
+              f.root.id === rootId ? { ...f, variants: [...f.variants, variant] } : f,
+            ));
+          }}
+          onDelete={(id) => void deleteAsset(id)}
         />
       ) : null}
 
@@ -387,201 +392,6 @@ function FamilyTile({
         </div>
       </div>
     </li>
-  );
-}
-
-function FamilyWorkspace({
-  family, busy, onClose, onConvert, onDelete, onRootUpdated,
-}: {
-  family: MktAssetFamily;
-  busy: boolean;
-  onClose: () => void;
-  onConvert: (p: AssetPurpose) => void;
-  onDelete: (id: string) => void;
-  onRootUpdated: (a: MktAsset) => void;
-}) {
-  const root = family.root;
-  const [alt, setAlt] = useState(root.altText ?? '');
-  const [tagsStr, setTagsStr] = useState(root.tags.join(', '));
-  const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    setAlt(root.altText ?? '');
-    setTagsStr(root.tags.filter((t) => !t.startsWith('derived:')).join(', '));
-  }, [root.id, root.altText, root.tags]);
-
-  const dirty = alt !== (root.altText ?? '') || tagsStr !== root.tags.filter((t) => !t.startsWith('derived:')).join(', ');
-  const isPSD = root.filename.toLowerCase().endsWith('.psd');
-
-  async function save() {
-    if (!dirty || saving) return;
-    setSaving(true);
-    try {
-      const tags = tagsStr.split(',').map((t) => t.trim()).filter(Boolean);
-      const res = await fetch(`/api/marketing/assets/${root.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ altText: alt.trim() || null, tags }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (data.ok) onRootUpdated(data.asset as MktAsset);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function copyUrl(url: string) {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch { /* ignore */ }
-  }
-
-  return (
-    <aside className="w-[420px] shrink-0 border-l border-evari-edge/30 bg-evari-surface flex flex-col overflow-hidden">
-      <header className="px-4 py-3 border-b border-evari-edge/30 flex items-center justify-between">
-        <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Original</div>
-          <div className="text-[14px] font-semibold text-evari-text truncate">{root.filename}</div>
-        </div>
-        <button type="button" onClick={onClose} className="text-evari-dim hover:text-evari-text shrink-0">
-          <X className="h-4 w-4" />
-        </button>
-      </header>
-
-      <div className="flex-1 overflow-auto p-4 space-y-4">
-        {/* Original preview */}
-        <div className="rounded-panel bg-[#1a1a1a] flex items-center justify-center min-h-[180px] overflow-hidden">
-          {isPSD ? (
-            <div className="text-evari-dim text-center py-10">
-              <div className="text-[28px] font-bold opacity-60">PSD</div>
-              <div className="text-[10px] uppercase tracking-[0.12em] mt-1">No browser preview</div>
-            </div>
-          ) : (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={root.url} alt={root.altText ?? root.filename} className="max-h-[280px] w-auto object-contain" />
-          )}
-        </div>
-
-        {/* Original metadata */}
-        <dl className="grid grid-cols-2 gap-2 text-[11px]">
-          <div className="rounded bg-evari-ink p-2">
-            <dt className="text-evari-dimmer text-[10px]">Type</dt>
-            <dd className="text-evari-text font-mono">{fileExt(root.filename)}</dd>
-          </div>
-          <div className="rounded bg-evari-ink p-2">
-            <dt className="text-evari-dimmer text-[10px]">Size</dt>
-            <dd className="text-evari-text font-mono tabular-nums">{formatBytes(root.sizeBytes)}</dd>
-          </div>
-          {root.width && root.height ? (
-            <div className="rounded bg-evari-ink p-2 col-span-2">
-              <dt className="text-evari-dimmer text-[10px]">Dimensions</dt>
-              <dd className="text-evari-text font-mono tabular-nums">{root.width} × {root.height}</dd>
-            </div>
-          ) : null}
-        </dl>
-
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => void copyUrl(root.url)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs bg-evari-ink text-evari-text hover:bg-black/40 transition">
-            {copied ? <Check className="h-3.5 w-3.5 text-evari-success" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? 'Copied' : 'Copy URL'}
-          </button>
-        </div>
-
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Alt text</span>
-          <input type="text" value={alt} onChange={(e) => setAlt(e.target.value)}
-            placeholder="Describe this image"
-            className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
-        </label>
-        <label className="block">
-          <span className="block text-[10px] uppercase tracking-[0.12em] text-evari-dimmer mb-0.5">Tags</span>
-          <input type="text" value={tagsStr} onChange={(e) => setTagsStr(e.target.value)}
-            placeholder="logo, hero, product"
-            className="w-full px-2.5 py-1.5 rounded-md bg-evari-ink text-evari-text text-sm border border-evari-edge/30 focus:border-evari-gold/60 focus:outline-none" />
-        </label>
-        <button type="button" onClick={save} disabled={!dirty || saving}
-          className="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-evari-gold text-evari-goldInk disabled:opacity-40 transition">
-          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-          {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
-        </button>
-
-        {/* Variants family */}
-        <div className="border-t border-evari-edge/20 pt-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">
-              Variants {family.variants.length > 0 ? `(${family.variants.length})` : ''}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button type="button" onClick={() => onConvert('web')} disabled={busy}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40 transition disabled:opacity-50">
-                <Globe className="h-2.5 w-2.5" /> Web variant
-              </button>
-              <button type="button" onClick={() => onConvert('newsletter')} disabled={busy}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border border-evari-edge/40 text-evari-dim hover:text-evari-gold hover:border-evari-gold/40 transition disabled:opacity-50">
-                <Mail className="h-2.5 w-2.5" /> Newsletter variant
-              </button>
-            </div>
-          </div>
-
-          {family.variants.length === 0 ? (
-            <div className="rounded bg-evari-ink/60 border border-evari-edge/20 px-3 py-4 text-[11px] text-evari-dimmer text-center">
-              No variants yet. Click <span className="text-evari-text">Web variant</span> or <span className="text-evari-text">Newsletter variant</span> above to make a smaller named version. Originals stay untouched.
-            </div>
-          ) : (
-            <ul className="space-y-1.5">
-              {family.variants.map((v) => (
-                <li key={v.id} className="flex items-start gap-2 rounded bg-evari-ink/60 border border-evari-edge/20 p-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={v.url} alt={v.variantLabel ?? v.filename}
-                    className="h-12 w-12 rounded bg-[#1a1a1a] object-cover shrink-0" loading="lazy" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-semibold text-evari-text truncate">{v.variantLabel ?? v.filename}</span>
-                      {v.purposes.includes('web') ? (
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[9px] font-medium bg-evari-gold/15 text-evari-gold border border-evari-gold/30">
-                          <Globe className="h-2 w-2" /> Web
-                        </span>
-                      ) : null}
-                      {v.purposes.includes('newsletter') ? (
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[9px] font-medium bg-evari-gold/15 text-evari-gold border border-evari-gold/30">
-                          <Mail className="h-2 w-2" /> Newsletter
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-evari-dimmer">
-                      <span className="font-mono tabular-nums">{fileExt(v.filename)}</span>
-                      <span className="font-mono tabular-nums">{formatBytes(v.sizeBytes)}</span>
-                      {v.width && v.height ? <span className="font-mono tabular-nums">{v.width}×{v.height}</span> : null}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      <button type="button" onClick={() => void copyUrl(v.url)}
-                        className="inline-flex items-center gap-1 text-[10px] text-evari-dim hover:text-evari-gold transition">
-                        <Copy className="h-2.5 w-2.5" /> Copy URL
-                      </button>
-                      <button type="button" onClick={() => onDelete(v.id)}
-                        className="inline-flex items-center gap-1 text-[10px] text-evari-dim hover:text-evari-gold transition ml-auto">
-                        <Trash2 className="h-2.5 w-2.5" /> Delete
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      <footer className="px-4 py-3 border-t border-evari-edge/30 flex items-center gap-2 shrink-0">
-        <button type="button" onClick={() => onDelete(root.id)}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-evari-dim hover:text-evari-gold transition">
-          <Trash2 className="h-3 w-3" />
-          Delete original + variants
-        </button>
-      </footer>
-    </aside>
   );
 }
 
