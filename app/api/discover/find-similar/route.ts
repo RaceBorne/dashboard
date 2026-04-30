@@ -8,6 +8,7 @@ import { createSupabaseAdmin } from '@/lib/supabase/admin';
 import { getPlay } from '@/lib/dashboard/repository';
 import { isDataForSeoConnected, webSearchQuery } from '@/lib/integrations/dataforseo';
 import { lookupPeers, recordPeers } from '@/lib/brand/peerBrain';
+import { getOrCreateBrief } from '@/lib/marketing/strategy';
 import type { DiscoveredCompany } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -107,24 +108,37 @@ export async function POST(req: Request) {
     }
   }
 
-  // Venture context when a playId is provided — helps Claude stay
-  // on-target for the current brief rather than wandering off the
-  // reference company's entire industry.
+  // Venture context when a playId is provided. We pull both the play
+  // (for title/strategy) and the strategy brief (for industries,
+  // audience, geographies) so the model knows the actual prospecting
+  // category, not just a vague description.
   let ventureBlock = '';
   if (body.playId && supabase) {
     try {
-      const play = await getPlay(supabase, body.playId);
+      const [play, brief] = await Promise.all([
+        getPlay(supabase, body.playId),
+        getOrCreateBrief(body.playId).catch(() => null),
+      ]);
       if (play) {
-        ventureBlock = [
-          'VENTURE CONTEXT (we are prospecting for this):',
+        const lines = [
+          'VENTURE CONTEXT (we are prospecting for this; PEERS MUST FIT THIS BRIEF):',
           '  Title: ' + play.title,
-          play.strategyShort ? '  Strategy: ' + play.strategyShort : '',
-          play.strategy?.targetPersona
-            ? '  Target persona: ' + play.strategy.targetPersona
-            : '',
-        ]
-          .filter(Boolean)
-          .join('\n');
+        ];
+        if (play.strategyShort) lines.push('  Strategy: ' + play.strategyShort);
+        if (play.strategy?.targetPersona) lines.push('  Target persona: ' + play.strategy.targetPersona);
+        if (brief?.industries && brief.industries.length > 0) {
+          lines.push('  Target industries (peers MUST be in one of these): ' + brief.industries.join(', '));
+        }
+        if (brief?.targetAudience && brief.targetAudience.length > 0) {
+          lines.push('  Target audience: ' + brief.targetAudience.join(', '));
+        }
+        if (brief?.geographies && brief.geographies.length > 0) {
+          lines.push('  Target geographies: ' + brief.geographies.join(', '));
+        }
+        if (brief?.idealCustomer) {
+          lines.push('  Ideal customer: ' + brief.idealCustomer);
+        }
+        ventureBlock = lines.join('\n');
       }
     } catch {
       // Non-fatal: venture context is a bonus.
@@ -168,33 +182,56 @@ export async function POST(req: Request) {
       ].join('\n');
 
   const task =
-    'Find ' +
-    limit +
-    ' PEER companies at the same tier / audience / brand ethos as the reference company. ' +
-    'This is NOT "same industry"; tier and audience matter more than generic category. ' +
-    'If the reference is Rapha (premium cycling apparel, boutique brand energy), valid peers ' +
-    'are Le Col, Pas Normal Studios, Cafe du Cycliste, Castelli. NOT Halfords. NOT Evans Cycles. ' +
-    'Match the operator\'s taste.' +
-    '\n\nNever use em-dashes or en-dashes in any output. Use commas or semicolons.' +
+    'Find up to ' + limit + ' PEER companies that are TRUE peers of the reference brand. ' +
+    'A true peer matches on THREE axes simultaneously: vertical (specific industry / category), ' +
+    'audience (who they serve), and format (how they deliver value). Missing any one axis disqualifies ' +
+    'the candidate.' +
+    '\n\nNever use em-dashes or en-dashes. Use commas, semicolons, or full stops.' +
+    '\n\nWORKED EXAMPLES of what a true peer looks like:' +
+    '\n  Reference: Auto Vivendi (UK supercar members club).' +
+    '\n    GOOD peers: Pistonheads Members, Auto Mobili, Curated Tracks, Ferrari Owners Club UK,' +
+    '\n      Goodwood Road Racing Club. (All: car-focused + members club + UK-ish wealthy enthusiasts).' +
+    '\n    BAD peers: Soho House (wrong vertical, just shares "members club" format).' +
+    '\n    BAD peers: Quintessentially (wrong vertical, just shares "luxury services" tier).' +
+    '\n    BAD peers: Aston Martin (wrong format, manufacturer not club).' +
+    '\n  Reference: Rapha (premium cycling apparel, boutique brand).' +
+    '\n    GOOD peers: Le Col, Pas Normal Studios, Cafe du Cycliste, Castelli, MAAP.' +
+    '\n    BAD peers: Halfords (wrong tier), Evans Cycles (wrong tier), Lululemon (wrong vertical).' +
+    '\n  Reference: Workham Hotels (London serviced apartments operator).' +
+    '\n    GOOD peers: Cheval Collection, SACO Apartments, Native Places, Locke Hotels, edyn.' +
+    '\n    BAD peers: The Savoy (wrong format, hotel not serviced apt), Airbnb (wrong format/scale),' +
+    '\n      WeWork (wrong vertical).' +
     '\n\nProcess:' +
-    '\n  1. Read the reference company carefully. What makes this brand who it is? Price tier,' +
-    '\n     audience age and income, aesthetic, channel strategy, scale.' +
+    '\n  1. ANALYSE the reference. In your head, complete these three sentences:' +
+    '\n       - Vertical: "This is a ___" (be specific: "supercar members club", not "luxury experience")' +
+    '\n       - Audience: "It serves ___" (be specific: "wealthy car enthusiasts", not "wealthy people")' +
+    '\n       - Format: "It delivers value via ___" (e.g. "members-only access to track days and supercars")' +
+    '\n  2. CHECK against the venture brief above. Peers MUST also align with the operator\'s target' +
+    '\n     industries / audience / geography. If the brief says "supercar clubs" do NOT return generic' +
+    '\n     luxury venues, even if they share an audience.' +
     (verify
-      ? '\n  2. Run web_search to confirm peers if you are not already certain.'
-      : '\n  2. Answer from your own training knowledge. Do NOT call any tools. Speed matters.' +
-        '\n     If you genuinely do not know peers for this brand, return fewer rather than guess.') +
-    '\n  3. Output JSON only, no prose, no fences, no explanations outside the JSON:' +
+      ? '\n  3. Run web_search to confirm peers if you are not already certain.'
+      : '\n  3. Answer from your own training knowledge. Do NOT call any tools. Speed matters.' +
+        '\n     If you genuinely do not know enough close peers, RETURN FEWER. Filler hurts.') +
+    '\n  4. For each peer, in the "why" field, name which axis is the strongest match (vertical /' +
+    '\n     audience / format) and one specific reason. e.g. "Vertical: same supercar club model,' +
+    '\n     UK-based with similar membership tier."' +
+    '\n  5. Output JSON only, no prose, no fences, no explanations outside the JSON:' +
     '\n  {' +
     '\n    "peers": [' +
-    '\n      { "domain": "example.com", "name": "Example", "why": "one short sentence, why they are a peer" }' +
+    '\n      { "domain": "example.com", "name": "Example", "why": "one short sentence" }' +
     '\n    ],' +
-    '\n    "reasoning": "one sentence summarising the tier you targeted"' +
+    '\n    "reasoning": "one sentence: vertical + audience + format I anchored on"' +
     '\n  }' +
-    '\n\nHard rules:' +
+    '\n\nHARD RULES:' +
     '\n  - Domains must be bare (no https://, no www.).' +
     '\n  - Do NOT return the reference company itself.' +
     '\n  - Do NOT return any domain already in the skipList below.' +
-    '\n  - If you cannot find ' + limit + ', return fewer rather than filler.';
+    '\n  - DO NOT return peers that share only ONE axis. A "members club" alone is not enough if the' +
+    '\n    reference is a "supercar club". The vertical must match.' +
+    '\n  - DO NOT default to the most famous brand in the broader category just because you know it.' +
+    '\n  - If you cannot find ' + limit + ' peers that pass all three checks, RETURN FEWER. Quality over' +
+    '\n    quantity. 3 great peers beats 8 generic ones.';
 
   const prompt = [
     ventureBlock,
