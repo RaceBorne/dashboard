@@ -36,10 +36,14 @@ interface Body {
 }
 
 export async function POST(req: Request) {
+  const url = new URL(req.url);
+  const verify = url.searchParams.get('verify') === '1';
   const body = (await req.json().catch(() => ({}))) as Body;
   const domain = (body.domain ?? '').trim().toLowerCase();
   const seenDomains = Array.isArray(body.seenDomains) ? body.seenDomains : [];
-  const limit = Math.min(Math.max(body.limit ?? 5, 2), 10);
+  // Default 6 instead of 5; the new fast path handles this in one
+  // round-trip so a slightly bigger ask costs almost nothing extra.
+  const limit = Math.min(Math.max(body.limit ?? 6, 2), 10);
 
   if (!domain) {
     return NextResponse.json(
@@ -138,7 +142,7 @@ export async function POST(req: Request) {
     'Find ' +
     limit +
     ' PEER companies at the same tier / audience / brand ethos as the reference company. ' +
-    'This is NOT "same industry" — tier and audience matter more than generic category. ' +
+    'This is NOT "same industry"; tier and audience matter more than generic category. ' +
     'If the reference is Rapha (premium cycling apparel, boutique brand energy), valid peers ' +
     'are Le Col, Pas Normal Studios, Cafe du Cycliste, Castelli. NOT Halfords. NOT Evans Cycles. ' +
     'Match the operator\'s taste.' +
@@ -146,7 +150,10 @@ export async function POST(req: Request) {
     '\n\nProcess:' +
     '\n  1. Read the reference company carefully. What makes this brand who it is? Price tier,' +
     '\n     audience age and income, aesthetic, channel strategy, scale.' +
-    '\n  2. Run web_search to confirm peers if you are not already certain.' +
+    (verify
+      ? '\n  2. Run web_search to confirm peers if you are not already certain.'
+      : '\n  2. Answer from your own training knowledge. Do NOT call any tools. Speed matters.' +
+        '\n     If you genuinely do not know peers for this brand, return fewer rather than guess.') +
     '\n  3. Output JSON only, no prose, no fences, no explanations outside the JSON:' +
     '\n  {' +
     '\n    "peers": [' +
@@ -204,14 +211,19 @@ export async function POST(req: Request) {
     }),
   };
 
+  // Default path is FAST: no tools, single round trip. ~2-4 seconds.
+  // Verify path uses web_search and a wider step budget. ~15-30s.
+  const callTools = verify ? tools : undefined;
+  const stepCap = verify ? 8 : 1;
+
   let text: string;
   try {
     const res = await generateText({
       model: gateway(MODEL),
       system,
       prompt,
-      tools,
-      stopWhen: stepCountIs(8),
+      tools: callTools,
+      stopWhen: stepCountIs(stepCap),
     });
     text = res.text;
   } catch (gatewayErr) {
@@ -232,8 +244,8 @@ export async function POST(req: Request) {
         model: anthropic(bareModel),
         system,
         prompt,
-        tools,
-        stopWhen: stepCountIs(8),
+        tools: callTools,
+        stopWhen: stepCountIs(stepCap),
       });
       text = res.text;
     } catch (anthropicErr) {

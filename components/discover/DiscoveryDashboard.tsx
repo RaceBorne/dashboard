@@ -631,6 +631,7 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
   const [similarCache, setSimilarCache] = useState<Record<string, SimilarCacheEntry>>({});
   const [similarLoading, setSimilarLoading] = useState(false);
   const [similarError, setSimilarError] = useState<string | null>(null);
+  const [similarVerifying, setSimilarVerifying] = useState(false);
   const [snapshotKey, setSnapshotKey] = useState(0);
   const [snapshotFailed, setSnapshotFailed] = useState(false);
   const [aboutLoading, setAboutLoading] = useState(false);
@@ -704,45 +705,51 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
   }, [row?.id, tab, row?.aboutText]);
 
   // Lazy-fetch peers the first time Similar opens for a given row.
+  // Default fetches the FAST path (no web_search). The user can hit
+  // "Verify with web" inside the tab to re-run with web_search on
+  // demand.
+  async function fetchSimilar(opts: { verify?: boolean } = {}) {
+    if (!row) return;
+    if (opts.verify) setSimilarVerifying(true);
+    else setSimilarLoading(true);
+    setSimilarError(null);
+    try {
+      const qs = opts.verify ? '?verify=1' : '';
+      const res = await fetch('/api/discover/find-similar' + qs, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          domain: row.domain,
+          playId,
+          seenDomains: getSeenDomains(),
+          limit: 8,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!data?.ok) throw new Error(data?.error ?? 'Find similar failed');
+      const peers = (data.peers ?? []) as SimilarPeer[];
+      setSimilarCache((cur) => ({
+        ...cur,
+        [row.domain]: {
+          peers,
+          reasoning: data.reasoning ?? '',
+          addedDomains: new Set<string>(),
+          shortlistedDomains: new Set<string>(),
+        },
+      }));
+    } catch (err) {
+      setSimilarError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (opts.verify) setSimilarVerifying(false);
+      else setSimilarLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!row) return;
     if (tab !== 'similar') return;
     if (similarCache[row.domain]) return;
-    let cancelled = false;
-    setSimilarLoading(true);
-    setSimilarError(null);
-    (async () => {
-      try {
-        const res = await fetch('/api/discover/find-similar', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            domain: row.domain,
-            playId,
-            seenDomains: getSeenDomains(),
-            limit: 8,
-          }),
-        });
-        const data = await res.json().catch(() => null);
-        if (cancelled) return;
-        if (!data?.ok) throw new Error(data?.error ?? 'Find similar failed');
-        const peers = (data.peers ?? []) as SimilarPeer[];
-        setSimilarCache((cur) => ({
-          ...cur,
-          [row.domain]: {
-            peers,
-            reasoning: data.reasoning ?? '',
-            addedDomains: new Set<string>(),
-            shortlistedDomains: new Set<string>(),
-          },
-        }));
-      } catch (err) {
-        if (!cancelled) setSimilarError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) setSimilarLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+    void fetchSimilar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row?.id, tab]);
 
@@ -993,14 +1000,26 @@ function CompanyDrawer({ row, busy, playId, strategyContext, enrichmentProgress,
               <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer flex items-center justify-between">
                 <span>Peer companies at the same tier</span>
                 {cached?.peers?.length ? (
-                  <span className="text-[10px] text-evari-dimmer normal-case tracking-normal">{cached.peers.length} found, choose to add or shortlist</span>
+                  <button
+                    type="button"
+                    onClick={() => void fetchSimilar({ verify: true })}
+                    disabled={similarVerifying || similarLoading}
+                    className="text-[10px] text-evari-dim hover:text-evari-gold disabled:opacity-50 transition inline-flex items-center gap-1 normal-case tracking-normal"
+                    title="Re-run Similar with web search verification (slower, more accurate for niche / local brands)"
+                  >
+                    {similarVerifying ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    {similarVerifying ? 'Verifying...' : 'Verify with web'}
+                  </button>
                 ) : null}
               </div>
               {similarLoading ? (
-                <div className="text-[11px] text-evari-dim flex items-center gap-2 py-6">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Searching the web for peer brands at the same tier as {row.name}...
-                </div>
+                <>
+                  <SimilarSkeletonCard />
+                  <SimilarSkeletonCard />
+                  <SimilarSkeletonCard />
+                  <SimilarSkeletonCard />
+                  <div className="text-[10px] text-evari-dimmer text-center pt-1">Drafting peers from training knowledge, no web round-trip needed...</div>
+                </>
               ) : null}
               {similarError ? (
                 <div className="text-[11px] text-evari-dim border border-evari-edge/30 rounded-md p-3 bg-evari-edge/10">
@@ -1201,6 +1220,25 @@ function AboutSkeleton() {
       <div className="h-3 rounded bg-evari-edge/20 animate-pulse w-[78%]" />
       <div className="h-3 rounded bg-evari-edge/20 animate-pulse w-[60%]" />
       <div className="text-[10px] text-evari-dimmer pt-1">Drafting from the company data we have, no web round-trip needed...</div>
+    </div>
+  );
+}
+
+// Skeleton placeholder for a peer card. Mirrors the real card's
+// shape so the layout doesn't jump when the data arrives.
+function SimilarSkeletonCard() {
+  return (
+    <div className="flex items-start gap-3 rounded-md border border-evari-edge/30 p-3 bg-evari-edge/5">
+      <div className="h-7 w-7 rounded-md bg-evari-edge/20 animate-pulse shrink-0" />
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="h-3 w-2/3 rounded bg-evari-edge/20 animate-pulse" />
+        <div className="h-2.5 w-1/2 rounded bg-evari-edge/20 animate-pulse" />
+        <div className="h-2.5 w-full rounded bg-evari-edge/20 animate-pulse mt-1" />
+        <div className="flex items-center gap-2 mt-2">
+          <div className="h-7 flex-1 rounded-md bg-evari-edge/20 animate-pulse" />
+          <div className="h-7 flex-1 rounded-md bg-evari-edge/20 animate-pulse" />
+        </div>
+      </div>
     </div>
   );
 }
