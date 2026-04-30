@@ -34,6 +34,11 @@ import {
 } from '@/lib/integrations/dataforseo';
 import { buildSystemPrompt, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import { getOrCreateBrief } from '@/lib/marketing/strategy';
+import {
+  appendResearchLog,
+  formatResearchLogForPrompt,
+  readResearchLog,
+} from '@/lib/marketing/researchLog';
 import type { Play } from '@/lib/types';
 
 const MODEL = process.env.AI_MODEL || 'anthropic/claude-haiku-4-5';
@@ -71,6 +76,7 @@ export async function runDiscoverAgent(
   }
 
   const brief = await getOrCreateBrief(play.id).catch(() => null);
+  const priorResearch = await readResearchLog(supabase, play.id).catch(() => [] as Awaited<ReturnType<typeof readResearchLog>>);
 
   // Counters captured by closure.
   let inserted = 0;
@@ -101,6 +107,10 @@ export async function runDiscoverAgent(
           const { hits, cost: c } = await webSearchQuery({ query, limit: limit ?? 15 });
           cost += c;
           log.push({ tool: 'web_search', query, ok: true });
+          appendResearchLog(supabase, play.id, {
+            kind: 'agent_search',
+            payload: { tool: 'web_search', query, count: hits.length },
+          }).catch(() => {});
           return {
             query,
             count: hits.length,
@@ -140,6 +150,10 @@ export async function runDiscoverAgent(
           });
           cost += c;
           log.push({ tool: 'find_business_listings', query: description + ' in ' + locationName, ok: true });
+          appendResearchLog(supabase, play.id, {
+            kind: 'agent_search',
+            payload: { tool: 'find_business_listings', query: description + ' in ' + locationName, count: listings.length },
+          }).catch(() => {});
           return {
             count: listings.length,
             listings: listings.slice(0, limit ?? 50).map((l) => ({
@@ -272,6 +286,8 @@ export async function runDiscoverAgent(
     [
       'You are a research analyst on a 5-minute deadline. The brief below is ground truth. Find 20 to 30 verified company matches and call add_candidate on each. SPEED MATTERS more than perfection.',
       '',
+      'Use parallel tool calls aggressively: in a single response you can call web_search AND find_business_listings simultaneously, and you can call add_candidate 10+ times in one response. Batch your work.',
+      '',
       'Default loop (this is the optimal sequence; do not deviate unless the brief specifically demands it):',
       '  1. ONE web_search for an industry list or directory (e.g. "list of UK superyacht builders 2024").',
       '  2. ONE find_business_listings for the right category in the right location (e.g. "Bicycle shop" in "Hertfordshire, England, United Kingdom").',
@@ -293,6 +309,9 @@ export async function runDiscoverAgent(
     '',
     'Strategic brief:',
     briefSummary,
+    '',
+    'Prior research from earlier stages (Market analysis, Target profile, Synopsis):',
+    formatResearchLogForPrompt(priorResearch),
     '',
     'Already in the shortlist (do not re-add):',
     Array.from(seenDomains).slice(0, 40).join(', ') || '(none)',

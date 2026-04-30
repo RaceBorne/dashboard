@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { appendResearchLog } from '@/lib/marketing/researchLog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,7 +30,8 @@ interface Body {
   geographies?: string[];
 }
 
-export async function POST(req: Request) {
+export async function POST(req: Request, { params }: { params: Promise<{ playId: string }> }) {
+  const { playId } = await params;
   if (!hasAIGatewayCredentials()) {
     return NextResponse.json({ ok: false, error: 'AI gateway not configured' }, { status: 503 });
   }
@@ -69,13 +72,22 @@ export async function POST(req: Request) {
       buyerTerminology?: string[];
       intentSignals?: string[];
     };
-    return NextResponse.json({
-      ok: true,
+    const result = {
       marketSize: typeof parsed.marketSize === 'string' ? parsed.marketSize : '',
       competitors: Array.isArray(parsed.competitors) ? parsed.competitors.slice(0, 3) : [],
       buyerTerminology: Array.isArray(parsed.buyerTerminology) ? parsed.buyerTerminology.slice(0, 8) : [],
       intentSignals: Array.isArray(parsed.intentSignals) ? parsed.intentSignals.slice(0, 5) : [],
-    });
+    };
+    // Persist to the play's research log so the Discover Agent (and
+    // any later stage's AI) inherit this finding instead of redoing
+    // the work.
+    const sb = createSupabaseAdmin();
+    if (sb) {
+      try {
+        await appendResearchLog(sb, playId, { kind: 'market_sizing', payload: result });
+      } catch {}
+    }
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 502 });
   }

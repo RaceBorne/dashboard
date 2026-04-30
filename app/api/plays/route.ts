@@ -114,6 +114,55 @@ export async function POST(req: Request) {
   // block the response on it — Craig gets the id immediately and the
   // funnel fills in over the next few seconds. Anything that goes wrong
 
+
+  // Bootstrap research: fire a market-sizing call in the background
+  // the moment an idea is created so the research log is already seeded
+  // with insight by the time the user reaches Market analysis. The
+  // Discover Agent at the end inherits everything via the shared log.
+  after(async () => {
+    try {
+      const { appendResearchLog } = await import('@/lib/marketing/researchLog');
+      const { generateBriefing, hasAIGatewayCredentials } = await import('@/lib/ai/gateway');
+      if (!hasAIGatewayCredentials() || !supabase) return;
+      await appendResearchLog(supabase, id, {
+        kind: 'bootstrap',
+        payload: { note: 'Idea created. Title: ' + title + '. Pitch: ' + (body.brief ?? '').slice(0, 200) },
+      });
+      const prompt = [
+        'Quick market scan, no chip picks yet, just the idea title and pitch.',
+        '',
+        'Idea: ' + title,
+        'Pitch: ' + (body.brief ?? ''),
+        '',
+        'Reply with VALID JSON, no commentary, no markdown fences:',
+        '{ "marketSize": "string, one short sentence", "competitors": ["string", "string", "string"], "intentSignals": ["string", "string"] }',
+        '',
+        'Plain prose only. No em-dashes (use commas or full stops).',
+      ].join('\n');
+      const text = await generateBriefing({
+        task: 'bootstrap-market-sizing',
+        voice: 'analyst',
+        prompt,
+      });
+      try {
+        const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+        const parsed = JSON.parse(cleaned) as { marketSize?: string; competitors?: string[]; intentSignals?: string[] };
+        await appendResearchLog(supabase, id, {
+          kind: 'market_sizing',
+          payload: {
+            marketSize: parsed.marketSize ?? '',
+            competitors: Array.isArray(parsed.competitors) ? parsed.competitors.slice(0, 3) : [],
+            intentSignals: Array.isArray(parsed.intentSignals) ? parsed.intentSignals.slice(0, 3) : [],
+          },
+        });
+      } catch {
+        // Bootstrap is best-effort.
+      }
+    } catch {
+      // Best-effort.
+    }
+  });
+
   return NextResponse.json({ ok: true, id });
 }
 

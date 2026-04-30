@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { appendResearchLog } from '@/lib/marketing/researchLog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,7 +34,8 @@ interface Body {
  * synopsis paragraph that the operator reads on the Synopsis stage of
  * Strategy. Returns plain prose, no markdown, ready to display.
  */
-export async function POST(req: Request) {
+export async function POST(req: Request, { params }: { params: Promise<{ playId: string }> }) {
+  const { playId } = await params;
   if (!hasAIGatewayCredentials()) {
     return NextResponse.json({ ok: false, error: 'AI gateway not configured' }, { status: 503 });
   }
@@ -68,7 +71,14 @@ export async function POST(req: Request) {
       voice: 'analyst',
       prompt,
     });
-    return NextResponse.json({ ok: true, synopsis: text.trim() });
+    const synopsis = text.trim();
+    const sb = createSupabaseAdmin();
+    if (sb) {
+      try {
+        await appendResearchLog(sb, playId, { kind: 'synopsis', payload: { synopsis } });
+      } catch {}
+    }
+    return NextResponse.json({ ok: true, synopsis });
   } catch (err) {
     return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 502 });
   }

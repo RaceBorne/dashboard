@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
+import { createSupabaseAdmin } from '@/lib/supabase/admin';
+import { appendResearchLog } from '@/lib/marketing/researchLog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,7 +26,8 @@ interface Body {
   targetAudience?: string[];
 }
 
-export async function POST(req: Request) {
+export async function POST(req: Request, { params }: { params: Promise<{ playId: string }> }) {
+  const { playId } = await params;
   if (!hasAIGatewayCredentials()) {
     return NextResponse.json({ ok: false, error: 'AI gateway not configured' }, { status: 503 });
   }
@@ -55,7 +58,14 @@ export async function POST(req: Request) {
       voice: 'analyst',
       prompt,
     });
-    return NextResponse.json({ ok: true, persona: text.trim() });
+    const persona = text.trim();
+    const sb = createSupabaseAdmin();
+    if (sb) {
+      try {
+        await appendResearchLog(sb, playId, { kind: 'persona', payload: { persona } });
+      } catch {}
+    }
+    return NextResponse.json({ ok: true, persona });
   } catch (err) {
     return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 502 });
   }
