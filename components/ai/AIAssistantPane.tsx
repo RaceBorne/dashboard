@@ -37,6 +37,8 @@ import {
   RotateCcw,
   Send,
   Sparkles,
+  Volume2,
+  VolumeX,
   Wrench,
   X,
 } from 'lucide-react';
@@ -269,6 +271,30 @@ export function AIAssistantPane() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPrompt]);
 
+  // Morning summary: on the first pane-open of the calendar day, auto-
+  // send a "what's open" prompt so the operator gets a status briefing
+  // without having to ask. Toggleable in localStorage.
+  useEffect(() => {
+    if (!open) return;
+    if (messages.length > 0) return; // only when conversation is empty
+    if (typeof window === 'undefined') return;
+    const enabled = window.localStorage.getItem('evari-mojito-morning') !== '0';
+    if (!enabled) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const last = window.localStorage.getItem('evari-mojito-morning-last');
+    if (last === today) return;
+    window.localStorage.setItem('evari-mojito-morning-last', today);
+    // Small delay so the pane has rendered before the chat fires.
+    const t = setTimeout(() => {
+      void sendMessage({
+        text:
+          'Morning briefing: call getOpenWork, then write a one-paragraph status summary of where things stand. Mention the active idea count, anything stale, pending follow-ups, and any draft campaigns waiting to ship. Two to four short sentences. End with a question asking what I want to tackle first.',
+      });
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   // Watch tool outputs for clientActions and dispatch them client-side.
   useEffect(() => {
     for (const m of messages) {
@@ -314,6 +340,48 @@ export function AIAssistantPane() {
   const [micError, setMicError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  // Voice output: when on, the assistant's reply is read aloud via
+  // the browser SpeechSynthesis API. Free, instant, mediocre voice;
+  // enough to be useful while you walk around the office. Persists
+  // in localStorage so the toggle survives reloads.
+  const [voiceOut, setVoiceOut] = useState<boolean>(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const v = window.localStorage.getItem('evari-mojito-voice-out');
+    if (v === '1') setVoiceOut(true);
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('evari-mojito-voice-out', voiceOut ? '1' : '0');
+  }, [voiceOut]);
+
+  // Speak each completed assistant message exactly once. Track the
+  // ids we have already spoken so re-renders do not re-read.
+  const spokenIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!voiceOut) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== 'assistant') return;
+    if (spokenIds.current.has(last.id)) return;
+    if (status === 'streaming' || status === 'submitted') return; // wait for the message to finish
+    const text = (last.parts ?? [])
+      .filter((p) => isTextUIPart(p))
+      .map((p) => (p as { text?: string }).text ?? '')
+      .join(' ')
+      .trim();
+    if (!text) return;
+    spokenIds.current.add(last.id);
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.05;
+      u.pitch = 1.0;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, status, voiceOut]);
 
   async function startRecording() {
     if (recording || transcribing) return;
@@ -448,6 +516,15 @@ export function AIAssistantPane() {
         {collapsed ? null : (
           <>
             <h3 className="text-[12px] font-semibold text-evari-text flex-1">Mojito AI</h3>
+            <button
+              type="button"
+              onClick={() => setVoiceOut((v) => !v)}
+              className={cn('p-1 rounded transition', voiceOut ? 'text-evari-gold' : 'text-evari-dim hover:text-evari-text')}
+              title={voiceOut ? 'Voice output on. Click to mute.' : 'Voice output off. Click to enable.'}
+              aria-label="Toggle voice output"
+            >
+              {voiceOut ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+            </button>
             <button
               type="button"
               onClick={refreshConversation}

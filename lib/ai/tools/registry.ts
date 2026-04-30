@@ -41,6 +41,7 @@ import {
 import { listGroups } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
 import { getActiveContext, listContexts } from '@/lib/context/activeContext';
+import { recordAction, findMostRecentUndoable, markUndone, listRecentActions } from './actionLog';
 
 // ---------------------------------------------------------------------------
 // Page-aware context, passed in from the chat endpoint, used by tools that
@@ -658,6 +659,260 @@ export function buildTools(pane: PaneContext) {
       description: 'Hide the AI assistant pane. Use only when the user explicitly asks to close it.',
       inputSchema: z.object({}),
       execute: async () => ok({ clientAction: { type: 'closePane' } }),
+    }),
+
+    // -----------------------------------------------------------------------
+    // PHASE 3: SEND + EXECUTE
+    // -----------------------------------------------------------------------
+
+    prepareSend: tool({
+      description:
+        'Run the pre-send pipeline on a campaign: image optimisation, missing-image checks, link health, deliverability flags. Returns a report. Non-destructive; nothing leaves the building.',
+      inputSchema: z.object({ campaignId: z.string() }),
+      execute: async ({ campaignId }) => {
+        const url = baseUrl() + '/api/marketing/campaigns/' + campaignId + '/prepare-send';
+        try {
+          const res = await fetch(url, { method: 'POST' });
+          const json = (await res.json().catch(() => ({}))) as { ok?: boolean; report?: unknown; error?: string };
+          if (!json.ok) return err(json.error ?? 'prepareSend failed');
+          await recordAction({
+            toolName: 'prepareSend',
+            args: { campaignId },
+            result: { campaignId, ranAt: new Date().toISOString() },
+            surface: pane.surface,
+          });
+          return ok({ campaignId, report: json.report ?? null });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'prepareSend failed');
+        }
+      },
+    }),
+
+    sendCampaign: tool({
+      description:
+        'Send a campaign NOW to its full audience. HARD destructive: emails leave the building and CANNOT be unsent. The model MUST present the audience size + subject and require explicit confirmation. For sends > 10 recipients require the operator to type a confirmation phrase; the assistant pane handles that gating. Only call with confirm:true after the user has typed "send" or said something equivalent.',
+      inputSchema: z.object({
+        campaignId: z.string(),
+        confirm: z.boolean().optional(),
+      }),
+      execute: async ({ campaignId, confirm }) => {
+        const c = await getCampaign(campaignId);
+        if (!c) return err('Campaign ' + campaignId + ' not found.');
+        if (!confirm) {
+          return ok({
+            requiresConfirmation: true,
+            campaignId,
+            campaignName: c.name,
+            subject: c.subject,
+            kind: c.kind,
+            message:
+              'About to SEND "' + c.name + '" with subject "' + c.subject + '". Audience: every contact in the linked groups / segments. This cannot be undone once it leaves Gmail. Confirm?',
+          });
+        }
+        const url = baseUrl() + '/api/marketing/campaigns/' + campaignId + '/send';
+        try {
+          const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+          const json = (await res.json().catch(() => ({}))) as { ok?: boolean; sent?: number; failed?: number; held?: number; error?: string };
+          if (!json.ok) return err(json.error ?? 'sendCampaign failed');
+          await recordAction({
+            toolName: 'sendCampaign',
+            args: { campaignId },
+            result: json,
+            // No inverse: emails cannot be unsent.
+            inverse: null,
+            surface: pane.surface,
+          });
+          return ok({ campaignId, sent: json.sent ?? 0, failed: json.failed ?? 0, held: json.held ?? 0 });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'sendCampaign failed');
+        }
+      },
+    }),
+
+    scheduleSend: tool({
+      description:
+        'Schedule a campaign for a future send. Less destructive than sendCampaign because the operator can still cancel before the scheduled time. Pass an ISO timestamp.',
+      inputSchema: z.object({
+        campaignId: z.string(),
+        when: z.string().describe('ISO 8601 datetime, e.g. 2026-05-02T09:00:00+10:00'),
+      }),
+      execute: async ({ campaignId, when }) => {
+        const c = await updateCampaign(campaignId, { scheduledFor: when });
+        if (!c) return err('scheduleSend failed');
+        const id = await recordAction({
+          toolName: 'scheduleSend',
+          args: { campaignId, when },
+          result: { campaignId, scheduledFor: when },
+          inverse: { tool: 'cancelScheduledSend', args: { campaignId } },
+          surface: pane.surface,
+        });
+        return ok({ campaignId, scheduledFor: when, actionId: id });
+      },
+    }),
+
+    cancelScheduledSend: tool({
+      description:
+        'Cancel a previously scheduled campaign send by clearing its scheduledFor field. Used by undoLast to reverse a scheduleSend, also callable directly.',
+      inputSchema: z.object({ campaignId: z.string() }),
+      execute: async ({ campaignId }) => {
+        const c = await updateCampaign(campaignId, { scheduledFor: null });
+        if (!c) return err('cancelScheduledSend failed');
+        await recordAction({
+          toolName: 'cancelScheduledSend',
+          args: { campaignId },
+          result: { campaignId, scheduledFor: null },
+          surface: pane.surface,
+        });
+        return ok({ campaignId, scheduledFor: null });
+      },
+    }),
+
+    sendReply: tool({
+      description:
+        'Send a reply on a marketing conversation thread via Gmail. The body is plain text or simple HTML; the signature is appended server-side from the default OutreachSender. DESTRUCTIVE for irreversible sends; require a confirm:true call after presenting the recipient + body.',
+      inputSchema: z.object({
+        threadId: z.string(),
+        body: z.string().describe('Reply body. Plain text fine; will be wrapped server-side.'),
+        confirm: z.boolean().optional(),
+      }),
+      execute: async ({ threadId, body, confirm }) => {
+        if (!confirm) {
+          return ok({
+            requiresConfirmation: true,
+            threadId,
+            preview: body.slice(0, 240),
+            message:
+              'About to send this reply on thread ' + threadId + '. Once it goes via Gmail it cannot be unsent. Confirm?',
+          });
+        }
+        const url = baseUrl() + '/api/conversations/' + threadId + '/reply';
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ body }),
+          });
+          const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+          if (!json.ok) return err(json.error ?? 'sendReply failed');
+          await recordAction({
+            toolName: 'sendReply',
+            args: { threadId, body },
+            result: json,
+            inverse: null, // irreversible
+            surface: pane.surface,
+          });
+          return ok({ threadId, sent: true });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'sendReply failed');
+        }
+      },
+    }),
+
+    // -----------------------------------------------------------------------
+    // PHASE 3: UNDO + TELEMETRY
+    // -----------------------------------------------------------------------
+
+    undoLast: tool({
+      description:
+        'Undo the most recent reversible action (createIdea, scheduleSend, etc). Reads the action log, finds the latest row with an inverse, and executes the inverse. Sends and other irreversible actions cannot be undone.',
+      inputSchema: z.object({
+        confirm: z.boolean().optional(),
+      }),
+      execute: async ({ confirm }) => {
+        const last = await findMostRecentUndoable();
+        if (!last) return err('Nothing reversible to undo. Sends are permanent; try editing instead.');
+        if (!confirm) {
+          return ok({
+            requiresConfirmation: true,
+            tool: last.tool_name,
+            inverse: last.inverse.tool,
+            args: last.inverse.args,
+            message:
+              'Undo: ' + last.tool_name + ' (' + new Date(last.created_at).toLocaleTimeString() + ')? Will run ' + last.inverse.tool + '.',
+          });
+        }
+        // Look up the inverse tool in our own registry and call it.
+        // We avoid a recursive HTTP call here; same-process invocation
+        // is fine because every tool has a self-contained execute().
+        const registry = buildTools(pane) as Record<string, { execute?: (args: unknown) => Promise<unknown> }>;
+        const inverseTool = registry[last.inverse.tool];
+        if (!inverseTool || typeof inverseTool.execute !== 'function') {
+          return err('Inverse tool ' + last.inverse.tool + ' not found in registry.');
+        }
+        const result = await inverseTool.execute({ ...last.inverse.args, confirm: true });
+        await markUndone(last.id);
+        return ok({ undone: last.tool_name, inverseResult: result });
+      },
+    }),
+
+    listRecentActions: tool({
+      description:
+        'List the last few tool calls Mojito made on this dashboard. Useful when the user asks "what have you done today" or "show me recent activity".',
+      inputSchema: z.object({ limit: z.number().int().min(1).max(50).optional() }),
+      execute: async ({ limit }) => {
+        const rows = await listRecentActions(limit ?? 20);
+        return ok({
+          actions: rows.map((r) => ({
+            id: r.id,
+            tool: r.tool_name,
+            args: r.tool_args,
+            result: r.result,
+            undone: !!r.undone_at,
+            at: r.created_at,
+          })),
+        });
+      },
+    }),
+
+    // -----------------------------------------------------------------------
+    // PHASE 4: SUGGESTED-NEXT-ACTIONS HELPER
+    // -----------------------------------------------------------------------
+
+    getOpenWork: tool({
+      description:
+        'Return a quick snapshot of what is open across the dashboard: counts of ideas, leads waiting > 5 days, pending follow-ups, draft campaigns. Used by the morning summary and the empty-state suggestions.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const sb = createSupabaseAdmin();
+        if (!sb) return err('DB unavailable');
+        try {
+          // Run independently and tolerate missing tables (e.g. followups
+          // table not yet migrated in some envs) by absorbing each error.
+          const playsRes = await sb.from('dashboard_plays').select('id, payload');
+          const leadsRes = await sb.from('dashboard_leads').select('payload').eq('tier', 'lead');
+          let followupsCount = 0;
+          try {
+            const r = await sb.from('dashboard_mkt_followups').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+            followupsCount = r.count ?? 0;
+          } catch { /* table missing */ }
+          let draftRows: Array<{ id: string; name: string }> = [];
+          let draftCount = 0;
+          try {
+            const r = await sb.from('dashboard_mkt_campaigns').select('id, name', { count: 'exact' }).eq('status', 'draft');
+            draftRows = (r.data ?? []) as Array<{ id: string; name: string }>;
+            draftCount = r.count ?? 0;
+          } catch { /* table missing */ }
+          const plays = (playsRes.data ?? []) as Array<{ id: string; payload: { stage?: string; title?: string } }>;
+          const leads = (leadsRes.data ?? []) as Array<{ payload: { lastTouchAt?: string; name?: string } }>;
+          const liveIdeas = plays.filter((p) => p.payload?.stage && p.payload.stage !== 'retired').length;
+          const fiveDaysAgo = Date.now() - 5 * 24 * 60 * 60 * 1000;
+          const staleLeads = leads.filter((l) => {
+            const t = l.payload?.lastTouchAt ? new Date(l.payload.lastTouchAt).getTime() : 0;
+            return t > 0 && t < fiveDaysAgo;
+          }).length;
+          return ok({
+            ideasActive: liveIdeas,
+            ideasTotal: plays.length,
+            leadsTotal: leads.length,
+            leadsStale5d: staleLeads,
+            followupsPending: followupsCount,
+            campaignDrafts: draftCount,
+            campaignDraftNames: draftRows.slice(0, 5).map((r) => r.name),
+          });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'getOpenWork failed');
+        }
+      },
     }),
   };
 }
