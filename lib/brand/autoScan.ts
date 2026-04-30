@@ -235,31 +235,91 @@ async function derivePlansFromPlay(
   play: Play,
   limit: number | undefined,
 ): Promise<SearchPlan[]> {
-  // Strategy brief drives the matrix when present: every sector
-  // crossed with every geography (capped at 8 queries to keep cost
-  // sane). Falls back to a single AI-generated plan otherwise.
+  // Strategy: ask Claude to translate the brief into actual Google
+  // Places business-category strings (the kind Google indexes
+  // listings under: "Boat builder", "Yacht broker", "Marina",
+  // "Naval architect", "Boat dealer", "Marine engineer", etc.) NOT
+  // the marketing-tier descriptors the user picked on Market
+  // analysis ("Luxury yacht manufacturing", "Superyacht design").
+  // Google Places returns nothing useful for those.
   const brief = await getOrCreateBrief(play.id).catch(() => null);
-  if (brief && brief.industries.length > 0) {
-    const geos = brief.geographies && brief.geographies.length > 0
-      ? brief.geographies
-      : (brief.geography ? [brief.geography] : ['United Kingdom']);
-    const queries: SearchPlan[] = [];
-    for (const sector of brief.industries) {
-      for (const geo of geos) {
-        queries.push({
-          description: sector,
-          locationName: normaliseLocation(geo),
-          limit: limit ?? 100,
-        });
-        if (queries.length >= 8) break;
+  const geos = brief?.geographies && brief.geographies.length > 0
+    ? brief.geographies
+    : (brief?.geography ? [brief.geography] : ['United Kingdom']);
+  const sectors = brief?.industries ?? [];
+
+  try {
+    const categories = await deriveBusinessCategoriesFromBrief(play, sectors);
+    if (categories.length > 0) {
+      const queries: SearchPlan[] = [];
+      // Cross every category with every geography, cap at 12 to keep
+      // cost sane (~$0.06 per scan at $0.005 per query).
+      for (const cat of categories) {
+        for (const geo of geos) {
+          queries.push({
+            description: cat,
+            locationName: normaliseLocation(geo),
+            limit: limit ?? 100,
+          });
+          if (queries.length >= 12) break;
+        }
+        if (queries.length >= 12) break;
       }
-      if (queries.length >= 8) break;
+      if (queries.length > 0) return queries;
     }
-    if (queries.length > 0) return queries;
+  } catch {
+    // Fall through to legacy single-plan path.
   }
-  // Fallback: single AI-generated plan.
-  const single = await deriveSinglePlanFromPlay(play, limit ?? 50);
+
+  // Last-resort fallback: single AI-generated plan (the legacy path).
+  const single = await deriveSinglePlanFromPlay(play, limit ?? 100);
   return [single];
+}
+
+/**
+ * Ask Claude to translate the play title + brief + the user's chip
+ * picks into a list of Google Places category strings — the ACTUAL
+ * keywords Google indexes business listings under. The user's chips
+ * are aspirational ("Luxury yacht manufacturing"); Google needs
+ * categorical ("Boat builder", "Yacht broker", "Marina", etc.).
+ *
+ * Returns 6-12 distinct categories in priority order.
+ */
+async function deriveBusinessCategoriesFromBrief(
+  play: Play,
+  pickedSectors: string[],
+): Promise<string[]> {
+  const prompt = [
+    'Translate this prospecting brief into Google Places business-category search keywords.',
+    '',
+    'Idea title: ' + play.title,
+    'Brief: ' + (play.brief ?? ''),
+    pickedSectors.length > 0 ? 'User-picked sectors: ' + pickedSectors.join(', ') : '',
+    '',
+    'You are picking the BUSINESS CATEGORY STRINGS Google Places actually indexes. The user-picked sectors are aspirational marketing tiers ("Luxury yacht manufacturing"); Google Places matches on categorical strings ("Boat builder", "Yacht broker", "Naval architect", "Marina", "Marine engineer", "Boat dealer", "Boatyard").',
+    '',
+    'For a yacht-manufacturer brief in the UK, valid categories include: "Boat builder", "Yacht broker", "Naval architect", "Yacht designer", "Marina", "Marine engineer", "Boat dealer", "Boatyard", "Marine fabricator", "Yacht charter".',
+    '',
+    'For a supercar-club brief, valid categories include: "Car club", "Driving experience", "Motorsport club", "Track day operator", "Sports car dealer", "Performance car specialist".',
+    '',
+    'Reply with VALID JSON, no commentary, no markdown fences:',
+    '{ "categories": [array of 6 to 12 short phrases, each a real Google Places business category that matches the brief] }',
+    '',
+    'Strict rules: each entry is 1-3 words, no quotes, no qualifiers like "luxury" or "premium" (Google does not index those). Order the most specific category first.',
+  ].filter(Boolean).join('\n');
+
+  const text = await generateBriefing({
+    task: 'auto-scan-categories',
+    voice: 'analyst',
+    prompt,
+  });
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  const parsed = JSON.parse(cleaned) as { categories?: string[] };
+  if (!Array.isArray(parsed.categories)) return [];
+  return parsed.categories
+    .map((c) => (typeof c === 'string' ? c.trim() : ''))
+    .filter((c) => c.length > 0 && c.length < 60)
+    .slice(0, 12);
 }
 
 /**
@@ -309,7 +369,7 @@ async function filterListingsByRelevance(
     )
     .join('\n');
   const prompt = [
-    'Filter the following list of companies down to only those that genuinely match the play brief.',
+    'Identify the OBVIOUS category misfits in this list of candidates for a prospecting brief. We are removing only the wildly-off matches, NOT borderline ones.',
     '',
     'Play title: ' + play.title,
     'Brief: ' + (play.brief ?? '(no brief)'),
@@ -318,27 +378,34 @@ async function filterListingsByRelevance(
     numbered,
     '',
     'Reply with VALID JSON, no commentary, no markdown fences:',
-    '{ "matchIds": [array of numeric indices that match the brief] }',
+    '{ "excludeIds": [array of numeric indices that are clearly off-target] }',
     '',
-    'Strict rules:',
-    '- Only include candidates that genuinely fit the brief. If the brief asks for "private supercar clubs for HNW owners", a yacht club, golf club, or cannabis club does NOT match. A track-day supercar club, marque-specific car club, or members-only driving club DOES match.',
-    '- Be strict. If unsure, exclude.',
-    '- Return the indices only, no names.',
+    'Rules:',
+    '- Be PERMISSIVE. Default to KEEPING. Only exclude when the candidate is in a wildly different industry than the brief.',
+    '- For a yacht-manufacturer brief: exclude yoga studios, cannabis clubs, golf clubs, restaurants, dental practices. KEEP boat builders, yacht brokers, marine engineers, naval architects, marinas, boat dealers, sailmakers, riggers, even if their address is unusual.',
+    '- For a supercar-club brief: exclude yacht clubs, gardening clubs, knitting clubs, cannabis clubs. KEEP marque-specific car clubs, driving-experience operators, track-day organisers, sports-car dealers.',
+    '- If you cannot tell from name + category, KEEP it.',
+    '- Return excludeIds only. Empty array is fine if everything looks plausible.',
   ].join('\n');
 
-  const text = await generateBriefing({
-    task: 'auto-scan-relevance',
-    voice: 'analyst',
-    prompt,
-  });
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-  const parsed = JSON.parse(cleaned) as { matchIds?: number[] };
-  if (!Array.isArray(parsed.matchIds)) return listings;
-  const keep = new Set<number>(parsed.matchIds.filter((n) => Number.isInteger(n)));
-  // If Claude returned an empty array we treat it as a parse failure
-  // and keep everything; otherwise we'd drop all results.
-  if (keep.size === 0) return listings;
-  return listings.filter((_, i) => keep.has(i));
+  try {
+    const text = await generateBriefing({
+      task: 'auto-scan-relevance',
+      voice: 'analyst',
+      prompt,
+    });
+    const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    const parsed = JSON.parse(cleaned) as { excludeIds?: number[] };
+    if (!Array.isArray(parsed.excludeIds)) return listings;
+    const drop = new Set<number>(parsed.excludeIds.filter((n) => Number.isInteger(n)));
+    // Sanity guard: if Claude wants to drop more than HALF the list, it
+    // probably misread the brief. Keep everything in that case so we
+    // never collapse to 5-of-25.
+    if (drop.size > listings.length / 2) return listings;
+    return listings.filter((_, i) => !drop.has(i));
+  } catch {
+    return listings;
+  }
 }
 
 
