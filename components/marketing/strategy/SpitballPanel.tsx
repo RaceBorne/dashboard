@@ -172,7 +172,15 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
 
         // Filter out the synthetic DRAFT_PROMPT user turn so the user
         // never sees the hidden seed.
-        const visible = playChat.filter((m) => !(m.role === 'user' && m.content.startsWith("Draft a complete prospecting strategy")));
+        // Hide both the legacy ("Draft a complete prospecting strategy")
+        // and current ("Draft a prospecting strategy") kickoff seeds — they
+        // were always meant to be invisible, but they live in the saved
+        // chat history because the chat API persists every turn.
+        const visible = playChat.filter((m) => {
+          if (m.role !== 'user') return true;
+          const c = m.content.trimStart();
+          return !(c.startsWith('Draft a complete prospecting strategy') || c.startsWith('Draft a prospecting strategy'));
+        });
 
         if (visible.length > 0) {
           setMessages(visible.map((m, i) => ({
