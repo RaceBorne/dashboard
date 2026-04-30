@@ -586,7 +586,11 @@ export function AppSidebar() {
             {!collapsed ? (
               <div
                 className={cn(
-                  'overflow-hidden border-t border-evari-edge/30 bg-evari-ink transition-[max-height] duration-500 ease-evari',
+                  // Deeper bg + stronger top edge so the pull-up reads
+                  // as a discrete layer floating above the page rather
+                  // than bleeding into it. evari-carbon is the darker
+                  // sibling token to evari-ink in both themes.
+                  'overflow-hidden border-t-2 border-evari-edge/60 bg-evari-carbon shadow-[0_-4px_12px_rgba(0,0,0,0.18)] transition-[max-height] duration-500 ease-evari',
                   open ? 'max-h-[700px]' : 'max-h-0 border-t-0',
                 )}
                 aria-hidden={!open}
