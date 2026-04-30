@@ -359,9 +359,9 @@ export function SpitballPanel({ playId, playTitle, pitch, open, kickoff, onClose
             so paragraphs breathe. Pitch sits at the top as anchor
             context. */}
         <div className="mx-auto w-full max-w-[760px] px-4 py-5 space-y-4">
-          <div className="rounded-panel border border-evari-edge/30 bg-evari-surface px-3 py-2.5 text-[12px] text-evari-text font-semibold leading-relaxed">
-            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer block mb-1 font-semibold">Pitch</span>
-            {pitch || '(no pitch on file)'}
+          <div className="rounded-panel border border-evari-edge/30 bg-evari-surface px-3 py-2.5 text-[12px] text-evari-text leading-relaxed">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer block mb-1" style={{ fontWeight: 600 }}>Pitch</span>
+            <span className="block" style={{ fontWeight: 600 }}>{pitch || '(no pitch on file)'}</span>
           </div>
 
           {messages.map((m) => (
