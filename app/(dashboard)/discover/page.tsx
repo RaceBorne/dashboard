@@ -38,7 +38,7 @@ export default async function DiscoverPage({
           <div className="h-full px-gutter py-5 pb-28 overflow-y-auto">
             <DiscoveryDashboard
               plays={plays.map((p) => ({ id: p.id, title: p.title }))}
-              play={{ id: play!.id, title: play!.title }}
+              play={{ id: play!.id, title: play!.title, autoScan: play!.autoScan }}
             />
           </div>
         </div>

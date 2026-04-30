@@ -50,7 +50,16 @@ interface Industry { name: string; count: number; pct: number }
 
 interface Props {
   plays: { id: string; title: string }[];
-  play: { id: string; title: string };
+  play: {
+    id: string;
+    title: string;
+    autoScan?: {
+      status?: 'pending' | 'running' | 'done' | 'error' | 'skipped';
+      error?: string;
+      finishedAt?: string;
+      description?: string;
+    };
+  };
 }
 
 const PER_PAGE = 25;
@@ -202,6 +211,42 @@ export function DiscoveryDashboard({ plays, play }: Props) {
           )}
         </button>
       </header>
+
+      {/* Auto-scan failure banner. The /api/plays/[id]/auto-scan flow
+          writes the error onto play.autoScan when it dies, but
+          previously we had no UI for it — Discovery just looked
+          empty. Now we show what went wrong and offer a retry. */}
+      {play.autoScan?.status === 'error' && play.autoScan.error ? (
+        <section className="rounded-panel border border-red-500/40 bg-red-500/10 p-4">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-red-500/15 text-red-400 shrink-0 text-[14px] font-bold">!</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-evari-text">Auto-scan failed</div>
+              <p className="text-[12px] text-evari-dim mt-0.5 break-words">{play.autoScan.error}</p>
+              <p className="text-[11px] text-evari-dimmer mt-2">
+                The most common cause is a stale DataForSEO API password. Sign in to <a href="https://app.dataforseo.com/api-access" target="_blank" rel="noreferrer" className="underline text-evari-gold">app.dataforseo.com/api-access</a>, copy the password, and update <code className="px-1 bg-evari-ink rounded">DATAFORSEO_PASSWORD</code> in Vercel. Then click Retry below.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                setBusy('autoscan');
+                try {
+                  await fetch(`/api/plays/${play.id}/auto-scan`, { method: 'POST' });
+                  await load();
+                  router.refresh();
+                } finally {
+                  setBusy(null);
+                }
+              }}
+              disabled={busy === 'autoscan'}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[12px] font-semibold bg-evari-text text-evari-ink hover:brightness-110 disabled:opacity-60 transition shrink-0"
+            >
+              {busy === 'autoscan' ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Retrying…</> : 'Retry scan'}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {/* Stats strip */}
       <section className="rounded-panel bg-evari-surface border border-evari-edge/30 p-4">
