@@ -813,7 +813,7 @@ export function AIAssistantPane() {
 
   const busy = status === 'submitted' || status === 'streaming';
 
-  // Hold-G push-to-talk hotkey. Press and hold the 'g' key (anywhere
+  // Hold-M push-to-talk hotkey. Press and hold the 'm' key (anywhere
   // outside an input field) to record; release to transcribe and send
   // automatically. Lets you talk to Mojito without reaching for the
   // mouse. Skipped while typing in any text field, while live mode is
@@ -830,7 +830,7 @@ export function AIAssistantPane() {
       return false;
     }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== 'g' && e.key !== 'G') return;
+      if (e.key !== 'm' && e.key !== 'M') return;
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
       if (isTypingTarget(e.target)) return;
       if (ptKeyHeldRef.current) return; // ignore auto-repeat
@@ -844,7 +844,7 @@ export function AIAssistantPane() {
       }
     }
     function onKeyUp(e: KeyboardEvent) {
-      if (e.key !== 'g' && e.key !== 'G') return;
+      if (e.key !== 'm' && e.key !== 'M') return;
       if (!ptKeyHeldRef.current) return;
       ptKeyHeldRef.current = false;
       if (ptStartedRecordingRef.current) {
@@ -1023,7 +1023,7 @@ export function AIAssistantPane() {
           ) : null}
 
           <div className="px-3 pb-1 text-[10px] text-evari-dimmer flex items-center justify-between">
-            <span>Hold <kbd className="font-mono px-1 py-0.5 rounded bg-evari-ink/40 border border-evari-edge/30">G</kbd> to talk, or click the mic.</span>
+            <span>Hold <kbd className="font-mono px-1 py-0.5 rounded bg-evari-ink/40 border border-evari-edge/30">M</kbd> to talk, or click the mic.</span>
             {recording ? (
               <span className="flex items-center gap-1 text-evari-gold">
                 <span className="inline-block w-12 h-1 rounded-full bg-evari-ink/40 overflow-hidden">
