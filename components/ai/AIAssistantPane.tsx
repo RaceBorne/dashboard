@@ -1218,6 +1218,44 @@ export function AIAssistantPane() {
             ) : null}
           </div>
 
+          {/* Standing daily-action buttons. Always visible above the input
+              regardless of whether a conversation is in progress. Each
+              button fires a pre-filled prompt that the model picks up
+              like any other user turn — Mojito calls the relevant tool
+              and the streaming TTS reads the answer aloud. */}
+          <div className="px-3 pb-2 grid grid-cols-3 gap-1.5">
+            <button
+              type="button"
+              disabled={busy || transcribing}
+              onClick={() => void sendMessage({ text: 'Read me today\'s morning briefing aloud. Use the readMorningBriefing tool, then read the briefing back to me in full so I can listen.' })}
+              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              title="Read me today's morning briefing aloud"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-evari-gold" />
+              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Briefing</span>
+            </button>
+            <button
+              type="button"
+              disabled={busy || transcribing}
+              onClick={() => void sendMessage({ text: 'Walk me through what is worth my attention right now, in priority order. Use getOpenWork to pull live counts, then summarise the top items briefly so I can act.' })}
+              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              title="What's worth your attention"
+            >
+              <RadioTower className="h-3.5 w-3.5 text-evari-gold" />
+              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Attention</span>
+            </button>
+            <button
+              type="button"
+              disabled={busy || transcribing}
+              onClick={() => void sendMessage({ text: 'What are my top tasks today? Suggest which one I should tackle first and why. Keep it short.' })}
+              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              title="Today's tasks"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 text-evari-gold" />
+              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Tasks</span>
+            </button>
+          </div>
+
           {suggestions.length > 0 && messages.length === 0 ? (
             <div className="px-3 pb-2 space-y-1.5">
               <div className="text-[10px] uppercase tracking-[0.12em] text-evari-dimmer">Quick actions</div>
