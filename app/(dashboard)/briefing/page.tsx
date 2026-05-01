@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { TopBar } from '@/components/sidebar/TopBar';
 import { EditorialHeadline } from '@/components/briefing/EditorialHeadline';
-import { HeyEvariButton } from '@/components/assistant/HeyEvariButton';
 import { BriefingCard } from '@/components/briefing/BriefingCard';
 import { AnomalyList } from '@/components/briefing/AnomalyList';
 import { MiniTrafficChart } from '@/components/briefing/MiniTrafficChart';
@@ -33,13 +32,10 @@ export default async function BriefingPage() {
       <TopBar title="Morning briefing" subtitle="today" />
 
       <div className="p-6 space-y-6">
-        {/* Editorial headline + Hey Evari button on the same row */}
-        <div className="flex items-start justify-between gap-6">
-          <div className="flex-1 min-w-0">
-            <EditorialHeadline briefing={briefing} />
-          </div>
-          <HeyEvariButton />
-        </div>
+        {/* Editorial headline. The legacy Hey Evari floating button
+            was removed; Mojito in the right pane is now the single
+            voice + chat surface across the whole app. */}
+        <EditorialHeadline briefing={briefing} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Briefing — 2/3 */}
