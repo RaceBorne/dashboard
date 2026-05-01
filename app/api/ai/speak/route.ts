@@ -65,9 +65,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // Default 0.85 reads as a calm, conversational pace (Cartesia's 1.0
-  // is brisk, almost newsreader-fast). Caller can override per request.
-  const speed = typeof body?.speed === 'number' ? Math.min(2, Math.max(0.5, body.speed)) : 0.85;
+  // Default 0.75 reads as relaxed and conversational. Cartesia's 1.0
+  // is brisk, 0.85 still felt rushed on Gemma (Decisive Agent voice has
+  // an assertive cadence baked in). Going lower than ~0.6 starts to
+  // sound stretched. Caller can override per request.
+  const speed = typeof body?.speed === 'number' ? Math.min(2, Math.max(0.5, body.speed)) : 0.75;
 
   // /tts/bytes returns the full MP3 in one chunk. /tts/sse would
   // stream PCM frames over Server-Sent Events for lower first-byte
