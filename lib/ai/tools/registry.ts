@@ -1121,7 +1121,130 @@ export function buildTools(pane: PaneContext) {
       },
     }),
 
-    listShopifyProductsWithSeo: tool({
+    updateShopifyProductSeoBulk: tool({
+      description:
+        'Write SEO meta to MANY Shopify products in one call. Takes an array of items, runs them sequentially server-side, returns a per-item summary. ALWAYS prefer this over calling updateShopifyProductSeo in a loop. DESTRUCTIVE: writes to the live store. Two-step confirmation: first call returns requiresConfirmation with the full preview, second call with confirm:true actually writes.',
+      inputSchema: z.object({
+        items: z.array(z.object({
+          productId: z.string(),
+          metaTitle: z.string().optional(),
+          metaDescription: z.string().optional(),
+        })).min(1).max(50).describe('1-50 products to update.'),
+        confirm: z.boolean().optional(),
+      }),
+      execute: async ({ items, confirm }) => {
+        if (!confirm) {
+          return ok({
+            requiresConfirmation: true,
+            count: items.length,
+            preview: items.slice(0, 8),
+            message: 'About to write SEO meta to ' + items.length + ' Shopify product(s). Confirm to proceed.',
+          });
+        }
+        const results: Array<{ productId: string; ok: boolean; error?: string }> = [];
+        for (const item of items) {
+          if (!item.metaTitle && !item.metaDescription) {
+            results.push({ productId: item.productId, ok: false, error: 'no fields to update' });
+            continue;
+          }
+          try {
+            await updateProduct({
+              id: item.productId,
+              seoTitle: item.metaTitle,
+              seoDescription: item.metaDescription,
+            });
+            results.push({ productId: item.productId, ok: true });
+          } catch (e) {
+            results.push({ productId: item.productId, ok: false, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+        const succeeded = results.filter((r) => r.ok).length;
+        return ok({
+          attempted: items.length,
+          succeeded,
+          failed: items.length - succeeded,
+          results,
+        });
+      },
+    }),
+
+    updateShopifyPageSeoBulk: tool({
+      description:
+        'Bulk version of updateShopifyPageSeo. Write SEO meta to MANY Shopify pages in one tool call. Two-step confirmation.',
+      inputSchema: z.object({
+        items: z.array(z.object({
+          pageId: z.string(),
+          metaTitle: z.string().optional(),
+          metaDescription: z.string().optional(),
+        })).min(1).max(50),
+        confirm: z.boolean().optional(),
+      }),
+      execute: async ({ items, confirm }) => {
+        if (!confirm) {
+          return ok({
+            requiresConfirmation: true,
+            count: items.length,
+            preview: items.slice(0, 8),
+            message: 'About to write SEO meta to ' + items.length + ' Shopify page(s). Confirm to proceed.',
+          });
+        }
+        const results: Array<{ pageId: string; ok: boolean; error?: string }> = [];
+        for (const item of items) {
+          if (!item.metaTitle && !item.metaDescription) {
+            results.push({ pageId: item.pageId, ok: false, error: 'no fields to update' });
+            continue;
+          }
+          try {
+            await updatePageMetadata({ pageId: item.pageId, metaTitle: item.metaTitle, metaDescription: item.metaDescription });
+            results.push({ pageId: item.pageId, ok: true });
+          } catch (e) {
+            results.push({ pageId: item.pageId, ok: false, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+        const succeeded = results.filter((r) => r.ok).length;
+        return ok({ attempted: items.length, succeeded, failed: items.length - succeeded, results });
+      },
+    }),
+
+    updateShopifyArticleSeoBulk: tool({
+      description:
+        'Bulk version of updateShopifyArticleSeo. Write SEO meta to MANY Shopify articles in one tool call. Two-step confirmation.',
+      inputSchema: z.object({
+        items: z.array(z.object({
+          articleId: z.string(),
+          metaTitle: z.string().optional(),
+          metaDescription: z.string().optional(),
+        })).min(1).max(50),
+        confirm: z.boolean().optional(),
+      }),
+      execute: async ({ items, confirm }) => {
+        if (!confirm) {
+          return ok({
+            requiresConfirmation: true,
+            count: items.length,
+            preview: items.slice(0, 8),
+            message: 'About to write SEO meta to ' + items.length + ' Shopify article(s). Confirm to proceed.',
+          });
+        }
+        const results: Array<{ articleId: string; ok: boolean; error?: string }> = [];
+        for (const item of items) {
+          if (!item.metaTitle && !item.metaDescription) {
+            results.push({ articleId: item.articleId, ok: false, error: 'no fields to update' });
+            continue;
+          }
+          try {
+            await updateArticleMetadata({ articleId: item.articleId, metaTitle: item.metaTitle, metaDescription: item.metaDescription });
+            results.push({ articleId: item.articleId, ok: true });
+          } catch (e) {
+            results.push({ articleId: item.articleId, ok: false, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+        const succeeded = results.filter((r) => r.ok).length;
+        return ok({ attempted: items.length, succeeded, failed: items.length - succeeded, results });
+      },
+    }),
+
+        listShopifyProductsWithSeo: tool({
       description:
         'List Shopify products with their current SEO meta title and description. Returns id, handle, title, current SEO meta, and missingSeo flag. Use to find products that need meta written.',
       inputSchema: z.object({

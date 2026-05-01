@@ -119,7 +119,7 @@ export async function POST(req: Request) {
       system,
       messages: convertToModelMessages(body.messages),
       tools,
-      stopWhen: stepCountIs(20),
+      stopWhen: stepCountIs(40),
     });
   } catch (e) {
     if (!process.env.ANTHROPIC_API_KEY || !isRetryable(e)) throw e;
@@ -129,7 +129,7 @@ export async function POST(req: Request) {
       system,
       messages: convertToModelMessages(body.messages),
       tools,
-      stopWhen: stepCountIs(20),
+      stopWhen: stepCountIs(40),
     });
   }
 
