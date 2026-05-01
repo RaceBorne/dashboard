@@ -169,12 +169,51 @@ export function TrafficDashboard({ snapshot }: Props) {
     return (
       <div className="p-6">
         <Card>
-          <CardContent className="p-8 text-center space-y-3">
-            <AlertCircle className="h-8 w-8 text-evari-warn mx-auto" />
-            <div className="text-lg font-medium text-evari-text">GA4 not connected</div>
-            <div className="text-sm text-evari-dim max-w-md mx-auto">
-              Set <code className="text-evari-gold">GA4_PROPERTY_ID</code> and the
-              shared Google OAuth credentials to start pulling analytics.
+          <CardContent className="p-8 space-y-5">
+            <div className="flex items-start gap-4">
+              <div className="h-10 w-10 rounded-md bg-evari-warn/15 flex items-center justify-center shrink-0">
+                <AlertCircle className="h-5 w-5 text-evari-warn" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[15px] font-semibold text-evari-text">GA4 not connected</div>
+                <p className="text-[13px] text-evari-dim mt-1 leading-relaxed">
+                  Three pieces are needed: a Google OAuth client (shared with GSC + Gmail),
+                  a refresh token authorising the Analytics Data API scope,
+                  and your GA4 property id.
+                </p>
+              </div>
+            </div>
+
+            <ol className="text-[13px] text-evari-text leading-relaxed list-decimal pl-5 space-y-2">
+              <li>
+                Confirm <code className="text-evari-gold">GOOGLE_CLIENT_ID</code>,{' '}
+                <code className="text-evari-gold">GOOGLE_CLIENT_SECRET</code>,{' '}
+                <code className="text-evari-gold">GOOGLE_REFRESH_TOKEN</code> are set in Vercel.
+                The same OAuth client serves Search Console, GA4, and Gmail.
+              </li>
+              <li>
+                Make sure the refresh token includes the{' '}
+                <code className="text-evari-gold">analytics.readonly</code> scope. If not,
+                re-mint it via Google OAuth Playground with all four scopes ticked.
+              </li>
+              <li>
+                Add <code className="text-evari-gold">GA4_PROPERTY_ID</code> in Vercel.
+                Find it in Google Analytics → Admin → Property Settings (numeric, e.g. 348562103).
+              </li>
+              <li>Redeploy. Then come back and click Sync now.</li>
+            </ol>
+
+            <div className="flex items-center gap-2 pt-2">
+              <Button asChild variant="primary" size="sm">
+                <a href="/settings/connectors">
+                  Open Connectors
+                </a>
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <a href="/api/integrations/google/status" target="_blank" rel="noreferrer">
+                  Check status JSON
+                </a>
+              </Button>
             </div>
           </CardContent>
         </Card>
