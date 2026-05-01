@@ -522,6 +522,8 @@ export function AIAssistantPane() {
     else void startRecording();
   }
 
+
+
   // ----- live conversation mode (mic stays open, VAD splits utterances) ---
   // Click the headphones to enter "live" mode. We open the mic once,
   // run an analyser loop on it for voice-activity detection, capture each
@@ -777,6 +779,111 @@ export function AIAssistantPane() {
 
   const busy = status === 'submitted' || status === 'streaming';
 
+  // Hold-G push-to-talk hotkey. Press and hold the 'g' key (anywhere
+  // outside an input field) to record; release to transcribe and send
+  // automatically. Lets you talk to Mojito without reaching for the
+  // mouse. Skipped while typing in any text field, while live mode is
+  // active, while a click-to-record session is running, or while a
+  // transcribe / chat call is in flight.
+  const ptKeyHeldRef = useRef(false);
+  const ptStartedRecordingRef = useRef(false);
+  useEffect(() => {
+    function isTypingTarget(t: EventTarget | null): boolean {
+      if (!(t instanceof HTMLElement)) return false;
+      const tag = t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      if (t.isContentEditable) return true;
+      return false;
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'g' && e.key !== 'G') return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (isTypingTarget(e.target)) return;
+      if (ptKeyHeldRef.current) return; // ignore auto-repeat
+      if (liveMode || transcribing || busy) return;
+      e.preventDefault();
+      ptKeyHeldRef.current = true;
+      // Auto-start; if startRecording succeeds the key release will stop it.
+      if (!recording) {
+        ptStartedRecordingRef.current = true;
+        void startRecording();
+      }
+    }
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.key !== 'g' && e.key !== 'G') return;
+      if (!ptKeyHeldRef.current) return;
+      ptKeyHeldRef.current = false;
+      if (ptStartedRecordingRef.current) {
+        ptStartedRecordingRef.current = false;
+        // Small delay to let any final chunk land before we stop.
+        setTimeout(() => { stopRecording(); }, 50);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording, liveMode, transcribing, busy]);
+
+  // Live audio level meter for the click-to-record path so the user can
+  // SEE the mic is picking up sound. If the meter never moves while you
+  // speak, the OS / browser blocked the mic. If it moves but nothing
+  // transcribes, the issue is downstream.
+  const [micLevel, setMicLevel] = useState(0); // 0..1
+  const meterStreamRef = useRef<MediaStream | null>(null);
+  const meterCtxRef = useRef<AudioContext | null>(null);
+  const meterRafRef = useRef<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!recording) {
+      setMicLevel(0);
+      if (meterRafRef.current != null) cancelAnimationFrame(meterRafRef.current);
+      if (meterCtxRef.current) { try { void meterCtxRef.current.close(); } catch { /* noop */ } meterCtxRef.current = null; }
+      if (meterStreamRef.current) { meterStreamRef.current.getTracks().forEach((t) => t.stop()); meterStreamRef.current = null; }
+      return;
+    }
+    // Recording is true; spin up a parallel analyser stream just for
+    // the meter. (The actual recording stream is owned by startRecording
+    // and we cannot easily share it without restructuring.)
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        const AudioCtor = (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
+          ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtor) return;
+        const ctx = new AudioCtor();
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        meterStreamRef.current = stream;
+        meterCtxRef.current = ctx;
+        const buf = new Uint8Array(analyser.fftSize);
+        function tick() {
+          if (cancelled) return;
+          analyser.getByteTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i++) {
+            const v = (buf[i] - 128);
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / buf.length) / 128; // 0..~1
+          setMicLevel(Math.min(1, rms * 3));
+          meterRafRef.current = requestAnimationFrame(tick);
+        }
+        meterRafRef.current = requestAnimationFrame(tick);
+      } catch { /* permission denied; meter stays at 0 */ }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording]);
+
   return (
     <aside
       className={cn(
@@ -881,6 +988,17 @@ export function AIAssistantPane() {
             </div>
           ) : null}
 
+          <div className="px-3 pb-1 text-[10px] text-evari-dimmer flex items-center justify-between">
+            <span>Hold <kbd className="font-mono px-1 py-0.5 rounded bg-evari-ink/40 border border-evari-edge/30">G</kbd> to talk, or click the mic.</span>
+            {recording ? (
+              <span className="flex items-center gap-1 text-evari-gold">
+                <span className="inline-block w-12 h-1 rounded-full bg-evari-ink/40 overflow-hidden">
+                  <span className="block h-full bg-evari-gold transition-[width] duration-75" style={{ width: (Math.min(1, micLevel) * 100) + '%' }} />
+                </span>
+                <span className="font-mono">{Math.round(micLevel * 100)}</span>
+              </span>
+            ) : null}
+          </div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
