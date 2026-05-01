@@ -296,7 +296,7 @@ export function AIAssistantPane() {
     // the streaming TTS path automatically.
     const t = setTimeout(() => {
       void sendMessage({
-        text: '[wake-cue] User just woke from screensaver. Say exactly: "Hey, how can I help you?" and stop. One short sentence, no follow-up question, no list.',
+        text: '[wake-cue] User just woke from the screensaver. Greet them warmly with a short menu, two or three sentences total, NO bullet points or numbered list. Say something like: "Hey Mad Dog. Want me to read you the morning briefing, or walk you through what is worth your attention? Or just tell me what you want to do." Phrase it your own way, keep it natural and conversational. Then stop.',
       });
     }, 300);
     return () => clearTimeout(t);

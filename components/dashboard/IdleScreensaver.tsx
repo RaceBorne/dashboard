@@ -15,7 +15,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
-const IDLE_MS = 20_000;
+const IDLE_MS = 5 * 60 * 1000; // 5 minutes
 
 const ACTIVITY_EVENTS: Array<keyof DocumentEventMap> = [
   'mousemove',

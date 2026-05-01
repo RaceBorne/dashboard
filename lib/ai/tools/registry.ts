@@ -655,6 +655,33 @@ export function buildTools(pane: PaneContext) {
       },
     }),
 
+    readMorningBriefing: tool({
+      description:
+        'Fetch the latest morning briefing prose (the analyst-style summary of pipeline, traffic, anomalies and so on) and return it as text for the assistant to read aloud. Use whenever the operator asks to hear the briefing, walk through today, or get a status summary.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const url = baseUrl() + '/api/briefing';
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return err('briefing fetch failed: HTTP ' + res.status);
+          const json = (await res.json()) as { markdown?: string; date?: string };
+          if (!json.markdown) return err('briefing markdown empty');
+          // Strip headings + markdown syntax so the TTS reads it naturally.
+          const plain = json.markdown
+            .replace(/^#+\s*/gm, '')
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/\*([^*]+)\*/g, '$1')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+          return ok({ date: json.date ?? null, briefing: plain });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'briefing fetch failed');
+        }
+      },
+    }),
+
     closeAssistantPane: tool({
       description: 'Hide the AI assistant pane. Use only when the user explicitly asks to close it.',
       inputSchema: z.object({}),
