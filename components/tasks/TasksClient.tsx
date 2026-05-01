@@ -25,7 +25,7 @@ import {
  X,
  Pencil,
  Trash2,
- RefreshCw,,
+ RefreshCw,
  ArrowRight,
  Wand2,
  Eye} from 'lucide-react';
