@@ -288,9 +288,12 @@ export function AIAssistantPane() {
     window.localStorage.setItem('evari-mojito-morning-last', today);
     // Small delay so the pane has rendered before the chat fires.
     const t = setTimeout(() => {
+      // Hidden cue for the model: greet warmly, briefly, ask what is on
+      // for today. NO auto status briefing unless the operator asks for
+      // one. The model can offer to call getOpenWork as a follow-up.
       void sendMessage({
         text:
-          'Morning briefing: call getOpenWork, then write a one-paragraph status summary of where things stand. Mention the active idea count, anything stale, pending follow-ups, and any draft campaigns waiting to ship. Two to four short sentences. End with a question asking what I want to tackle first.',
+          '[system-cue] First open of the day. Greet Maddog the way a real person would (one short sentence, warm, casual), then ask what is on for today. Do not run any tools yet, do not summarise anything, do not list things. Just say hello and ask.',
       });
     }, 400);
     return () => clearTimeout(t);
