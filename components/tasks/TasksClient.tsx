@@ -25,8 +25,10 @@ import {
  X,
  Pencil,
  Trash2,
- RefreshCw,
-} from 'lucide-react';
+ RefreshCw,,
+ ArrowRight,
+ Wand2,
+ Eye} from 'lucide-react';
 import {
  Task,
  TaskCategory,
@@ -881,6 +883,11 @@ function TaskRow({
        <Icon className={cn('h-3 w-3', meta.accent)} />
        {meta.label}
       </span>
+      {task.kind === 'review' ? (
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 font-semibold uppercase tracking-wider">
+          Review
+        </span>
+      ) : null}
       <span
        className={cn(
         'text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider',
@@ -901,6 +908,31 @@ function TaskRow({
       )}
      </div>
     </div>
+
+    {/* Fix Now / Open Page CTA. Only when task isn't done. Action tasks get
+        Fix now (gold), review tasks get Open page (muted). The fix_route
+        navigates to the right surface; if a fix_tool is set, hovering shows
+        that Mojito can also do it directly from chat. */}
+    {task.status !== 'done' && task.fixRoute ? (
+      <a
+        href={task.fixRoute}
+        onClick={(e) => e.stopPropagation()}
+        title={task.fixTool ? 'Open page. Mojito can also fix this directly via tool: ' + task.fixTool : 'Open the relevant page'}
+        className={cn(
+          'shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition border',
+          task.kind === 'review'
+            ? 'bg-evari-ink/30 border-evari-edge/40 text-evari-dim hover:text-evari-text'
+            : 'bg-evari-gold/20 border-evari-gold/40 text-evari-gold hover:bg-evari-gold/30',
+        )}
+      >
+        {task.kind === 'review' ? (
+          <><Eye className="h-3 w-3" /> Open page</>
+        ) : (
+          <><Wand2 className="h-3 w-3" /> Fix now</>
+        )}
+        <ArrowRight className="h-3 w-3" />
+      </a>
+    ) : null}
 
     <div className="shrink-0 text-right pr-10">
      {task.dueDate ? (

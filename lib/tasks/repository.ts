@@ -42,6 +42,9 @@ interface TaskRow {
   wishlist_ref: string | null;
   notes: string | null;
   list_id: string | null;
+  kind: string | null;
+  fix_route: string | null;
+  fix_tool: string | null;
 }
 
 export function rowToTask(row: TaskRow): Task {
@@ -68,6 +71,9 @@ export function rowToTask(row: TaskRow): Task {
     wishlistRef: row.wishlist_ref ?? undefined,
     notes: row.notes ?? undefined,
     listId: row.list_id ?? undefined,
+    kind: (row.kind === 'review' ? 'review' : 'action') as 'action' | 'review',
+    fixRoute: row.fix_route ?? undefined,
+    fixTool: row.fix_tool ?? undefined,
   };
 }
 
@@ -149,6 +155,9 @@ export async function insertTask(
       wishlist_ref: input.wishlistRef ?? null,
       notes: input.notes ?? null,
       list_id: input.listId ?? null,
+      kind: input.kind ?? 'action',
+      fix_route: input.fixRoute ?? null,
+      fix_tool: input.fixTool ?? null,
     })
     .select('*')
     .single();
@@ -171,6 +180,9 @@ export async function updateTaskById(
       | 'wishlistRef'
       | 'notes'
       | 'listId'
+      | 'kind'
+      | 'fixRoute'
+      | 'fixTool'
     >
   >,
 ): Promise<Task> {
@@ -184,6 +196,9 @@ export async function updateTaskById(
   if (patch.wishlistRef !== undefined) row.wishlist_ref = patch.wishlistRef ?? null;
   if (patch.notes !== undefined) row.notes = patch.notes ?? null;
   if (patch.listId !== undefined) row.list_id = patch.listId ?? null;
+  if (patch.kind !== undefined) row.kind = patch.kind ?? null;
+  if (patch.fixRoute !== undefined) row.fix_route = patch.fixRoute ?? null;
+  if (patch.fixTool !== undefined) row.fix_tool = patch.fixTool ?? null;
 
   const { data, error } = await supabase.from('tasks').update(row).eq('id', id).select('*').single();
   if (error) throw new Error(error.message);

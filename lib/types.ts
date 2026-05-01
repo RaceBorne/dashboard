@@ -992,6 +992,13 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export type TaskSource = 'manual' | 'discussion' | 'auto';
 
+/**
+ * Task kind drives how the row renders.
+ *   action — there's something concrete to do. Fix now / Open page button.
+ *   review — observation that needs human judgment. Open page / Mark reviewed.
+ */
+export type TaskKind = 'action' | 'review';
+
 export interface Task {
   id: string;
   title: string;
@@ -1007,6 +1014,12 @@ export interface Task {
   notes?: string;
   /** User-defined list membership, separate from the fixed categories. */
   listId?: string;
+  /** Action vs review — drives the row's CTA. */
+  kind?: TaskKind;
+  /** Dashboard route to open when the operator clicks Open page / Fix now. */
+  fixRoute?: string;
+  /** Mojito tool name that can execute the fix from the chat pane. */
+  fixTool?: string;
 }
 
 export interface CustomList {
