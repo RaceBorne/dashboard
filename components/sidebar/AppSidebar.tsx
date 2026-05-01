@@ -751,10 +751,16 @@ export function AppSidebar() {
  * supporting metadata, not a heading.
  */
 function ClockText() {
-  const [now, setNow] = useState<Date>(() => new Date());
+  // Initialise to null so SSR renders nothing for the clock. The first
+  // useEffect after hydration sets the real time, then the interval
+  // ticks. This avoids a server-vs-client time mismatch which surfaces
+  // as React hydration error #418 in production builds.
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
+  if (!now) return null;
   return <>{format(now, "EEE d LLL · HH:mm")}</>;
 }
