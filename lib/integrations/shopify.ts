@@ -350,11 +350,29 @@ export async function updateProduct(
   if (input.tags !== undefined) gqlInput.tags = input.tags;
   if (input.status !== undefined) gqlInput.status = input.status;
   if (input.seoTitle !== undefined || input.seoDescription !== undefined) {
+    // CRITICAL: Shopify's productUpdate treats `seo` as a REPLACE on the
+    // whole object. Sending `{ description: "x" }` without `title` wipes
+    // the title back to null. Caused the "Fix all" 24-titles-wiped bug
+    // when running title fixes followed by description fixes on the same
+    // product. Fix: when only one half of the SEO pair is being changed,
+    // read the existing product first and pass through the counterpart so
+    // the unchanged half is preserved verbatim.
+    const onlyOne =
+      (input.seoTitle === undefined) !== (input.seoDescription === undefined);
+    let titleToSend = input.seoTitle;
+    let descToSend = input.seoDescription;
+    if (onlyOne) {
+      const existing = await getProduct(input.id);
+      if (input.seoTitle === undefined) {
+        titleToSend = existing?.seo?.title ?? undefined;
+      }
+      if (input.seoDescription === undefined) {
+        descToSend = existing?.seo?.description ?? undefined;
+      }
+    }
     gqlInput.seo = {
-      ...(input.seoTitle !== undefined ? { title: input.seoTitle } : {}),
-      ...(input.seoDescription !== undefined
-        ? { description: input.seoDescription }
-        : {}),
+      ...(titleToSend !== undefined ? { title: titleToSend } : {}),
+      ...(descToSend !== undefined ? { description: descToSend } : {}),
     };
   }
   const payload = await shopifyMutation<{ product: ShopifyProduct }>(
