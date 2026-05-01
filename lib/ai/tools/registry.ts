@@ -43,6 +43,16 @@ import { listSegments } from '@/lib/marketing/segments';
 import { getActiveContext, listContexts } from '@/lib/context/activeContext';
 import { getTrafficSnapshot } from '@/lib/traffic/repository';
 import { listTasksAndLists, updateTaskById } from '@/lib/tasks/repository';
+import {
+  listShopifyPages,
+  listProducts,
+  listArticles,
+  listBlogs,
+  updatePageMetadata,
+  updateArticleMetadata,
+  updateProduct,
+  isShopifyConnected,
+} from '@/lib/integrations/shopify';
 import { recordAction, findMostRecentUndoable, markUndone, listRecentActions } from './actionLog';
 
 // ---------------------------------------------------------------------------
@@ -991,6 +1001,182 @@ export function buildTools(pane: PaneContext) {
           return ok({ taskId, title: updated.title, notesLength: next.length });
         } catch (e) {
           return err(e instanceof Error ? e.message : 'addTaskNote failed');
+        }
+      },
+    }),
+
+        listShopifyPagesWithSeo: tool({
+      description:
+        'List every Shopify storefront page with its current SEO meta title and description. Use to find pages missing meta data or with weak titles. Returns id, handle, title, current metaTitle, metaDescription, and a flag indicating whether SEO is missing.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        if (!isShopifyConnected()) return err('Shopify not connected. Set SHOPIFY_STORE + SHOPIFY_ACCESS_TOKEN in Vercel.');
+        try {
+          const pages = await listShopifyPages();
+          return ok({
+            count: pages.length,
+            pages: pages.map((p) => ({
+              id: p.id,
+              handle: p.handle,
+              title: p.title,
+              metaTitle: p.seo?.title ?? null,
+              metaDescription: p.seo?.description ?? null,
+              missingSeo: !p.seo?.title || !p.seo?.description,
+            })),
+          });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'listShopifyPagesWithSeo failed');
+        }
+      },
+    }),
+
+    updateShopifyPageSeo: tool({
+      description:
+        'Update the SEO meta title and / or meta description on a single Shopify page. DESTRUCTIVE in the sense that it writes to your live storefront. Always confirm with the operator before calling with confirm:true; first call returns a preview with requiresConfirmation=true.',
+      inputSchema: z.object({
+        pageId: z.string().describe('Shopify page id (numeric or gid://).'),
+        metaTitle: z.string().optional(),
+        metaDescription: z.string().optional(),
+        confirm: z.boolean().optional(),
+      }),
+      execute: async ({ pageId, metaTitle, metaDescription, confirm }) => {
+        if (!metaTitle && !metaDescription) return err('Provide at least one of metaTitle or metaDescription.');
+        if (!confirm) {
+          return ok({
+            requiresConfirmation: true,
+            pageId,
+            preview: { metaTitle, metaDescription },
+            message: 'About to write SEO meta to Shopify page ' + pageId + '. Title: "' + (metaTitle ?? '(unchanged)') + '". Description: "' + (metaDescription ?? '(unchanged)') + '". Confirm?',
+          });
+        }
+        try {
+          const r = await updatePageMetadata({ pageId, metaTitle, metaDescription });
+          return ok({ pageId, written: true, response: r });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'updateShopifyPageSeo failed');
+        }
+      },
+    }),
+
+    listShopifyArticlesWithSeo: tool({
+      description:
+        'List Shopify journal / blog articles with their current SEO meta title and description. Optionally filter by blog. Used to spot articles missing SEO meta.',
+      inputSchema: z.object({
+        blogId: z.string().optional().describe('Optional. Filter to a specific blog. If omitted, lists from the first blog.'),
+        limit: z.number().int().min(1).max(100).optional(),
+      }),
+      execute: async ({ blogId, limit }) => {
+        if (!isShopifyConnected()) return err('Shopify not connected.');
+        try {
+          let bid = blogId;
+          if (!bid) {
+            const blogs = await listBlogs();
+            bid = blogs[0]?.id;
+            if (!bid) return err('No Shopify blogs found.');
+          }
+          const articles = await listArticles({ blogId: bid, first: limit ?? 50 });
+          return ok({
+            blogId: bid,
+            count: articles.length,
+            articles: articles.map((a) => ({
+              id: a.id,
+              handle: a.handle,
+              title: a.title,
+              metaTitle: a.seo?.title ?? null,
+              metaDescription: a.seo?.description ?? null,
+              missingSeo: !a.seo?.title || !a.seo?.description,
+            })),
+          });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'listShopifyArticlesWithSeo failed');
+        }
+      },
+    }),
+
+    updateShopifyArticleSeo: tool({
+      description:
+        'Update the SEO meta title / description on a Shopify article. Two-step confirmation; first call returns requiresConfirmation, second call with confirm:true writes.',
+      inputSchema: z.object({
+        articleId: z.string(),
+        metaTitle: z.string().optional(),
+        metaDescription: z.string().optional(),
+        confirm: z.boolean().optional(),
+      }),
+      execute: async ({ articleId, metaTitle, metaDescription, confirm }) => {
+        if (!metaTitle && !metaDescription) return err('Provide at least one of metaTitle or metaDescription.');
+        if (!confirm) {
+          return ok({
+            requiresConfirmation: true,
+            articleId,
+            preview: { metaTitle, metaDescription },
+            message: 'About to write SEO meta to article ' + articleId + '. Title: "' + (metaTitle ?? '(unchanged)') + '". Description: "' + (metaDescription ?? '(unchanged)') + '". Confirm?',
+          });
+        }
+        try {
+          const r = await updateArticleMetadata({ articleId, metaTitle, metaDescription });
+          return ok({ articleId, written: true, response: r });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'updateShopifyArticleSeo failed');
+        }
+      },
+    }),
+
+    listShopifyProductsWithSeo: tool({
+      description:
+        'List Shopify products with their current SEO meta title and description. Returns id, handle, title, current SEO meta, and missingSeo flag. Use to find products that need meta written.',
+      inputSchema: z.object({
+        limit: z.number().int().min(1).max(250).optional(),
+      }),
+      execute: async ({ limit }) => {
+        if (!isShopifyConnected()) return err('Shopify not connected.');
+        try {
+          const products = await listProducts({ first: limit ?? 50 });
+          return ok({
+            count: products.length,
+            products: products.map((p) => ({
+              id: p.id,
+              handle: p.handle,
+              title: p.title,
+              status: p.status,
+              metaTitle: p.seo?.title ?? null,
+              metaDescription: p.seo?.description ?? null,
+              missingSeo: !p.seo?.title || !p.seo?.description,
+            })),
+          });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'listShopifyProductsWithSeo failed');
+        }
+      },
+    }),
+
+    updateShopifyProductSeo: tool({
+      description:
+        'Update SEO meta on a Shopify product. Two-step confirmation. Title goes to product.seo.title (commonly title_tag), description goes to product.seo.description (commonly description_tag).',
+      inputSchema: z.object({
+        productId: z.string(),
+        metaTitle: z.string().optional(),
+        metaDescription: z.string().optional(),
+        confirm: z.boolean().optional(),
+      }),
+      execute: async ({ productId, metaTitle, metaDescription, confirm }) => {
+        if (!metaTitle && !metaDescription) return err('Provide at least one of metaTitle or metaDescription.');
+        if (!confirm) {
+          return ok({
+            requiresConfirmation: true,
+            productId,
+            preview: { metaTitle, metaDescription },
+            message: 'About to write SEO meta to product ' + productId + '. Title: "' + (metaTitle ?? '(unchanged)') + '". Description: "' + (metaDescription ?? '(unchanged)') + '". Confirm?',
+          });
+        }
+        try {
+          const r = await updateProduct({
+            id: productId,
+            seoTitle: metaTitle,
+            seoDescription: metaDescription,
+          });
+          return ok({ productId, written: true, title: r.title });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'updateShopifyProductSeo failed');
         }
       },
     }),
