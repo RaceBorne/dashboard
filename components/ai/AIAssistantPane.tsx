@@ -413,16 +413,9 @@ export function AIAssistantPane() {
   const spokenIds = useRef<Set<string>>(new Set());
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  function speakWithBrowser(text: string) {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    try {
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.05;
-      u.pitch = 1.0;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
-    } catch { /* ignore */ }
-  }
+  // speakWithBrowser removed: browser SpeechSynthesis sounded robotic
+  // and was triggering on Cartesia errors. Cartesia is now the only
+  // path; if it fails the diagnostic strip surfaces the error.
 
   async function speakWithCartesia(text: string): Promise<boolean> {
     try {
@@ -590,8 +583,7 @@ export function AIAssistantPane() {
         body: JSON.stringify({ text: chunk }),
       });
       if (!res.ok) {
-        // Fall back to browser TTS for this chunk.
-        speakWithBrowser(chunk);
+        setVoiceDebug('Cartesia chunk failed: HTTP ' + res.status);
         return;
       }
       const blob = await res.blob();
@@ -599,8 +591,8 @@ export function AIAssistantPane() {
       const audio = new Audio(url);
       audioQueueRef.current.push({ audio, url });
       playNextInQueue();
-    } catch {
-      speakWithBrowser(chunk);
+    } catch (e) {
+      setVoiceDebug('Cartesia chunk threw: ' + (e instanceof Error ? e.message : String(e)));
     }
   }
 
@@ -1223,66 +1215,66 @@ export function AIAssistantPane() {
               Each button fires a pre-filled prompt that the model
               handles like any other turn; Mojito picks the right
               tool and the streaming TTS reads the answer back. */}
-          <div className="px-3 pb-2 grid grid-cols-3 gap-1.5">
+          <div className="px-3 pb-2 space-y-1.5">
             <button
               type="button"
               disabled={busy || transcribing}
               onClick={() => void sendMessage({ text: 'Read me today\'s morning briefing aloud. Use the readMorningBriefing tool, then read the briefing back to me in full so I can listen.' })}
-              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              className="flex items-center gap-2 w-full rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-3 py-2 disabled:opacity-50"
               title="Read me today's morning briefing aloud"
             >
               <Sparkles className="h-3.5 w-3.5 text-evari-gold" />
-              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Briefing</span>
+              <span className="text-[12px] font-semibold text-evari-text">Briefing</span>
             </button>
             <button
               type="button"
               disabled={busy || transcribing}
               onClick={() => void sendMessage({ text: 'Walk me through what is worth my attention right now, in priority order. Use getOpenWork to pull live counts plus the top tasks, then summarise the headline items briefly so I can act.' })}
-              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              className="flex items-center gap-2 w-full rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-3 py-2 disabled:opacity-50"
               title="What's worth your attention"
             >
               <RadioTower className="h-3.5 w-3.5 text-evari-gold" />
-              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Attention</span>
+              <span className="text-[12px] font-semibold text-evari-text">Attention</span>
             </button>
             <button
               type="button"
               disabled={busy || transcribing}
               onClick={() => void sendMessage({ text: 'Give me a prospecting synopsis. Use listIdeas to count active ideas and identify which ones are mid-flight, then check listShortlist on the most active idea to see how the funnel is shaping up. Tell me what is in motion, where I am stuck, and what I should push next. Two or three short sentences.' })}
-              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              className="flex items-center gap-2 w-full rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-3 py-2 disabled:opacity-50"
               title="Prospecting pipeline synopsis"
             >
               <Wrench className="h-3.5 w-3.5 text-evari-gold" />
-              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Prospecting</span>
+              <span className="text-[12px] font-semibold text-evari-text">Prospecting</span>
             </button>
             <button
               type="button"
               disabled={busy || transcribing}
               onClick={() => void sendMessage({ text: 'Marketing snapshot. Use listCampaigns to see what is in flight, then tell me the cadence: how many campaigns are scheduled this week, this month, and which audiences they hit. Flag any drafts that have been sitting idle. Short and concrete.' })}
-              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              className="flex items-center gap-2 w-full rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-3 py-2 disabled:opacity-50"
               title="Marketing campaign cadence"
             >
               <Send className="h-3.5 w-3.5 text-evari-gold" />
-              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Marketing</span>
+              <span className="text-[12px] font-semibold text-evari-text">Marketing</span>
             </button>
             <button
               type="button"
               disabled={busy || transcribing}
               onClick={() => void sendMessage({ text: 'Broadcast schedule. Tell me what is scheduled to send this week and what is queued for the rest of the month. Use listCampaigns with statusFilter=scheduled to pull the calendar. Short.' })}
-              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              className="flex items-center gap-2 w-full rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-3 py-2 disabled:opacity-50"
               title="Broadcast send schedule"
             >
               <Volume2 className="h-3.5 w-3.5 text-evari-gold" />
-              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Broadcast</span>
+              <span className="text-[12px] font-semibold text-evari-text">Broadcast</span>
             </button>
             <button
               type="button"
               disabled={busy || transcribing}
               onClick={() => void sendMessage({ text: 'Web health check. Tell me what is broken or needs fixing on the website right now: critical SEO findings, broken redirects, slow pages, anything from PageSpeed. Pull whatever live signal you can. Short list with severity.' })}
-              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              className="flex items-center gap-2 w-full rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-3 py-2 disabled:opacity-50"
               title="Website technical health"
             >
               <CheckCircle2 className="h-3.5 w-3.5 text-evari-gold" />
-              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Web</span>
+              <span className="text-[12px] font-semibold text-evari-text">Web</span>
             </button>
           </div>
 
