@@ -46,9 +46,16 @@ export async function POST(req: Request) {
       { status: 400, headers: { 'content-type': 'application/json' } },
     );
   }
+  // Pronunciation fixups: TTS engines mangle proper nouns that are
+  // squeezed into one token. 'Maddog' becomes a weird single syllable.
+  // Force the spaced form 'Mad Dog' so Cartesia pronounces it cleanly.
+  // Add other tricky words here as we hit them.
+  const fixed = text
+    .replace(/\bMaddog\b/g, 'Mad Dog')
+    .replace(/\bmaddog\b/g, 'Mad Dog');
   // Cartesia caps a single TTS call at ~16k characters; truncate the
   // operator's reply so an oversize message can't blow up the request.
-  const transcript = text.length > 5000 ? text.slice(0, 5000) : text;
+  const transcript = fixed.length > 5000 ? fixed.slice(0, 5000) : fixed;
 
   const voiceId = (body?.voiceId ?? process.env.CARTESIA_VOICE_ID ?? '').trim();
   if (!voiceId) {

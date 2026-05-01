@@ -208,7 +208,7 @@ function humaniseTool(name: string): string {
 function buildGreeting(now: Date): string {
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
-  return greeting + ', Maddog. Ask me to do anything in the dashboard. I can create ideas, run discovery, draft campaigns, navigate, summarise. Tap the mic if you would rather talk.';
+  return greeting + ', Mad Dog. Ask me to do anything in the dashboard. I can create ideas, run discovery, draft campaigns, navigate, summarise. Tap the mic if you would rather talk.';
 }
 
 // ---------------------------------------------------------------------------
@@ -293,7 +293,7 @@ export function AIAssistantPane() {
       // one. The model can offer to call getOpenWork as a follow-up.
       void sendMessage({
         text:
-          '[system-cue] First open of the day. Greet Maddog the way a real person would (one short sentence, warm, casual), then ask what is on for today. Do not run any tools yet, do not summarise anything, do not list things. Just say hello and ask.',
+          '[system-cue] First open of the day. Greet Mad Dog the way a real person would (one short sentence, warm, casual), then ask what is on for today. Do not run any tools yet, do not summarise anything, do not list things. Just say hello and ask.',
       });
     }, 400);
     return () => clearTimeout(t);
