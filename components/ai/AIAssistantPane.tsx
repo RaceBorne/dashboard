@@ -361,12 +361,62 @@ export function AIAssistantPane() {
     window.localStorage.setItem('evari-mojito-voice-out', voiceOut ? '1' : '0');
   }, [voiceOut]);
 
-  // Speak each completed assistant message exactly once. Track the
-  // ids we have already spoken so re-renders do not re-read.
+  // Speak each completed assistant message exactly once. Cartesia first
+  // (sub-second human voice via /api/ai/speak), browser SpeechSynthesis
+  // as a fallback if Cartesia is not configured or the request fails.
+  // Track ids we have already spoken so re-renders do not re-read.
   const spokenIds = useRef<Set<string>>(new Set());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  function speakWithBrowser(text: string) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.05;
+      u.pitch = 1.0;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch { /* ignore */ }
+  }
+
+  async function speakWithCartesia(text: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/ai/speak', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('json')) {
+          const j = await res.json().catch(() => null);
+          console.warn('[mojito.tts.cartesia] failed', j);
+        } else {
+          console.warn('[mojito.tts.cartesia] failed', res.status);
+        }
+        return false;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      // Stop any prior playback so we don't overlap when the user fires
+      // multiple messages quickly.
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch { /* noop */ }
+      }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); };
+      audio.onerror = () => { URL.revokeObjectURL(url); };
+      await audio.play();
+      return true;
+    } catch (e) {
+      console.warn('[mojito.tts.cartesia] threw', e);
+      return false;
+    }
+  }
+
   useEffect(() => {
     if (!voiceOut) return;
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
     const last = messages[messages.length - 1];
     if (!last || last.role !== 'assistant') return;
     if (spokenIds.current.has(last.id)) return;
@@ -378,13 +428,11 @@ export function AIAssistantPane() {
       .trim();
     if (!text) return;
     spokenIds.current.add(last.id);
-    try {
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.05;
-      u.pitch = 1.0;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
-    } catch { /* ignore */ }
+    // Try Cartesia, fall back to browser TTS if anything goes wrong.
+    void (async () => {
+      const ok = await speakWithCartesia(text);
+      if (!ok) speakWithBrowser(text);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, status, voiceOut]);
 
@@ -496,10 +544,17 @@ export function AIAssistantPane() {
   const lastSpeechAtRef = useRef<number>(0);
   const speechStartedAtRef = useRef<number>(0);
 
-  // Tracking when the browser is speaking so VAD can hold off.
+  // Tracking when something is speaking so VAD can hold off and we do
+  // not capture our own voice. Combines the browser SpeechSynthesis
+  // queue and the Cartesia <audio> playback flag.
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const tick = () => { speakingRef.current = window.speechSynthesis.speaking; };
+    if (typeof window === 'undefined') return;
+    const tick = () => {
+      const synthSpeaking = !!window.speechSynthesis?.speaking;
+      const audio = audioRef.current;
+      const audioSpeaking = !!audio && !audio.paused && !audio.ended && audio.currentTime > 0;
+      speakingRef.current = synthSpeaking || audioSpeaking;
+    };
     const i = window.setInterval(tick, 200);
     return () => window.clearInterval(i);
   }, []);
