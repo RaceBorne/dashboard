@@ -26,7 +26,7 @@ const DEFAULT_MODEL = 'sonic-3';
 interface Body {
   text?: string;
   voiceId?: string;
-  speed?: number; // 0.5 to 2.0
+  speed?: number; // -1.0 (slowest) to 1.0 (fastest), 0 is normal
 }
 
 export async function POST(req: Request) {
@@ -65,11 +65,15 @@ export async function POST(req: Request) {
     );
   }
 
-  // Default 0.75 reads as relaxed and conversational. Cartesia's 1.0
-  // is brisk, 0.85 still felt rushed on Gemma (Decisive Agent voice has
-  // an assertive cadence baked in). Going lower than ~0.6 starts to
-  // sound stretched. Caller can override per request.
-  const speed = typeof body?.speed === 'number' ? Math.min(2, Math.max(0.5, body.speed)) : 0.75;
+  // Cartesia's speed is -1 to 1 (where 0 is normal, negative is slower,
+  // positive is faster), NOT 0.5 to 2.0 like a typical playback rate.
+  // I had this wrong on the first pass; previous values around 0.75 were
+  // being interpreted as 'somewhat faster than normal' because anything
+  // in (0,1] is positive on the Cartesia scale. Default -0.4 (a touch
+  // slower than normal) sounds calm and conversational on Gemma's
+  // Decisive Agent voice. Caller may override but we still clamp.
+  const requested = typeof body?.speed === 'number' ? body.speed : -0.4;
+  const speed = Math.min(1, Math.max(-1, requested));
 
   // /tts/bytes returns the full MP3 in one chunk. /tts/sse would
   // stream PCM frames over Server-Sent Events for lower first-byte

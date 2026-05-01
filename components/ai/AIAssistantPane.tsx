@@ -231,6 +231,12 @@ export function AIAssistantPane() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [input, setInput] = useState('');
+  // Track whether we have mounted on the client. Used to gate any UI
+  // whose content depends on the runtime clock (greeting), so SSR and
+  // hydration produce identical HTML and React #418 hydration errors
+  // do not blow up subsequent client-only hooks.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const handledActionIds = useRef<Set<string>>(new Set());
 
@@ -973,7 +979,7 @@ export function AIAssistantPane() {
       {collapsed ? null : (
         <>
           <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
-            {messages.length === 0 ? (
+            {messages.length === 0 && mounted ? (
               <div className="text-[12px] text-evari-dim leading-relaxed bg-evari-ink/30 border border-evari-edge/30 rounded-md p-3">
                 {buildGreeting(new Date())}
               </div>
