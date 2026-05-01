@@ -642,57 +642,215 @@ export function buildTools(pane: PaneContext) {
 
     goTo: tool({
       description:
-        'Navigate the user to a specific route in the app. Use this whenever the user asks "open X" or "take me to X". You MUST use one of the routes listed in the validRoutes section below. Made-up paths will be rejected.',
+        'Navigate the user to a specific route in the app. Use this whenever the user asks "open X" or "take me to X". The full list of routes the app actually has is below. Match the user request to the closest one. If nothing fits, do NOT guess; ask the operator which existing surface they meant.\n\n' +
+        'HOME + UTILITY:\n' +
+        '  /                       Home / morning briefing\n' +
+        '  /screensaver            Tile canvas screensaver\n' +
+        '  /tasks                  To-do list\n' +
+        '  /context                Brand contexts (Evari, etc.)\n' +
+        '  /settings               General settings\n' +
+        '  /settings/connectors    Connector status\n' +
+        '  /users                  User accounts\n' +
+        '\n' +
+        'PROSPECTING (one idea per row, drilled per-id):\n' +
+        '  /ideas                  Idea list\n' +
+        '  /ideas/{id}             Idea detail\n' +
+        '  /plays                  Plays (legacy alias of ideas detail)\n' +
+        '  /plays/{id}             Play detail\n' +
+        '  /strategy               Strategy step browser\n' +
+        '  /discover               Discovery dashboard\n' +
+        '  /discover/search        Discovery search add-companies\n' +
+        '  /shortlist              Shortlist surface\n' +
+        '  /enrichment             Contact enrichment\n' +
+        '  /leads                  Leads CRM\n' +
+        '  /leads/{id}             Lead detail\n' +
+        '  /prospects              Prospects (legacy)\n' +
+        '  /prospecting/exclusions Per-search blocklist settings\n' +
+        '  /people                 Person-centric inbox view\n' +
+        '  /scoring                Fit score rubric\n' +
+        '\n' +
+        'EMAIL / MARKETING:\n' +
+        '  /email                  Email overview\n' +
+        '  /email/campaigns        Campaign list\n' +
+        '  /email/campaigns/new    New campaign wizard\n' +
+        '  /email/campaigns/{id}   Campaign detail / report\n' +
+        '  /email/statistics       Stats + follow-ups inbox\n' +
+        '  /email/conversations    Inbox replies\n' +
+        '  /email/audience         Lists + segments\n' +
+        '  /email/audience/{id}    Specific list / segment\n' +
+        '  /email/assets           Asset library\n' +
+        '  /email/templates        Template library\n' +
+        '  /email/templates/{id}/edit  Edit a template\n' +
+        '  /email/flows            Automated flows\n' +
+        '  /email/flows/new        New flow\n' +
+        '  /email/flows/{id}       Flow detail\n' +
+        '  /email/contacts         Contact directory\n' +
+        '  /email/contacts/{id}    Contact detail\n' +
+        '  /email/domains          Sending domains\n' +
+        '  /email/domains/{id}     Domain detail\n' +
+        '  /email/suppressions     Suppression list\n' +
+        '  /email/brand            Brand kit\n' +
+        '  /email/settings         Email settings\n' +
+        '\n' +
+        'WEB / SEO / TRAFFIC:\n' +
+        '  /seo                    SEO Health\n' +
+        '  /traffic                Traffic analytics\n' +
+        '  /performance            Performance / Core Web Vitals\n' +
+        '  /pages                  Page inventory\n' +
+        '  /backlinks              Backlinks\n' +
+        '  /keywords               Keyword strategy\n' +
+        '\n' +
+        'CONTENT + SOCIAL:\n' +
+        '  /journals               Journal entries (long-form)\n' +
+        '  /journals/{id}          Journal detail\n' +
+        '  /articles               Article inventory\n' +
+        '  /social                 Social calendar\n' +
+        '  /social/new             New social post\n' +
+        '  /social/instagram       Instagram queue\n' +
+        '  /social/linkedin        LinkedIn queue\n' +
+        '  /social/tiktok          TikTok queue\n' +
+        '  /synopsis               Synopsis (article summarising)\n' +
+        '\n' +
+        'SHOPIFY:\n' +
+        '  /shopify                Shopify overview\n' +
+        '  /shopify/products       Products\n' +
+        '  /shopify/customers      Customers\n' +
+        '  /shopify/orders         Orders\n' +
+        '  /shopify/seo            Shopify SEO\n' +
+        '  /shopify/seo-health     SEO health view\n' +
+        '  /shopify/content        Shopify content overview\n' +
+        '  /shopify/content/articles      Articles in Shopify\n' +
+        '  /shopify/content/pages         Pages in Shopify\n' +
+        '  /shopify/content/navigation    Navigation menus\n' +
+        '  /shopify/growth         Growth overview\n' +
+        '  /shopify/growth/abandoned      Abandoned carts\n' +
+        '  /shopify/growth/discounts      Discount codes\n' +
+        '  /shopify/growth/drafts         Draft orders\n' +
+        '  /shopify/ops            Ops overview\n' +
+        '  /shopify/ops/404s              404 monitor\n' +
+        '  /shopify/ops/analytics         Shopify analytics\n' +
+        '  /shopify/ops/redirects         Redirects\n' +
+        '  /klaviyo                Klaviyo connector\n' +
+        '\n' +
+        'OTHER:\n' +
+        '  /ventures               Ventures (legacy alias of /ideas)\n' +
+        '  /ventures/{id}          Venture detail\n' +
+        '  /conversations          Conversations (legacy alias)\n' +
+        '  /wireframe              Internal wireframe sandbox\n' +
+        '\n' +
+        'If the user asks for "the audience page" route to /email/audience. ' +
+        '"Asset library" -> /email/assets. "Templates" -> /email/templates. ' +
+        '"Briefing" or "home" -> /. "Tasks" or "to-do" -> /tasks.',
       inputSchema: z.object({
-        route: z
-          .string()
-          .describe(
-            'Pathname starting with "/". Valid routes (only these are real): ' +
-            '/ (Home / morning briefing), ' +
-            '/screensaver (tile canvas), ' +
-            '/tasks (to-do list), ' +
-            '/ideas (idea list), ' +
-            '/plays/{id} (a specific play / venture), ' +
-            '/plays/{id}/strategy, /plays/{id}/discover, /plays/{id}/shortlist, ' +
-            '/discover (Discovery), /shortlist, /enrichment, /leads, ' +
-            '/people (person-centric inbox), ' +
-            '/email (Email overview), ' +
-            '/email/campaigns, /email/campaigns/{id}/edit, ' +
-            '/email/statistics, /email/conversations, ' +
-            '/email/audience (lists + segments), /email/assets (asset library), ' +
-            '/email/templates, /email/flows, /email/contacts, /email/domains, ' +
-            '/email/suppressions, /email/brand, /email/settings, ' +
-            '/seo, /traffic, /performance, /pages, /backlinks, /keywords, ' +
-            '/social, /journals, /articles, ' +
-            '/synopsis, /scoring, /strategy, /wireframe, ' +
-            '/context, /settings, /users, ' +
-            '/prospecting, /prospecting/exclusions, ' +
-            '/shopify, /klaviyo. ' +
-            'If the user asks for something that is not in this list, do NOT call goTo; instead say what you would do and ask which existing surface they want.',
-          ),
+        route: z.string().describe('Pathname starting with "/". See description for the valid list.'),
       }),
       execute: async ({ route }) => {
-        // Validate the route against the known surface list. Anything
-        // unknown rejects rather than 404ing the user.
-        const VALID_PREFIXES = [
-          '/', '/screensaver', '/tasks',
-          '/ideas', '/plays', '/discover', '/shortlist', '/enrichment',
-          '/leads', '/people',
-          '/email', // covers /email/*
-          '/seo', '/traffic', '/performance', '/pages', '/backlinks', '/keywords',
-          '/social', '/journals', '/articles',
-          '/synopsis', '/scoring', '/strategy', '/wireframe',
-          '/context', '/settings', '/users',
-          '/prospecting', '/shopify', '/klaviyo',
+        // The full set of routes the app exposes. Generated by walking
+        // app/(dashboard)/ + app/ for every page.tsx. Update via that
+        // walk if the app gains a new route. Validation rejects any
+        // path that does not match an exact route or a prefix of one
+        // (so /plays/abc and /email/templates/123/edit both pass).
+        const VALID_ROUTES: string[] = [
+          '/',
+          '/screensaver',
+          '/tasks',
+          '/context',
+          '/settings',
+          '/settings/connectors',
+          '/users',
+          '/ideas',
+          '/ideas/',
+          '/plays',
+          '/plays/',
+          '/strategy',
+          '/discover',
+          '/discover/search',
+          '/shortlist',
+          '/enrichment',
+          '/leads',
+          '/leads/',
+          '/prospects',
+          '/prospecting/exclusions',
+          '/people',
+          '/scoring',
+          '/conversations',
+          '/email',
+          '/email/campaigns',
+          '/email/campaigns/new',
+          '/email/campaigns/',
+          '/email/statistics',
+          '/email/conversations',
+          '/email/audience',
+          '/email/audience/',
+          '/email/assets',
+          '/email/templates',
+          '/email/templates/',
+          '/email/flows',
+          '/email/flows/new',
+          '/email/flows/',
+          '/email/contacts',
+          '/email/contacts/',
+          '/email/domains',
+          '/email/domains/',
+          '/email/suppressions',
+          '/email/brand',
+          '/email/settings',
+          '/seo',
+          '/traffic',
+          '/performance',
+          '/pages',
+          '/backlinks',
+          '/keywords',
+          '/journals',
+          '/journals/',
+          '/articles',
+          '/social',
+          '/social/new',
+          '/social/instagram',
+          '/social/linkedin',
+          '/social/tiktok',
+          '/synopsis',
+          '/wireframe',
+          '/shopify',
+          '/shopify/products',
+          '/shopify/customers',
+          '/shopify/orders',
+          '/shopify/seo',
+          '/shopify/seo-health',
+          '/shopify/content',
+          '/shopify/content/articles',
+          '/shopify/content/pages',
+          '/shopify/content/navigation',
+          '/shopify/growth',
+          '/shopify/growth/abandoned',
+          '/shopify/growth/discounts',
+          '/shopify/growth/drafts',
+          '/shopify/ops',
+          '/shopify/ops/404s',
+          '/shopify/ops/analytics',
+          '/shopify/ops/redirects',
+          '/klaviyo',
+          '/ventures',
+          '/ventures/',
         ];
-        const r = route.trim();
-        if (!r.startsWith('/')) {
-          return err('route must start with "/", got: ' + r);
+        const raw = route.trim();
+        if (!raw.startsWith('/')) {
+          return err('route must start with "/", got: ' + raw);
         }
-        // Match either the exact prefix or '<prefix>/something'
-        const valid = VALID_PREFIXES.some((p) => r === p || r.startsWith(p + '/'));
+        // Strip query/hash before matching.
+        const r = raw.split('?')[0].split('#')[0];
+        // A route matches if it is an exact entry, OR an entry ending
+        // with '/' is a strict prefix of it (covers /ideas/{id} etc.).
+        const valid = VALID_ROUTES.some((entry) => {
+          if (entry === r) return true;
+          if (entry.endsWith('/') && r.startsWith(entry)) return true;
+          return false;
+        });
         if (!valid) {
-          return err('Unknown route: ' + r + '. See the description for the valid list. Tell the operator what you intended and ask which existing surface they meant.');
+          // Suggest the closest match by checking prefix overlap.
+          const candidates = VALID_ROUTES.filter((p) => p !== '/' && r.startsWith(p)).slice(-1);
+          const hint = candidates.length > 0 ? ' Did you mean ' + candidates[0] + '?' : '';
+          return err('Unknown route: ' + r + '.' + hint + ' Ask the operator which surface they meant; see the tool description for the full route list.');
         }
         return ok({ clientAction: { type: 'navigate', route: r } });
       },
