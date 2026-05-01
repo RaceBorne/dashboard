@@ -35,14 +35,40 @@ export async function POST(req: Request) {
     if (!body.category || !body.status || !body.priority) {
       return NextResponse.json({ error: 'category, status, and priority are required' }, { status: 400 });
     }
+    const trimmedTitle = body.title.trim();
+    const requestedSource = (body.source as TaskSource) ?? 'manual';
+
+    // Dedup guard for AI / auto sources. If a non-done task with the
+    // same title already exists, skip the insert and return the
+    // existing row. Stops the AI Suggestions card from filling the
+    // board with copies on every regenerate. Manual adds bypass the
+    // guard so the operator can intentionally create duplicates if
+    // they want to.
+    if (requestedSource === 'auto') {
+      const { data: existing } = await supabase
+        .from('tasks')
+        .select('*')
+        .ilike('title', trimmedTitle)
+        .neq('status', 'done')
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        return NextResponse.json({
+          task: existing,
+          deduped: true,
+          message: 'A task with this title already exists; not creating a duplicate.',
+        });
+      }
+    }
+
     const task = await insertTask(supabase, {
-      title: body.title.trim(),
+      title: trimmedTitle,
       description: body.description,
       category: body.category as TaskCategory,
       status: body.status as TaskStatus,
       priority: body.priority as TaskPriority,
       dueDate: body.dueDate,
-      source: (body.source as TaskSource) ?? 'manual',
+      source: requestedSource,
       wishlistRef: body.wishlistRef,
       notes: body.notes,
       listId: body.listId,
