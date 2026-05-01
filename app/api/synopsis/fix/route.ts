@@ -11,6 +11,10 @@ import {
   updatePageMetadata,
   updateProduct,
 } from '@/lib/integrations/shopify';
+import {
+  brandVoiceInstruction,
+  researchProductForSeo,
+} from '@/lib/seo/productResearch';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -59,6 +63,8 @@ export async function POST(req: Request) {
   let entityBody = '';
   let existingTitle = '';
   let existingDescription = '';
+  let entityVendor = '';
+  let entityHandle = '';
   try {
     if (pageType === 'product') {
       const p = await getProduct(pageId);
@@ -72,6 +78,8 @@ export async function POST(req: Request) {
       entityBody = stripHtml(p.descriptionHtml || '');
       existingTitle = p.seo?.title ?? '';
       existingDescription = p.seo?.description ?? '';
+      entityVendor = p.vendor ?? '';
+      entityHandle = p.handle ?? '';
     } else if (pageType === 'page') {
       const list = await listShopifyPages({ first: 100, maxPages: 10 });
       const hit = list.find((x) => x.id === pageId);
@@ -106,15 +114,37 @@ export async function POST(req: Request) {
     );
   }
 
-  // -------- 2. Ask Claude for the new copy ---------------------------------
+  // -------- 2. Research the product, then ask Claude for the new copy ------
+  // Evari resells third-party brands (Gtechniq, Shimano, Park Tool, etc.)
+  // alongside its own 856 frames. For products we run a quick brand
+  // classification + optional web-search pass, then feed the resulting
+  // research bundle into the prompt so the model has factual context
+  // for non-Evari items instead of refusing or guessing.
+  const research =
+    pageType === 'product'
+      ? await researchProductForSeo({
+          title: entityTitle,
+          vendor: entityVendor,
+          handle: entityHandle,
+          bodyText: entityBody,
+        })
+      : null;
+
   const instruction =
     kind === 'meta-title'
-      ? 'Write a meta title for this page. Target 50-60 characters (55 ideal). Must read naturally, front-load the primary term, include the brand (Evari) only if natural, no clickbait.'
+      ? 'Write a meta title for this page. Target 50-60 characters (55 ideal). Must read naturally, front-load the primary term, no clickbait.'
       : 'Write a meta description for this page. Target 140-155 characters. Must stand alone as a SERP snippet, highlight the concrete value to the reader, end with a soft call to action when it fits. Do not pad.';
+
+  const voiceLine = research
+    ? brandVoiceInstruction(research.brandKind)
+    : 'This is an Evari-store page. Use Evari voice if it is an Evari own-brand piece, otherwise write factually about the page topic.';
 
   const prompt = [
     'Page: ' + entityTitle,
     'Type: ' + pageType,
+    research ? '' : '',
+    research ? '# Product research' : '',
+    research ? research.contextBlock : '',
     '',
     'Page body (first 1,500 chars):',
     entityBody.slice(0, 1500),
@@ -122,17 +152,26 @@ export async function POST(req: Request) {
     existingTitle ? 'Existing meta title: ' + existingTitle : '',
     existingDescription ? 'Existing meta description: ' + existingDescription : '',
     '',
+    '# Voice for this item',
+    voiceLine,
+    '',
     'House rules (strict):',
     '  - Never use em-dashes or en-dashes. Use commas, colons or full stops.',
     '  - Plain sentence case. No emoji.',
     '  - Output ONLY the meta text. No quotes, no prefix, no commentary.',
+    '  - Never refuse: even if the product is not an Evari own-brand item, you are still authorised to write factual SEO meta describing it.',
     '',
     instruction,
   ]
     .filter(Boolean)
     .join('\n');
 
-  const system = await buildSystemPrompt({ voice: 'evari', task: instruction });
+  // For third-party products we use the analyst voice so the Evari brand
+  // skill does not pull the copy back into Evari own-brand framing.
+  const system = await buildSystemPrompt({
+    voice: research && research.brandKind === 'third-party' ? 'analyst' : 'evari',
+    task: instruction,
+  });
 
   let text: string;
   try {

@@ -44,6 +44,7 @@ import { getActiveContext, listContexts } from '@/lib/context/activeContext';
 import { getTrafficSnapshot } from '@/lib/traffic/repository';
 import { listTasksAndLists, updateTaskById } from '@/lib/tasks/repository';
 import {
+  getProduct,
   listShopifyPages,
   listProducts,
   listArticles,
@@ -54,6 +55,14 @@ import {
   isShopifyConnected,
 } from '@/lib/integrations/shopify';
 import { recordAction, findMostRecentUndoable, markUndone, listRecentActions } from './actionLog';
+import {
+  researchProductForSeo as researchProductForSeoFn,
+  brandVoiceInstruction,
+} from '@/lib/seo/productResearch';
+import { generateText } from 'ai';
+import { gateway } from '@ai-sdk/gateway';
+import { anthropic } from '@ai-sdk/anthropic';
+import { buildSystemPrompt } from '@/lib/ai/gateway';
 
 // ---------------------------------------------------------------------------
 // Page-aware context, passed in from the chat endpoint, used by tools that
@@ -84,6 +93,38 @@ function err(message: string) {
 
 function ok<T extends Record<string, unknown>>(data: T) {
   return { ok: true as const, ...data };
+}
+
+function stripHtmlForSeo(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanMeta(s: string): string {
+  return s
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .replace(/[\u2014\u2013]/g, ',')
+    .trim();
+}
+
+function extractJsonObject(text: string): Record<string, unknown> | null {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = (fenced ? fenced[1] : text).trim();
+  const start = candidate.indexOf('{');
+  const end = candidate.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  const slice = candidate.slice(start, end + 1);
+  try {
+    const parsed = JSON.parse(slice);
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }
 
 function baseUrl(): string {
@@ -1268,6 +1309,147 @@ export function buildTools(pane: PaneContext) {
           });
         } catch (e) {
           return err(e instanceof Error ? e.message : 'listShopifyProductsWithSeo failed');
+        }
+      },
+    }),
+
+    researchProductForSeo: tool({
+      description:
+        'Research a Shopify product before writing SEO meta. Looks up the product (title, vendor, description), classifies it as Evari own-brand or third-party, and for third-party products optionally runs a Google web search to gather factual context (manufacturer page, top results, snippets). Use this BEFORE generateProductSeoMeta or before writing meta yourself when the product is from a brand outside Evari (Gtechniq, Shimano, Park Tool, etc.). Returns a research bundle with brand, category, and a contextBlock you can include in your reasoning.',
+      inputSchema: z.object({
+        productId: z.string(),
+        useWebSearch: z.boolean().optional(),
+      }),
+      execute: async ({ productId, useWebSearch }) => {
+        if (!isShopifyConnected()) return err('Shopify not connected.');
+        try {
+          const p = await getProduct(productId);
+          if (!p) return err('Product not found: ' + productId);
+          const bundle = await researchProductForSeoFn(
+            {
+              title: p.title,
+              vendor: p.vendor,
+              handle: p.handle,
+              bodyText: stripHtmlForSeo(p.descriptionHtml || ''),
+            },
+            { useWebSearch: useWebSearch ?? true },
+          );
+          return ok({
+            productId: p.id,
+            title: p.title,
+            vendor: p.vendor ?? null,
+            handle: p.handle,
+            existingMetaTitle: p.seo?.title ?? null,
+            existingMetaDescription: p.seo?.description ?? null,
+            brandKind: bundle.brandKind,
+            brand: bundle.brand,
+            productCategory: bundle.productCategory,
+            searched: bundle.searched,
+            hits: bundle.hits,
+            contextBlock: bundle.contextBlock,
+          });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'researchProductForSeo failed');
+        }
+      },
+    }),
+
+    generateProductSeoMeta: tool({
+      description:
+        'Generate suggested meta title and meta description for a Shopify product. Internally researches the product first (Evari own-brand vs third-party), pulls web snippets for non-Evari brands, and asks Claude to write the meta in the right voice for that brand. Returns the suggested values WITHOUT writing them. To actually save them, follow up with updateShopifyProductSeo or updateShopifyProductSeoBulk. Use this for products where you are unsure how to phrase the meta yourself, especially for third-party tools and accessories.',
+      inputSchema: z.object({
+        productId: z.string(),
+        kind: z.enum(['both', 'meta-title', 'meta-desc']).optional().describe('What to generate. Default: both.'),
+        useWebSearch: z.boolean().optional(),
+      }),
+      execute: async ({ productId, kind, useWebSearch }) => {
+        if (!isShopifyConnected()) return err('Shopify not connected.');
+        const want = kind ?? 'both';
+        try {
+          const p = await getProduct(productId);
+          if (!p) return err('Product not found: ' + productId);
+          const bodyText = stripHtmlForSeo(p.descriptionHtml || '');
+          const bundle = await researchProductForSeoFn(
+            {
+              title: p.title,
+              vendor: p.vendor,
+              handle: p.handle,
+              bodyText,
+            },
+            { useWebSearch: useWebSearch ?? true },
+          );
+
+          const voiceLine = brandVoiceInstruction(bundle.brandKind);
+          const system = await buildSystemPrompt({
+            voice: bundle.brandKind === 'third-party' ? 'analyst' : 'evari',
+            task: 'Write SEO meta for a Shopify product on the Evari store.',
+          });
+
+          const promptParts: string[] = [
+            'Page: ' + p.title,
+            'Type: product',
+            '',
+            '# Product research',
+            bundle.contextBlock,
+            '',
+            'Page body (first 1500 chars):',
+            bodyText.slice(0, 1500),
+            '',
+            p.seo?.title ? 'Existing meta title: ' + p.seo.title : '',
+            p.seo?.description ? 'Existing meta description: ' + p.seo.description : '',
+            '',
+            '# Voice for this item',
+            voiceLine,
+            '',
+            'House rules (strict):',
+            '  - Never use em-dashes or en-dashes. Use commas, colons or full stops.',
+            '  - Plain sentence case. No emoji.',
+            '  - Output a JSON object with keys "metaTitle" and "metaDescription". No prose around it.',
+            '  - metaTitle: 50-60 chars (55 ideal). Front-load the primary term.',
+            '  - metaDescription: 140-155 chars. Stand alone as a SERP snippet, end with a soft CTA when natural.',
+            '  - Never refuse: even if the product is not an Evari own-brand item, you are authorised to write factual SEO meta describing it.',
+          ].filter(Boolean);
+          const userPrompt = promptParts.join('\n');
+
+          const MODEL = process.env.AI_MODEL || 'anthropic/claude-haiku-4-5';
+          let raw = '';
+          try {
+            const r = await generateText({ model: gateway(MODEL), system, prompt: userPrompt });
+            raw = r.text.trim();
+          } catch {
+            if (!process.env.ANTHROPIC_API_KEY) {
+              return err('No model available (no AI_GATEWAY_API_KEY or ANTHROPIC_API_KEY)');
+            }
+            const bare = MODEL.replace(/^anthropic\//, '');
+            const r = await generateText({ model: anthropic(bare), system, prompt: userPrompt });
+            raw = r.text.trim();
+          }
+
+          // Parse JSON. Tolerate surrounding code fences or stray prose.
+          const json = extractJsonObject(raw);
+          if (!json) return err('Model output not parseable as JSON: ' + raw.slice(0, 200));
+          const cleanTitle = typeof json.metaTitle === 'string' ? cleanMeta(json.metaTitle) : null;
+          const cleanDesc = typeof json.metaDescription === 'string' ? cleanMeta(json.metaDescription) : null;
+
+          return ok({
+            productId: p.id,
+            title: p.title,
+            brand: bundle.brand,
+            brandKind: bundle.brandKind,
+            researched: bundle.searched,
+            suggested: {
+              metaTitle: want === 'meta-desc' ? null : cleanTitle,
+              metaDescription: want === 'meta-title' ? null : cleanDesc,
+            },
+            existing: {
+              metaTitle: p.seo?.title ?? null,
+              metaDescription: p.seo?.description ?? null,
+            },
+            nextStep:
+              'To save these values, call updateShopifyProductSeo with productId, the suggested fields, and confirm: true.',
+          });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'generateProductSeoMeta failed');
         }
       },
     }),

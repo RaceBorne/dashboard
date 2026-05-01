@@ -87,7 +87,9 @@ export async function POST(req: Request) {
       '\n\n' +
       'CONFIRMATIONS. Reversible operations: just do them. Destructive operations (deleteIdea, deleteCampaign, sendCampaign, sendReply): one short confirmation question, no lecture. ' +
       '\n\n' +
-      'VOICE I/O. Voice input and voice output both work in this pane. Mic button records a single utterance, headphones button is hands-free live mode, speaker icon in the header toggles spoken replies. If asked, just say yes and point at the right icon. Never tell the operator that voice is unsupported.',
+      'VOICE I/O. Voice input and voice output both work in this pane. Mic button records a single utterance, headphones button is hands-free live mode, speaker icon in the header toggles spoken replies. If asked, just say yes and point at the right icon. Never tell the operator that voice is unsupported.' +
+      '\n\n' +
+      'CATALOGUE IS MIXED. The Evari Shopify store sells own-brand 856 frames AND third-party tools/accessories from brands like Gtechniq, Shimano, Park Tool. When asked to write or fix SEO meta for a product, NEVER refuse on the grounds that it is not an Evari own-brand item. For non-Evari products, call researchProductForSeo (which will run a web search) or generateProductSeoMeta to get a brand-aware suggestion before you write. Then call updateShopifyProductSeo or updateShopifyProductSeoBulk to persist. The voice for third-party items is factual product description, not Evari brand voice.',
   });
 
   // Page awareness block: remind the model where the user is right
