@@ -450,6 +450,39 @@ export function AIAssistantPane() {
     }
   }
 
+  // Audio autoplay primer. The first time the user clicks anywhere on
+  // this page, fire a tiny silent audio play+pause cycle. Browsers
+  // (Safari especially) block audio.play() that did not originate
+  // directly from a user gesture; once the page has had any audio
+  // play through to completion, future programmatic plays are
+  // allowed for the lifetime of the tab. Without this, Mojito's
+  // first reply after page load is silent.
+  const autoplayPrimedRef = useRef(false);
+  useEffect(() => {
+    function prime() {
+      if (autoplayPrimedRef.current) return;
+      autoplayPrimedRef.current = true;
+      try {
+        const a = new Audio();
+        // 0.1s of silence as a tiny base64 wav. Plays through then
+        // stops. Browsers treat the page as 'audio-permitted' from
+        // here on.
+        a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+        a.volume = 0.01;
+        const p = a.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => { try { a.pause(); } catch { /* noop */ } }).catch(() => {});
+        }
+      } catch { /* noop */ }
+    }
+    window.addEventListener('click', prime, { capture: true, once: false });
+    window.addEventListener('keydown', prime, { capture: true, once: false });
+    return () => {
+      window.removeEventListener('click', prime, { capture: true });
+      window.removeEventListener('keydown', prime, { capture: true });
+    };
+  }, []);
+
   // Test Voice button: end-to-end probe. Calls /api/ai/speak with a
   // known phrase, surfaces every step in the voiceDebug strip. Bypasses
   // the speech effect entirely so we know if the problem is the trigger
@@ -586,6 +619,7 @@ export function AIAssistantPane() {
         return;
       }
       setTranscribing(true);
+      setVoiceDebug('transcribing ' + Math.round(blob.size / 1024) + 'KB via Whisper...');
       try {
         const ext = mime.includes('mp4') ? 'mp4' : mime.includes('ogg') ? 'ogg' : 'webm';
         const fd = new FormData();
@@ -594,27 +628,20 @@ export function AIAssistantPane() {
         const json = (await res.json().catch(() => ({}))) as { ok?: boolean; text?: string; error?: string };
         if (res.ok && json.ok && json.text) {
           const trimmed = json.text.trim();
-          // Fill the input so the user can SEE what was transcribed,
-          // then auto-send 500ms later. If they had existing typed
-          // text in the box we DON'T auto-send (they were probably
-          // composing manually and added a voice fragment); we just
-          // append. If the input was empty, voice path takes over and
-          // submits for them.
-          let scheduleAutoSend = false;
-          setInput((cur) => {
-            if (cur && cur.trim().length > 0) {
-              return cur + ' ' + trimmed;
-            }
-            scheduleAutoSend = true;
-            return trimmed;
-          });
-          if (scheduleAutoSend && trimmed.length > 0) {
+          // Always auto-send when transcription arrives via mic. Drop
+          // any existing typed text in the box (rare edge case, easy
+          // to recover by typing again). Auto-send fires after 200ms
+          // so the user has a beat to see the transcript.
+          if (trimmed.length > 0) {
+            setInput(trimmed);
+            setVoiceDebug('transcribed: "' + trimmed.slice(0, 60) + (trimmed.length > 60 ? '..' : '') + '" — auto-sending in 200ms');
             cancelPendingAutoSend();
             autoSendTimerRef.current = setTimeout(() => {
               autoSendTimerRef.current = null;
               setInput('');
+              setVoiceDebug(null);
               void sendMessage({ text: trimmed });
-            }, 500);
+            }, 200);
           }
         } else {
           setMicError(json.error ?? ('Transcription failed (HTTP ' + res.status + ').'));
