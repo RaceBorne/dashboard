@@ -411,7 +411,7 @@ export function SeoHealthClient({
   const reviewCount = scan?.findings.filter((f) => f.check.fix === 'review').length ?? 0;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)_minmax(0,420px)] gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_minmax(0,420px)] gap-4">
       {/* ----- Pane 1: Scorecard ----- */}
       <aside className="space-y-3">
         {mock && (
@@ -588,7 +588,7 @@ export function SeoHealthClient({
       </section>
 
       {/* ----- Pane 3: Detail / fix ----- */}
-      <aside className="rounded-xl bg-evari-surface min-h-[400px] flex flex-col">
+      <aside className="rounded-xl bg-evari-surface min-h-[400px] flex flex-col lg:col-span-2 xl:col-span-1">
         {!selected ? (
           <div className="flex-1 flex items-center justify-center text-evari-dim text-sm italic px-6 text-center">
             Select an issue to see its details and apply a fix.
