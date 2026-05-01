@@ -352,6 +352,9 @@ export function AIAssistantPane() {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
+  // Inline diagnostic for the Test Voice button: lets the user see what
+  // happened on the most recent click, without dev tools.
+  const [voiceDebug, setVoiceDebug] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   // Auto-send timer: 500ms after a Whisper transcript lands we fire
@@ -433,6 +436,50 @@ export function AIAssistantPane() {
     } catch (e) {
       console.warn('[mojito.tts.cartesia] threw', e);
       return false;
+    }
+  }
+
+  // Test Voice button: end-to-end probe. Calls /api/ai/speak with a
+  // known phrase, surfaces every step in the voiceDebug strip. Bypasses
+  // the speech effect entirely so we know if the problem is the trigger
+  // path or the audio playback path.
+  async function testVoice() {
+    setVoiceDebug('1/3 fetching audio...');
+    try {
+      const res = await fetch('/api/ai/speak', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: 'Voice diagnostic. If you can hear me, audio playback works.' }),
+      });
+      if (!res.ok) {
+        const ct = res.headers.get('content-type') ?? '';
+        let detail = 'HTTP ' + res.status;
+        if (ct.includes('json')) {
+          const j = await res.json().catch(() => null) as { error?: string } | null;
+          if (j?.error) detail += ': ' + j.error;
+        }
+        setVoiceDebug('FAIL: ' + detail);
+        return;
+      }
+      const blob = await res.blob();
+      setVoiceDebug('2/3 audio received: ' + blob.size + ' bytes (' + blob.type + '). Trying play()...');
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => { URL.revokeObjectURL(url); setVoiceDebug('3/3 done. If silent, OS or tab is muted.'); };
+      audio.onerror = (e) => { URL.revokeObjectURL(url); setVoiceDebug('FAIL during playback: ' + String(e)); };
+      try {
+        await audio.play();
+        setVoiceDebug('3/3 playing. Listen now.');
+      } catch (e) {
+        const name = (e as { name?: string } | null)?.name ?? '';
+        if (name === 'NotAllowedError') {
+          setVoiceDebug('FAIL: browser blocked auto-play. Click anywhere on the page first then click Test again.');
+        } else {
+          setVoiceDebug('FAIL play(): ' + (e instanceof Error ? e.message : String(e)));
+        }
+      }
+    } catch (e) {
+      setVoiceDebug('FAIL request: ' + (e instanceof Error ? e.message : String(e)));
     }
   }
 
@@ -962,6 +1009,14 @@ export function AIAssistantPane() {
             </button>
             <button
               type="button"
+              onClick={() => void testVoice()}
+              className="text-[10px] text-evari-dim hover:text-evari-text px-1.5 py-0.5 rounded border border-evari-edge/30"
+              title="Test voice playback end-to-end"
+            >
+              Test
+            </button>
+            <button
+              type="button"
               onClick={refreshConversation}
               className="text-evari-dim hover:text-evari-text p-1 rounded transition"
               title="New conversation"
@@ -1027,6 +1082,13 @@ export function AIAssistantPane() {
             <div className="px-3 pb-2 -mt-1">
               <div className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/30 rounded-md px-2 py-1.5 leading-snug">
                 {micError}
+              </div>
+            </div>
+          ) : null}
+          {voiceDebug ? (
+            <div className="px-3 pb-2 -mt-1">
+              <div className="text-[11px] text-evari-text bg-evari-ink/40 border border-evari-edge/40 rounded-md px-2 py-1.5 leading-snug font-mono">
+                {voiceDebug}
               </div>
             </div>
           ) : null}
