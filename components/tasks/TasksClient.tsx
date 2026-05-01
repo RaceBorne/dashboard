@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
  Search,
  ShoppingBag,
@@ -24,6 +25,7 @@ import {
  X,
  Pencil,
  Trash2,
+ RefreshCw,
 } from 'lucide-react';
 import {
  Task,
@@ -160,6 +162,8 @@ export function TasksClient({
  initialTasks: Task[];
  initialLists: CustomList[];
 }) {
+ const router = useRouter();
+ const [refreshing, startRefresh] = useTransition();
  const [tasks, setTasks] = useState<Task[]>(initialTasks);
  const [customLists, setCustomLists] = useState<CustomList[]>(initialLists);
  const [newListName, setNewListName] = useState('');
@@ -594,6 +598,28 @@ export function TasksClient({
         { value: 'calendar', label: 'Calendar' },
        ]}
       />
+      <Button
+       size="sm"
+       variant="ghost"
+       onClick={() => {
+        // Re-fetch from /api/tasks AND refresh the server component
+        // so done/in-progress states + new auto-added rows appear
+        // immediately. Updates the local tasks state in one round trip.
+        startRefresh(async () => {
+         try {
+          const res = await fetch('/api/tasks', { cache: 'no-store' });
+          const data = (await res.json()) as { tasks?: Task[] };
+          if (data?.tasks) setTasks(data.tasks);
+          router.refresh();
+         } catch { /* noop */ }
+        });
+       }}
+       disabled={refreshing}
+       title="Re-fetch tasks from the database"
+      >
+       <RefreshCw className={'h-3.5 w-3.5' + (refreshing ? ' animate-spin' : '')} />
+       Refresh
+      </Button>
       <Button
        size="sm"
        variant="primary"
