@@ -110,7 +110,7 @@ async function generate(surface: string): Promise<{ ok: true; data: Suggestions 
     '- Each title is an imperative action the operator could put on a to-do list (e.g. "Audit hero image on /products/evari-tour").',
     '- Each description explains the why in one short sentence.',
     '- Priority should reflect business impact: traffic crashes are high/urgent, optimisations are medium, exploratory work is low.',
-    '- All bullets should use category "' + defaultCategory + '" unless an obvious better fit applies (seo, shopify, marketing, content, ops, idea).',
+    '- All bullets should use category "' + defaultCategory + '" unless an obvious better fit applies. Valid categories are exactly: seo, shopify, lead-gen, social, content, medical-rehab, conversations, commerce, infra, ai-automation, general. Do NOT invent other category names.',
     '- Output JSON only.',
   ].join('\n');
 
@@ -142,7 +142,9 @@ async function generate(surface: string): Promise<{ ok: true; data: Suggestions 
       const priority = (PRIORITY_VALUES as ReadonlyArray<string>).includes(priorityRaw)
         ? (priorityRaw as Bullet['priority'])
         : 'medium';
-      const category = typeof b.category === 'string' && b.category.length > 0 ? b.category : defaultCategory;
+      const VALID_CATS = ['seo', 'shopify', 'lead-gen', 'social', 'content', 'medical-rehab', 'conversations', 'commerce', 'infra', 'ai-automation', 'general'];
+      let category = typeof b.category === 'string' ? b.category : defaultCategory;
+      if (!VALID_CATS.includes(category)) category = defaultCategory;
       return { title, description, priority, category };
     })
     .filter((b) => b.title.length > 0);

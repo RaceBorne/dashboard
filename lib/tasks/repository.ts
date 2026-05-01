@@ -45,7 +45,11 @@ interface TaskRow {
 }
 
 export function rowToTask(row: TaskRow): Task {
-  if (!isTaskCategory(row.category)) throw new Error(`Invalid category: ${row.category}`);
+  // Be lenient with categories so a single bad row (e.g. an AI-generated
+  // task that picked an enum value we no longer accept) does not poison
+  // the entire list. Status / priority / source still throw because
+  // those drive UI behaviour and silent fallback would mask real bugs.
+  const category = isTaskCategory(row.category) ? row.category : 'general';
   if (!isTaskStatus(row.status)) throw new Error(`Invalid status: ${row.status}`);
   if (!isTaskPriority(row.priority)) throw new Error(`Invalid priority: ${row.priority}`);
   if (!isTaskSource(row.source)) throw new Error(`Invalid source: ${row.source}`);
@@ -54,7 +58,7 @@ export function rowToTask(row: TaskRow): Task {
     id: row.id,
     title: row.title,
     description: row.description ?? undefined,
-    category: row.category,
+    category,
     status: row.status,
     priority: row.priority,
     dueDate: due ? due.slice(0, 10) : undefined,
