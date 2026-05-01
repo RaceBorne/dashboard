@@ -345,6 +345,18 @@ export function AIAssistantPane() {
   const [micError, setMicError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  // Auto-send timer: 500ms after a Whisper transcript lands we fire
+  // sendMessage automatically, the way ChatGPT voice mode does. If the
+  // user starts another recording within that window we cancel the
+  // pending send. Keeps voice flow conversational without a manual
+  // press-to-confirm step.
+  const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function cancelPendingAutoSend() {
+    if (autoSendTimerRef.current != null) {
+      clearTimeout(autoSendTimerRef.current);
+      autoSendTimerRef.current = null;
+    }
+  }
 
   // Voice output: when on, the assistant's reply is read aloud via
   // the browser SpeechSynthesis API. Free, instant, mediocre voice;
@@ -494,7 +506,29 @@ export function AIAssistantPane() {
         const res = await fetch('/api/ai/transcribe', { method: 'POST', body: fd });
         const json = (await res.json().catch(() => ({}))) as { ok?: boolean; text?: string; error?: string };
         if (res.ok && json.ok && json.text) {
-          setInput((cur) => (cur ? cur + ' ' + json.text : json.text!));
+          const trimmed = json.text.trim();
+          // Fill the input so the user can SEE what was transcribed,
+          // then auto-send 500ms later. If they had existing typed
+          // text in the box we DON'T auto-send (they were probably
+          // composing manually and added a voice fragment); we just
+          // append. If the input was empty, voice path takes over and
+          // submits for them.
+          let scheduleAutoSend = false;
+          setInput((cur) => {
+            if (cur && cur.trim().length > 0) {
+              return cur + ' ' + trimmed;
+            }
+            scheduleAutoSend = true;
+            return trimmed;
+          });
+          if (scheduleAutoSend && trimmed.length > 0) {
+            cancelPendingAutoSend();
+            autoSendTimerRef.current = setTimeout(() => {
+              autoSendTimerRef.current = null;
+              setInput('');
+              void sendMessage({ text: trimmed });
+            }, 500);
+          }
         } else {
           setMicError(json.error ?? ('Transcription failed (HTTP ' + res.status + ').'));
           console.warn('[mojito.mic.transcribe] failed', json);
