@@ -642,16 +642,59 @@ export function buildTools(pane: PaneContext) {
 
     goTo: tool({
       description:
-        'Navigate the user to a specific route in the app. Use this whenever the user asks "open X" or "take me to X". Always prefer named routes over made-up paths.',
+        'Navigate the user to a specific route in the app. Use this whenever the user asks "open X" or "take me to X". You MUST use one of the routes listed in the validRoutes section below. Made-up paths will be rejected.',
       inputSchema: z.object({
         route: z
           .string()
           .describe(
-            'Pathname starting with "/". Common routes: /plays (ideas list), /plays/{id}/strategy, /plays/{id}/discover, /plays/{id}/shortlist, /email/campaigns, /email/campaigns/{id}/edit, /email/statistics, /email/conversations, /audience/lists, /audience/segments, /context, /assets, /content',
+            'Pathname starting with "/". Valid routes (only these are real): ' +
+            '/ (Home / morning briefing), ' +
+            '/screensaver (tile canvas), ' +
+            '/tasks (to-do list), ' +
+            '/ideas (idea list), ' +
+            '/plays/{id} (a specific play / venture), ' +
+            '/plays/{id}/strategy, /plays/{id}/discover, /plays/{id}/shortlist, ' +
+            '/discover (Discovery), /shortlist, /enrichment, /leads, ' +
+            '/people (person-centric inbox), ' +
+            '/email (Email overview), ' +
+            '/email/campaigns, /email/campaigns/{id}/edit, ' +
+            '/email/statistics, /email/conversations, ' +
+            '/email/audience (lists + segments), /email/assets (asset library), ' +
+            '/email/templates, /email/flows, /email/contacts, /email/domains, ' +
+            '/email/suppressions, /email/brand, /email/settings, ' +
+            '/seo, /traffic, /performance, /pages, /backlinks, /keywords, ' +
+            '/social, /journals, /articles, ' +
+            '/synopsis, /scoring, /strategy, /wireframe, ' +
+            '/context, /settings, /users, ' +
+            '/prospecting, /prospecting/exclusions, ' +
+            '/shopify, /klaviyo. ' +
+            'If the user asks for something that is not in this list, do NOT call goTo; instead say what you would do and ask which existing surface they want.',
           ),
       }),
       execute: async ({ route }) => {
-        return ok({ clientAction: { type: 'navigate', route } });
+        // Validate the route against the known surface list. Anything
+        // unknown rejects rather than 404ing the user.
+        const VALID_PREFIXES = [
+          '/', '/screensaver', '/tasks',
+          '/ideas', '/plays', '/discover', '/shortlist', '/enrichment',
+          '/leads', '/people',
+          '/email', // covers /email/*
+          '/seo', '/traffic', '/performance', '/pages', '/backlinks', '/keywords',
+          '/social', '/journals', '/articles',
+          '/synopsis', '/scoring', '/strategy', '/wireframe',
+          '/context', '/settings', '/users',
+          '/prospecting', '/shopify', '/klaviyo',
+        ];
+        const r = route.trim();
+        if (!r.startsWith('/')) {
+          return err('route must start with "/", got: ' + r);
+        }
+        // Match either the exact prefix or '<prefix>/something'
+        const valid = VALID_PREFIXES.some((p) => r === p || r.startsWith(p + '/'));
+        if (!valid) {
+          return err('Unknown route: ' + r + '. See the description for the valid list. Tell the operator what you intended and ask which existing surface they meant.');
+        }
+        return ok({ clientAction: { type: 'navigate', route: r } });
       },
     }),
 
