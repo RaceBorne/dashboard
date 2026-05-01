@@ -527,44 +527,123 @@ export function AIAssistantPane() {
     }
   }
 
+  // Streaming TTS state. Per-message we track which character index we
+  // have already shipped to Cartesia. Audio chunks queue up and play in
+  // order so sentence 2 starts the moment sentence 1 finishes.
+  const streamingSpokenRef = useRef<{ messageId: string; charPos: number } | null>(null);
+  const audioQueueRef = useRef<Array<{ audio: HTMLAudioElement; url: string }>>([]);
+  const queuePlayingRef = useRef(false);
+
+  function playNextInQueue() {
+    if (queuePlayingRef.current) return;
+    const next = audioQueueRef.current.shift();
+    if (!next) return;
+    queuePlayingRef.current = true;
+    audioRef.current = next.audio;
+    next.audio.onended = () => {
+      URL.revokeObjectURL(next.url);
+      queuePlayingRef.current = false;
+      playNextInQueue();
+    };
+    next.audio.onerror = () => {
+      URL.revokeObjectURL(next.url);
+      queuePlayingRef.current = false;
+      playNextInQueue();
+    };
+    next.audio.play().catch((e) => {
+      const name = (e as { name?: string } | null)?.name ?? '';
+      if (name === 'NotAllowedError') {
+        setVoiceDebug('FAIL play(): browser blocked auto-play. Click anywhere on the page first.');
+      }
+      URL.revokeObjectURL(next.url);
+      queuePlayingRef.current = false;
+      playNextInQueue();
+    });
+  }
+
+  async function shipSentenceChunk(chunk: string) {
+    try {
+      const res = await fetch('/api/ai/speak', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: chunk }),
+      });
+      if (!res.ok) {
+        // Fall back to browser TTS for this chunk.
+        speakWithBrowser(chunk);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioQueueRef.current.push({ audio, url });
+      playNextInQueue();
+    } catch {
+      speakWithBrowser(chunk);
+    }
+  }
+
+  // Streaming TTS effect. Watches the assistant message text as it
+  // grows, ships each completed sentence to Cartesia immediately, then
+  // ships whatever is left when the stream ends. Cartesia returns
+  // sub-second on short sentences, so the operator hears sentence 1
+  // around the time sentence 2 arrives. The audio queue handles
+  // sequencing.
   useEffect(() => {
-    // Heavy diagnostics on the auto-speak path: write each branch into
-    // the voiceDebug strip so the operator can SEE why a reply did or
-    // did not get spoken aloud. Strip will clear after the message
-    // plays or 5s, whichever comes first.
-    if (!voiceOut) {
-      // Don't pollute the strip when voice is intentionally muted.
-      return;
-    }
+    if (!voiceOut) return;
     const last = messages[messages.length - 1];
-    if (!last) return;
-    if (last.role !== 'assistant') return;
-    if (spokenIds.current.has(last.id)) return;
-    if (status === 'streaming' || status === 'submitted') {
-      setVoiceDebug('streaming reply, will speak when finished... (status=' + status + ')');
-      return;
-    }
+    if (!last || last.role !== 'assistant') return;
+
     const text = (last.parts ?? [])
       .filter((p) => isTextUIPart(p))
       .map((p) => (p as { text?: string }).text ?? '')
-      .join(' ')
-      .trim();
-    if (!text) {
-      setVoiceDebug('reply finished but had no text parts to speak (parts=' + (last.parts ?? []).length + ')');
-      return;
+      .join('');
+
+    // New message? Reset state and clear any leftover queue.
+    if (streamingSpokenRef.current?.messageId !== last.id) {
+      streamingSpokenRef.current = { messageId: last.id, charPos: 0 };
+      // Don't clobber an in-flight queue from the previous message;
+      // let it drain naturally.
     }
-    spokenIds.current.add(last.id);
-    setVoiceDebug('speaking ' + text.length + ' chars via Cartesia...');
-    void (async () => {
-      const ok = await speakWithCartesia(text);
-      if (!ok) {
-        setVoiceDebug('Cartesia failed, falling back to browser TTS');
-        speakWithBrowser(text);
-      } else {
-        setVoiceDebug('speaking via Cartesia');
-        setTimeout(() => setVoiceDebug(null), 5000);
-      }
-    })();
+    const state = streamingSpokenRef.current;
+    const remaining = text.slice(state.charPos);
+    if (!remaining) return;
+
+    const isStreaming = status === 'streaming' || status === 'submitted';
+
+    // Find a chunk to ship. Prefer ending on punctuation, otherwise
+    // wait for more text unless the stream is finished.
+    let chunkEnd = -1;
+    // Match sentence-end punctuation followed by whitespace or end.
+    // Avoid breaking mid-acronym ('U.S.') by requiring 1+ space after
+    // the period before treating it as a sentence boundary.
+    const m = /[.!?](?=\s|$)/.exec(remaining);
+    if (m && m.index >= 0) {
+      // Skip very short chunks like 'Yes.'; require >= 12 chars before
+      // the punctuation so single-word interjections accumulate.
+      if (m.index + 1 >= 12) chunkEnd = m.index + 1;
+    }
+    if (chunkEnd < 0 && !isStreaming) {
+      // Stream done, ship whatever is left.
+      chunkEnd = remaining.length;
+    }
+    if (chunkEnd < 0 && remaining.length > 220) {
+      // Force a chunk on a runaway sentence; break at the last space
+      // before 220 chars so we keep word boundaries.
+      const cap = Math.min(220, remaining.length);
+      const lastSpace = remaining.slice(0, cap).lastIndexOf(' ');
+      if (lastSpace > 30) chunkEnd = lastSpace;
+    }
+    if (chunkEnd <= 0) return;
+
+    const chunk = remaining.slice(0, chunkEnd).trim();
+    state.charPos += chunkEnd;
+    if (chunk.length >= 2) {
+      void shipSentenceChunk(chunk);
+      setVoiceDebug('streaming TTS: queued ' + chunk.length + ' chars');
+      // Auto-clear after a beat so the strip doesn't pile up.
+      setTimeout(() => setVoiceDebug((prev) => prev && prev.startsWith('streaming TTS') ? null : prev), 2000);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, status, voiceOut]);
 
