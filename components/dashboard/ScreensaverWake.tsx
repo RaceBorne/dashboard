@@ -1,72 +1,52 @@
 'use client';
 
 /**
- * Mounted on the screensaver page. Detects user activity (mouse move,
- * key, touch, scroll) and navigates back to the route the user was on
- * when the screensaver kicked in, captured via ?wakeTo=. While we go,
- * we set a sessionStorage flag that the AI pane reads on its next
- * mount, so Mojito greets the user the moment the dashboard reappears.
+ * Mounted on the screensaver page. Any user activity wakes the
+ * dashboard back to the route the user came from (?wakeTo=). Sets
+ * sessionStorage flag so the AI pane greets on return.
  *
- * Threshold: ignore the first 600ms after mount so the navigation
- * transition doesn't auto-wake. After that, any meaningful input
- * dismisses.
+ * Simpler implementation: a 400ms arming delay (so the navigation
+ * transition that just brought us here doesn't auto-wake), then ANY
+ * mousemove / mousedown / keydown / touchstart fires the wake.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-const ARMING_DELAY_MS = 600;
-const MIN_MOUSE_MOVE_PX = 8;
+const ARMING_DELAY_MS = 400;
 
 export function ScreensaverWake() {
   const router = useRouter();
   const params = useSearchParams();
-  const armedRef = useRef(false);
-  const initialMouseRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const wakeTo = params?.get('wakeTo') ?? '/';
-    const safeWakeTo = wakeTo.startsWith('/') ? wakeTo : '/';
+    const safeWakeTo = wakeTo.startsWith('/') && !wakeTo.startsWith('/screensaver') ? wakeTo : '/';
 
-    // Wait a beat so the screensaver actually appears before we start
-    // listening for "wake me up" gestures.
-    const armTimer = setTimeout(() => {
-      armedRef.current = true;
-    }, ARMING_DELAY_MS);
+    let armed = false;
+    let woken = false;
+    const armTimer = setTimeout(() => { armed = true; }, ARMING_DELAY_MS);
 
     function wake() {
-      try {
-        sessionStorage.setItem('mojito-wake-greet', '1');
-      } catch { /* ignore */ }
+      if (!armed || woken) return;
+      woken = true;
+      try { sessionStorage.setItem('mojito-wake-greet', '1'); } catch { /* ignore */ }
       router.push(safeWakeTo);
     }
 
-    function onMouseMove(e: MouseEvent) {
-      if (!armedRef.current) return;
-      if (!initialMouseRef.current) {
-        initialMouseRef.current = { x: e.clientX, y: e.clientY };
-        return;
-      }
-      const dx = Math.abs(e.clientX - initialMouseRef.current.x);
-      const dy = Math.abs(e.clientY - initialMouseRef.current.y);
-      if (dx + dy > MIN_MOUSE_MOVE_PX) wake();
-    }
-
-    function onKey() { if (armedRef.current) wake(); }
-    function onTouch() { if (armedRef.current) wake(); }
-    function onMouseDown() { if (armedRef.current) wake(); }
-
-    window.addEventListener('mousemove', onMouseMove, { passive: true });
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('touchstart', onTouch, { passive: true });
-    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', wake, { passive: true });
+    window.addEventListener('mousedown', wake);
+    window.addEventListener('keydown', wake);
+    window.addEventListener('touchstart', wake, { passive: true });
+    window.addEventListener('wheel', wake, { passive: true });
 
     return () => {
       clearTimeout(armTimer);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('touchstart', onTouch);
-      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mousemove', wake);
+      window.removeEventListener('mousedown', wake);
+      window.removeEventListener('keydown', wake);
+      window.removeEventListener('touchstart', wake);
+      window.removeEventListener('wheel', wake);
     };
   }, [router, params]);
 
