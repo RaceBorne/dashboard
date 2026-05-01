@@ -296,7 +296,7 @@ export function AIAssistantPane() {
     // the streaming TTS path automatically.
     const t = setTimeout(() => {
       void sendMessage({
-        text: '[wake-cue] User just woke from the screensaver. Greet them warmly with a short menu, two or three sentences total, NO bullet points or numbered list. Say something like: "Hey Mad Dog. Want me to read you the morning briefing, or walk you through what is worth your attention? Or just tell me what you want to do." Phrase it your own way, keep it natural and conversational. Then stop.',
+        text: '[wake-cue] User just woke from the screensaver. Greet them warmly with a short menu, two or three sentences total, NO bullet points or numbered list. Say something like: "Hey Mad Dog. Want me to run through everything for you — briefing, attention, prospecting, marketing, broadcast and web — or just tell me what you want to focus on?" Phrase it your own way, keep it natural and conversational. Mention that the buttons under the chat input cover each area individually if they want to tackle them one at a time. Then stop.',
       });
     }, 300);
     return () => clearTimeout(t);
@@ -1218,11 +1218,11 @@ export function AIAssistantPane() {
             ) : null}
           </div>
 
-          {/* Standing daily-action buttons. Always visible above the input
-              regardless of whether a conversation is in progress. Each
-              button fires a pre-filled prompt that the model picks up
-              like any other user turn — Mojito calls the relevant tool
-              and the streaming TTS reads the answer aloud. */}
+          {/* Six standing daily-action buttons in a 3x2 grid. Always
+              visible above the input regardless of conversation state.
+              Each button fires a pre-filled prompt that the model
+              handles like any other turn; Mojito picks the right
+              tool and the streaming TTS reads the answer back. */}
           <div className="px-3 pb-2 grid grid-cols-3 gap-1.5">
             <button
               type="button"
@@ -1237,7 +1237,7 @@ export function AIAssistantPane() {
             <button
               type="button"
               disabled={busy || transcribing}
-              onClick={() => void sendMessage({ text: 'Walk me through what is worth my attention right now, in priority order. Use getOpenWork to pull live counts, then summarise the top items briefly so I can act.' })}
+              onClick={() => void sendMessage({ text: 'Walk me through what is worth my attention right now, in priority order. Use getOpenWork to pull live counts plus the top tasks, then summarise the headline items briefly so I can act.' })}
               className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
               title="What's worth your attention"
             >
@@ -1247,12 +1247,42 @@ export function AIAssistantPane() {
             <button
               type="button"
               disabled={busy || transcribing}
-              onClick={() => void sendMessage({ text: 'What are my top tasks today? Suggest which one I should tackle first and why. Keep it short.' })}
+              onClick={() => void sendMessage({ text: 'Give me a prospecting synopsis. Use listIdeas to count active ideas and identify which ones are mid-flight, then check listShortlist on the most active idea to see how the funnel is shaping up. Tell me what is in motion, where I am stuck, and what I should push next. Two or three short sentences.' })}
               className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
-              title="Today's tasks"
+              title="Prospecting pipeline synopsis"
+            >
+              <Wrench className="h-3.5 w-3.5 text-evari-gold" />
+              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Prospecting</span>
+            </button>
+            <button
+              type="button"
+              disabled={busy || transcribing}
+              onClick={() => void sendMessage({ text: 'Marketing snapshot. Use listCampaigns to see what is in flight, then tell me the cadence: how many campaigns are scheduled this week, this month, and which audiences they hit. Flag any drafts that have been sitting idle. Short and concrete.' })}
+              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              title="Marketing campaign cadence"
+            >
+              <Send className="h-3.5 w-3.5 text-evari-gold" />
+              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Marketing</span>
+            </button>
+            <button
+              type="button"
+              disabled={busy || transcribing}
+              onClick={() => void sendMessage({ text: 'Broadcast schedule. Tell me what is scheduled to send this week and what is queued for the rest of the month. Use listCampaigns with statusFilter=scheduled to pull the calendar. Short.' })}
+              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              title="Broadcast send schedule"
+            >
+              <Volume2 className="h-3.5 w-3.5 text-evari-gold" />
+              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Broadcast</span>
+            </button>
+            <button
+              type="button"
+              disabled={busy || transcribing}
+              onClick={() => void sendMessage({ text: 'Web health check. Tell me what is broken or needs fixing on the website right now: critical SEO findings, broken redirects, slow pages, anything from PageSpeed. Pull whatever live signal you can. Short list with severity.' })}
+              className="flex flex-col items-center gap-1 rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-2 py-2 disabled:opacity-50"
+              title="Website technical health"
             >
               <CheckCircle2 className="h-3.5 w-3.5 text-evari-gold" />
-              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Tasks</span>
+              <span className="text-[10px] font-semibold text-evari-text leading-tight text-center">Web</span>
             </button>
           </div>
 
