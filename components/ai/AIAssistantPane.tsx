@@ -231,10 +231,13 @@ export function AIAssistantPane() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [input, setInput] = useState('');
-  // Track whether we have mounted on the client. Used to gate any UI
-  // whose content depends on the runtime clock (greeting), so SSR and
-  // hydration produce identical HTML and React #418 hydration errors
-  // do not blow up subsequent client-only hooks.
+  // Track whether we have mounted on the client. The pane uses several
+  // runtime-only APIs (Date, localStorage indirectly via persisted
+  // open/closed, useChat-internal generateId, media APIs) so the safest
+  // path is to render NOTHING on the server and let the real tree
+  // render after hydration. This kills React #418 hydration mismatches
+  // dead. The placeholder shell is sized to match the open pane so the
+  // surrounding flex layout does not jump.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -805,6 +808,13 @@ export function AIAssistantPane() {
   }
 
   // ----- collapsed pill --------------------------------------------------
+  // SSR placeholder. Same width as the open pane so the sidebar layout
+  // does not shift on hydration. Empty content. The real pane mounts
+  // immediately after via the useEffect above.
+  if (!mounted) {
+    return <aside className="flex flex-col border-l border-evari-edge/30 bg-evari-surface min-h-0 flex-shrink-0 w-[360px]" aria-hidden />;
+  }
+
   if (!open) {
     return (
       <button
