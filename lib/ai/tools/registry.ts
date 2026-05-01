@@ -41,6 +41,7 @@ import {
 import { listGroups } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
 import { getActiveContext, listContexts } from '@/lib/context/activeContext';
+import { getTrafficSnapshot } from '@/lib/traffic/repository';
 import { recordAction, findMostRecentUndoable, markUndone, listRecentActions } from './actionLog';
 
 // ---------------------------------------------------------------------------
@@ -856,7 +857,47 @@ export function buildTools(pane: PaneContext) {
       },
     }),
 
-    readMorningBriefing: tool({
+    getTrafficSnapshot: tool({
+      description:
+        'Pull the live GA4 traffic snapshot for evari.cc: sessions, active users, conversions, top channels, top pages, top countries / cities, devices, languages, events, demographics, plus week-on-week deltas. Use this whenever the operator asks about website traffic, what is happening on the site, where visitors come from, which pages are hot, mobile vs desktop split, or any performance question. Returns structured data the assistant should narrate in plain English.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const s = await getTrafficSnapshot();
+          if (!s.connected) {
+            return err('GA4 not connected. Tell the operator to set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, and GA4_PROPERTY_ID in Vercel.');
+          }
+          if (!s.hasData) {
+            return err('GA4 connected but no data yet. Tell the operator to open the Traffic page and click Sync now to run the first ingest.');
+          }
+          // Trim noisy fields and return only what is useful for narration.
+          // Keep top 5 of each list so the model has signal but does not
+          // drown in 250-row country tables.
+          return ok({
+            window: { start: s.windowStart, end: s.windowEnd, days: 28 },
+            kpis: {
+              activeUsers: { value: s.kpi.activeUsers.value, deltaPct: s.kpi.activeUsers.deltaPct },
+              newUsers: { value: s.kpi.newUsers.value, deltaPct: s.kpi.newUsers.deltaPct },
+              sessions: { value: s.kpi.sessions.value, deltaPct: s.kpi.sessions.deltaPct },
+              events: { value: s.kpi.events.value, deltaPct: s.kpi.events.deltaPct },
+            },
+            topChannels: s.channels.slice(0, 5).map((c) => ({ channel: c.channel, sessions: c.sessions, conversions: c.conversions })),
+            topPages: s.pages.slice(0, 5).map((p) => ({ path: p.pagePath, title: p.pageTitle, views: p.views, users: p.users, bounceRate: p.bounceRate })),
+            topCountries: s.countries.slice(0, 5).map((c) => ({ country: c.country, sessions: c.sessions })),
+            topCities: s.cities.slice(0, 5).map((c) => ({ city: c.city, country: c.country, sessions: c.sessions })),
+            topSources: s.sources.slice(0, 5).map((s2) => ({ source: s2.source, medium: s2.medium, sessions: s2.sessions })),
+            devices: s.devices.map((d) => ({ device: d.device, sessions: d.sessions, users: d.users })),
+            topEvents: s.events.slice(0, 5).map((e) => ({ name: e.eventName, count: e.eventCount })),
+            languages: s.languages.slice(0, 3).map((l) => ({ language: l.language, sessions: l.sessions })),
+            lastSyncedAt: s.lastSyncedAt,
+          });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'getTrafficSnapshot failed');
+        }
+      },
+    }),
+
+        readMorningBriefing: tool({
       description:
         'Fetch the latest morning briefing prose (the analyst-style summary of pipeline, traffic, anomalies and so on) and return it as text for the assistant to read aloud. Use whenever the operator asks to hear the briefing, walk through today, or get a status summary.',
       inputSchema: z.object({}),

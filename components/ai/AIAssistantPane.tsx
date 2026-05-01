@@ -1259,7 +1259,7 @@ export function AIAssistantPane() {
             <button
               type="button"
               disabled={busy || transcribing}
-              onClick={() => void sendMessage({ text: 'Web health check. Tell me what is broken or needs fixing on the website right now: critical SEO findings, broken redirects, slow pages, anything from PageSpeed. Pull whatever live signal you can. Short list with severity.' })}
+              onClick={() => void sendMessage({ text: 'Web synopsis. Use getTrafficSnapshot to pull live GA4 data (sessions, channels, top pages, devices, deltas) and summarise what is happening on evari.cc right now. Mention week-on-week direction, top channel, top page, mobile vs desktop split, anything notable. Keep it three to five short sentences.' })}
               className="flex items-center gap-2 w-full rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-3 py-2 disabled:opacity-50"
               title="Website technical health"
             >
