@@ -1,5 +1,6 @@
 import { TopBar } from '@/components/sidebar/TopBar';
 import { TrafficDashboard } from '@/components/traffic/TrafficDashboard';
+import { AISuggestionsCard } from '@/components/suggestions/AISuggestionsCard';
 import { getTrafficSnapshot } from '@/lib/traffic/repository';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,11 @@ export default async function TrafficPage() {
   return (
     <>
       <TopBar title="Traffic" subtitle={subtitle} />
+      {snapshot.connected && snapshot.hasData ? (
+        <div className="px-gutter pt-4">
+          <AISuggestionsCard surface="traffic" />
+        </div>
+      ) : null}
       <TrafficDashboard snapshot={snapshot} />
     </>
   );
