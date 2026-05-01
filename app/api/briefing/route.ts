@@ -37,21 +37,30 @@ export async function POST() {
  * for a refresh. If the table is empty (first run on a fresh env), we
  * fall through to a regenerate so the user never sees an empty state.
  */
+// Serve the persisted briefing if it's < STALE_AFTER_MS old. Otherwise
+// regenerate once and serve the fresh result. Keeps AI spend bounded
+// to roughly one call every 2h while you're logged in, plus the 6am
+// cron, plus any manual Regenerate clicks.
+const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
+
 export async function GET() {
   const supabase = createSupabaseAdmin();
   const latest = await readLatestBriefing(supabase);
   if (latest) {
-    return NextResponse.json({
-      markdown: latest.markdown,
-      mock: latest.mock,
-      payload: latest.payload,
-      date: latest.date,
-      source: latest.source,
-      cached: true,
-    });
+    const age = Date.now() - new Date(latest.updatedAt).getTime();
+    if (age < STALE_AFTER_MS) {
+      return NextResponse.json({
+        markdown: latest.markdown,
+        mock: latest.mock,
+        payload: latest.payload,
+        date: latest.date,
+        source: latest.source,
+        cached: true,
+        ageMinutes: Math.round(age / 60000),
+      });
+    }
   }
-  // First-run fallback — no briefings have been persisted yet, so generate
-  // one on the fly. This only costs an AI Gateway call once.
+  // Either no briefing yet, or the latest is stale. Regenerate.
   const fresh = await generateAndPersistBriefing(supabase, { source: 'manual' });
   return NextResponse.json({
     markdown: fresh.markdown,
@@ -60,5 +69,6 @@ export async function GET() {
     date: fresh.date,
     source: fresh.source,
     cached: false,
+    ageMinutes: 0,
   });
 }

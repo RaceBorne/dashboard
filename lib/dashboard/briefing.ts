@@ -432,12 +432,12 @@ export async function generateAndPersistBriefing(
  */
 export async function readLatestBriefing(
   supabase: SupabaseClient | null,
-): Promise<GeneratedBriefing | null> {
+): Promise<(GeneratedBriefing & { updatedAt: string }) | null> {
   if (!supabase) return null;
   const { data, error } = await supabase
     .from('dashboard_briefings')
-    .select('brief_date, markdown, payload, source, mock')
-    .order('brief_date', { ascending: false })
+    .select('brief_date, markdown, payload, source, mock, updated_at')
+    .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error || !data) return null;
@@ -447,6 +447,7 @@ export async function readLatestBriefing(
     payload: BriefingPayload;
     source: 'cron' | 'manual';
     mock: boolean;
+    updated_at: string;
   };
   return {
     date: row.brief_date,
@@ -454,5 +455,6 @@ export async function readLatestBriefing(
     payload: row.payload,
     source: row.source,
     mock: row.mock,
+    updatedAt: row.updated_at,
   };
 }

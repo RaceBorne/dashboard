@@ -11,10 +11,13 @@ export function BriefingCard() {
  const [loading, setLoading] = useState(false);
  const [mock, setMock] = useState(true);
 
- async function load() {
+ // Initial load: GET to fetch the cached briefing. Server returns the
+ // persisted one if it's < 2 hours old, otherwise regenerates once.
+ // Manual Regenerate button explicitly POSTs to force a fresh run.
+ async function load(force = false) {
   setLoading(true);
   try {
-   const res = await fetch('/api/briefing', { method: 'POST' });
+   const res = await fetch('/api/briefing', { method: force ? 'POST' : 'GET' });
    const data = (await res.json()) as { markdown: string; mock: boolean };
    setMarkdown(data.markdown);
    setMock(data.mock);
@@ -52,7 +55,7 @@ export function BriefingCard() {
       <Button
        variant="ghost"
        size="sm"
-       onClick={() => void load()}
+       onClick={() => void load(true)}
        disabled={loading}
        className="text-xs"
       >
