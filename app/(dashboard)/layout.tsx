@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
 import { CommandPalette } from '@/components/CommandPalette';
 import { AIAssistantPane, AIPaneProvider } from '@/components/ai/AIAssistantPane';
+import { IdleScreensaver } from '@/components/dashboard/IdleScreensaver';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Root viewport is fixed: h-screen + overflow-hidden so the sidebar,
@@ -22,6 +23,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">{children}</main>
         <AIAssistantPane />
         <CommandPalette />
+        <IdleScreensaver />
       </div>
     </AIPaneProvider>
   );

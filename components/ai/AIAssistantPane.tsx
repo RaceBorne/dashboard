@@ -282,7 +282,28 @@ export function AIAssistantPane() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPrompt]);
 
-  // Morning summary: on the first pane-open of the calendar day, auto-
+  // Wake-from-screensaver greeting. ScreensaverWake sets the
+  // 'mojito-wake-greet' sessionStorage flag right before navigating
+  // back from /screensaver. We read + clear it here, then ask Mojito
+  // to deliver a short warm greeting so it feels alive after idle.
+  useEffect(() => {
+    if (!open) return;
+    if (typeof window === 'undefined') return;
+    const flag = window.sessionStorage.getItem('mojito-wake-greet');
+    if (flag !== '1') return;
+    window.sessionStorage.removeItem('mojito-wake-greet');
+    // Tiny delay so the pane has rendered; the model will speak via
+    // the streaming TTS path automatically.
+    const t = setTimeout(() => {
+      void sendMessage({
+        text: '[wake-cue] User just woke from screensaver. Say exactly: "Hey, how can I help you?" and stop. One short sentence, no follow-up question, no list.',
+      });
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+    // Morning summary: on the first pane-open of the calendar day, auto-
   // send a "what's open" prompt so the operator gets a status briefing
   // without having to ask. Toggleable in localStorage.
   useEffect(() => {
