@@ -1219,7 +1219,7 @@ export function AIAssistantPane() {
             <button
               type="button"
               disabled={busy || transcribing}
-              onClick={() => void sendMessage({ text: 'Walk me through what is worth my attention right now, in priority order. Use getOpenWork to pull live counts plus the top tasks, then summarise the headline items briefly so I can act.' })}
+              onClick={() => void sendMessage({ text: 'Walk me through my open to-do list one task at a time. Call listOpenTasks first to pull them in priority order. For EACH task, do this: 1) Read out the title, the priority, and the one-line description. 2) Tell me which dashboard surface is best for this work (e.g. SEO, Shopify, Traffic, Keywords) and offer to take me there using goTo. 3) Wait for me to say yes / no / skip / mark done / mark blocked. 4) If yes, navigate. If I say it is done, call markTaskStatus with status=done and a short resolution note. If I say it is blocked, call markTaskStatus with status=blocked and capture the reason. If I say skip, move on. Do not auto-mark anything; always wait for my decision. Keep prose between tasks short, two sentences max.' })}
               className="flex items-center gap-2 w-full rounded-md border border-evari-edge/30 bg-evari-ink/30 hover:border-evari-gold/40 hover:bg-evari-gold/5 transition px-3 py-2 disabled:opacity-50"
               title="What's worth your attention"
             >

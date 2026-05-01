@@ -42,6 +42,7 @@ import { listGroups } from '@/lib/marketing/groups';
 import { listSegments } from '@/lib/marketing/segments';
 import { getActiveContext, listContexts } from '@/lib/context/activeContext';
 import { getTrafficSnapshot } from '@/lib/traffic/repository';
+import { listTasksAndLists, updateTaskById } from '@/lib/tasks/repository';
 import { recordAction, findMostRecentUndoable, markUndone, listRecentActions } from './actionLog';
 
 // ---------------------------------------------------------------------------
@@ -893,6 +894,103 @@ export function buildTools(pane: PaneContext) {
           });
         } catch (e) {
           return err(e instanceof Error ? e.message : 'getTrafficSnapshot failed');
+        }
+      },
+    }),
+
+        listOpenTasks: tool({
+      description:
+        'List every open task on the to-do board (anything that is not status="done"). Returns id, title, description, category, priority, status, due date, notes. Used when the operator says "walk me through my tasks" or "what is on my list". Sort: priority desc (urgent, high, medium, low), then due date asc.',
+      inputSchema: z.object({
+        category: z.string().optional().describe('Optional. Filter by category (seo, shopify, lead-gen, social, content, etc).'),
+      }),
+      execute: async ({ category }) => {
+        const sb = createSupabaseAdmin();
+        if (!sb) return err('DB unavailable');
+        try {
+          const { tasks } = await listTasksAndLists(sb);
+          const PRI: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+          let out = tasks.filter((t) => t.status !== 'done');
+          if (category) out = out.filter((t) => t.category === category);
+          out.sort((a, b) => {
+            const pa = PRI[a.priority] ?? 4;
+            const pb = PRI[b.priority] ?? 4;
+            if (pa !== pb) return pa - pb;
+            const da = a.dueDate ?? '9999-12-31';
+            const db = b.dueDate ?? '9999-12-31';
+            return da.localeCompare(db);
+          });
+          return ok({
+            count: out.length,
+            tasks: out.map((t) => ({
+              id: t.id,
+              title: t.title,
+              description: t.description ?? null,
+              category: t.category,
+              priority: t.priority,
+              status: t.status,
+              dueDate: t.dueDate ?? null,
+              notes: t.notes ?? null,
+            })),
+          });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'listOpenTasks failed');
+        }
+      },
+    }),
+
+    markTaskStatus: tool({
+      description:
+        'Update a task\'s status. Use after walking the operator through a task to mark it done, in-progress, or blocked. Status values: proposed, planned, in-progress, done, blocked.',
+      inputSchema: z.object({
+        taskId: z.string(),
+        status: z.enum(['proposed', 'planned', 'in-progress', 'done', 'blocked']),
+        note: z.string().optional().describe('Optional resolution note appended to task.notes (e.g. why blocked, how fixed).'),
+      }),
+      execute: async ({ taskId, status, note }) => {
+        const sb = createSupabaseAdmin();
+        if (!sb) return err('DB unavailable');
+        try {
+          // Append note to existing notes if any.
+          let nextNotes: string | undefined;
+          if (note && note.trim().length > 0) {
+            const { data: cur } = await sb.from('tasks').select('notes').eq('id', taskId).maybeSingle();
+            const existing = (cur as { notes?: string } | null)?.notes ?? '';
+            const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+            const entry = '[' + stamp + ' Mojito] ' + note.trim();
+            nextNotes = existing ? existing + '\n' + entry : entry;
+          }
+          const updated = await updateTaskById(sb, taskId, {
+            status,
+            ...(nextNotes !== undefined ? { notes: nextNotes } : {}),
+          });
+          return ok({ taskId, status: updated.status, title: updated.title });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'markTaskStatus failed');
+        }
+      },
+    }),
+
+    addTaskNote: tool({
+      description:
+        'Append a timestamped note to a task without changing its status. Use to record findings or analysis as you work through the task.',
+      inputSchema: z.object({
+        taskId: z.string(),
+        note: z.string(),
+      }),
+      execute: async ({ taskId, note }) => {
+        const sb = createSupabaseAdmin();
+        if (!sb) return err('DB unavailable');
+        try {
+          const { data: cur } = await sb.from('tasks').select('notes').eq('id', taskId).maybeSingle();
+          const existing = (cur as { notes?: string } | null)?.notes ?? '';
+          const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+          const entry = '[' + stamp + ' Mojito] ' + note.trim();
+          const next = existing ? existing + '\n' + entry : entry;
+          const updated = await updateTaskById(sb, taskId, { notes: next });
+          return ok({ taskId, title: updated.title, notesLength: next.length });
+        } catch (e) {
+          return err(e instanceof Error ? e.message : 'addTaskNote failed');
         }
       },
     }),
