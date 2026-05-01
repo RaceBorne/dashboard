@@ -180,25 +180,31 @@ export async function POST(req: Request) {
   }
 
   // -------- 3. Write back to Shopify + verify -----------------------------
+  // For products we trust the mutation response itself (productUpdate
+  // returns the freshly-updated product, which is the only authoritative
+  // post-write value, a separate product(id:) query is subject to a
+  // brief read-after-write inconsistency window where Shopify can echo
+  // the pre-write SEO state for ~5s after the mutation succeeds, which
+  // produced a false-negative "did not change" 502 for fixes that had
+  // actually persisted. For pages and articles we still re-read because
+  // the metafieldsSet path doesn't echo the merged Page/Article value.
   let verifiedTitle: string | null | undefined = undefined;
   let verifiedDesc: string | null | undefined = undefined;
   try {
     if (pageType === 'product') {
-      await updateProduct({
+      const updated = await updateProduct({
         id: pageId,
         ...(kind === 'meta-title' ? { seoTitle: cleaned } : { seoDescription: cleaned }),
       });
-      // Re-read to verify the write stuck. If Shopify accepted the
-      // mutation but didn't actually change the SEO field (a known
-      // silent-drop mode), we surface a warning to the client.
-      const fresh = await getProduct(pageId);
-      verifiedTitle = fresh?.seo?.title ?? null;
-      verifiedDesc = fresh?.seo?.description ?? null;
+      verifiedTitle = updated.seo?.title ?? null;
+      verifiedDesc = updated.seo?.description ?? null;
     } else if (pageType === 'page') {
       await updatePageMetadata({
         pageId,
         ...(kind === 'meta-title' ? { metaTitle: cleaned } : { metaDescription: cleaned }),
       });
+      // Brief settle so the metafields read isn't stale.
+      await new Promise((r) => setTimeout(r, 750));
       const list = await listShopifyPages({ first: 250, maxPages: 20 });
       const hit = list.find((x) => x.id === pageId);
       verifiedTitle = hit?.seo?.title ?? null;
@@ -208,6 +214,7 @@ export async function POST(req: Request) {
         articleId: pageId,
         ...(kind === 'meta-title' ? { metaTitle: cleaned } : { metaDescription: cleaned }),
       });
+      await new Promise((r) => setTimeout(r, 750));
       const list = await listArticles({ first: 250, maxPages: 20 });
       const hit = list.find((x) => x.id === pageId);
       verifiedTitle = hit?.seo?.title ?? null;
