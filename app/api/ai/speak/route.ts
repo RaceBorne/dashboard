@@ -65,7 +65,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const speed = typeof body?.speed === 'number' ? Math.min(2, Math.max(0.5, body.speed)) : 1.0;
+  // Default 0.85 reads as a calm, conversational pace (Cartesia's 1.0
+  // is brisk, almost newsreader-fast). Caller can override per request.
+  const speed = typeof body?.speed === 'number' ? Math.min(2, Math.max(0.5, body.speed)) : 0.85;
 
   // /tts/bytes returns the full MP3 in one chunk. /tts/sse would
   // stream PCM frames over Server-Sent Events for lower first-byte
