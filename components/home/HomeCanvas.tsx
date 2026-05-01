@@ -49,7 +49,7 @@ type WidgetId =
   | 'prospecting'
   | 'broadcast'
   | 'marketing'
-  | 'briefing'
+  | 'home'
   | 'ideas'
   | 'discover'
   | 'shortlist'
@@ -75,7 +75,7 @@ const WIDGETS: Record<WidgetId, WidgetDef> = {
   prospecting:   { id: 'prospecting',   label: 'Prospecting',    subtitle: 'Ideas → Discovery',      icon: Target,     href: '/ideas',                accent: 'gold' },
   broadcast:     { id: 'broadcast',     label: 'Broadcast',      subtitle: 'Campaigns + journeys',   icon: Megaphone,  href: '/email/campaigns',      accent: 'teal' },
   marketing:     { id: 'marketing',     label: 'Marketing',      subtitle: 'Audience + statistics',  icon: Compass,    href: '/email',                accent: 'gold' },
-  briefing:      { id: 'briefing',      label: 'Briefing',       subtitle: 'Daily snapshot',         icon: Sparkles,   href: '/briefing',             accent: 'gold' },
+  home:          { id: 'home',      label: 'Briefing',       subtitle: 'Daily snapshot',         icon: Sparkles,   href: '/',             accent: 'gold' },
   ideas:         { id: 'ideas',         label: 'Ideas',          subtitle: 'Targeting concepts',     icon: Sparkles,   href: '/ideas',                accent: 'gold' },
   discover:      { id: 'discover',      label: 'Discover',       subtitle: 'Find companies',         icon: Search,     href: '/discover',             accent: 'teal' },
   shortlist:     { id: 'shortlist',     label: 'Shortlist',      subtitle: 'Curate your buy list',   icon: Star,       href: '/shortlist',            accent: 'gold' },
@@ -90,7 +90,7 @@ const WIDGETS: Record<WidgetId, WidgetDef> = {
 const WIDGET_ORDER: WidgetId[] = [
   'empty', 'clock',
   'prospecting', 'broadcast', 'marketing',
-  'briefing', 'ideas', 'discover', 'shortlist', 'enrichment',
+  'home', 'ideas', 'discover', 'shortlist', 'enrichment',
   'people', 'campaigns', 'audience', 'statistics', 'conversations',
 ];
 
@@ -276,7 +276,7 @@ export function HomeCanvas() {
     >
       {/* Top-right exit pill */}
       <Link
-        href="/briefing"
+        href="/"
         className="absolute top-3 right-3 z-30 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-panel border border-evari-edge/40 bg-evari-surface/80 backdrop-blur text-evari-dim hover:text-evari-gold hover:border-evari-gold/40 transition text-[11px] font-semibold"
       >
         <Sparkles className="h-3.5 w-3.5" /> Open app <ArrowRight className="h-3.5 w-3.5" />

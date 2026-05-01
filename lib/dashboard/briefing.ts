@@ -12,6 +12,147 @@ import { generateBriefing, hasAIGatewayCredentials } from '@/lib/ai/gateway';
 import { morningBriefingPrompt } from '@/lib/ai/prompts';
 import { listCachedGmailThreads } from '@/lib/integrations/gmail';
 
+// Build the real anomalies / 'what's worth your attention' panel from
+// live data. Each row is one item the operator should act on. We pull
+// from a handful of sources and rank by severity, then trim to the top
+// few so the panel doesn't become a wall.
+async function buildRealAnomalies(
+  supabase: SupabaseClient | null,
+  leads: { stage: string; lastTouchAt: string; firstSeenAt: string; fullName: string; id: string; estimatedValue?: number | null }[],
+  auditFindings: { severity: string; title?: string; description?: string; pageUrl?: string }[],
+): Promise<{ id: string; severity: 'critical' | 'warning' | 'info'; title: string; detail: string; link?: { label: string; href: string } }[]> {
+  const out: { id: string; severity: 'critical' | 'warning' | 'info'; title: string; detail: string; link?: { label: string; href: string } }[] = [];
+
+  // 1. Critical SEO findings.
+  const crits = auditFindings.filter((f) => f.severity === 'critical');
+  for (const f of crits.slice(0, 2)) {
+    out.push({
+      id: 'seo_' + (f.pageUrl ?? f.title ?? Math.random().toString(36).slice(2)),
+      severity: 'critical',
+      title: f.title ?? 'SEO critical finding',
+      detail: f.description ?? (f.pageUrl ? 'Issue on ' + f.pageUrl : 'Open SEO Health for full detail.'),
+      link: { label: 'Open in SEO Health', href: '/seo' },
+    });
+  }
+
+  // 2. Pending follow-ups (smart follow-up scan output).
+  if (supabase) {
+    try {
+      const { data: followups } = await supabase
+        .from('dashboard_mkt_followups')
+        .select('id, lead_id, reason, suggested_at')
+        .eq('status', 'pending')
+        .order('suggested_at', { ascending: false })
+        .limit(3);
+      const rows = (followups ?? []) as Array<{ id: string; lead_id: string; reason: string | null; suggested_at: string }>;
+      for (const r of rows) {
+        out.push({
+          id: 'fu_' + r.id,
+          severity: 'info',
+          title: 'Follow-up suggested',
+          detail: r.reason ?? 'A lead has gone quiet. Worth a nudge.',
+          link: { label: 'Open Statistics', href: '/email/statistics' },
+        });
+      }
+    } catch { /* table missing, skip */ }
+  }
+
+  // 3. Held recipients on any campaign (held by AI safety check, awaiting review).
+  if (supabase) {
+    try {
+      const { count } = await supabase
+        .from('dashboard_mkt_held_recipients')
+        .select('id', { count: 'exact', head: true });
+      if (count && count > 0) {
+        out.push({
+          id: 'held_recipients',
+          severity: 'warning',
+          title: count + ' recipient' + (count === 1 ? '' : 's') + ' held for review',
+          detail: 'AI safety flagged them at send time. Approve or remove before the next send.',
+          link: { label: 'Review held', href: '/email/campaigns' },
+        });
+      }
+    } catch { /* table missing, skip */ }
+  }
+
+  // 4. Stale hot leads (>5 days no touch, currently in pipeline).
+  const fiveDaysAgo = Date.now() - 5 * 24 * 60 * 60 * 1000;
+  const stale = leads.filter((l) => {
+    if (!['configuring', 'discovery', 'quoted', 'contacted'].includes(l.stage)) return false;
+    const t = l.lastTouchAt ? new Date(l.lastTouchAt).getTime() : 0;
+    return t > 0 && t < fiveDaysAgo;
+  });
+  if (stale.length > 0) {
+    const top = stale.slice(0, 1)[0];
+    out.push({
+      id: 'stale_' + top.id,
+      severity: 'warning',
+      title: stale.length + ' hot lead' + (stale.length === 1 ? '' : 's') + ' stale > 5 days',
+      detail: 'Top: ' + top.fullName + (top.estimatedValue ? ' (~' + Math.round(top.estimatedValue) + ')' : '') + '. Total ' + stale.length + ' need a nudge.',
+      link: { label: 'Open Leads', href: '/leads' },
+    });
+  }
+
+  // 5. Draft campaigns sitting > 24h.
+  if (supabase) {
+    try {
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: drafts } = await supabase
+        .from('dashboard_mkt_campaigns')
+        .select('id, name, updated_at')
+        .eq('status', 'draft')
+        .lt('updated_at', dayAgo)
+        .order('updated_at', { ascending: true })
+        .limit(2);
+      const rows = (drafts ?? []) as Array<{ id: string; name: string; updated_at: string }>;
+      for (const r of rows) {
+        out.push({
+          id: 'draft_' + r.id,
+          severity: 'info',
+          title: 'Draft campaign idle',
+          detail: '"' + r.name + '" has been a draft for over a day.',
+          link: { label: 'Open campaign', href: '/email/campaigns/' + r.id + '/edit' },
+        });
+      }
+    } catch { /* table missing, skip */ }
+  }
+
+  // 6. Awaiting reply on conversation threads (last message inbound > 8h).
+  if (supabase) {
+    try {
+      const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+      const { data: threads } = await supabase
+        .from('dashboard_threads')
+        .select('id, payload')
+        .lt('payload->>lastMessageAt', new Date().toISOString())
+        .gt('payload->>lastMessageAt', eightHoursAgo)
+        .limit(20);
+      type ThreadRow = { id: string; payload: { lastDirection?: string; subject?: string; leadName?: string } };
+      const inboundOpen = ((threads ?? []) as ThreadRow[]).filter(
+        (t) => t.payload?.lastDirection === 'inbound',
+      );
+      if (inboundOpen.length > 0) {
+        const top = inboundOpen[0];
+        out.push({
+          id: 'reply_' + top.id,
+          severity: 'info',
+          title: (inboundOpen.length === 1 ? 'A conversation' : inboundOpen.length + ' conversations') + ' awaiting your reply',
+          detail: top.payload?.leadName
+            ? top.payload.leadName + ' · ' + (top.payload.subject ?? 'no subject')
+            : 'Open conversations to see who.',
+          link: { label: 'Open conversations', href: '/email/conversations' },
+        });
+      }
+    } catch { /* table missing, skip */ }
+  }
+
+  // Cap to top 6 by severity, critical > warning > info, preserving insertion order.
+  const sevWeight = (s: string) => (s === 'critical' ? 0 : s === 'warning' ? 1 : 2);
+  out.sort((a, b) => sevWeight(a.severity) - sevWeight(b.severity));
+  return out.slice(0, 6);
+}
+
+
 export async function buildBriefingPayload(
   supabase: SupabaseClient | null,
 ): Promise<BriefingPayload> {
@@ -73,6 +214,8 @@ export async function buildBriefingPayload(
   const overnightSupport = overnightGmail.filter((t) => t.category === 'support');
   const overnightKlaviyoReply = overnightGmail.filter((t) => t.category === 'klaviyo-reply');
 
+  const realAnomalies = await buildRealAnomalies(supabase, leads as any, auditFindings as any);
+
   return {
     generatedAt: new Date().toISOString(),
     metrics: [
@@ -119,32 +262,7 @@ export async function buildBriefingPayload(
             : 'Nothing overnight',
       },
     ],
-    anomalies: [
-      {
-        id: 'an_sitemap',
-        severity: 'critical',
-        title: 'sitemap.xml is returning 500',
-        detail:
-          'evari.cc/sitemap.xml has been failing since the last theme deploy. Search Console reports the sitemap as unreadable. New journal entries and product pages are not being indexed reliably.',
-        link: { label: 'Open in SEO Health', href: '/seo' },
-      },
-      {
-        id: 'an_lcp',
-        severity: 'warning',
-        title: 'Tour PDP mobile LCP at 3.8s',
-        detail:
-          'The hero image on /products/evari-tour is loading at 1.4 MB. PageSpeed flags this as the dominant cause of a poor mobile LCP. The page receives 1,840 sessions/month at 2.8% conversion — this fix is high-value.',
-        link: { label: 'Open in SEO Health', href: '/seo' },
-      },
-      {
-        id: 'an_aurora',
-        severity: 'info',
-        title: 'Aurora Architects awaiting your reply',
-        detail:
-          'Sarah Mitchell asked about cycle-to-work limits eight hours ago. Six potential commuters at corporate value.',
-        link: { label: 'Open conversation', href: '/conversations' },
-      },
-    ],
+    anomalies: realAnomalies,
     contextForAI: [
       `Date: ${new Date().toDateString()}`,
       `Sessions last 7d: ${formatNumber(sessions7)} (${formatDelta(sessionsDelta)} vs prior 7).`,

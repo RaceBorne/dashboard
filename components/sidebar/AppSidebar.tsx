@@ -47,7 +47,7 @@ import { useTheme } from '@/components/theme/ThemeProvider';
 
 const NAV = [
   { href: '/', label: 'Home', icon: LayoutDashboard, group: 'today' },
-  { href: '/briefing', label: 'Briefing', icon: LayoutDashboard, group: 'today' },
+  { href: '/', label: 'Home', icon: LayoutDashboard, group: 'today' },
   { href: '/tasks', label: 'To-do', icon: ListTodo, group: 'today' },
   { href: '/ideas', label: 'Ideas', icon: Rocket, group: 'pipeline' },
   { href: '/strategy', label: 'Strategy', icon: ListTodo, group: 'pipeline' },

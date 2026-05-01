@@ -12,7 +12,7 @@ import { buildBriefingPayload } from '@/lib/dashboard/briefing';
 import { listLeads, listTrafficDays } from '@/lib/dashboard/repository';
 import { relativeTime, formatGBP } from '@/lib/utils';
 
-export default async function BriefingPage() {
+export default async function HomePage() {
   const supabase = createSupabaseAdmin();
   const [briefing, traffic, leads] = await Promise.all([
     buildBriefingPayload(supabase),
@@ -29,7 +29,7 @@ export default async function BriefingPage() {
 
   return (
     <>
-      <TopBar title="Morning briefing" subtitle="today" />
+      <TopBar title="Home" subtitle="today" />
 
       <div className="p-6 space-y-6">
         {/* Editorial headline. The legacy Hey Evari floating button
