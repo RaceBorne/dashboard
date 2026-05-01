@@ -75,7 +75,35 @@ async function buildRealAnomalies(
     } catch { /* table missing, skip */ }
   }
 
-  // 4. Stale hot leads (>5 days no touch, currently in pipeline).
+  // 4. Open tasks from the tasks board, ordered by priority and due date.
+  if (supabase) {
+    try {
+      const { data: tasks } = await supabase
+        .from('tasks')
+        .select('id, title, description, priority, due_date, status, category')
+        .neq('status', 'done')
+        .order('priority', { ascending: false })
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .limit(6);
+      const rows = (tasks ?? []) as Array<{ id: string; title: string; description: string | null; priority: string; due_date: string | null; status: string; category: string }>;
+      for (const t of rows) {
+        const sev: 'critical' | 'warning' | 'info' =
+          t.priority === 'urgent' ? 'critical'
+            : t.priority === 'high' ? 'warning'
+            : 'info';
+        const dueLabel = t.due_date ? ' · due ' + t.due_date.slice(0, 10) : '';
+        out.push({
+          id: 'task_' + t.id,
+          severity: sev,
+          title: t.title,
+          detail: (t.description ?? 'Open task') + dueLabel,
+          link: { label: 'Open tasks', href: '/tasks' },
+        });
+      }
+    } catch { /* table missing, skip */ }
+  }
+
+  // 5. Stale hot leads (>5 days no touch, currently in pipeline).
   const fiveDaysAgo = Date.now() - 5 * 24 * 60 * 60 * 1000;
   const stale = leads.filter((l) => {
     if (!['configuring', 'discovery', 'quoted', 'contacted'].includes(l.stage)) return false;
@@ -272,12 +300,7 @@ export async function buildBriefingPayload(
       `Critical SEO findings: ${criticalAudits}. Warnings: ${warningAudits}.`,
       formatGmailContextLine(overnightGmail, overnightSupport, overnightKlaviyoReply),
       ...formatOvernightGmailDetail(overnightGmail),
-      'Critical: sitemap.xml 500 since last deploy. Likely blocking indexing of new pages.',
-      'Critical: /products/evari-tour mobile LCP 3.8s — hero image is 1.4 MB unoptimised.',
-      'Open hot lead: James Pemberton (Tour configuration, £8,500), test ride booked Saturday — bringing his wife.',
-      'Open conversation needs reply: Sarah Mitchell at Aurora Architects, six commuter pair purchase via cycle-to-work scheme.',
-      'Quoted, awaiting decision: Phoebe Carrington — bespoke Evari Tour with champagne pearl Kustomflow finish (£11,200), paint slot held until Friday.',
-      'Won this week: Eleanor Whitcombe — Evari Tour, Burnt Sienna, ships Tuesday. Marketing photo opportunity in North Yorkshire.',
+      ...realAnomalies.map((a) => a.severity.toUpperCase() + ': ' + a.title + '. ' + a.detail),
     ]
       .filter(Boolean)
       .join('\n'),
