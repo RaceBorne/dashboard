@@ -412,18 +412,17 @@ export function AIAssistantPane() {
       });
       if (!res.ok) {
         const ct = res.headers.get('content-type') || '';
+        let msg = 'Cartesia HTTP ' + res.status;
         if (ct.includes('json')) {
-          const j = await res.json().catch(() => null);
-          console.warn('[mojito.tts.cartesia] failed', j);
-        } else {
-          console.warn('[mojito.tts.cartesia] failed', res.status);
+          const j = await res.json().catch(() => null) as { error?: string } | null;
+          if (j?.error) msg = 'Cartesia: ' + j.error;
         }
+        setVoiceDebug('FAIL ' + msg);
+        console.warn('[mojito.tts.cartesia]', msg);
         return false;
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      // Stop any prior playback so we don't overlap when the user fires
-      // multiple messages quickly.
       if (audioRef.current) {
         try { audioRef.current.pause(); } catch { /* noop */ }
       }
@@ -431,9 +430,21 @@ export function AIAssistantPane() {
       audioRef.current = audio;
       audio.onended = () => { URL.revokeObjectURL(url); };
       audio.onerror = () => { URL.revokeObjectURL(url); };
-      await audio.play();
+      try {
+        await audio.play();
+      } catch (playErr) {
+        const name = (playErr as { name?: string } | null)?.name ?? '';
+        if (name === 'NotAllowedError') {
+          setVoiceDebug('FAIL play(): browser blocked auto-play. Click anywhere on the page first.');
+        } else {
+          setVoiceDebug('FAIL play(): ' + (playErr instanceof Error ? playErr.message : String(playErr)));
+        }
+        console.warn('[mojito.tts.cartesia.play]', playErr);
+        return false;
+      }
       return true;
     } catch (e) {
+      setVoiceDebug('FAIL request: ' + (e instanceof Error ? e.message : String(e)));
       console.warn('[mojito.tts.cartesia] threw', e);
       return false;
     }
@@ -484,22 +495,42 @@ export function AIAssistantPane() {
   }
 
   useEffect(() => {
-    if (!voiceOut) return;
+    // Heavy diagnostics on the auto-speak path: write each branch into
+    // the voiceDebug strip so the operator can SEE why a reply did or
+    // did not get spoken aloud. Strip will clear after the message
+    // plays or 5s, whichever comes first.
+    if (!voiceOut) {
+      // Don't pollute the strip when voice is intentionally muted.
+      return;
+    }
     const last = messages[messages.length - 1];
-    if (!last || last.role !== 'assistant') return;
+    if (!last) return;
+    if (last.role !== 'assistant') return;
     if (spokenIds.current.has(last.id)) return;
-    if (status === 'streaming' || status === 'submitted') return; // wait for the message to finish
+    if (status === 'streaming' || status === 'submitted') {
+      setVoiceDebug('streaming reply, will speak when finished... (status=' + status + ')');
+      return;
+    }
     const text = (last.parts ?? [])
       .filter((p) => isTextUIPart(p))
       .map((p) => (p as { text?: string }).text ?? '')
       .join(' ')
       .trim();
-    if (!text) return;
+    if (!text) {
+      setVoiceDebug('reply finished but had no text parts to speak (parts=' + (last.parts ?? []).length + ')');
+      return;
+    }
     spokenIds.current.add(last.id);
-    // Try Cartesia, fall back to browser TTS if anything goes wrong.
+    setVoiceDebug('speaking ' + text.length + ' chars via Cartesia...');
     void (async () => {
       const ok = await speakWithCartesia(text);
-      if (!ok) speakWithBrowser(text);
+      if (!ok) {
+        setVoiceDebug('Cartesia failed, falling back to browser TTS');
+        speakWithBrowser(text);
+      } else {
+        setVoiceDebug('speaking via Cartesia');
+        setTimeout(() => setVoiceDebug(null), 5000);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, status, voiceOut]);
