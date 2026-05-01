@@ -808,13 +808,6 @@ export function AIAssistantPane() {
   }
 
   // ----- collapsed pill --------------------------------------------------
-  // SSR placeholder. Same width as the open pane so the sidebar layout
-  // does not shift on hydration. Empty content. The real pane mounts
-  // immediately after via the useEffect above.
-  if (!mounted) {
-    return <aside className="flex flex-col border-l border-evari-edge/30 bg-evari-surface min-h-0 flex-shrink-0 w-[360px]" aria-hidden />;
-  }
-
   if (!open) {
     return (
       <button
