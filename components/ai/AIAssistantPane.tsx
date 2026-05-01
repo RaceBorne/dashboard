@@ -94,23 +94,13 @@ export function AIPaneProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem('evari-ai-pane-open', open ? '1' : '0');
   }, [open]);
 
-  // Right arrow toggles pane open/closed unless typing.
-  useEffect(() => {
-    function isTypingTarget(t: EventTarget | null): boolean {
-      if (!(t instanceof HTMLElement)) return false;
-      const tag = t.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-      if (t.isContentEditable) return true;
-      return false;
-    }
-    function onKey(e: KeyboardEvent) {
-      if (isTypingTarget(e.target)) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'ArrowRight') setOpen((o) => !o);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  // The previous build had a global ArrowRight shortcut that toggled
+  // the pane open/closed. Removed: it conflicted with arrow-key
+  // navigation inside other components, fired on the screensaver
+  // wake path causing double-handling, and rapid key repeats could
+  // thrash open/closed state. The X button on the pane header and
+  // the collapsed Mojito pill in the bottom-right corner are the
+  // canonical ways to toggle visibility now.
 
   const setSurface = useCallback(
     (s: string, sid?: string | null, ctx?: Record<string, unknown> | null) => {
